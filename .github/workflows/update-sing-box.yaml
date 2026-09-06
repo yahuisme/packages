@@ -47,7 +47,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add sing-box/Makefile
-            git commit -m "chore(sing-box): update to ${VERSION}"
+            git commit -m "chore: update sing-box to ${VERSION}"
             git push
           else
             echo "sing-box is already up to date."

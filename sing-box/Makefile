@@ -131,10 +131,9 @@ define Package/sing-box-tiny/config
 endef
 
 ifeq ($(BUILD_VARIANT),full)
-  GO_PKG_TAGS:=http2legacy,with_acme,with_clash_api,with_dhcp,with_gvisor,with_quic,with_tailscale,with_utls,with_wireguard
+  GO_PKG_TAGS:=with_acme,with_clash_api,with_dhcp,with_gvisor,with_quic,with_tailscale,with_utls,with_wireguard
 else
   GO_PKG_TAGS:=$(subst $(space),$(comma),$(strip \
-	http2legacy \
 	$(if $(CONFIG_SING_BOX_TINY_BUILD_ACME),with_acme) \
 	$(if $(CONFIG_SING_BOX_TINY_BUILD_CLASH_API),with_clash_api) \
 	$(if $(CONFIG_SING_BOX_TINY_BUILD_DHCP),with_dhcp) \

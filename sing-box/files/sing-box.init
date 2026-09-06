@@ -22,11 +22,14 @@ start_service() {
 	config_get_bool log_stdout "main" "log_stdout" "0"
 	config_get_bool log_stderr "main" "log_stderr" "1"
 
+	[ -f "$conffile" ] || return 1
+
 	mkdir -p "$workdir"
-	local group
-	group="$(id -ng "$user")" || return 1
-	[ -n "$group" ] || return 1
-	chown "$user:$group" "$workdir" || return 1
+	if [ "$user" != "root" ]; then
+		local group
+		group="$(id -ng "$user" 2>/dev/null)" || return 1
+		chown "$user:$group" "$workdir" || return 1
+	fi
 
 	procd_open_instance "$NAME.main"
 	procd_set_param command "$PROG" run -c "$conffile" -D "$workdir"
