@@ -1,0 +1,54 @@
+name: Update sing-box
+
+on:
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check and Update sing-box
+        run: |
+          LATEST_TAG=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r .tag_name)
+          if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
+            echo "Failed to fetch latest release from SagerNet/sing-box"
+            exit 1
+          fi
+
+          VERSION="${LATEST_TAG#v}"
+          CURRENT_VERSION=$(grep '^PKG_UPSTREAM_VERSION:=' sing-box/Makefile | cut -d= -f2)
+
+          echo "Current version: $CURRENT_VERSION"
+          echo "Latest stable version: $VERSION"
+
+          if [ "$VERSION" != "$CURRENT_VERSION" ]; then
+            echo "New stable release found: $VERSION"
+            TAR_URL="https://codeload.github.com/SagerNet/sing-box/tar.gz/v${VERSION}"
+            HASH=$(curl -sL "$TAR_URL" | sha256sum | awk '{print $1}')
+            
+            if [ -z "$HASH" ]; then
+              echo "Failed to calculate tarball checksum"
+              exit 1
+            fi
+
+            sed -i "s/^PKG_UPSTREAM_VERSION:=.*/PKG_UPSTREAM_VERSION:=${VERSION}/" sing-box/Makefile
+            sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${VERSION}/" sing-box/Makefile
+            sed -i "s/^PKG_HASH:=.*/PKG_HASH:=${HASH}/" sing-box/Makefile
+            sed -i "s/^PKG_RELEASE:=.*/PKG_RELEASE:=1/" sing-box/Makefile
+
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add sing-box/Makefile
+            git commit -m "chore(sing-box): update to ${VERSION}"
+            git push
+          else
+            echo "sing-box is already up to date."
+          fi
