@@ -9,6 +9,8 @@ ImmortalWrt / OpenWrt 专属软件包源。
 - `luci-app-airoha-npu`：Airoha NPU 状态监控与频率控制
 - `luci-app-airoha-flowsense`：Airoha 硬件流控（FlowSense）监控
 - `luci-app-airoha-fancontrol`：Airoha 智能温控与风扇调速面板
+- `luci-app-mlo`：Wi-Fi MLO 多链路聚合控制
+- `luci-app-wifi7`：WiFi 7（MT7996）高级管理与运行状态监控面板
 
 ## 使用方法
 
