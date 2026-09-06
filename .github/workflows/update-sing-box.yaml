@@ -9,46 +9,32 @@ permissions:
   contents: write
 
 jobs:
-  check-version:
+  update:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@main
 
-      - name: Check and Update sing-box
+      - name: Update sing-box
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          LATEST_TAG=$(curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r .tag_name)
-          if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
-            echo "Failed to fetch latest release from SagerNet/sing-box"
-            exit 1
-          fi
+          LATEST_TAG=$(gh api repos/SagerNet/sing-box/releases/latest --jq .tag_name)
+          [ -n "$LATEST_TAG" ] && [ "$LATEST_TAG" != "null" ] || exit 1
 
           VERSION="${LATEST_TAG#v}"
-          CURRENT_VERSION=$(grep '^PKG_UPSTREAM_VERSION:=' sing-box/Makefile | cut -d= -f2)
-
-          echo "Current version: $CURRENT_VERSION"
-          echo "Latest stable version: $VERSION"
+          CURRENT_VERSION=$(sed -n 's/^PKG_UPSTREAM_VERSION:=//p' sing-box/Makefile)
 
           if [ "$VERSION" != "$CURRENT_VERSION" ]; then
-            echo "New stable release found: $VERSION"
-            TAR_URL="https://codeload.github.com/SagerNet/sing-box/tar.gz/v${VERSION}"
-            HASH=$(curl -sL "$TAR_URL" | sha256sum | awk '{print $1}')
-            
-            if [ -z "$HASH" ]; then
-              echo "Failed to calculate tarball checksum"
-              exit 1
-            fi
+            HASH=$(curl -fsSL "https://codeload.github.com/SagerNet/sing-box/tar.gz/v${VERSION}" | sha256sum | awk '{print $1}')
+            [ -n "$HASH" ] || exit 1
 
             sed -i "s/^PKG_UPSTREAM_VERSION:=.*/PKG_UPSTREAM_VERSION:=${VERSION}/" sing-box/Makefile
             sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${VERSION}/" sing-box/Makefile
             sed -i "s/^PKG_HASH:=.*/PKG_HASH:=${HASH}/" sing-box/Makefile
             sed -i "s/^PKG_RELEASE:=.*/PKG_RELEASE:=1/" sing-box/Makefile
 
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add sing-box/Makefile
-            git commit -m "chore: update sing-box to ${VERSION}"
+            git config user.name "yahuisme"
+            git config user.email "40222380+yahuisme@users.noreply.github.com"
+            git commit -am "chore: update sing-box to ${VERSION}"
             git push
-          else
-            echo "sing-box is already up to date."
           fi
