@@ -1,21 +1,21 @@
-# Packages feed for ImmortalWrt / OpenWrt
+# packages
 
-Custom package feed for ImmortalWrt / OpenWrt builds.
+ImmortalWrt / OpenWrt 专属软件包源。
 
-## Included Packages
+## 包含组件
 
-- `luci-app-homeproxy`: Modern proxy platform for ImmortalWrt/OpenWrt (supports sing-box >= 1.14.0)
-- `sing-box`: Universal proxy platform, tracking official stable releases automatically
+- `luci-app-homeproxy`：现代化代理客户端（支持 sing-box >= 1.14.0）
+- `sing-box`：通用代理平台，自动跟随官方正式版（Stable Release）更新
 
-## Usage in OpenWrt / ImmortalWrt
+## 使用方法
 
-Add to `feeds.conf` or `feeds.conf.default`:
+在固件源码根目录的 `feeds.conf` 或 `feeds.conf.default` 中添加：
 
 ```text
 src-git mypackages https://github.com/yahuisme/packages.git;main
 ```
 
-Update and install packages:
+更新并安装软件包：
 
 ```bash
 ./scripts/feeds update mypackages
