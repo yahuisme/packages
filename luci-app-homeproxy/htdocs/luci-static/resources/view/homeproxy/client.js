@@ -111,7 +111,7 @@ return view.extend({
 		});
 
 		m = new form.Map('homeproxy', _('HomeProxy'),
-			_('The modern ImmortalWrt proxy platform for ARM64/AMD64. — AI Edition'));
+			_('The modern ImmortalWrt / OpenWrt proxy platform for ARM64/AMD64.'));
 
 		s = m.section(form.TypedSection);
 		s.render = function () {

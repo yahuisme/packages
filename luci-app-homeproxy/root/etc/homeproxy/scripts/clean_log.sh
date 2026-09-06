@@ -11,10 +11,9 @@ singc_log_file="/var/run/$NAME/sing-box-c.log"
 sings_log_file="/var/run/$NAME/sing-box-s.log"
 
 while true; do
-	sleep 180
+	sleep 300
 	for i in "$main_log_file" "$singc_log_file" "$sings_log_file"; do
 		[ -s "$i" ] || continue
-		log_size="$(wc -c < "$i")" || continue
-		[ "$log_size" -lt "$log_max_bytes" ] || : > "$i"
+		[ "$(wc -c < "$i" 2>/dev/null)" -ge "$log_max_bytes" ] 2>/dev/null && : > "$i"
 	done
 done

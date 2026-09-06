@@ -4,7 +4,7 @@
 
 include $(TOPDIR)/rules.mk
 
-LUCI_TITLE:=The modern ImmortalWrt proxy platform for ARM64/AMD64 — AI Edition
+LUCI_TITLE:=The modern ImmortalWrt/OpenWrt proxy platform for ARM64/AMD64
 LUCI_PKGARCH:=all
 LUCI_DEPENDS:= \
 	+luci-base \
@@ -14,8 +14,6 @@ LUCI_DEPENDS:= \
 	+kmod-tun \
 	+kmod-nft-tproxy \
 	+curl \
-	+flock \
-	+unzip \
 	+ucode-mod-digest \
 	+ucode-mod-math
 LUCI_EXTRA_DEPENDS:=sing-box (>=1.14.0)

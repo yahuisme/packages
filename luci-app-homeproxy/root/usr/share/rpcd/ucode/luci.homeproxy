@@ -28,7 +28,7 @@ const RESOURCES = {
 		version: `${HP_DIR}/resources/china_ip6.ver`
 	},
 	geosite_cn: {
-		source: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set-unstable/geosite-cn.srs',
+		source: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-cn.srs',
 		version: `${HP_DIR}/resources/geosite_cn.ver`
 	},
 	dashboard: {
