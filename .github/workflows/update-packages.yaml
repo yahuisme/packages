@@ -1,0 +1,93 @@
+name: Update Packages
+
+on:
+  schedule:
+    # 每天香港时间 08:00 (UTC 00:00) 运行
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+
+      - name: Update sing-box
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST_TAG=$(gh api repos/SagerNet/sing-box/releases/latest --jq .tag_name 2>/dev/null || true)
+          if [ -n "$LATEST_TAG" ] && [ "$LATEST_TAG" != "null" ]; then
+            VERSION="${LATEST_TAG#v}"
+            CURRENT_VERSION=$(sed -n 's/^PKG_UPSTREAM_VERSION:=//p' sing-box/Makefile)
+
+            if [ "$VERSION" != "$CURRENT_VERSION" ]; then
+              HASH=$(curl -fsSL "https://codeload.github.com/SagerNet/sing-box/tar.gz/v${VERSION}" | sha256sum | awk '{print $1}')
+              if [ -n "$HASH" ]; then
+                sed -i "s/^PKG_UPSTREAM_VERSION:=.*/PKG_UPSTREAM_VERSION:=${VERSION}/" sing-box/Makefile
+                sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${VERSION}/" sing-box/Makefile
+                sed -i "s/^PKG_HASH:=.*/PKG_HASH:=${HASH}/" sing-box/Makefile
+                sed -i "s/^PKG_RELEASE:=.*/PKG_RELEASE:=1/" sing-box/Makefile
+                echo "sing-box updated to ${VERSION}"
+              fi
+            fi
+          fi
+
+      - name: Update HomeProxy Resources
+        run: |
+          RES_DIR="luci-app-homeproxy/root/etc/homeproxy/resources"
+          [ -d "$RES_DIR" ] || exit 0
+
+          TMP_DIR=$(mktemp -d)
+          trap 'rm -rf "$TMP_DIR"' EXIT
+
+          # 1. Update China IP CIDR & geoip_cn.json
+          IP_VER_URL=$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/Loyalsoldier/surge-rules/releases/latest" 2>/dev/null || true)
+          IP_VER="${IP_VER_URL##*/}"
+
+          if curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 \
+            "https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/cncidr.txt" -o "$TMP_DIR/cncidr.txt"; then
+            awk -F, -v v4="$TMP_DIR/china_ip4.txt" -v v6="$TMP_DIR/china_ip6.txt" '
+              $1 == "IP-CIDR" { print $2 > v4 }
+              $1 == "IP-CIDR6" { print $2 > v6 }
+            ' "$TMP_DIR/cncidr.txt"
+
+            awk '
+              BEGIN { print "{\"version\":5,\"rules\":[{\"ip_cidr\":["; first = 1 }
+              NF { printf "%s\"%s\"", first ? "" : ",", $0; first = 0 }
+              END { print "]}]}" }
+            ' "$TMP_DIR/china_ip4.txt" "$TMP_DIR/china_ip6.txt" > "$TMP_DIR/geoip_cn.json"
+
+            cp -f "$TMP_DIR/china_ip4.txt" "$TMP_DIR/china_ip6.txt" "$TMP_DIR/geoip_cn.json" "$RES_DIR/"
+            if [ -n "$IP_VER" ] && [ "$IP_VER" != "latest" ]; then
+              echo "$IP_VER" > "$RES_DIR/china_ip4.ver"
+              echo "$IP_VER" > "$RES_DIR/china_ip6.ver"
+            fi
+            echo "HomeProxy China IP resources updated."
+          fi
+
+          # 2. Update geosite_cn.srs
+          GEOSITE_VER_URL=$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/SagerNet/sing-geosite/releases/latest" 2>/dev/null || true)
+          GEOSITE_VER="${GEOSITE_VER_URL##*/}"
+
+          if curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 \
+            "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-cn.srs" -o "$TMP_DIR/geosite_cn.srs"; then
+            cp -f "$TMP_DIR/geosite_cn.srs" "$RES_DIR/"
+            if [ -n "$GEOSITE_VER" ] && [ "$GEOSITE_VER" != "latest" ]; then
+              echo "$GEOSITE_VER" > "$RES_DIR/geosite_cn.ver"
+            fi
+            echo "HomeProxy geosite_cn.srs updated."
+          fi
+
+      - name: Commit and Push
+        run: |
+          git diff --quiet && exit 0
+
+          git config user.name "yahuisme"
+          git config user.email "40222380+yahuisme@users.noreply.github.com"
+          git commit -am "chore: update packages and resources"
+          git push
