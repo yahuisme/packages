@@ -264,3 +264,58 @@ msgstr "类型"
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:421
 msgid "Unbound:"
 msgstr "未绑定："
+
+msgid "Bound / total PPE flows"
+msgstr "已绑定 / 总 PPE 流量"
+
+msgid "CPU OPP / Overclock (Max 1400 MHz)"
+msgstr "CPU OPP / 超频 · 上限 1400 MHz"
+
+msgid "CPU set to "
+msgstr "CPU 已设置为 "
+
+msgid "Click to disable"
+msgstr "点击禁用"
+
+msgid "Click to enable"
+msgstr "点击启用"
+
+msgid "Conservative"
+msgstr "保守模式"
+
+msgid "Cores"
+msgstr "核"
+
+msgid "Driver unavailable"
+msgstr "驱动不可用"
+
+msgid "Error: "
+msgstr "错误："
+
+msgid "HW Flow Offload"
+msgstr "硬件流量加速"
+
+msgid "NPU device ready"
+msgstr "NPU 设备就绪"
+
+msgid "On Demand"
+msgstr "按需模式"
+
+msgid "Performance"
+msgstr "性能模式"
+
+msgid "Please select a preset frequency between 1200-1400 MHz"
+msgstr "请选择 1200–1400 MHz 的预设频率"
+
+msgid "Powersave"
+msgstr "省电模式"
+
+msgid "Schedutil"
+msgstr "调度模式"
+
+msgid "Userspace"
+msgstr "用户空间"
+
+msgid "memory regions"
+msgstr "个内存区域"
+

@@ -109,8 +109,8 @@ get_status() {
 
 	local npu_cores=$(grep -c "airoha-npu-wdt" /proc/interrupts 2>/dev/null || echo 0)
 
-	local offload_bound=$(cat /sys/kernel/debug/ppe/bind 2>/dev/null | grep -c "^[0-9a-fA-F]")
-	local offload_total=$(cat /sys/kernel/debug/ppe/entries 2>/dev/null | grep -c "^[0-9a-fA-F]")
+	local offload_bound=$(grep -c "^[0-9a-fA-F]" /sys/kernel/debug/ppe/bind 2>/dev/null || echo 0)
+	local offload_total=$(grep -c "^[0-9a-fA-F]" /sys/kernel/debug/ppe/entries 2>/dev/null || echo 0)
 
 	# NPU memory regions don't change after boot — cache to avoid slow dmesg on every poll
 	local mem_cache="/tmp/npu-mem-regions.json"
@@ -665,7 +665,7 @@ set_pppoe_offload() {
 		echo '{"error":"failed - bridge module may not be loaded"}'
 		return
 	fi
-	echo "net.bridge.bridge-nf-filter-pppoe-tagged=$enabled" > /etc/sysctl.d/13-pppoe-offload.conf
+	echo "net.bridge.bridge-nf-filter-pppoe-tagged=$enabled" > /etc/sysctl.d/15-pppoe-offload.conf
 	# Also load PPTP conntrack helper for PPPoE offload support
 	if [ "$enabled" = "1" ]; then
 		modprobe nf_conntrack_pptp 2>/dev/null
