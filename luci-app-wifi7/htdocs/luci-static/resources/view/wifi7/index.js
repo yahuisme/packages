@@ -1,15 +1,10 @@
 'use strict';
 'require view';
+'require network';
 'require rpc';
 'require uci';
 'require ui';
 'require poll';
-
-const callWirelessStatus = rpc.declare({
-	object: 'network.wireless',
-	method: 'status',
-	expect: { '': {} }
-});
 
 const callIwinfoDevices = rpc.declare({
 	object: 'iwinfo',
@@ -78,13 +73,19 @@ function formatRate(rate) {
 return view.extend({
 	load: function() {
 		return Promise.all([
-			callWirelessStatus(),
+			network.getWifiDevices(),
 			uci.load('wireless')
 		]);
 	},
 
 	render: function(data) {
-		var wstatus = data[0] || {};
+		var wifiDevs = (data && data[0]) ? data[0] : [];
+		var devMapByName = {};
+		wifiDevs.forEach(function(d) {
+			if (d && typeof d.getName === 'function') {
+				devMapByName[d.getName()] = d;
+			}
+		});
 
 		var m = E('div', { 'class': 'cbi-map' }, [
 			E('h2', {}, _('WiFi 7')),
@@ -138,12 +139,13 @@ return view.extend({
 		for (var bIdx = 0; bIdx < 3; bIdx++) {
 			var band = BANDS[bIdx];
 			var rName = 'radio' + bIdx;
-			var radStatus = wstatus[rName] || {};
-			var isUp = radStatus.up === true;
-			var radConfig = radStatus.config || {};
-			var channel = radConfig.channel || _('Auto');
-			var htmode = radConfig.htmode || band.defBw;
-			var txp = radConfig.txpower ? radConfig.txpower + ' dBm' : _('Auto');
+			var dev = devMapByName[rName];
+
+			var isUp = dev ? dev.isUp() : false;
+			var channel = (dev && dev.get('channel')) ? dev.get('channel') : _('Auto');
+			var htmode = (dev && dev.get('htmode')) ? dev.get('htmode') : band.defBw;
+			var txpVal = (dev && dev.get('txpower')) ? dev.get('txpower') : null;
+			var txp = txpVal ? txpVal + ' dBm' : _('Auto');
 
 			var statusBadge = E('span', {
 				'style': 'padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600;display:inline-block;' +
@@ -185,7 +187,7 @@ return view.extend({
 		]));
 
 		// ══════════════════════════════════════════════════════════════════
-		// Tab 2: Radio Settings
+		// Tab 2: Radio Settings (WCAG 2.1 & W3C Semantic Forms)
 		// ══════════════════════════════════════════════════════════════════
 		var paneRadios = E('div', { 'class': 'cbi-tab-pane', 'style': 'display:none' });
 		tabPanes['radios'] = paneRadios;
@@ -204,6 +206,11 @@ return view.extend({
 				var curTxp = uci.get('wireless', radSec, 'txpower') || '';
 				var curDis = uci.get('wireless', radSec, 'disabled') === '1';
 
+				var enableId = 'wifi7-radio-' + idx + '-enable';
+				var channelId = 'wifi7-radio-' + idx + '-channel';
+				var htmodeId = 'wifi7-radio-' + idx + '-htmode';
+				var txpId = 'wifi7-radio-' + idx + '-txpower';
+
 				// Channel selector options
 				var chanOpts = ['auto'];
 				if (idx === 0) chanOpts = ['auto', '1', '6', '11'];
@@ -211,6 +218,8 @@ return view.extend({
 				else if (idx === 2) chanOpts = ['auto', '1', '5', '9', '13', '17', '21', '33', '37', '65', '97'];
 
 				var chanSelect = E('select', {
+					'id': channelId,
+					'name': channelId,
 					'class': 'cbi-input-select',
 					'change': function(e) {
 						uci.set('wireless', radSec, 'channel', e.target.value);
@@ -228,6 +237,8 @@ return view.extend({
 				else if (idx === 2) htOpts = ['EHT80', 'EHT160', 'EHT320'];
 
 				var htSelect = E('select', {
+					'id': htmodeId,
+					'name': htmodeId,
 					'class': 'cbi-input-select',
 					'change': function(e) {
 						uci.set('wireless', radSec, 'htmode', e.target.value);
@@ -239,6 +250,8 @@ return view.extend({
 				}));
 
 				var txpInput = E('input', {
+					'id': txpId,
+					'name': txpId,
 					'type': 'number',
 					'class': 'cbi-input-text',
 					'style': 'width:120px',
@@ -253,7 +266,11 @@ return view.extend({
 					}
 				});
 
-				var disAttrs = { 'type': 'checkbox' };
+				var disAttrs = {
+					'id': enableId,
+					'name': enableId,
+					'type': 'checkbox'
+				};
 				if (!curDis) disAttrs.checked = 'checked';
 				var disCheckbox = E('input', disAttrs);
 				disCheckbox.addEventListener('change', function(e) {
@@ -264,24 +281,24 @@ return view.extend({
 				var card = E('div', { 'class': 'cbi-section-node', 'style': 'border:1px solid var(--cbi-border-color, #e0e0e0);border-radius:6px;padding:12px 14px;margin-bottom:12px' }, [
 					E('h4', { 'style': 'margin:0 0 10px;font-weight:600' }, radSec + ' (' + band.name + ')'),
 					E('div', { 'class': 'cbi-value' }, [
-						E('label', { 'class': 'cbi-value-title' }, _('Enabled')),
+						E('label', { 'class': 'cbi-value-title', 'for': enableId }, _('Enabled')),
 						E('div', { 'class': 'cbi-value-field' }, [
-							E('label', {}, [
+							E('label', { 'for': enableId }, [
 								disCheckbox,
 								' ' + _('Enable Radio')
 							])
 						])
 					]),
 					E('div', { 'class': 'cbi-value' }, [
-						E('label', { 'class': 'cbi-value-title' }, _('Operating Channel')),
+						E('label', { 'class': 'cbi-value-title', 'for': channelId }, _('Operating Channel')),
 						E('div', { 'class': 'cbi-value-field' }, chanSelect)
 					]),
 					E('div', { 'class': 'cbi-value' }, [
-						E('label', { 'class': 'cbi-value-title' }, _('Bandwidth / Mode')),
+						E('label', { 'class': 'cbi-value-title', 'for': htmodeId }, _('Bandwidth / Mode')),
 						E('div', { 'class': 'cbi-value-field' }, htSelect)
 					]),
 					E('div', { 'class': 'cbi-value' }, [
-						E('label', { 'class': 'cbi-value-title' }, _('TX Power (dBm)')),
+						E('label', { 'class': 'cbi-value-title', 'for': txpId }, _('TX Power (dBm)')),
 						E('div', { 'class': 'cbi-value-field' }, [
 							txpInput,
 							E('span', { 'class': 'cbi-value-description', 'style': 'margin-left:8px' }, _('1-%d dBm, leave empty for regulatory auto').format(band.maxTxp))
@@ -353,16 +370,17 @@ return view.extend({
 					'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#00c8ff;color:#000;margin-right:6px;display:inline-block'
 				}, 'MLO') : null;
 
-				// Determine real online status from wstatus
+				// Check real device status
 				var isRunning = false;
 				var realIfname = ifc.ifname || null;
 				devList.forEach(function(d) {
-					var rad = wstatus[d];
-					if (rad && rad.up === true && Array.isArray(rad.interfaces)) {
-						rad.interfaces.forEach(function(ri) {
-							if (ri.section === ifc['.name']) {
+					var rDev = devMapByName[d];
+					if (rDev && rDev.isUp()) {
+						var nets = rDev.getWifiNetworks();
+						(nets || []).forEach(function(wn) {
+							if (wn.sid === ifc['.name'] || wn.getIfname()) {
 								isRunning = true;
-								if (ri.ifname) realIfname = ri.ifname;
+								if (wn.getIfname()) realIfname = wn.getIfname();
 							}
 						});
 					}
@@ -391,49 +409,24 @@ return view.extend({
 		m.appendChild(paneRadios);
 		m.appendChild(paneMlo);
 
-		// Dynamic station update
-		function getActiveIfaces() {
-			var devMap = {};
-			// 1. From network.wireless status
-			Object.keys(wstatus).forEach(function(radName) {
-				var rad = wstatus[radName];
-				var bIdx = radName.replace('radio', '');
-				var bLabel = BANDS[bIdx] ? BANDS[bIdx].name : radName;
-				if (rad && Array.isArray(rad.interfaces)) {
-					rad.interfaces.forEach(function(ifc) {
-						if (ifc.ifname)
-							devMap[ifc.ifname] = bLabel + ' (' + ifc.ifname + ')';
-					});
-				}
-			});
-			// 2. Query iwinfo devices as supplement
-			return callIwinfoDevices().then(function(res) {
-				var devs = Array.isArray(res.devices) ? res.devices : [];
-				devs.forEach(function(d) {
-					if (d && !devMap[d]) devMap[d] = d;
-				});
-				return devMap;
-			}).catch(function() {
-				return devMap;
-			});
-		}
-
+		// Dynamic station update via iwinfo devices & assoclist
 		function updateStations() {
-			getActiveIfaces().then(function(devMap) {
-				var activeIfaces = Object.keys(devMap);
-				if (!activeIfaces.length) {
+			callIwinfoDevices().then(function(res) {
+				var devs = Array.isArray(res.devices) ? res.devices : [];
+				if (!devs.length) {
 					renderEmptyClients();
 					return;
 				}
 
-				Promise.all(activeIfaces.map(function(ifname) {
-					return callIwinfoAssocList(ifname).then(function(res) {
-						return { ifname: ifname, label: devMap[ifname], clients: res.results || [] };
+				Promise.all(devs.map(function(d) {
+					return callIwinfoAssocList(d).then(function(r) {
+						var bLabel = d.indexOf('0.0') !== -1 ? '2.4 GHz' : (d.indexOf('0.1') !== -1 ? '5 GHz' : (d.indexOf('0.2') !== -1 ? '6 GHz' : d));
+						return { ifname: d, label: bLabel + ' (' + d + ')', clients: r.results || [] };
 					}).catch(function() {
-						return { ifname: ifname, label: devMap[ifname], clients: [] };
+						return { ifname: d, label: d, clients: [] };
 					});
 				})).then(function(results) {
-					// 1. Detect MLO multi-link clients across multiple bands
+					// Detect MLO multi-link clients across multiple bands
 					var macBandCount = {};
 					results.forEach(function(r) {
 						r.clients.forEach(function(c) {
@@ -443,7 +436,6 @@ return view.extend({
 						});
 					});
 
-					// 2. Render all clients
 					var allClients = [];
 					results.forEach(function(r) {
 						r.clients.forEach(function(c) {
