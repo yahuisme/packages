@@ -73,7 +73,7 @@ msgstr ""
 msgid "Overview & Clients"
 msgstr ""
 
-msgid "Physical Radio Configuration"
+msgid "Radio Hardware Settings"
 msgstr ""
 
 msgid "RX Rate"
@@ -130,3 +130,9 @@ msgstr ""
 msgid "WiFi 7"
 msgstr ""
 
+
+msgid "Wireless Networks"
+msgstr ""
+
+msgid "Wireless Networks & MLO"
+msgstr ""

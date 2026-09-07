@@ -132,3 +132,9 @@ msgstr "Wi-Fi 7 多链路聚合（MLO）网络"
 msgid "WiFi 7"
 msgstr "WiFi 7"
 
+
+msgid "Wireless Networks"
+msgstr "无线网络"
+
+msgid "Wireless Networks & MLO"
+msgstr "无线网络与 MLO"

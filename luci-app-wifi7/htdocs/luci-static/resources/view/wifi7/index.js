@@ -358,14 +358,16 @@ return view.extend({
 
 		// Dynamic station update
 		function getActiveIfaces() {
-			var devList = [];
+			var devMap = {};
 			// 1. From network.wireless status
 			Object.keys(wstatus).forEach(function(radName) {
 				var rad = wstatus[radName];
+				var bIdx = radName.replace('radio', '');
+				var bLabel = BANDS[bIdx] ? BANDS[bIdx].name : radName;
 				if (rad && Array.isArray(rad.interfaces)) {
 					rad.interfaces.forEach(function(ifc) {
-						if (ifc.ifname && devList.indexOf(ifc.ifname) < 0)
-							devList.push(ifc.ifname);
+						if (ifc.ifname)
+							devMap[ifc.ifname] = bLabel + ' (' + ifc.ifname + ')';
 					});
 				}
 			});
@@ -373,16 +375,17 @@ return view.extend({
 			return callIwinfoDevices().then(function(res) {
 				var devs = Array.isArray(res.devices) ? res.devices : [];
 				devs.forEach(function(d) {
-					if (d && devList.indexOf(d) < 0) devList.push(d);
+					if (d && !devMap[d]) devMap[d] = d;
 				});
-				return devList;
+				return devMap;
 			}).catch(function() {
-				return devList;
+				return devMap;
 			});
 		}
 
 		function updateStations() {
-			getActiveIfaces().then(function(activeIfaces) {
+			getActiveIfaces().then(function(devMap) {
+				var activeIfaces = Object.keys(devMap);
 				if (!activeIfaces.length) {
 					renderEmptyClients();
 					return;
@@ -390,16 +393,16 @@ return view.extend({
 
 				Promise.all(activeIfaces.map(function(ifname) {
 					return callIwinfoAssocList(ifname).then(function(res) {
-						return { ifname: ifname, clients: res.results || [] };
+						return { ifname: ifname, label: devMap[ifname], clients: res.results || [] };
 					}).catch(function() {
-						return { ifname: ifname, clients: [] };
+						return { ifname: ifname, label: devMap[ifname], clients: [] };
 					});
 				})).then(function(results) {
 					var allClients = [];
 					results.forEach(function(r) {
 						r.clients.forEach(function(c) {
 							allClients.push([
-								r.ifname,
+								E('span', { 'style': 'font-weight:600' }, r.label),
 								E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, c.mac),
 								formatSignal(c.signal),
 								E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, formatRate(c.tx_rate)),
