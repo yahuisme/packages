@@ -292,3 +292,37 @@ msgstr "重传"
 msgid "MAX"
 msgstr "上限"
 
+msgid "Click to change ping target"
+msgstr "点击修改 Ping 目标"
+
+msgid "Failed to set ping target"
+msgstr "设置 Ping 目标失败"
+
+msgid "Ping target IP:"
+msgstr "Ping 目标 IP："
+
+msgid "Ping target changed to: "
+msgstr "Ping 目标已更改为："
+
+msgid "DETECTING"
+msgstr "检测中"
+
+msgid "Conservative"
+msgstr "保守模式"
+
+msgid "On Demand"
+msgstr "按需模式"
+
+msgid "Performance"
+msgstr "性能模式"
+
+msgid "Powersave"
+msgstr "省电模式"
+
+msgid "Schedutil"
+msgstr "调度模式"
+
+msgid "Userspace"
+msgstr "用户空间"
+
+
