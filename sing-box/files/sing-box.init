@@ -18,7 +18,7 @@ start_service() {
 	config_get user "main" "user" "root"
 	config_get conffile "main" "conffile"
 	config_get ifaces "main" "ifaces"
-	config_get workdir "main" "workdir" "/usr/share/sing-box"
+	config_get workdir "main" "workdir" "/var/run/sing-box"
 	config_get_bool log_stdout "main" "log_stdout" "0"
 	config_get_bool log_stderr "main" "log_stderr" "1"
 
