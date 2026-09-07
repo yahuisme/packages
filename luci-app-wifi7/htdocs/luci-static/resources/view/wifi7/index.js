@@ -128,7 +128,7 @@ return view.extend({
 
 			var statusBadge = E('span', {
 				'style': 'padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600;display:inline-block;' +
-				         (isUp ? 'background:#00cc44;color:#fff' : 'background:#6b7280;color:#fff')
+				         (isUp ? 'background:var(--cbi-button-apply-bg, #00cc44);color:#fff' : 'background:var(--cbi-muted-color, #6b7280);color:#fff')
 			}, isUp ? _('Up') : _('Disabled'));
 
 			var skuBadge = E('span', {
@@ -230,7 +230,7 @@ return view.extend({
 					}
 				});
 
-				var card = E('div', { 'class': 'cbi-section-node', 'style': 'border:1px solid #e0e0e0;border-radius:6px;padding:12px 14px;margin-bottom:12px' }, [
+				var card = E('div', { 'class': 'cbi-section-node', 'style': 'border:1px solid var(--cbi-border-color, #e0e0e0);border-radius:6px;padding:12px 14px;margin-bottom:12px' }, [
 					E('h4', { 'style': 'margin:0 0 10px;font-weight:600' }, radSec + ' (' + band.name + ')'),
 					E('div', { 'class': 'cbi-value' }, [
 						E('label', { 'class': 'cbi-value-title' }, _('Enabled')),
@@ -330,8 +330,8 @@ return view.extend({
 				}, 'MLO') : null;
 
 				var ifcState = (ifc.disabled === '1')
-					? E('span', { 'style': 'padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600;background:#6b7280;color:#fff' }, _('Disabled'))
-					: E('span', { 'style': 'padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600;background:#00cc44;color:#fff' }, _('Enabled'));
+					? E('span', { 'class': 'badge label-danger', 'style': 'font-size:11px;font-weight:600' }, _('Disabled'))
+					: E('span', { 'class': 'badge label-success', 'style': 'font-size:11px;font-weight:600' }, _('Enabled'));
 
 				ifaceTable.appendChild(E('tr', { 'class': 'tr' }, [
 					E('td', { 'class': 'td', 'style': 'font-weight:600' }, ifc.ssid || ifc['.name']),

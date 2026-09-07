@@ -17,7 +17,7 @@ var HISTORY_STORAGE_KEY = 'airoha-fancontrol-history-v1';
 var history = [];
 
 var themeCSS = '\
-.fan-dashboard{--fan-blue:#00c8ff;--fan-green:#00cc44;--fan-amber:#f5a623;--fan-red:#d0021b;font-family:system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.5;color:var(--cbi-text-color,#222)}\
+.fan-dashboard{max-width:1040px;margin:0 auto;--fan-blue:#00c8ff;--fan-green:#00cc44;--fan-amber:#f5a623;--fan-red:#d0021b;font-family:system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.5;color:var(--cbi-text-color,#222)}\
 .fan-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:14px}\
 .fan-summary-card,.fan-panel,.fan-chart-card,.fan-temp-card{background:var(--cbi-section-bg,#fff);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
 .fan-summary-card{border-left:3px solid var(--fan-accent,var(--cbi-border-color,#e0e0e0));padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center}\

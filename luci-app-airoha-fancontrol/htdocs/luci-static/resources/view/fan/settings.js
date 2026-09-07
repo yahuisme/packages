@@ -10,7 +10,7 @@ var callGetAllCurves = rpc.declare({
 });
 
 var settingsCSS = '\
-.fan-settings{max-width:1180px;margin:0 auto}\
+.fan-settings{max-width:1040px;margin:0 auto}\
 .fan-curve-wrap{border:1px solid var(--cbi-border-color,#d0d0d0);border-radius:6px;padding:12px;background:var(--cbi-section-bg,#fff);margin-top:8px}\
 .fan-curve-canvas{display:block;width:100%;height:300px;background:var(--cbi-input-bg,#fafafa);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px;box-sizing:border-box}\
 .fan-settings .fan-curve-section .cbi-section-node{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}\

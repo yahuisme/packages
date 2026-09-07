@@ -192,7 +192,7 @@ return view.extend({
 					var on = isEnabled(enabled);
 					el.appendChild(E('span', {
 						'style': 'padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600;' +
-						         (on ? 'background:#00cc44;color:#fff' : 'background:#6b7280;color:#fff')
+						         (on ? 'background:var(--cbi-button-apply-bg, #00cc44);color:#fff' : 'background:var(--cbi-muted-color, #6b7280);color:#fff')
 					}, on ? _('Enabled') : _('Disabled')));
 				}
 
