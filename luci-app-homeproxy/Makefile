@@ -14,6 +14,8 @@ LUCI_DEPENDS:= \
 	+kmod-tun \
 	+kmod-nft-tproxy \
 	+curl \
+	+flock \
+	+unzip \
 	+ucode-mod-digest \
 	+ucode-mod-math
 LUCI_EXTRA_DEPENDS:=sing-box (>=1.14.0)
@@ -27,7 +29,6 @@ define Package/luci-app-homeproxy/conffiles
 /etc/config/homeproxy
 /etc/homeproxy/cache/
 /etc/homeproxy/certs/
-/etc/homeproxy/dashboard/
 /etc/homeproxy/ruleset/
 /etc/homeproxy/resources/direct_list.txt
 /etc/homeproxy/resources/proxy_list.txt
