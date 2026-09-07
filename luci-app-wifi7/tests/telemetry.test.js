@@ -1,0 +1,21 @@
+const fs=require('fs'), assert=require('node:assert/strict');
+const path=require('path').join(__dirname,'../htdocs/luci-static/resources/wifi7/telemetry.js');
+assert.ok(fs.existsSync(path),'Missing tested telemetry parser');
+// Evaluate only the local reviewed LuCI module.
+const t=new Function('baseclass',fs.readFileSync(path,'utf8'))({extend:x=>x});
+const raw='@@ devices 0\nphy#0\n\tInterface ap-mld\n\t\tMLD with links:\n\t\t - link ID  7 link addr aa:bb:cc:dd:ee:01\n\t\t   channel 36 (5180 MHz), width: 80 MHz\n@@ stations ap-mld 0\nStation aa:bb:cc:dd:ee:02 (on ap-mld)\n\tconnected time: 12 seconds\n\tLink 7:\n\t\tsignal: -42 [-43, -44] dBm\n\t\ttx bitrate: 1200.0 MBit/s 80MHz EHT-MCS 11\n@@ hostapd ap-mld_link7 0\nstate=DFS\nfreq=5180\nchan_util_avg=128\n';
+const p=t.parse(raw);
+assert.equal(p.devices['ap-mld'].links['7'].frequency,5180);
+assert.equal(p.stations['ap-mld'][0].links['7'].signal,-42);
+assert.equal(t.utilization('128'),50);
+assert.equal(t.utilization('51'),20);
+assert.equal(t.utilization('256'),null);
+assert.equal(t.dfs([{state:'DFS',freq:'5260'}]),'cac');
+assert.equal(t.dfs([]),'unknown');
+assert.equal(t.dfs([{state:'ENABLED',freq:'5500'}]),'active');
+const survey='@@ survey wlan0 0\nSurvey data from wlan0\n\tfrequency: 2412 MHz\n\tchannel active time: 1000 ms\n\tchannel busy time: 900 ms\nSurvey data from wlan0\n\tfrequency: 5180 MHz [in use]\n\tchannel active time: 1000 ms\n\tchannel busy time: 200 ms\n';
+assert.equal(t.parse(survey).surveys.wlan0[0].frequency,5180);
+assert.equal(t.delta({active:1100,busy:220},{active:1000,busy:200}),20);
+assert.equal(t.delta({active:1100},{active:1000,busy:200}),null);
+assert.equal(t.delta({active:1,busy:0},{active:1000,busy:200}),null);
+console.log('Telemetry assertions passed');

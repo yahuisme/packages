@@ -3,17 +3,26 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language: zh_Hans\n"
 
+msgid "%d client associations"
+msgstr "%d 个客户端关联"
+
+msgid "%d seconds remaining"
+msgstr "剩余 %d 秒"
+
 msgid "1-%d dBm, leave empty for regulatory auto"
 msgstr "1–%d dBm，留空则自动跟随国家监管上限"
 
-msgid "Advanced Wi-Fi 7 management: Tri-band physical radios, MLO multi-link aggregation, and live station metrics."
-msgstr "高级 Wi-Fi 7 管理中心：三频物理射频、MLO 多链路聚合以及实时站点监控。"
+msgid "5GHz DFS Status"
+msgstr "5 GHz DFS 状态"
+
+msgid "After changing country, apply and reload to refresh permitted channels."
+msgstr "修改国家代码后，请应用并重新载入页面以刷新可用信道。"
 
 msgid "Auto"
 msgstr "自动"
 
-msgid "Bands / Device"
-msgstr "频段 / 射频设备"
+msgid "Background Radar"
+msgstr "背景雷达"
 
 msgid "Bandwidth / Mode"
 msgstr "频宽 / 模式"
@@ -21,68 +30,68 @@ msgstr "频宽 / 模式"
 msgid "Channel / Bandwidth"
 msgstr "信道 / 频宽"
 
-msgid "Configure channels, bandwidth modes, and transmit powers for each physical band."
-msgstr "配置各物理频段的工作信道、频宽模式以及发射功率。"
+msgid "Channel Utilization"
+msgstr "信道占用率"
+
+msgid "Channel discovery unavailable; only the current setting is preserved."
+msgstr "无法获取可用信道，仅保留当前配置。"
+
+msgid "Channels reported by the driver; current configuration is preserved."
+msgstr "信道列表由驱动提供，当前配置予以保留。"
+
+msgid "Client data unavailable"
+msgstr "无法获取客户端数据"
+
+msgid "Configuration applied. Runtime status will refresh."
+msgstr "配置已应用，运行状态将自动刷新。"
 
 msgid "Connected Clients"
 msgstr "已连接客户端"
 
+msgid "Country Code"
+msgstr "国家代码"
+
+msgid "DFS CAC in progress"
+msgstr "正在进行 DFS 信道可用性检查"
+
+msgid "Diagnostic collection failed"
+msgstr "无线诊断采集失败"
+
+msgid "Diagnostic output includes SSIDs and MAC addresses. Review before sharing. Continue?"
+msgstr "诊断内容包含 SSID 和 MAC 地址，分享前请检查并遮盖隐私信息。是否继续？"
+
 msgid "Disabled"
 msgstr "已禁用"
-
-msgid "Enable Radio"
-msgstr "启用该频段"
 
 msgid "Enabled"
 msgstr "已启用"
 
-msgid "Encryption"
-msgstr "加密协议"
+msgid "Export wireless diagnostics"
+msgstr "导出无线诊断"
 
 msgid "Failed to apply configuration: "
 msgstr "应用配置失败："
 
-msgid "Hardware SKU"
-msgstr "硬件 SKU"
+msgid "Legacy"
+msgstr "传统协议"
 
-msgid "Interface"
-msgstr "网络接口"
-
-msgid "MAC Address"
-msgstr "MAC 地址"
-
-msgid "MLO Networks"
-msgstr "MLO 多链路网络"
-
-msgid "Mode"
-msgstr "工作模式"
-
-msgid "Multi-Link Operation aggregates multiple bands (2.4GHz, 5GHz, 6GHz) into a unified high-throughput SSID."
-msgstr "多链路操作（MLO）将多个频段（2.4GHz、5GHz、6GHz）聚合为一个高吞吐联合 SSID。"
+msgid "MT76 Firmware"
+msgstr "MT76 驱动固件"
 
 msgid "No connected clients"
 msgstr "暂无已连接的客户端"
 
-msgid "No wireless interfaces configured"
-msgstr "未配置任何无线接口"
+msgid "Online Stations"
+msgstr "关联设备数"
 
-msgid "None"
-msgstr "无加密"
+msgid "Operating"
+msgstr "运行中"
 
 msgid "Operating Channel"
 msgstr "工作信道"
 
-msgid "Overview & Clients"
-msgstr "总览与客户端"
-
-msgid "Physical Radio Configuration"
-msgstr "物理射频参数配置"
-
 msgid "RX Rate"
 msgstr "接收速率"
-
-msgid "Radio Band"
-msgstr "无线射频频段"
 
 msgid "Radio Settings"
 msgstr "射频参数设置"
@@ -90,11 +99,8 @@ msgstr "射频参数设置"
 msgid "Radio Status"
 msgstr "射频状态"
 
-msgid "Radio configuration applied successfully."
-msgstr "射频配置已成功应用并生效。"
-
-msgid "SSID"
-msgstr "网络名称 (SSID)"
+msgid "Requires driver support; channel availability checks may still be required."
+msgstr "需要驱动支持；部分情况下仍需进行信道可用性检查。"
 
 msgid "Save & Apply"
 msgstr "保存并应用"
@@ -102,8 +108,11 @@ msgstr "保存并应用"
 msgid "Signal"
 msgstr "信号强度"
 
-msgid "Standard / Locked"
-msgstr "标准 / 锁定"
+msgid "Some telemetry is unavailable. Unknown values are not zero."
+msgstr "部分运行数据无法获取，未知数据不代表零。"
+
+msgid "Standard / Bandwidth"
+msgstr "协议 / 频宽"
 
 msgid "Status"
 msgstr "状态"
@@ -117,87 +126,20 @@ msgstr "发射功率 (dBm)"
 msgid "TX Rate"
 msgstr "发送速率"
 
-msgid "Unlocked (Full Power)"
-msgstr "已解锁（全功率）"
+msgid "Telemetry update failed"
+msgstr "运行数据更新失败"
+
+msgid "These changes may interrupt wireless connections, including MLO links. Apply?"
+msgstr "这些更改可能中断无线连接及相关 MLO 链路，是否应用？"
+
+msgid "Unavailable"
+msgstr "无法获取"
+
+msgid "Unknown"
+msgstr "未知"
 
 msgid "Up"
 msgstr "运行中"
 
 msgid "WiFi 7"
 msgstr "WiFi 7"
-
-msgid "Wi-Fi 7 Multi-Link (MLO) Networks"
-msgstr "Wi-Fi 7 多链路聚合（MLO）网络"
-
-
-msgid "Wireless Networks"
-msgstr "无线网络"
-
-msgid "Wireless Networks & MLO"
-msgstr "无线网络与 MLO"
-
-msgid "Interface / Band"
-msgstr "接口 / 频段"
-
-msgid "Standard / Bandwidth"
-msgstr "协议 / 频宽"
-
-msgid "Zero-Wait DFS (Background Radar)"
-msgstr "零等待 DFS (背景雷达)"
-
-msgid "Enables MT7996 background radar listening for zero-wait DFS channel switching."
-msgstr "启用 MT7996 硬件后台雷达监听，免去信道切换时 60 秒的静默等待。"
-
-msgid "LPI Indoor Mode"
-msgstr "LPI 室内低功耗模式"
-
-msgid "Low Power Indoor compliance for 6 GHz band."
-msgstr "6 GHz 频段遵循 LPI 低功耗室内标准规范。"
-
-msgid "Advanced Wi-Fi 7 Tuning"
-msgstr "Wi-Fi 7 高级特性调谐"
-
-msgid "Country Code"
-msgstr "国家代码"
-
-msgid "Explicit Beamforming"
-msgstr "显式波束成形 (Beamforming)"
-
-msgid "Directional antenna signal focusing for compatible devices."
-msgstr "针对兼容设备提供天线定向信号能量汇聚增强。"
-
-msgid "Spatial Reuse (SR)"
-msgstr "空间复用 (Spatial Reuse)"
-
-msgid "Wi-Fi 7 BSS coloring and concurrent transmission optimization."
-msgstr "启用 Wi-Fi 7 BSS 着色与多设备空间复用并发吞吐优化。"
-
-msgid "Channel Utilization"
-msgstr "信道占用率"
-
-msgid "Online Stations"
-msgstr "在线设备数"
-
-msgid "Radio Hardware & DFS Status"
-msgstr "硬件射频与 DFS 状态"
-
-msgid "MT76 Firmware"
-msgstr "MT76 驱动固件"
-
-msgid "5GHz DFS Status"
-msgstr "5GHz DFS 状态"
-
-msgid "Operating (Normal)"
-msgstr "正常工作中 (已就绪)"
-
-msgid "Operating (CAC Passed)"
-msgstr "正常工作 (CAC 已通过)"
-
-msgid "Non-DFS Channel (Active)"
-msgstr "非 DFS 信道 (活跃)"
-
-msgid "DFS CAC Scanning..."
-msgstr "DFS CAC 雷达扫描静默中..."
-
-msgid "Online Time"
-msgstr "在线时长"

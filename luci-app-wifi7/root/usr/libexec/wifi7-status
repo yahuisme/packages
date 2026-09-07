@@ -1,0 +1,29 @@
+#!/bin/sh
+# Fixed read-only probe. No caller-supplied commands, paths or interfaces.
+[ "$#" -eq 0 ] || exit 2
+probe() {
+    kind=$1 name=$2
+    shift 2
+    data=$("$@" 2>/dev/null)
+    code=$?
+    printf '@@ %s %s %s\n%s\n' "$kind" "$name" "$code" "$data"
+}
+devices=$(iw dev 2>/dev/null)
+code=$?
+printf '@@ devices %s\n%s\n' "$code" "$devices"
+if [ "$code" -eq 0 ]; then
+    for iface in $(printf '%s\n' "$devices" | awk '$1 == "Interface" {print $2}'); do
+        case "$iface" in ''|*[!a-zA-Z0-9_.:-]*) continue;; esac
+        probe stations "$iface" iw dev "$iface" station dump
+        probe survey "$iface" iw dev "$iface" survey dump
+    done
+fi
+for socket in /var/run/hostapd/*; do
+    [ -S "$socket" ] || continue
+    iface=${socket##*/}
+    case "$iface" in global|''|*[!a-zA-Z0-9_.:-]*) continue;; esac
+    probe hostapd "$iface" hostapd_cli -p /var/run/hostapd -i "$iface" status
+done
+printf '@@ firmware 0\n'
+dmesg 2>/dev/null | awk 'tolower($0) ~ /mt7996.*firmware.*version/ {line=$0} END {if (line) print line}'
+exit 0

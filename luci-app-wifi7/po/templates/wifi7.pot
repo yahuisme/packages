@@ -1,16 +1,26 @@
 msgid ""
-msgstr "Content-Type: text/plain; charset=UTF-8\n"
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "%d client associations"
+msgstr ""
+
+msgid "%d seconds remaining"
+msgstr ""
 
 msgid "1-%d dBm, leave empty for regulatory auto"
 msgstr ""
 
-msgid "Advanced Wi-Fi 7 management: Tri-band physical radios, MLO multi-link aggregation, and live station metrics."
+msgid "5GHz DFS Status"
+msgstr ""
+
+msgid "After changing country, apply and reload to refresh permitted channels."
 msgstr ""
 
 msgid "Auto"
 msgstr ""
 
-msgid "Bands / Device"
+msgid "Background Radar"
 msgstr ""
 
 msgid "Bandwidth / Mode"
@@ -19,67 +29,67 @@ msgstr ""
 msgid "Channel / Bandwidth"
 msgstr ""
 
-msgid "Configure channels, bandwidth modes, and transmit powers for each physical band."
+msgid "Channel Utilization"
+msgstr ""
+
+msgid "Channel discovery unavailable; only the current setting is preserved."
+msgstr ""
+
+msgid "Channels reported by the driver; current configuration is preserved."
+msgstr ""
+
+msgid "Client data unavailable"
+msgstr ""
+
+msgid "Configuration applied. Runtime status will refresh."
 msgstr ""
 
 msgid "Connected Clients"
 msgstr ""
 
-msgid "Disabled"
+msgid "Country Code"
 msgstr ""
 
-msgid "Enable Radio"
+msgid "DFS CAC in progress"
+msgstr ""
+
+msgid "Diagnostic collection failed"
+msgstr ""
+
+msgid "Diagnostic output includes SSIDs and MAC addresses. Review before sharing. Continue?"
+msgstr ""
+
+msgid "Disabled"
 msgstr ""
 
 msgid "Enabled"
 msgstr ""
 
-msgid "Encryption"
+msgid "Export wireless diagnostics"
 msgstr ""
 
 msgid "Failed to apply configuration: "
 msgstr ""
 
-msgid "Hardware SKU"
+msgid "Legacy"
 msgstr ""
 
-msgid "Interface"
-msgstr ""
-
-msgid "MAC Address"
-msgstr ""
-
-msgid "MLO Networks"
-msgstr ""
-
-msgid "Mode"
-msgstr ""
-
-msgid "Multi-Link Operation aggregates multiple bands (2.4GHz, 5GHz, 6GHz) into a unified high-throughput SSID."
+msgid "MT76 Firmware"
 msgstr ""
 
 msgid "No connected clients"
 msgstr ""
 
-msgid "No wireless interfaces configured"
+msgid "Online Stations"
 msgstr ""
 
-msgid "None"
+msgid "Operating"
 msgstr ""
 
 msgid "Operating Channel"
 msgstr ""
 
-msgid "Overview & Clients"
-msgstr ""
-
-msgid "Radio Hardware Settings"
-msgstr ""
-
 msgid "RX Rate"
-msgstr ""
-
-msgid "Radio Band"
 msgstr ""
 
 msgid "Radio Settings"
@@ -88,10 +98,7 @@ msgstr ""
 msgid "Radio Status"
 msgstr ""
 
-msgid "Radio configuration applied successfully."
-msgstr ""
-
-msgid "SSID"
+msgid "Requires driver support; channel availability checks may still be required."
 msgstr ""
 
 msgid "Save & Apply"
@@ -100,7 +107,10 @@ msgstr ""
 msgid "Signal"
 msgstr ""
 
-msgid "Standard / Locked"
+msgid "Some telemetry is unavailable. Unknown values are not zero."
+msgstr ""
+
+msgid "Standard / Bandwidth"
 msgstr ""
 
 msgid "Status"
@@ -115,7 +125,16 @@ msgstr ""
 msgid "TX Rate"
 msgstr ""
 
-msgid "Unlocked (Full Power)"
+msgid "Telemetry update failed"
+msgstr ""
+
+msgid "These changes may interrupt wireless connections, including MLO links. Apply?"
+msgstr ""
+
+msgid "Unavailable"
+msgstr ""
+
+msgid "Unknown"
 msgstr ""
 
 msgid "Up"
@@ -123,37 +142,3 @@ msgstr ""
 
 msgid "WiFi 7"
 msgstr ""
-
-msgid "Wi-Fi 7 Multi-Link (MLO) Networks"
-msgstr ""
-
-msgid "WiFi 7"
-msgstr ""
-
-
-msgid "Wireless Networks"
-msgstr ""
-
-msgid "Wireless Networks & MLO"
-msgstr ""
-
-msgid "Interface / Band"
-msgstr ""
-
-msgid "Standard / Bandwidth"
-msgstr ""
-msgid "Operating (Normal)"
-msgstr ""
-
-msgid "Operating (CAC Passed)"
-msgstr ""
-
-msgid "Non-DFS Channel (Active)"
-msgstr ""
-
-msgid "DFS CAC Scanning..."
-msgstr ""
-
-msgid "Online Time"
-msgstr ""
-

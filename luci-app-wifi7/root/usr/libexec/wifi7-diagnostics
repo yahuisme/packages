@@ -1,0 +1,30 @@
+#!/bin/sh
+# Fixed, on-demand, read-only diagnostic export. Never reads wireless UCI secrets.
+[ "$#" -eq 0 ] || exit 2
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+printf 'WiFi 7 diagnostics\nSSID and MAC addresses may identify your network. Review before sharing.\n'
+printf '\n=== System ===\n'
+uname -sr
+printf '\n=== Wireless runtime ===\n'
+/usr/libexec/wifi7-status
+code=$?
+[ "$code" -eq 0 ] || printf 'Runtime collector failed: %s\n' "$code"
+logs() {
+    printf '\n=== %s (up to 100 matching lines) ===\n' "$1"
+    shift
+    data=$("$@" 2>/dev/null)
+    code=$?
+    if [ "$code" -ne 0 ]; then
+        printf 'Log collection failed: %s\n' "$code"
+        return
+    fi
+    printf '%s\n' "$data" | awk '
+        tolower($0) ~ /password|passphrase|psk|pmk|ptk|gtk|secret|key[ =:]/ {next}
+        tolower($0) ~ /mt76|mt7996|80211|hostapd|wpa_supplicant|radar|netifd.*wireless/ {
+            a[n%100]=substr($0,1,512); n++
+        }
+        END {s=n>100?n-100:0; for(i=s;i<n;i++) print a[i%100]}'
+}
+logs 'Wireless kernel messages' dmesg
+logs 'Wireless service messages' logread
+exit 0

@@ -5,956 +5,263 @@
 'require uci';
 'require ui';
 'require poll';
+'require wifi7.telemetry as telemetry';
 
-var callExec = rpc.declare({
-	object: 'file',
-	method: 'exec',
-	params: [ 'command', 'params' ],
-	expect: {}
-});
+var devices = rpc.declare({ object: 'iwinfo', method: 'devices', expect: { devices: [] }, raise: true });
+var assoc = rpc.declare({ object: 'iwinfo', method: 'assoclist', params: ['device'], expect: { results: [] }, raise: true });
+var info = rpc.declare({ object: 'iwinfo', method: 'info', params: ['device'], raise: true });
+var probe = rpc.declare({ object: 'file', method: 'exec', params: ['command', 'params'], raise: true });
+var frequencies = rpc.declare({ object: 'iwinfo', method: 'freqlist', params: ['device'], expect: { results: [] }, raise: true });
+var names = { '2g': '2.4 GHz', '5g': '5 GHz', '6g': '6 GHz' };
 
-var callIwinfoDevices = rpc.declare({
-	object: 'iwinfo',
-	method: 'devices',
-	expect: { devices: [] }
-});
-
-var callIwinfoAssocList = rpc.declare({
-	object: 'iwinfo',
-	method: 'assoclist',
-	params: [ 'device' ],
-	expect: { results: [] }
-});
-
-var callIwinfoInfo = rpc.declare({
-	object: 'iwinfo',
-	method: 'info',
-	params: [ 'device' ],
-	expect: {}
-});
-
-var BANDS = {
-	0: { name: '2.4 GHz', defBw: 'HE40',   maxTxp: 30 },
-	1: { name: '5 GHz',   defBw: 'EHT160', maxTxp: 30 },
-	2: { name: '6 GHz',   defBw: 'EHT320', maxTxp: 30 }
-};
-
-var bwCodeMap = {
-	'0': '20 MHz', '1': '40 MHz', '2': '80 MHz',
-	'3': '160 MHz', '4': '320 MHz',
-	'5': '160 MHz', '6': '320 MHz', '9': '160 MHz'
-};
-
-var themeCSS = '\
-.wifi7-radio-grid{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:12px;margin-bottom:14px}\
-.wifi7-radio-card{background:var(--cbi-section-bg,#fff);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box;padding:12px 14px;min-width:0}\
-.wifi7-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--cbi-border-color,#f0f0f0)}\
-.wifi7-card-title{font-size:13px;font-weight:600;color:var(--cbi-text-color,#222);margin:0}\
-.wifi7-card-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:12px}\
-.wifi7-card-label{color:var(--cbi-muted-color,#666)}\
-.wifi7-card-val{font-family:monospace;font-variant-numeric:tabular-nums;font-size:13px;font-weight:500;color:var(--cbi-text-color,#222)}\
-.wifi7-diag-card{background:var(--cbi-section-bg,#fff);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:12px 14px;margin-top:14px}\
-.wifi7-diag-grid{display:grid;grid-template-columns:repeat(2,minmax(200px,1fr));gap:10px}\
-.wifi7-client-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}\
-@media(max-width:900px){\
-	.wifi7-radio-grid{grid-template-columns:1fr}\
-	.wifi7-diag-grid{grid-template-columns:1fr}\
-}\
-';
-
-function injectCSS() {
-	var el = document.getElementById('wifi7-theme-css');
-	if (!el) {
-		el = document.createElement('style');
-		el.id = 'wifi7-theme-css';
-		document.head.appendChild(el);
+function settled(promise) {
+	return promise.then(function(value) { return { ok: true, value: value }; }, function() { return { ok: false }; });
+}
+function rate(value) {
+	return typeof value === 'string' ? value : value && value.rate ? (value.rate / 1000).toFixed(1) + ' Mbit/s' : '—';
+}
+function standard(value) {
+	if (typeof value === 'string') {
+		var tag = /EHT/.test(value) ? 'Wi-Fi 7' : /HE/.test(value) ? 'Wi-Fi 6' : /VHT/.test(value) ? 'Wi-Fi 5' : /HT/.test(value) ? 'Wi-Fi 4' : _('Legacy');
+		var bw = value.match(/(\d+)\s*MHz/);
+		return tag + (bw ? ' / ' + bw[1] + ' MHz' : '');
 	}
-	el.textContent = themeCSS;
+	return value ? (value.eht ? 'Wi-Fi 7' : value.he ? 'Wi-Fi 6' : value.vht ? 'Wi-Fi 5' : value.ht ? 'Wi-Fi 4' : _('Legacy')) + (value.mhz ? ' / ' + value.mhz + ' MHz' : '') : '—';
 }
-
-function formatSignal(signal) {
-	if (signal == null || signal === 0) return '—';
-	var color = signal >= -50 ? '#10b981' : signal >= -65 ? '#0ea5e9' : signal >= -75 ? '#f59e0b' : '#ef4444';
-	return E('span', { 'style': 'font-weight:600;color:' + color }, signal + ' dBm');
+function select(id, values, current) {
+	values = values.slice();
+	if (current && values.indexOf(String(current)) < 0) values.push(String(current));
+	var el = E('select', { id: id, name: id, 'class': 'cbi-input-select' }, values.map(function(v) {
+		return E('option', { value: v }, v === 'auto' ? _('Auto') : v);
+	}));
+	el.value = current || values[0];
+	return el;
 }
-
-function formatRate(rate) {
-	if (!rate) return '—';
-	if (typeof rate === 'number')
-		return (rate / 1000).toFixed(1) + ' Mbit/s';
-	return String(rate);
-}
-
-function formatProtocolFromIwinfo(c) {
-	var rx = c.rx || {};
-	var tx = c.tx || {};
-	var isEht = rx.eht || tx.eht;
-	var isHe = rx.he || tx.he;
-	var isVht = rx.vht || tx.vht;
-	var isHt = rx.ht || tx.ht;
-
-	var mhz = rx.mhz || tx.mhz;
-	var bwStr = mhz ? ' ' + mhz + 'MHz' : '';
-
-	if (isEht) {
-		return E('span', {
-			'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#0ea5e9;color:#fff;display:inline-block'
-		}, 'Wi-Fi 7' + bwStr);
-	}
-	if (isHe) {
-		return E('span', {
-			'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#10b981;color:#fff;display:inline-block'
-		}, 'Wi-Fi 6' + bwStr);
-	}
-	if (isVht) {
-		return E('span', {
-			'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#3b82f6;color:#fff;display:inline-block'
-		}, 'Wi-Fi 5' + bwStr);
-	}
-	if (isHt) {
-		return E('span', {
-			'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#6b7280;color:#fff;display:inline-block'
-		}, 'Wi-Fi 4' + bwStr);
-	}
-	return E('span', { 'style': 'color:#888' }, 'Legacy' + bwStr);
-}
-
-function formatRateBadge(rateStr) {
-	if (!rateStr) return E('span', { 'style': 'color:#888' }, '—');
-	var tag = 'Legacy';
-	var bg = '#6b7280';
-	if (rateStr.indexOf('EHT') !== -1) { tag = 'Wi-Fi 7'; bg = '#0ea5e9'; }
-	else if (rateStr.indexOf('HE') !== -1) { tag = 'Wi-Fi 6'; bg = '#10b981'; }
-	else if (rateStr.indexOf('VHT') !== -1) { tag = 'Wi-Fi 5'; bg = '#3b82f6'; }
-	else if (rateStr.indexOf('HT') !== -1) { tag = 'Wi-Fi 4'; bg = '#6b7280'; }
-	var mhz = rateStr.match(/(\d+MHz)/);
-	var bw = mhz ? ' ' + mhz[1] : '';
-	return E('span', {
-		'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:' + bg + ';color:#fff;display:inline-block'
-	}, tag + bw);
-}
-
-function parseHostapdStat(raw) {
-	var out = {};
-	if (!raw) return out;
-	raw.split('\n').forEach(function(line) {
-		var eq = line.indexOf('=');
-		if (eq > 0)
-			out[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
-	});
-	return out;
-}
-
-function parseAllStations(rawText) {
-	var clients = [];
-	var lines = (rawText || '').split('\n');
-	var curIface = '';
-	var curSta = null;
-	var curLink = null;
-
-	lines.forEach(function(line) {
-		if (line.indexOf('===IFACE:') === 0) {
-			curIface = line.replace('===IFACE:', '').replace(/===/g, '').trim();
-			return;
-		}
-		var staMx = line.match(/^Station\s+([0-9a-f:]+)\s+\(on\s+(.*?)\)/i);
-		if (!staMx) staMx = line.match(/^Station\s+([0-9a-f:]+)/i);
-		if (staMx) {
-			if (curSta) clients.push(curSta);
-			curSta = {
-				mac: staMx[1].toLowerCase(),
-				iface: (staMx[2] || curIface || '').replace(/\)$/, ''),
-				links: {},
-				signal: null,
-				tx_rate: '',
-				rx_rate: '',
-				connected: ''
-			};
-			curLink = null;
-			return;
-		}
-		if (!curSta) return;
-
-		var t = line.replace(/\t/g, ' ').trim();
-		var linkMx = t.match(/^Link\s+(\d+):/);
-		if (linkMx) {
-			curLink = linkMx[1];
-			curSta.links[curLink] = { addr: '', signal: null, tx_rate: '', rx_rate: '', idle: true };
-			return;
-		}
-		if (t.indexOf('connected time:') === 0) {
-			curSta.connected = t.replace('connected time:', '').trim();
-			return;
-		}
-
-		if (curLink !== null) {
-			var lk = curSta.links[curLink];
-			if (t.indexOf('address:') === 0) {
-				lk.addr = t.replace('address:', '').trim();
-			} else if (t.indexOf('signal:') === 0) {
-				var sigM = t.match(/([-\d]+)\s+dBm/);
-				if (sigM) {
-					lk.signal = parseInt(sigM[1]);
-					lk.idle = (lk.signal === 0);
-				}
-			} else if (t.indexOf('tx bitrate:') === 0) {
-				lk.tx_rate = t.replace('tx bitrate:', '').trim();
-			} else if (t.indexOf('rx bitrate:') === 0) {
-				lk.rx_rate = t.replace('rx bitrate:', '').trim();
-			}
-		} else {
-			if (t.indexOf('signal:') === 0) {
-				var sigM0 = t.match(/([-\d]+)\s+dBm/);
-				if (sigM0) curSta.signal = parseInt(sigM0[1]);
-			} else if (t.indexOf('tx bitrate:') === 0) {
-				curSta.tx_rate = t.replace('tx bitrate:', '').trim();
-			} else if (t.indexOf('rx bitrate:') === 0) {
-				curSta.rx_rate = t.replace('rx bitrate:', '').trim();
-			}
-		}
-	});
-	if (curSta) clients.push(curSta);
-	return clients;
+function field(label, input, description) {
+	return E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title', 'for': input.id }, label),
+		E('div', { 'class': 'cbi-value-field' }, [input, description ? E('div', { 'class': 'cbi-value-description' }, description) : '']) ]);
 }
 
 return view.extend({
 	load: function() {
-		return Promise.all([
-			network.getWifiDevices(),
-			network.getWifiNetworks(),
-			uci.load('wireless')
-		]);
+		return uci.load('wireless').then(function() {
+			return Promise.all(uci.sections('wireless', 'wifi-device').map(function(r) {
+				return settled(frequencies(r['.name'])).then(function(result) { return { id: r['.name'], result: result }; });
+			}));
+		});
 	},
-
-	render: function(data) {
-		injectCSS();
-		var wifiDevs = (data && data[0]) ? data[0] : [];
-		var devMapByName = {};
-		wifiDevs.forEach(function(d) {
-			if (d && typeof d.getName === 'function') {
-				devMapByName[d.getName()] = d;
-			}
-		});
-
-		var m = E('div', { 'class': 'cbi-map' }, [
-			E('h2', {}, _('WiFi 7')),
-			E('div', { 'class': 'cbi-map-descr' }, _('Advanced Wi-Fi 7 management: Tri-band physical radios, MLO multi-link aggregation, and live station metrics.'))
-		]);
-
-		// Tabs navigation
-		var activeTab = 'overview';
-		var tabPanes = {};
-
-		var tabList = [
-			{ id: 'overview', name: _('Radio Status') },
-			{ id: 'radios',   name: _('Radio Settings') },
-			{ id: 'clients',  name: _('Connected Clients') }
-		];
-
-		var tabNav = E('ul', { 'class': 'cbi-tabmenu' });
-		tabList.forEach(function(t) {
-			var li = E('li', {
-				'class': (t.id === activeTab ? 'cbi-tab' : 'cbi-tab-disabled'),
-				'click': function(ev) {
-					activeTab = t.id;
-					tabNav.querySelectorAll('li').forEach(function(el, idx) {
-						el.className = (tabList[idx].id === activeTab ? 'cbi-tab' : 'cbi-tab-disabled');
-					});
-					Object.keys(tabPanes).forEach(function(k) {
-						tabPanes[k].style.display = (k === activeTab ? '' : 'none');
-					});
-				}
-			}, E('a', { 'href': '#', 'click': function(e){ e.preventDefault(); } }, t.name));
-			tabNav.appendChild(li);
-		});
-		m.appendChild(tabNav);
-
-		// ══════════════════════════════════════════════════════════════════
-		// Tab 1: Radio Status (3 Cards + DFS & Firmware Diag)
-		// ══════════════════════════════════════════════════════════════════
-		var paneOverview = E('div', { 'class': 'cbi-tab-pane' });
-		tabPanes['overview'] = paneOverview;
-
-		var radioSection = E('div', { 'class': 'cbi-section' }, [
-			E('h3', {}, _('Radio Status'))
-		]);
-
-		var radioGrid = E('div', { 'class': 'wifi7-radio-grid' });
-
-		for (var bIdx = 0; bIdx < 3; bIdx++) {
-			var band = BANDS[bIdx];
-			var rName = 'radio' + bIdx;
-			var dev = devMapByName[rName];
-
-			var isUp = dev ? dev.isUp() : false;
-			var channel = (dev && dev.get('channel')) ? dev.get('channel') : _('Auto');
-			var htmode = (dev && dev.get('htmode')) ? dev.get('htmode') : band.defBw;
-			var txpVal = (dev && dev.get('txpower')) ? dev.get('txpower') : null;
-			var txp = txpVal ? txpVal + ' dBm' : _('Auto');
-
-			var statusBadge = E('span', {
-				'style': 'padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600;display:inline-block;' +
-				         (isUp ? 'background:var(--cbi-button-apply-bg, #10b981);color:#fff' : 'background:var(--cbi-muted-color, #6b7280);color:#fff')
-			}, isUp ? _('Up') : _('Disabled'));
-
-			var skuBadge = E('span', {
-				'style': 'font-weight:600;color:#10b981'
-			}, _('Unlocked (Full Power)'));
-
-			var card = E('div', { 'class': 'wifi7-radio-card' }, [
-				E('div', { 'class': 'wifi7-card-header' }, [
-					E('h4', { 'class': 'wifi7-card-title' }, rName + ' (' + band.name + ')'),
-					statusBadge
-				]),
-				E('div', { 'class': 'wifi7-card-row' }, [
-					E('span', { 'class': 'wifi7-card-label' }, _('Channel / Bandwidth')),
-					E('span', { 'class': 'wifi7-card-val', 'id': 'wifi7-val-chan-' + bIdx }, channel + ' / ' + htmode)
-				]),
-				E('div', { 'class': 'wifi7-card-row' }, [
-					E('span', { 'class': 'wifi7-card-label' }, _('Channel Utilization')),
-					E('span', { 'class': 'wifi7-card-val', 'id': 'wifi7-val-util-' + bIdx }, '—')
-				]),
-				E('div', { 'class': 'wifi7-card-row' }, [
-					E('span', { 'class': 'wifi7-card-label' }, _('TX Power')),
-					E('span', { 'class': 'wifi7-card-val', 'id': 'wifi7-val-txp-' + bIdx }, txp)
-				]),
-				E('div', { 'class': 'wifi7-card-row' }, [
-					E('span', { 'class': 'wifi7-card-label' }, _('Online Stations')),
-					E('span', { 'class': 'wifi7-card-val', 'id': 'wifi7-val-sta-' + bIdx }, '0')
-				]),
-				E('div', { 'class': 'wifi7-card-row' }, [
-					E('span', { 'class': 'wifi7-card-label' }, _('Hardware SKU')),
-					E('span', { 'class': 'wifi7-card-val' }, skuBadge)
-				])
-			]);
-
-			radioGrid.appendChild(card);
-		}
-
-		radioSection.appendChild(radioGrid);
-
-		// Hardware Diag & 5G DFS Status Card
-		var diagCard = E('div', { 'class': 'wifi7-diag-card' }, [
-			E('div', { 'class': 'wifi7-card-header', 'style': 'margin-bottom:12px' }, [
-				E('h4', { 'class': 'wifi7-card-title' }, _('Radio Hardware & DFS Status'))
-			]),
-			E('div', { 'class': 'wifi7-diag-grid' }, [
-				E('div', { 'class': 'wifi7-card-row' }, [
-					E('span', { 'class': 'wifi7-card-label' }, _('MT76 Firmware')),
-					E('span', { 'class': 'wifi7-card-val', 'id': 'wifi7-val-fw' }, '—')
-				]),
-				E('div', { 'class': 'wifi7-card-row' }, [
-					E('span', { 'class': 'wifi7-card-label' }, _('5GHz DFS Status')),
-					E('span', { 'class': 'wifi7-card-val', 'id': 'wifi7-val-dfs' }, '—')
-				])
-			])
-		]);
-		radioSection.appendChild(diagCard);
-
-		paneOverview.appendChild(radioSection);
-
-		// ══════════════════════════════════════════════════════════════════
-		// Tab 2: Radio Settings (Hardware & Wi-Fi 7 Tuning)
-		// ══════════════════════════════════════════════════════════════════
-		var paneRadios = E('div', { 'class': 'cbi-tab-pane', 'style': 'display:none' });
-		tabPanes['radios'] = paneRadios;
-
-		var radioForms = E('div', { 'class': 'cbi-section' }, [
-			E('h3', {}, _('Radio Settings')),
-			E('div', { 'class': 'cbi-section-descr' }, _('Configure channels, bandwidth modes, and transmit powers for each physical band.'))
-		]);
-
-		for (var bandIdx = 0; bandIdx < 3; bandIdx++) {
-			(function(idx) {
-				var band = BANDS[idx];
-				var radSec = 'radio' + idx;
-				var curChan = uci.get('wireless', radSec, 'channel') || 'auto';
-				var curHt = uci.get('wireless', radSec, 'htmode') || band.defBw;
-				var curTxp = uci.get('wireless', radSec, 'txpower') || '';
-				var curDis = uci.get('wireless', radSec, 'disabled') === '1';
-
-				var enableId = 'wifi7-radio-' + idx + '-enable';
-				var channelId = 'wifi7-radio-' + idx + '-channel';
-				var htmodeId = 'wifi7-radio-' + idx + '-htmode';
-				var txpId = 'wifi7-radio-' + idx + '-txpower';
-
-				var chanOpts = ['auto'];
-				if (idx === 0) chanOpts = ['auto', '1', '6', '11'];
-				else if (idx === 1) chanOpts = ['auto', '36', '40', '44', '48', '52', '56', '60', '64', '100', '149', '153', '157', '161'];
-				else if (idx === 2) chanOpts = ['auto', '1', '5', '9', '13', '17', '21', '33', '37', '65', '97'];
-
-				var chanSelect = E('select', {
-					'id': channelId,
-					'name': channelId,
-					'class': 'cbi-input-select',
-					'change': function(e) {
-						uci.set('wireless', radSec, 'channel', e.target.value);
-					}
-				}, chanOpts.map(function(c) {
-					var o = E('option', { 'value': c }, c === 'auto' ? _('Auto') : c);
-					if (c === String(curChan)) o.selected = true;
-					return o;
-				}));
-
-				var htOpts = [];
-				if (idx === 0) htOpts = ['HE20', 'HE40', 'EHT20', 'EHT40'];
-				else if (idx === 1) htOpts = ['HE20', 'HE40', 'HE80', 'HE160', 'EHT80', 'EHT160'];
-				else if (idx === 2) htOpts = ['EHT80', 'EHT160', 'EHT320'];
-
-				var htSelect = E('select', {
-					'id': htmodeId,
-					'name': htmodeId,
-					'class': 'cbi-input-select',
-					'change': function(e) {
-						uci.set('wireless', radSec, 'htmode', e.target.value);
-					}
-				}, htOpts.map(function(h) {
-					var o = E('option', { 'value': h }, h);
-					if (h === curHt) o.selected = true;
-					return o;
-				}));
-
-				var txpInput = E('input', {
-					'id': txpId,
-					'name': txpId,
-					'type': 'number',
-					'class': 'cbi-input-text',
-					'style': 'width:120px',
-					'placeholder': 'auto',
-					'min': 1,
-					'max': band.maxTxp,
-					'value': curTxp,
-					'change': function(e) {
-						var v = e.target.value.trim();
-						if (v) uci.set('wireless', radSec, 'txpower', v);
-						else uci.unset('wireless', radSec, 'txpower');
-					}
-				});
-
-				var disAttrs = {
-					'id': enableId,
-					'name': enableId,
-					'type': 'checkbox',
-					'style': 'cursor:pointer'
-				};
-				if (!curDis) disAttrs.checked = 'checked';
-				var disCheckbox = E('input', disAttrs);
-				disCheckbox.addEventListener('change', function(e) {
-					if (!e.target.checked) uci.set('wireless', radSec, 'disabled', '1');
-					else uci.unset('wireless', radSec, 'disabled');
-				});
-
-				var extraRows = [];
-				if (idx === 1) {
-					var bgrEnable = uci.get('wireless', radSec, 'background_radar') === '1';
-					var bgrChk = E('input', {
-						'type': 'checkbox',
-						'style': 'cursor:pointer',
-						'checked': bgrEnable ? 'checked' : null,
-						'change': function(e) {
-							if (e.target.checked) uci.set('wireless', radSec, 'background_radar', '1');
-							else uci.unset('wireless', radSec, 'background_radar');
-						}
-					});
-					extraRows.push(E('div', { 'class': 'cbi-value' }, [
-						E('label', { 'class': 'cbi-value-title' }, _('Zero-Wait DFS (Background Radar)')),
-						E('div', { 'class': 'cbi-value-field' }, [
-							bgrChk,
-							E('span', { 'class': 'cbi-value-description' }, _('Enables MT7996 background radar listening for zero-wait DFS channel switching.'))
-						])
-					]));
-				} else if (idx === 2) {
-					var lpiEnable = uci.get('wireless', radSec, 'lpi_enable') !== '0';
-					var lpiChk = E('input', {
-						'type': 'checkbox',
-						'style': 'cursor:pointer',
-						'checked': lpiEnable ? 'checked' : null,
-						'change': function(e) {
-							if (e.target.checked) uci.set('wireless', radSec, 'lpi_enable', '1');
-							else uci.set('wireless', radSec, 'lpi_enable', '0');
-						}
-					});
-					extraRows.push(E('div', { 'class': 'cbi-value' }, [
-						E('label', { 'class': 'cbi-value-title' }, _('LPI Indoor Mode')),
-						E('div', { 'class': 'cbi-value-field' }, [
-							lpiChk,
-							E('span', { 'class': 'cbi-value-description' }, _('Low Power Indoor compliance for 6 GHz band.'))
-						])
-					]));
-				}
-
-				var card = E('div', { 'class': 'cbi-section-node', 'style': 'border:1px solid var(--cbi-border-color, #e0e0e0);border-radius:6px;padding:12px 14px;margin-bottom:12px' }, [
-					E('h4', { 'style': 'margin:0 0 10px;font-weight:600' }, radSec + ' (' + band.name + ')'),
-					E('div', { 'class': 'cbi-value' }, [
-						E('label', { 'class': 'cbi-value-title', 'for': enableId }, _('Enabled')),
-						E('div', { 'class': 'cbi-value-field' }, [ disCheckbox ])
-					]),
-					E('div', { 'class': 'cbi-value' }, [
-						E('label', { 'class': 'cbi-value-title', 'for': channelId }, _('Operating Channel')),
-						E('div', { 'class': 'cbi-value-field' }, [ chanSelect ])
-					]),
-					E('div', { 'class': 'cbi-value' }, [
-						E('label', { 'class': 'cbi-value-title', 'for': htmodeId }, _('Bandwidth / Mode')),
-						E('div', { 'class': 'cbi-value-field' }, [ htSelect ])
-					]),
-					E('div', { 'class': 'cbi-value' }, [
-						E('label', { 'class': 'cbi-value-title', 'for': txpId }, _('TX Power (dBm)')),
-						E('div', { 'class': 'cbi-value-field' }, [
-							txpInput,
-							E('span', { 'class': 'cbi-value-description' }, _('1-%d dBm, leave empty for regulatory auto').format(band.maxTxp))
-						])
-					])
-				].concat(extraRows));
-
-				radioForms.appendChild(card);
-			})(bandIdx);
-		}
-
-		// Advanced Radio Settings
-		var r0Sec = 'radio0';
-		var curCountry = uci.get('wireless', r0Sec, 'country') || 'CN';
-		var curBeamforming = uci.get('wireless', r0Sec, 'etxbfen') !== '0';
-		var curSpatialReuse = uci.get('wireless', r0Sec, 'sr_enable') !== '0';
-
-		var countrySel = E('select', {
-			'class': 'cbi-input-select',
-			'style': 'width:120px',
-			'change': function(e) {
-				var v = e.target.value;
-				[0, 1, 2].forEach(function(i) {
-					uci.set('wireless', 'radio' + i, 'country', v);
-				});
-			}
-		}, ['CN', 'US', 'CZ', 'DE', 'HK', 'JP', 'KR', 'TW', 'GB'].map(function(c) {
-			var o = E('option', { 'value': c }, c);
-			if (c === curCountry) o.selected = true;
-			return o;
-		}));
-
-		var bfChk = E('input', {
-			'type': 'checkbox',
-			'style': 'cursor:pointer',
-			'checked': curBeamforming ? 'checked' : null,
-			'change': function(e) {
-				var val = e.target.checked ? '1' : '0';
-				[0, 1, 2].forEach(function(i) {
-					uci.set('wireless', 'radio' + i, 'etxbfen', val);
-				});
-			}
-		});
-
-		var srChk = E('input', {
-			'type': 'checkbox',
-			'style': 'cursor:pointer',
-			'checked': curSpatialReuse ? 'checked' : null,
-			'change': function(e) {
-				var val = e.target.checked ? '1' : '0';
-				[0, 1, 2].forEach(function(i) {
-					uci.set('wireless', 'radio' + i, 'sr_enable', val);
-				});
-			}
-		});
-
-		var advCard = E('div', { 'class': 'cbi-section-node', 'style': 'border:1px solid var(--cbi-border-color, #e0e0e0);border-radius:6px;padding:12px 14px;margin-bottom:12px' }, [
-			E('h4', { 'style': 'margin:0 0 10px;font-weight:600' }, _('Advanced Wi-Fi 7 Tuning')),
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('Country Code')),
-				E('div', { 'class': 'cbi-value-field' }, [ countrySel ])
-			]),
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('Explicit Beamforming')),
-				E('div', { 'class': 'cbi-value-field' }, [
-					bfChk,
-					E('span', { 'class': 'cbi-value-description' }, _('Directional antenna signal focusing for compatible devices.'))
-				])
-			]),
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('Spatial Reuse (SR)')),
-				E('div', { 'class': 'cbi-value-field' }, [
-					srChk,
-					E('span', { 'class': 'cbi-value-description' }, _('Wi-Fi 7 BSS coloring and concurrent transmission optimization.'))
-				])
-			])
-		]);
-		radioForms.appendChild(advCard);
-
-		var saveBtn = E('button', {
-			'class': 'cbi-button cbi-button-apply',
-			'click': function(ev) {
-				ev.target.disabled = true;
-				return uci.save()
-					.then(function() { return uci.apply(); })
-					.then(function() {
-						ev.target.disabled = false;
-						ui.addNotification(null, E('p', {}, _('Radio configuration applied successfully.')), 'info');
-					})
-					.catch(function(err) {
-						ev.target.disabled = false;
-						ui.addNotification(null, E('p', {}, _('Failed to apply configuration: ') + (err.message || err)), 'error');
-					});
-			}
-		}, _('Save & Apply'));
-
-		radioForms.appendChild(E('div', { 'style': 'display:flex;justify-content:flex-end;margin-top:14px' }, [ saveBtn ]));
-		paneRadios.appendChild(radioForms);
-
-		// ══════════════════════════════════════════════════════════════════
-		// Tab 3: Connected Clients (Dedicated High-Density Table)
-		// ══════════════════════════════════════════════════════════════════
-		var paneClients = E('div', { 'class': 'cbi-tab-pane', 'style': 'display:none' });
-		tabPanes['clients'] = paneClients;
-
-		var clientTable = E('table', { 'class': 'table cbi-section-table', 'id': 'wifi7-client-table' }, [
-			E('tr', { 'class': 'tr table-titles' }, [
-				E('th', { 'class': 'th' }, _('Interface / Band')),
-				E('th', { 'class': 'th' }, _('MAC Address')),
-				E('th', { 'class': 'th' }, _('Standard / Bandwidth')),
-				E('th', { 'class': 'th' }, _('Signal')),
-				E('th', { 'class': 'th' }, _('TX Rate')),
-				E('th', { 'class': 'th' }, _('RX Rate')),
-				E('th', { 'class': 'th' }, _('Online Time'))
-			])
-		]);
-
-		paneClients.appendChild(E('div', { 'class': 'cbi-section' }, [
-			E('h3', {}, _('Connected Clients')),
-			E('div', { 'class': 'wifi7-client-table-wrap' }, [ clientTable ])
-		]));
-
-		// Append all panes
-		m.appendChild(paneOverview);
-		m.appendChild(paneRadios);
-		m.appendChild(paneClients);
-
-		// ══════════════════════════════════════════════════════════════════
-		// High-Efficiency Native Data Polling (iwinfo + hostapd RPC)
-		// ══════════════════════════════════════════════════════════════════
-		function updateData() {
-			return callIwinfoDevices().then(function(devRes) {
-				var devs = Array.isArray(devRes.devices) ? devRes.devices : [];
-
-				// Parallel queries via fast C-based RPC: iwinfo assoclist & info for all devices
-				var assocTasks = devs.map(function(d) {
-					return callIwinfoAssocList(d).then(function(r) {
-						return { device: d, clients: r.results || [] };
-					}).catch(function() {
-						return { device: d, clients: [] };
-					});
-				});
-
-				var infoTasks = devs.map(function(d) {
-					return callIwinfoInfo(d).then(function(r) {
-						return { device: d, info: r || {} };
-					}).catch(function() {
-						return { device: d, info: {} };
-					});
-				});
-
-				// Lightweight fallback probe for MLO links, dynamic hostapd metrics, survey and firmware
-				var shellProbe = [
-					'echo "===FW==="',
-					'dmesg 2>/dev/null | grep -iE "mt7996.*(firmware|build|rom)" | tail -n 1 | sed "s/^.*: //"',
-					'echo "===HOSTAPD==="',
-					'for s in /var/run/hostapd/*; do [ -S "$s" ] || continue; bn=$(basename "$s"); echo "---H:$bn---"; hostapd_cli -p /var/run/hostapd -i "$bn" stat 2>/dev/null; for l in 0 1 2; do lstat=$(hostapd_cli -p /var/run/hostapd -i "$bn" -l $l stat 2>/dev/null); [ -n "$lstat" ] && echo "---HL:$bn:$l---" && echo "$lstat"; done; done',
-					'echo "===SURVEY==="',
-					'for dev in $(iw dev 2>/dev/null | awk \'/Interface/{print $2}\'); do echo "---S:$dev---"; iw dev "$dev" survey dump 2>/dev/null | grep -E "frequency|channel active time|channel busy time" | head -n 12; done',
-					'echo "===STATIONS==="',
-					'for dev in $(iw dev 2>/dev/null | awk \'/Interface/{print $2}\'); do echo "===IFACE:$dev==="; iw dev "$dev" station dump 2>/dev/null; done'
-				].join('; ');
-
-				return Promise.all([
-					Promise.all(assocTasks),
-					Promise.all(infoTasks),
-					callExec('/bin/sh', ['-c', shellProbe]).catch(function() { return { stdout: '' }; })
-				]);
-			}).then(function(results) {
-				var assocListResults = results[0] || [];
-				var infoResults = results[1] || [];
-				var shellRaw = (results[2] && results[2].stdout) ? results[2].stdout : '';
-
-				var infoByDev = {};
-				infoResults.forEach(function(item) {
-					infoByDev[item.device] = item.info;
-				});
-
-				// Parse hostapd stats, surveys & stations from shell probe
-				var hostapdMap = {};
-				var curHKey = null;
-				var curHLines = [];
-				var staLines = [];
-				var fwLine = '';
-				var surveyMap = {};
-				var curSDev = null;
-				var sActive = 0, sBusy = 0;
-				var section = '';
-
-				shellRaw.split('\n').forEach(function(line) {
-					if (line.indexOf('===FW===') === 0) {
-						section = 'FW';
-						return;
-					}
-					if (line.indexOf('===HOSTAPD===') === 0) {
-						section = 'HOSTAPD';
-						return;
-					}
-					if (line.indexOf('===SURVEY===') === 0) {
-						section = 'SURVEY';
-						return;
-					}
-					if (line.indexOf('===STATIONS===') === 0 || line.indexOf('===IFACE:') === 0) {
-						section = 'STATIONS';
-						staLines.push(line);
-						return;
-					}
-
-					if (section === 'FW') {
-						if (!fwLine && line.trim()) fwLine = line.trim();
-					} else if (section === 'HOSTAPD') {
-						if (line.indexOf('---H') === 0 && line.lastIndexOf('---') > 2) {
-							if (curHKey) hostapdMap[curHKey] = parseHostapdStat(curHLines.join('\n'));
-							curHKey = line.replace(/---/g, '').trim();
-							curHLines = [];
-						} else {
-							curHLines.push(line);
-						}
-					} else if (section === 'SURVEY') {
-						if (line.indexOf('---S:') === 0) {
-							if (curSDev && sActive > 0 && sBusy >= 0) {
-								surveyMap[curSDev] = Math.round((sBusy / sActive) * 100);
-							}
-							curSDev = line.replace('---S:', '').replace(/---/g, '').trim();
-							sActive = 0; sBusy = 0;
-							return;
-						}
-						var mAct = line.match(/channel active time:\s+(\d+)/);
-						if (mAct) sActive = parseInt(mAct[1]);
-						var mBsy = line.match(/channel busy time:\s+(\d+)/);
-						if (mBsy) sBusy = parseInt(mBsy[1]);
-					} else if (section === 'STATIONS') {
-						staLines.push(line);
-					}
-				});
-				if (curHKey) hostapdMap[curHKey] = parseHostapdStat(curHLines.join('\n'));
-				if (curSDev && sActive > 0 && sBusy >= 0) {
-					surveyMap[curSDev] = Math.round((sBusy / sActive) * 100);
-				}
-
-				// 1. Hardware Firmware & 5GHz DFS Status (Tab 1)
-				var fwEl = document.getElementById('wifi7-val-fw');
-				if (fwEl) fwEl.textContent = fwLine ? fwLine : 'MediaTek MT7996e (Kernel mac80211)';
-
-				var dfsEl = document.getElementById('wifi7-val-dfs');
-				if (dfsEl) {
-					var r1Dev = devMapByName['radio1'];
-					var r1Dis = r1Dev ? !r1Dev.isUp() : (uci.get('wireless', 'radio1', 'disabled') === '1');
-					var r1Chan = parseInt((r1Dev && r1Dev.get('channel')) ? r1Dev.get('channel') : (uci.get('wireless', 'radio1', 'channel') || '0'));
-					var isDfsChan = (r1Chan >= 52 && r1Chan <= 144);
-
-					var dfsState = null;
-					Object.keys(hostapdMap).forEach(function(k) {
-						if (!dfsState && hostapdMap[k]['dfs_state'])
-							dfsState = hostapdMap[k]['dfs_state'];
-					});
-
-					if (r1Dis) {
-						dfsEl.textContent = _('Disabled');
-						dfsEl.style.color = 'inherit';
-					} else if (dfsState === 'cac' || dfsState === 'scanning') {
-						dfsEl.textContent = _('DFS CAC Scanning...');
-						dfsEl.style.color = '#f59e0b';
-					} else if (isDfsChan) {
-						dfsEl.textContent = _('Operating (CAC Passed)');
-						dfsEl.style.color = '#10b981';
-					} else if (r1Chan > 0) {
-						dfsEl.textContent = _('Non-DFS Channel (Active)');
-						dfsEl.style.color = '#10b981';
-					} else {
-						dfsEl.textContent = _('Operating (Normal)');
-						dfsEl.style.color = '#10b981';
-					}
-				}
-
-				// 2. Aggregate Stations from both iwinfo and iw station dump
-				var clientsByMac = {};
-				var bandStaCounts = { 0: 0, 1: 0, 2: 0 };
-				var bandNames = { '0': '2.4 GHz', '1': '5 GHz', '2': '6 GHz' };
-
-				// Parse iw station dump (has Link 0/1/2 MLO awareness)
-				var iwStations = parseAllStations(staLines.join('\n'));
-				iwStations.forEach(function(sta) {
-					clientsByMac[sta.mac] = sta;
-				});
-
-				// Merge with iwinfo assoclist
-				assocListResults.forEach(function(item) {
-					var devName = item.device;
-					var bIdx = devName.indexOf('.1-') !== -1 ? 1 : (devName.indexOf('.2-') !== -1 ? 2 : 0);
-
-					item.clients.forEach(function(c) {
-						var mac = (c.mac || '').toLowerCase();
-						if (!mac) return;
-
-						if (!clientsByMac[mac]) {
-							clientsByMac[mac] = {
-								mac: mac,
-								iface: devName,
-								links: {},
-								signal: c.signal || null,
-								tx_rate: formatRate(c.tx_rate),
-								rx_rate: formatRate(c.rx_rate),
-								connected: c.connected_time ? c.connected_time + 's' : '—',
-								protocolBadge: formatProtocolFromIwinfo(c)
-							};
-						} else {
-							if (!clientsByMac[mac].signal && c.signal)
-								clientsByMac[mac].signal = c.signal;
-							if (!clientsByMac[mac].tx_rate && c.tx_rate)
-								clientsByMac[mac].tx_rate = formatRate(c.tx_rate);
-							if (!clientsByMac[mac].rx_rate && c.rx_rate)
-								clientsByMac[mac].rx_rate = formatRate(c.rx_rate);
-						}
-					});
-				});
-
-				// Build Client Rows (Tab 3) & Count Stations per Band (Tab 1)
-				var allClients = [];
-				Object.keys(clientsByMac).forEach(function(mac) {
-					var sta = clientsByMac[mac];
-					var activeLinks = Object.keys(sta.links || {}).filter(function(lid) {
-						var lk = sta.links[lid];
-						return lk && (!lk.idle || lk.signal !== null);
-					});
-
-					if (activeLinks.length > 0) {
-						activeLinks.sort().forEach(function(lid) {
-							var lk = sta.links[lid];
-							var bIdx = parseInt(lid);
-							if (!isNaN(bIdx) && bandStaCounts[bIdx] !== undefined) {
-								bandStaCounts[bIdx]++;
-							}
-							var bLabel = bandNames[lid] || ('Link ' + lid);
-							var macNode = [
-								E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums;margin-right:6px' }, sta.mac),
-								E('span', {
-									'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#0ea5e9;color:#fff;display:inline-block'
-								}, 'MLO')
-							];
-							allClients.push([
-								E('span', { 'style': 'font-weight:600' }, (sta.iface || 'ap-mld') + ' (' + bLabel + ')'),
-								E('span', {}, macNode),
-								formatRateBadge(lk.tx_rate || lk.rx_rate),
-								formatSignal(lk.signal),
-								E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, lk.tx_rate || '—'),
-								E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, lk.rx_rate || '—'),
-								E('span', { 'style': 'color:#888' }, sta.connected || '—')
-							]);
-						});
-					} else {
-						var ifn = sta.iface || '';
-						var bIdx = 0;
-						if (ifn.indexOf('.1-') !== -1 || ifn.indexOf('radio1') !== -1) bIdx = 1;
-						else if (ifn.indexOf('.2-') !== -1 || ifn.indexOf('radio2') !== -1) bIdx = 2;
-						else if (ifn.indexOf('.0-') !== -1 || ifn.indexOf('radio0') !== -1) bIdx = 0;
-						bandStaCounts[bIdx]++;
-
-						var bLabel = bandNames[bIdx] || ifn;
-						var macNode = [
-							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, sta.mac)
-						];
-						allClients.push([
-							E('span', { 'style': 'font-weight:600' }, ifn ? ifn + ' (' + bLabel + ')' : bLabel),
-							E('span', {}, macNode),
-							sta.protocolBadge || formatRateBadge(sta.tx_rate || sta.rx_rate),
-							formatSignal(sta.signal),
-							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, sta.tx_rate || '—'),
-							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, sta.rx_rate || '—'),
-							E('span', { 'style': 'color:#888' }, sta.connected || '—')
-						]);
-					}
-				});
-
-				// 3. Update Radio Cards (Tab 1: Channel, Utilization, TX Power, Online Stations)
-				for (var idx = 0; idx < 3; idx++) {
-					var utilEl = document.getElementById('wifi7-val-util-' + idx);
-					var chanEl = document.getElementById('wifi7-val-chan-' + idx);
-					var txpEl = document.getElementById('wifi7-val-txp-' + idx);
-					var staEl = document.getElementById('wifi7-val-sta-' + idx);
-
-					// Check hostapd stats for this band
-					var hStat = null;
-					Object.keys(hostapdMap).forEach(function(k) {
-						if (k.indexOf('HL:') === 0 && k.slice(-2) === ':' + idx) {
-							hStat = hostapdMap[k];
-						} else if (!hStat && (k.indexOf('.' + idx + '-') !== -1 || k.indexOf('radio' + idx) !== -1)) {
-							hStat = hostapdMap[k];
-						}
-					});
-
-					// Find iwinfo info for matching interface
-					var iwInfo = null;
-					Object.keys(infoByDev).forEach(function(d) {
-						if (!iwInfo && (d.indexOf('.' + idx + '-') !== -1 || d.indexOf('radio' + idx) !== -1)) {
-							iwInfo = infoByDev[d];
-						}
-					});
-
-					// Channel / Bandwidth
-					if (chanEl) {
-						var ch = (hStat && hStat['channel']) || (iwInfo && iwInfo.channel) || null;
-						var bw = null;
-						if (hStat && hStat['eht_oper_chwidth']) {
-							bw = bwCodeMap[hStat['eht_oper_chwidth']] || (hStat['eht_oper_chwidth'] + ' MHz');
-						}
-						if (ch) {
-							chanEl.textContent = ch + ' / ' + (bw || BANDS[idx].defBw);
-						}
-					}
-
-					// Channel Utilization
-					if (utilEl) {
-						var u = null;
-						if (hStat && hStat['chan_util_avg']) {
-							var parsedU = parseInt(hStat['chan_util_avg']);
-							if (!isNaN(parsedU) && parsedU <= 100) u = parsedU;
-						}
-						if (u === null) {
-							// Check survey calculation fallback
-							Object.keys(surveyMap).forEach(function(sdev) {
-								if (u === null && (sdev.indexOf('.' + idx + '-') !== -1 || sdev.indexOf('radio' + idx) !== -1)) {
-									if (surveyMap[sdev] >= 0 && surveyMap[sdev] <= 100)
-										u = surveyMap[sdev];
-								}
-							});
-						}
-						utilEl.textContent = (u !== null) ? u + '%' : '—';
-					}
-
-					// TX Power
-					if (txpEl) {
-						var pwr = (hStat && hStat['max_txpower']) || (iwInfo && iwInfo.txpower) || null;
-						if (pwr) txpEl.textContent = Math.round(parseFloat(pwr)) + ' dBm';
-					}
-
-					// Online Stations Count (Accurate Real-Time Counter)
-					if (staEl) {
-						staEl.textContent = bandStaCounts[idx] || 0;
-					}
-				}
-
-				// 4. Render Connected Clients (Tab 3)
-				var tb = document.getElementById('wifi7-client-table');
-				if (tb) {
-					cbi_update_table(tb, allClients, E('em', { 'style': 'color:#888' }, _('No connected clients')));
-				}
+	render: function(channelData) {
+		var radios = uci.sections('wireless', 'wifi-device');
+		var cells = {}, controls = [], previous = {}, busy = false, channelLists = {}, expanded = {};
+		(channelData || []).forEach(function(item) { channelLists[item.id] = item.result; });
+		var notice = E('div', { 'class': 'cbi-section-descr' });
+		var grid = E('div', { 'class': 'wifi7-grid' });
+		var settings = E('div', { 'class': 'cbi-section' });
+		radios.forEach(function(r) {
+			var id = r['.name'], band = r.band, prefix = 'wifi7-' + id + '-';
+			var c = cells[id] = {};
+			var rows = [ E('h4', {}, id + (names[band] ? ' (' + names[band] + ')' : '')) ];
+			[[ 'state', _('Status') ], ['channel', _('Channel / Bandwidth')], ['power', _('TX Power')], ['util', _('Channel Utilization')], ['count', _('Online Stations')]].forEach(function(item) {
+				c[item[0]] = E('span', { 'class': 'wifi7-value' }, '—');
+				rows.push(E('div', { 'class': 'wifi7-row' }, [ E('span', {}, item[1]), c[item[0]] ]));
 			});
+			grid.appendChild(E('div', { 'class': 'wifi7-card' }, rows));
+			var enabled = E('input', { type: 'checkbox', id: prefix + 'enabled', name: prefix + 'enabled' });
+			enabled.checked = r.disabled !== '1';
+			var channelResult = channelLists[id];
+			var choices = channelResult && channelResult.ok ? channelResult.value.filter(function(f) {
+				return telemetry.band(f.mhz) === band && !(f.restricted && (!f.flags || f.flags.indexOf('no_ir') !== -1));
+			}) : [];
+			var channel = select(prefix + 'channel', ['auto'].concat(choices.map(function(f) { return String(f.channel); })), r.channel || 'auto');
+			Array.from(channel.options).forEach(function(o) {
+				var f = choices.find(function(f) { return String(f.channel) === o.value; });
+				if (f) o.textContent = f.channel + ' (' + f.mhz + ' MHz)';
+			});
+			// Preserve all configured values; capability-specific choices belong to native Wireless.
+			var modes = band === '2g' ? ['HE20', 'HE40', 'EHT20', 'EHT40'] : band === '6g' ? ['HE20', 'HE40', 'HE80', 'HE160', 'EHT20', 'EHT40', 'EHT80', 'EHT160', 'EHT320'] : ['HE20', 'HE40', 'HE80', 'HE160', 'EHT20', 'EHT40', 'EHT80', 'EHT160'];
+			var width = select(prefix + 'width', modes, r.htmode);
+			var power = E('input', { id: prefix + 'power', name: prefix + 'power', type: 'number', min: '1', max: '30', step: '1', value: r.txpower || '', placeholder: _('Auto'), 'class': 'cbi-input-text', style: 'width:96px' });
+			var country = E('input', { id: prefix + 'country', name: prefix + 'country', value: r.country || '', maxlength: '2', pattern: '[A-Za-z]{2}', placeholder: _('Auto'), 'class': 'cbi-input-text', style: 'width:96px' });
+			country.addEventListener('change', function() {
+				channel.value = r.channel || 'auto';
+				channel.disabled = country.value.toUpperCase() !== (r.country || '').toUpperCase();
+			});
+			var box = E('div', { 'class': 'cbi-section-node' }, [ E('h4', {}, id + (names[band] ? ' (' + names[band] + ')' : '')),
+				field(_('Enabled'), enabled), field(_('Operating Channel'), channel, choices.length ? _('Channels reported by the driver; current configuration is preserved.') : _('Channel discovery unavailable; only the current setting is preserved.')),
+				field(_('Bandwidth / Mode'), width), field(_('TX Power (dBm)'), power, _('1-%d dBm, leave empty for regulatory auto').format(30)), field(_('Country Code'), country, _('After changing country, apply and reload to refresh permitted channels.')) ]);
+			var radar = null;
+			if (band === '5g') {
+				radar = E('input', { type: 'checkbox', id: prefix + 'radar', name: prefix + 'radar' });
+				radar.checked = r.background_radar === '1';
+				box.appendChild(field(_('Background Radar'), radar, _('Requires driver support; channel availability checks may still be required.')));
+			}
+			controls.push({ original: r, id: id, enabled: enabled, channel: channel, width: width, power: power, country: country, radar: radar });
+			settings.appendChild(box);
+		});
+		var fw = E('span', {}, '—'), dfs = E('span', {}, _('Unknown'));
+		var overview = E('div', {}, [notice, grid, E('div', { 'class': 'cbi-section-node' }, [
+			E('div', { 'class': 'wifi7-row' }, [ E('span', {}, _('MT76 Firmware')), fw ]),
+			E('div', { 'class': 'wifi7-row' }, [ E('span', {}, _('5GHz DFS Status')), dfs ]) ]) ]);
+		var clients = E('div', { 'class': 'cbi-section' });
+		var download = E('button', { 'class': 'cbi-button', click: function() {
+			if (!window.confirm(_('Diagnostic output includes SSIDs and MAC addresses. Review before sharing. Continue?'))) return;
+			download.disabled = true;
+			return probe('/usr/libexec/wifi7-diagnostics', []).then(function(result) {
+				if (result.code !== 0 || !result.stdout) throw new Error(_('Diagnostic collection failed'));
+				var url = URL.createObjectURL(new Blob([result.stdout], { type: 'text/plain;charset=utf-8' }));
+				var anchor = E('a', { href: url, download: 'wifi7-diagnostics.txt' });
+				document.body.appendChild(anchor); anchor.click(); anchor.remove();
+				window.setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+			}).catch(function(err) { ui.addNotification(null, E('p', {}, err.message), 'error'); })
+				.finally(function() { download.disabled = false; });
+		} }, _('Export wireless diagnostics'));
+		overview.appendChild(download);
+		var panes = [overview, settings, clients];
+		var nav = E('ul', { 'class': 'cbi-tabmenu' });
+		[_('Radio Status'), _('Radio Settings'), _('Connected Clients')].forEach(function(label, i) {
+			panes[i].style.display = i ? 'none' : '';
+			nav.appendChild(E('li', { 'class': i ? 'cbi-tab-disabled' : 'cbi-tab' }, E('a', { href: '#', click: function(ev) {
+				ev.preventDefault(); panes.forEach(function(p, n) { p.style.display = n === i ? '' : 'none'; nav.children[n].className = n === i ? 'cbi-tab' : 'cbi-tab-disabled'; });
+			} }, label)));
+		});
+		var save = E('button', { 'class': 'cbi-button cbi-button-apply', click: function() {
+			if (controls.some(function(c) { return !c.channel.reportValidity() || !c.power.reportValidity() || !c.country.reportValidity(); })) return;
+			var disruptive = controls.some(function(c) {
+				return (!c.enabled.checked && c.original.disabled !== '1') ||
+					c.channel.value !== (c.original.channel || 'auto') || c.width.value !== c.original.htmode ||
+					c.country.value.toUpperCase() !== (c.original.country || '').toUpperCase();
+			});
+			if (disruptive && !window.confirm(_('These changes may interrupt wireless connections, including MLO links. Apply?'))) return;
+			save.disabled = true;
+			controls.forEach(function(c) {
+				[['disabled', c.enabled.checked ? '0' : '1'], ['channel', c.channel.value], ['htmode', c.width.value], ['txpower', c.power.value], ['country', c.country.value.toUpperCase()]].forEach(function(pair) {
+					if (pair[1]) uci.set('wireless', c.id, pair[0], pair[1]); else uci.unset('wireless', c.id, pair[0]);
+				});
+				if (c.radar) uci.set('wireless', c.id, 'background_radar', c.radar.checked ? '1' : '0');
+			});
+			return uci.save().then(function() { return uci.apply(); }).then(function() {
+				ui.addNotification(null, E('p', {}, _('Configuration applied. Runtime status will refresh.')), 'info');
+				return update();
+			}).catch(function(err) { ui.addNotification(null, E('p', {}, _('Failed to apply configuration: ') + err.message), 'error'); }).finally(function() { save.disabled = false; });
+		} }, _('Save & Apply'));
+		settings.appendChild(E('div', { style: 'text-align:right' }, save));
+
+		function update() {
+			if (busy) return Promise.resolve();
+			busy = true;
+			return Promise.all([
+				settled(network.flushCache().then(function() { return Promise.all([network.getWifiDevices(), network.getWifiNetworks()]); })),
+				settled(devices().then(function(list) { return Promise.all(list.map(function(d) { return Promise.all([settled(assoc(d)), settled(info(d))]).then(function(r) { return { name: d, stations: r[0], info: r[1] }; }); })); })),
+				settled(probe('/usr/libexec/wifi7-status', []))
+			]).then(function(result) {
+				var runtime = result[0], native = result[1], shell = result[2];
+				var parsed = telemetry.parse(shell.ok && shell.value.code === 0 ? shell.value.stdout : '');
+				var ssids = {}, ifaceRadio = {}, runtimeRadios = {}, nativeByName = {}, stats = {}, rows = [], nextPrevious = {};
+				if (runtime.ok) {
+					runtime.value[0].forEach(function(d) { runtimeRadios[d.getName()] = d; });
+					runtime.value[1].forEach(function(n) { ifaceRadio[n.getIfname()] = n.getWifiDeviceName(); ssids[n.getIfname()] = n.getSSID(); });
+				}
+				if (native.ok) native.value.forEach(function(n) { nativeByName[n.name] = n; });
+				radios.forEach(function(r) { stats[r['.name']] = { count: 0, known: false, failed: false, util: null, current: null }; });
+				function radioFor(iface, frequency) {
+					var b = telemetry.band(frequency), matches = radios.filter(function(r) { return b && r.band === b; });
+					return matches.length === 1 ? matches[0]['.name'] : !b ? ifaceRadio[iface] : null;
+				}
+				var ifaces = Array.from(new Set(Object.keys(parsed.devices).concat(Object.keys(nativeByName), Object.keys(ifaceRadio))));
+				var anyKnown = false, anyFailed = false;
+				ifaces.forEach(function(iface) {
+					var n = nativeByName[iface], dev = parsed.devices[iface] || {}, ni = n && n.info.ok ? n.info.value : {};
+					var frequency = dev.frequency || ni.frequency, radio = radioFor(iface, frequency);
+					var known = Object.prototype.hasOwnProperty.call(parsed.stations, iface) || !!(n && n.stations.ok && !Object.keys(dev.links || {}).length);
+					anyKnown = anyKnown || known; anyFailed = anyFailed || !known;
+					var mapped = new Set();
+					if (radio) mapped.add(radio);
+					Object.keys(dev.links || {}).forEach(function(lid) { var r = radioFor(iface, dev.links[lid].frequency); if (r) mapped.add(r); });
+					mapped.forEach(function(r) { stats[r].known = stats[r].known || known; stats[r].failed = stats[r].failed || !known; });
+					function measurement(data) {
+						var r = radioFor(iface, data.frequency);
+						if (r && data.frequency) stats[r].current = data;
+					}
+					measurement(Object.assign({}, ni, dev));
+					Object.keys(dev.links || {}).forEach(function(lid) { measurement(dev.links[lid]); });
+					(parsed.surveys[iface] || []).forEach(function(s) {
+						var key = iface + ':' + s.frequency, r = radioFor(iface, s.frequency);
+						if (r) stats[r].util = telemetry.delta(s, previous[key]);
+						nextPrevious[key] = s;
+					});
+					var merged = {};
+					if (n && n.stations.ok) n.stations.value.forEach(function(s) { merged[s.mac.toLowerCase()] = { mac: s.mac, signal: s.signal, tx: s.tx, rx: s.rx, connected: s.connected_time, links: {} }; });
+					(parsed.stations[iface] || []).forEach(function(s) {
+						var old = merged[s.mac] || {};
+						if (s.signal == null) s.signal = old.signal;
+						merged[s.mac] = Object.assign(old, s);
+					});
+					Object.keys(merged).forEach(function(mac) {
+						var startRow = rows.length;
+						var s = merged[mac], linkIds = Object.keys(s.links || {}), links = linkIds.filter(function(lid) { return s.links[lid].signal < 0; });
+						function row(value, lid) {
+							var f = lid != null ? (dev.links[lid] || {}).frequency : linkIds.length ? null : frequency, r = linkIds.length && lid == null ? null : radioFor(iface, f), b = telemetry.band(f);
+							if (r) stats[r].count++;
+							rows.push([iface + (lid != null ? ' / MLO ' + lid : '') + ' (' + (names[b] || _('Unknown')) + ')', mac,
+								standard(value.tx || value.rx), value.signal < 0 ? value.signal + ' dBm' : '—', rate(value.tx), rate(value.rx), s.connected != null ? s.connected + ' s' : '—']);
+						}
+						if (linkIds.length !== links.length) mapped.forEach(function(r) { stats[r].failed = true; });
+						if (links.length) links.forEach(function(lid) { row(s.links[lid], lid); }); else row(s, null);
+						rows.slice(startRow).forEach(function(row) { row.clientKey = iface + '/' + mac; row.ssid = ssids[iface] || ''; });
+					});
+				});
+				previous = nextPrevious;
+				parsed.hostapd.forEach(function(h) { var r = radioFor('', h.freq), u = telemetry.utilization(h.chan_util_avg); if (r && u != null) stats[r].util = u; });
+				radios.forEach(function(r) {
+					var id = r['.name'], s = stats[id], c = cells[id], d = runtimeRadios[id];
+					c.state.textContent = d ? (d.isUp() ? _('Up') : _('Disabled')) : _('Unknown');
+					c.count.textContent = s.known && !s.failed ? String(s.count) : '—';
+					c.util.textContent = s.util == null ? '—' : s.util + '%';
+					c.channel.textContent = s.current && s.current.channel ? s.current.channel + ' / ' + (s.current.width || '—') : '—';
+					c.power.textContent = s.current && s.current.txpower != null ? s.current.txpower + ' dBm' : '—';
+				});
+				fw.textContent = parsed.firmware || _('Unavailable');
+				var state = telemetry.dfs(parsed.hostapd);
+				var remaining = parsed.hostapd.filter(function(h) { return telemetry.band(h.freq) === '5g' && h.state === 'DFS'; }).map(function(h) { return /^\d+$/.test(h.cac_time_left_seconds || '') ? Number(h.cac_time_left_seconds) : null; });
+				dfs.textContent = state === 'cac' ? _('DFS CAC in progress') + (remaining.length && remaining.every(function(n) { return n !== null; }) ? ' · ' + _('%d seconds remaining').format(Math.max.apply(null, remaining)) : '') : state === 'active' ? _('Operating') : _('Unknown');
+				notice.textContent = anyFailed || !anyKnown ? _('Some telemetry is unavailable. Unknown values are not zero.') : '';
+				renderClients(rows, anyKnown && !anyFailed ? _('No connected clients') : _('Client data unavailable'));
+			}).catch(function() {
+				notice.textContent = _('Telemetry update failed');
+				Object.keys(cells).forEach(function(id) { Object.keys(cells[id]).forEach(function(k) { cells[id][k].textContent = '—'; }); });
+				fw.textContent = dfs.textContent = _('Unknown');
+				renderClients([], _('Client data unavailable'));
+			}).finally(function() { busy = false; });
+		}
+		function renderClients(rows, emptyText) {
+			Array.from(clients.querySelectorAll('details')).forEach(function(detail) { expanded[detail.dataset.client] = detail.open; });
+			clients.replaceChildren();
+			var groups = {};
+			rows.forEach(function(row) { (groups[row.clientKey] || (groups[row.clientKey] = [])).push(row); });
+			var keys = Object.keys(groups);
+			if (!keys.length) { clients.appendChild(E('em', {}, emptyText)); return; }
+			clients.appendChild(E('div', { 'class': 'cbi-section-descr' }, _('%d client associations').format(keys.length)));
+			keys.forEach(function(key) {
+				var entries = groups[key], first = entries[0];
+				var detail = E('details', { 'class': 'cbi-section-node', 'data-client': key });
+				detail.open = !!expanded[key];
+				detail.appendChild(E('summary', { style: 'cursor:pointer;padding:8px 0' }, first[1] + (first.ssid ? ' · ' + first.ssid : '') + ' · ' + first[2] + ' · ' + first[6]));
+				entries.forEach(function(row) {
+					var box = E('div', { style: 'padding:8px 0' }, E('div', {}, row[0]));
+					[_('Standard / Bandwidth'), _('Signal'), _('TX Rate'), _('RX Rate')].forEach(function(label, i) {
+						box.appendChild(E('div', { 'class': 'wifi7-row' }, [E('span', {}, label), E('span', { 'class': 'wifi7-value' }, row[i + 2])]));
+					});
+					detail.appendChild(box);
+				});
+				clients.appendChild(detail);
+			});
+			Object.keys(expanded).forEach(function(key) { if (!groups[key]) delete expanded[key]; });
 		}
 
-		updateData();
-		poll.add(updateData, 5);
-
-		return m;
+		poll.add(update, 5);
+		update();
+		return E('div', { 'class': 'cbi-map' }, [ E('style', {}, '.wifi7-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:16px}.wifi7-card{border:1px solid var(--cbi-border-color,#ddd);border-radius:6px;padding:16px;min-width:0}.wifi7-card h4{margin:0 0 12px;font-weight:500}.wifi7-row{display:flex;justify-content:space-between;gap:16px;padding:6px 0}.wifi7-value{font-variant-numeric:tabular-nums;text-align:right}'), E('h2', {}, _('WiFi 7')), nav ].concat(panes));
 	},
-
 	handleSaveApply: null,
 	handleSave: null,
 	handleReset: null
