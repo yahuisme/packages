@@ -95,17 +95,17 @@ return view.extend({
 		var latencyNode = E('div', { 'class': 'cbi-section-node' }, [
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Upstream Latency')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-latency', 'style': 'font-family:monospace;font-weight:600;color:#00cc44' }, '—')
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-latency', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-button-apply-bg, #00cc44)' }, '—')
 			]),
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Jitter')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-jitter', 'style': 'font-family:monospace' }, '—')
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-jitter', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, '—')
 			]),
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Ping Target')),
 				E('div', { 'class': 'cbi-value-field' }, [
 					E('div', { 'style': 'display:flex;align-items:center;gap:10px' }, [
-						E('span', { 'id': 'fs-val-target', 'style': 'font-family:monospace;font-weight:600' }, '—'),
+						E('span', { 'id': 'fs-val-target', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600' }, '—'),
 						E('button', {
 							'class': 'cbi-button cbi-button-action',
 							'click': function(ev) {
@@ -267,8 +267,8 @@ return view.extend({
 							e.index,
 							E('span', { 'style': 'font-weight:600;color:' + stateCol }, e.state),
 							e.type,
-							E('span', { 'style': 'font-family:monospace' }, e.orig || '-'),
-							E('span', { 'style': 'font-family:monospace' }, e.new_flow || '-')
+							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, e.orig || '-'),
+							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, e.new_flow || '-')
 						];
 					});
 					var ppeTb = document.getElementById('fs-ppe-table');

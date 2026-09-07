@@ -10,14 +10,14 @@ var callGetAllCurves = rpc.declare({
 });
 
 var settingsCSS = '\
-.fan-settings{max-width:1040px;margin:0 auto}\
+.fan-settings{width:100%}\
 .fan-curve-wrap{border:1px solid var(--cbi-border-color,#d0d0d0);border-radius:6px;padding:12px;background:var(--cbi-section-bg,#fff);margin-top:8px}\
 .fan-curve-canvas{display:block;width:100%;height:300px;background:var(--cbi-input-bg,#fafafa);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px;box-sizing:border-box}\
 .fan-settings .fan-curve-section .cbi-section-node{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}\
 .fan-settings .fan-curve-section .cbi-value{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--cbi-border-color,#f0f0f0)}\
 .fan-settings .fan-curve-section .cbi-value-title{width:auto;margin:0;font-size:13px;font-weight:500}\
 .fan-settings .fan-curve-section .cbi-value-field{width:auto;margin:0}\
-.fan-settings .fan-curve-section .cbi-value-field input{width:96px!important;min-width:96px;max-width:96px;text-align:center;font-family:monospace;font-weight:600}\
+.fan-settings .fan-curve-section .cbi-value-field input{width:96px!important;min-width:96px;max-width:96px;text-align:center;font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600}\
 @media(max-width:760px){.fan-settings .fan-curve-section .cbi-section-node{grid-template-columns:1fr}}\
 ';
 

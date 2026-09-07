@@ -151,7 +151,7 @@ return view.extend({
 			]),
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Current Frequency')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'cpu-curfreq-val', 'style': 'font-family:monospace;font-size:14px;color:#00cc44;font-weight:600' }, '—')
+				E('div', { 'class': 'cbi-value-field', 'id': 'cpu-curfreq-val', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums;font-size:14px;color:var(--cbi-button-apply-bg, #00cc44);font-weight:600' }, '—')
 			]),
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Governor')),
@@ -353,9 +353,9 @@ return view.extend({
 							e.index,
 							E('span', { 'style': 'font-weight:600;color:' + (e.state === 'BND' ? '#00cc44' : '#888') }, e.state),
 							e.type,
-							E('span', { 'style': 'font-family:monospace' }, e.orig || '-'),
-							E('span', { 'style': 'font-family:monospace' }, e.new_flow || '-'),
-							E('span', { 'style': 'font-family:monospace' }, eth)
+							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, e.orig || '-'),
+							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, e.new_flow || '-'),
+							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, eth)
 						];
 					});
 					var ppeTb = document.getElementById('ppe-table');

@@ -17,18 +17,18 @@ var HISTORY_STORAGE_KEY = 'airoha-fancontrol-history-v1';
 var history = [];
 
 var themeCSS = '\
-.fan-dashboard{max-width:1040px;margin:0 auto;--fan-blue:#00c8ff;--fan-green:#00cc44;--fan-amber:#f5a623;--fan-red:#d0021b;font-family:system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.5;color:var(--cbi-text-color,#222)}\
+.fan-dashboard{width:100%;--fan-blue:#00c8ff;--fan-green:#00cc44;--fan-amber:#f5a623;--fan-red:#d0021b;font-family:system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.5;color:var(--cbi-text-color,#222)}\
 .fan-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:14px}\
 .fan-summary-card,.fan-panel,.fan-chart-card,.fan-temp-card{background:var(--cbi-section-bg,#fff);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
 .fan-summary-card{border-left:3px solid var(--fan-accent,var(--cbi-border-color,#e0e0e0));padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center}\
 .fan-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
-.fan-card-value{font-size:18px;font-family:monospace;font-weight:600;color:var(--fan-accent,inherit)}\
+.fan-card-value{font-size:18px;font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600;color:var(--fan-accent,inherit)}\
 .fan-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
 .fan-panel{padding:14px;margin:14px 0}\
 .fan-panel-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,#222);padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
 .fan-chart-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}\
 .fan-chart-card{border-left:3px solid var(--fan-chart-accent,var(--cbi-border-color,#e0e0e0));padding:10px 12px;min-width:0}\
-.fan-chart-value{font-size:18px;font-family:monospace;font-weight:600;color:var(--cbi-text-color,#222)}\
+.fan-chart-value{font-size:18px;font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,#222)}\
 .fan-chart-canvas{display:block;width:100%;height:110px;margin-top:8px;background:var(--cbi-input-bg,#fafafa);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
 .fan-temp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}\
 .fan-temp-group{min-width:0}\
@@ -37,7 +37,7 @@ var themeCSS = '\
 .fan-temp-card{border-left:3px solid var(--fan-temp-accent,var(--cbi-border-color,#e0e0e0));padding:8px 10px;min-width:0}\
 .fan-temp-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px}\
 .fan-temp-label{font-size:12px;color:var(--cbi-text-color,#222);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
-.fan-temp-value{font-family:monospace;font-size:14px;font-weight:600;color:var(--fan-temp-accent);white-space:nowrap}\
+.fan-temp-value{font-family:monospace;font-variant-numeric:tabular-nums;font-size:14px;font-weight:600;color:var(--fan-temp-accent);white-space:nowrap}\
 .fan-temp-track{height:14px!important;min-height:14px;border-radius:999px;overflow:hidden;background:var(--cbi-border-color,#e0e0e0)}\
 .fan-temp-fill{height:100%;border-radius:inherit;background:var(--fan-temp-accent);transition:width .3s,background .3s}\
 @media(max-width:1050px){.fan-summary-grid{grid-template-columns:repeat(2,minmax(160px,1fr))}.fan-chart-grid{grid-template-columns:1fr}}\

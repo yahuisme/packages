@@ -138,8 +138,8 @@ return view.extend({
 			radioTable.appendChild(E('tr', { 'class': 'tr' }, [
 				E('td', { 'class': 'td', 'style': 'font-weight:600' }, band.name),
 				E('td', { 'class': 'td' }, statusBadge),
-				E('td', { 'class': 'td', 'style': 'font-family:monospace' }, channel + ' / ' + htmode),
-				E('td', { 'class': 'td', 'style': 'font-family:monospace' }, (typeof txp === 'string' && txp.indexOf('dBm') === -1) ? txp + ' dBm' : txp),
+				E('td', { 'class': 'td', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, channel + ' / ' + htmode),
+				E('td', { 'class': 'td', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, (typeof txp === 'string' && txp.indexOf('dBm') === -1) ? txp + ' dBm' : txp),
 				E('td', { 'class': 'td' }, skuBadge)
 			]));
 		}
@@ -335,7 +335,7 @@ return view.extend({
 
 				ifaceTable.appendChild(E('tr', { 'class': 'tr' }, [
 					E('td', { 'class': 'td', 'style': 'font-weight:600' }, ifc.ssid || ifc['.name']),
-					E('td', { 'class': 'td', 'style': 'font-family:monospace' }, ifc.ifname || ifc['.name']),
+					E('td', { 'class': 'td', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, ifc.ifname || ifc['.name']),
 					E('td', { 'class': 'td' }, [ mloBadge, devStr ]),
 					E('td', { 'class': 'td' }, (ifc.mode || 'ap').toUpperCase()),
 					E('td', { 'class': 'td' }, ifc.encryption || _('None')),
@@ -372,10 +372,10 @@ return view.extend({
 					r.clients.forEach(function(c) {
 						allClients.push([
 							r.ifname,
-							E('span', { 'style': 'font-family:monospace' }, c.mac),
+							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, c.mac),
 							formatSignal(c.signal),
-							E('span', { 'style': 'font-family:monospace' }, formatRate(c.tx_rate)),
-							E('span', { 'style': 'font-family:monospace' }, formatRate(c.rx_rate))
+							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, formatRate(c.tx_rate)),
+							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, formatRate(c.rx_rate))
 						]);
 					});
 				});

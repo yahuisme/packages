@@ -284,7 +284,7 @@ function renderMetric(label, value) {
 		'style': 'flex:1 1 10em;min-width:10em;padding:.85em 1em;border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;background:var(--cbi-input-bg,#fafafa);box-sizing:border-box;'
 	}, [
 		E('div', { 'style': 'font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:.35em;' }, label),
-		E('div', { 'style': 'font-size:18px;font-family:monospace;font-weight:600;line-height:1.2;color:var(--cbi-text-color,inherit);' }, value)
+		E('div', { 'style': 'font-size:18px;font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600;line-height:1.2;color:var(--cbi-text-color,inherit);' }, value)
 	]);
 }
 
