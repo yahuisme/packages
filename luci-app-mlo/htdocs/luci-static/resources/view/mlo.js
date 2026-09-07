@@ -9,14 +9,14 @@
 const callLuciWirelessDevices = rpc.declare({
 	object: 'luci-rpc',
 	method: 'getWirelessDevices',
-	expect: { '': {} }
+	raise: true
 });
 
 const callIwinfoAssoclist = rpc.declare({
 	object: 'iwinfo',
 	method: 'assoclist',
 	params: [ 'device', 'mac' ],
-	expect: { results: [] }
+	raise: true
 });
 
 function listValues(value) {
@@ -24,18 +24,7 @@ function listValues(value) {
 }
 
 function uniqueValues(value) {
-	let seen = {};
-	let out = [];
-
-	for (let item of listValues(value)) {
-		if (seen[item])
-			continue;
-
-		seen[item] = true;
-		out.push(item);
-	}
-
-	return out;
+	return Array.from(new Set(listValues(value)));
 }
 
 function optionValue(section, option) {
@@ -51,6 +40,16 @@ function nextSectionName(prefix) {
 	} while (uci.get('wireless', sid) != null);
 
 	return sid;
+}
+
+function editableSection(section_id) {
+	let cfg = uci.get('wireless', section_id) || {};
+	return [ 'ap', 'sta' ].includes(cfg.mode) &&
+		[ 'sae', 'sae-mixed', 'psk2', 'psk-mixed', 'owe', 'none' ].includes(cfg.encryption);
+}
+
+function wirelessLink() {
+	return E('a', { 'href': L.url('admin/network/wireless') }, _('Manage in Wireless'));
 }
 
 function radioLabel(radio) {
@@ -74,34 +73,19 @@ function radioMap(radios) {
 	return out;
 }
 
-function renderBadge(label, background, foreground) {
-	return E('span', {
-		'style': 'display:inline-block;margin:0 .35em .35em 0;padding:.2em .6em;border-radius:4px;background:%s;color:%s;font-size:11px;font-weight:600;line-height:1.2;white-space:nowrap;'.format(background, foreground || '#fff')
-	}, label);
+function renderBadge(label) {
+	return E('span', { 'class': 'ifacebadge' }, label);
 }
 
 function renderMetaLine(label, value) {
-	return E('div', { 'style': 'margin:.15em 0;' }, [
-		E('strong', { 'style': 'margin-right:.35em;' }, label),
-		value
+	return E('div', { 'class': 'cbi-value mlo-value' }, [
+		E('div', { 'class': 'cbi-value-title' }, label),
+		E('div', { 'class': 'cbi-value-field' }, value)
 	]);
 }
 
 function compactChildren(items) {
 	return items.filter(item => item !== null && item !== undefined && item !== false);
-}
-
-function renderJoinedValues(values, mapper) {
-	let out = [];
-
-	for (let i = 0; i < values.length; i++) {
-		if (i > 0)
-			out.push(', ');
-
-		out.push(mapper(values[i], i));
-	}
-
-	return out;
 }
 
 function replaceNode(oldNode, newNode) {
@@ -129,14 +113,8 @@ function flattenWirelessStatus(status) {
 
 	for (let radioName in status || {}) {
 		let radio = status[radioName] || {};
-		let cfg = radio.config || {};
 
-		runtime.radios.push({
-			name: radioName,
-			up: !!radio.up,
-			band: cfg.band,
-			channel: cfg.channel
-		});
+		runtime.radios.push(radioName);
 
 		for (let iface of L.toArray(radio.interfaces)) {
 			let sid = iface.section;
@@ -150,11 +128,7 @@ function flattenWirelessStatus(status) {
 				ifnames: [],
 				radios: [],
 				up: false,
-				stations: 0,
-				stationMap: {},
-				mode: null,
-				ssid: null,
-				encryption: null,
+				stations: null,
 				mldDetected: false
 			};
 
@@ -164,64 +138,46 @@ function flattenWirelessStatus(status) {
 			if (info.radios.indexOf(radioName) < 0)
 				info.radios.push(radioName);
 
-			info.up = info.up || !!radio.up;
-			info.mode = info.mode || ifaceCfg.mode;
-			info.ssid = info.ssid || ifaceCfg.ssid;
-			info.encryption = info.encryption || ifaceCfg.encryption;
-			info.mldDetected = info.mldDetected ||
+			info.up = info.up || (radio.up === true && iface.up !== false);
+			info.mldDetected = info.mldDetected || ifaceCfg.mlo == '1' ||
 				(iface.ifname && iface.ifname.indexOf('-mld') > -1) ||
 				uniqueValues(ifaceCfg.device).length > 1;
 
-			for (let station of L.toArray(iface.stations)) {
-				let key = stationKey(station);
-
-				if (key)
-					info.stationMap[key] = true;
-			}
-
-			info.stations = Object.keys(info.stationMap).length;
-
 			runtime.sections[sid] = info;
 
-			if (iface.ifname && iface.ifname.indexOf('-mld') > -1 && runtime.activeMldIfnames.indexOf(iface.ifname) < 0)
+			if (iface.ifname && radio.up === true && iface.up !== false && info.mldDetected && runtime.activeMldIfnames.indexOf(iface.ifname) < 0)
 				runtime.activeMldIfnames.push(iface.ifname);
 		}
 	}
 
-	runtime.radios.sort((a, b) => L.naturalCompare(a.name, b.name));
+	runtime.radios.sort(L.naturalCompare);
 	runtime.activeMldIfnames.sort(L.naturalCompare);
 
 	return runtime;
 }
 
 function enrichRuntimeStations(runtime) {
-	let tasks = [];
-
-	for (let sectionName in runtime.sections) {
-		let info = runtime.sections[sectionName];
-
-		info.stationMap = {};
-		info.stations = 0;
-
+	let queries = new Map();
+	for (let info of Object.values(runtime.sections)) {
 		for (let ifname of info.ifnames) {
-			tasks.push(
-				L.resolveDefault(callIwinfoAssoclist(ifname, null), []).then(function(stations) {
-					for (let station of L.toArray(stations)) {
-						let key = stationKey(station);
-
-						if (key)
-							info.stationMap[key] = true;
-					}
-
-					info.stations = Object.keys(info.stationMap).length;
-				})
-			);
+			if (!queries.has(ifname))
+				queries.set(ifname, callIwinfoAssoclist(ifname, null).then(function(reply) {
+					return reply && Array.isArray(reply.results) ? reply.results : null;
+				}).catch(function() { return null; }));
 		}
 	}
-
-	return Promise.all(tasks).then(function() {
-		return runtime;
-	});
+	return Promise.all(Object.values(runtime.sections).map(function(info) {
+		return Promise.all(info.ifnames.map(name => queries.get(name))).then(function(results) {
+			let stations = new Set();
+			for (let list of results)
+				for (let station of list || []) {
+					let key = stationKey(station);
+					if (key)
+						stations.add(key);
+				}
+			info.stations = results.length && results.every(Array.isArray) ? stations.size : null;
+		});
+	})).then(function() { return runtime; });
 }
 
 function collectSummary(runtime, radios) {
@@ -229,9 +185,7 @@ function collectSummary(runtime, radios) {
 	let summary = {
 		totalIfaces: sections.length,
 		mloIfaces: 0,
-		enabledIfaces: 0,
 		invalidMlo: 0,
-		activeMlo: 0,
 		customIfname: 0,
 		warnings: []
 	};
@@ -239,10 +193,6 @@ function collectSummary(runtime, radios) {
 	for (let section of sections) {
 		let devices = uniqueValues(section.device);
 		let isMlo = section.mlo == '1';
-		let runtimeInfo = runtime.sections[section['.name']];
-
-		if (section.disabled != '1')
-			summary.enabledIfaces++;
 
 		if (!isMlo)
 			continue;
@@ -254,9 +204,6 @@ function collectSummary(runtime, radios) {
 
 		if (section.ifname)
 			summary.customIfname++;
-
-		if (runtimeInfo && (runtimeInfo.mldDetected || runtimeInfo.ifnames.length))
-			summary.activeMlo++;
 	}
 
 	if (radios.length < 2)
@@ -270,7 +217,7 @@ function collectSummary(runtime, radios) {
 	if (summary.invalidMlo)
 		summary.warnings.push(_('%d MLO interface(s) still have fewer than two radios selected.').format(summary.invalidMlo));
 
-	if (summary.mloIfaces && !runtime.activeMldIfnames.length)
+	if (!runtime.unknown && summary.mloIfaces && !runtime.activeMldIfnames.length)
 		summary.warnings.push(_('MLO is configured, but no active runtime MLD interface is currently reported.'));
 
 	if (summary.customIfname)
@@ -279,62 +226,27 @@ function collectSummary(runtime, radios) {
 	return summary;
 }
 
-function renderMetric(label, value) {
-	return E('div', {
-		'style': 'flex:1 1 10em;min-width:10em;padding:.85em 1em;border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;background:var(--cbi-input-bg,#fafafa);box-sizing:border-box;'
-	}, [
-		E('div', { 'style': 'font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:.35em;' }, label),
-		E('div', { 'style': 'font-size:18px;font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600;line-height:1.2;color:var(--cbi-text-color,inherit);' }, value)
+function renderSummaryStatus(runtime, radios) {
+	let summary = collectSummary(runtime, radios);
+	return E('div', { 'data-mlo-summary-status': '' }, [
+		renderMetaLine(_('Configured radios'), String(radios.length)),
+		renderMetaLine(_('MLO-enabled'), String(summary.mloIfaces)),
+		renderMetaLine(_('Active MLD candidates'), runtime.unknown ? _('unknown') :
+			(runtime.activeMldIfnames.join(', ') || _('none'))),
+		E('p', {}, _('Runtime names and multi-radio configuration are hints, not proof of client MLO links.')),
+		E('ul', {}, summary.warnings.map(w => E('li', {}, w)))
 	]);
 }
 
-function renderSummaryBox(runtime, summary, addApMlo, addStaMlo, refreshStatus) {
-	let warningList = summary.warnings.length
-		? E('ul', { 'style': 'margin:.75em 0 0 1.2em;color:var(--cbi-warning-color,#f5a623);' },
-			summary.warnings.map(w => E('li', { 'style': 'margin:.25em 0;' }, w)))
-		: E('div', { 'style': 'margin-top:.75em;color:#00cc44;font-weight:500;' },
-			_('Runtime detection looks healthy. Auto-generated MLD names appear as <code>ap-mldX</code> or <code>sta-mldX</code>.'));
-
-		return E('div', {
-			'class': 'cbi-section',
-			'data-mlo-summary-box': '1'
-		}, [
-			E('h3', _('MLO Overview')),
-			E('div', {
-				'style': 'display:flex;gap:.75em;flex-wrap:wrap;margin:.5em 0 1em 0;'
-			}, [
-			renderMetric(_('Configured radios'), String(runtime.radios.length)),
-			renderMetric(_('Wireless interfaces'), String(summary.totalIfaces)),
-			renderMetric(_('MLO-enabled'), String(summary.mloIfaces)),
-			renderMetric(_('Active MLD ifnames'), runtime.activeMldIfnames.length ? runtime.activeMldIfnames.join(', ') : _('none'))
-		]),
-		E('div', {
-			'style': 'display:flex;gap:.5em;flex-wrap:wrap;margin-bottom:.5em;'
-		}, [
-			E('button', {
-				'class': 'cbi-button cbi-button-add',
-				'click': function(ev) {
-					ev.preventDefault();
-					return addApMlo();
-				}
-			}, _('Quick Add AP MLO')),
-			E('button', {
-				'class': 'cbi-button',
-				'click': function(ev) {
-					ev.preventDefault();
-					return addStaMlo();
-				}
-			}, _('Quick Add STA MLO')),
-			E('button', {
-				'class': 'cbi-button',
-				'click': function(ev) {
-					ev.preventDefault();
-					return refreshStatus();
-				}
-			}, _('Refresh Runtime Status'))
-		]),
-		warningList
-	]);
+function fetchRuntime() {
+	return callLuciWirelessDevices().then(function(status) {
+		if (!status || typeof(status) != 'object' || Array.isArray(status) ||
+			Object.values(status).some(radio => !radio || typeof(radio.up) != 'boolean'))
+			throw new Error('Invalid wireless status');
+		return enrichRuntimeStations(flattenWirelessStatus(status));
+	}).catch(function() {
+		return { unknown: true, radios: [], sections: {}, activeMldIfnames: [] };
+	});
 }
 
 function renderSectionOverview(section_id, radiosByName) {
@@ -344,30 +256,30 @@ function renderSectionOverview(section_id, radiosByName) {
 	let issues = [];
 
 	if (cfg.mlo == '1' && devices.length < 2)
-		issues.push(E('div', { 'style': 'color:#b94a48;margin-top:.25em;' }, _('Needs at least two radios')));
+		issues.push(E('div', { 'style': 'margin-top:.25em;' }, _('Needs at least two radios')));
 
 	if (cfg.mlo == '1' && cfg.mode == 'ap' && ![ 'sae', 'sae-mixed', 'owe' ].includes(cfg.encryption))
-		issues.push(E('div', { 'style': 'color:#8a6d3b;margin-top:.25em;' }, _('AP MLO is usually paired with WPA3-SAE or OWE')));
+		issues.push(E('div', { 'style': 'margin-top:.25em;' }, _('AP MLO is usually paired with WPA3-SAE or OWE')));
 
 	if (cfg.mlo == '1' && cfg.ifname && cfg.ifname.indexOf('mld') < 0)
-		issues.push(E('div', { 'style': 'color:#8a6d3b;margin-top:.25em;' }, _('Custom ifname overrides the default ap-mldX / sta-mldX naming')));
+		issues.push(E('div', { 'style': 'margin-top:.25em;' }, _('Custom ifname overrides the default ap-mldX / sta-mldX naming')));
 
 		return E('div', {
 			'data-mlo-overview-section': section_id,
-			'style': 'min-width:17em;'
+			'style': 'overflow-wrap:anywhere;'
 		}, [
 			E('div', { 'style': 'margin-bottom:.2em;' }, [
-			renderBadge(cfg.mlo == '1' ? _('MLO') : _('Single-link'), cfg.mlo == '1' ? '#2d6cdf' : '#6c757d'),
-			renderBadge((cfg.mode || 'ap').toUpperCase(), '#495057'),
-			renderBadge(cfg.disabled == '1' ? _('Disabled') : _('Enabled'), cfg.disabled == '1' ? '#b94a48' : '#2f6f3e')
+			renderBadge(cfg.mlo == '1' ? _('MLO') : _('Single-link')),
+			renderBadge((cfg.mode || 'ap').toUpperCase()),
+			renderBadge(cfg.disabled == '1' ? _('Disabled') : _('Enabled'))
 			]),
 			renderMetaLine(_('SSID'), cfg.ssid || E('em', _('unset'))),
 			renderMetaLine(_('Radios'), devices.length
-				? renderJoinedValues(devices, dev => radiosByName[dev] ? radioLabel(radiosByName[dev]) : dev)
+				? devices.map(dev => radiosByName[dev] ? radioLabel(radiosByName[dev]) : dev).join(', ')
 				: E('em', _('none'))),
 			renderMetaLine(_('Networks'), networks.length ? networks.join(', ') : E('em', _('none'))),
 			renderMetaLine(_('Security'), cfg.encryption || E('em', _('unset'))),
-			issues
+			E('div', {}, issues)
 	]);
 }
 
@@ -375,63 +287,52 @@ function renderRuntimeCell(section_id, runtime) {
 	let cfg = uci.get('wireless', section_id) || {};
 	let state = runtime.sections[section_id];
 
-	if (cfg.disabled == '1') {
-		return E('div', {
-			'data-mlo-runtime-section': section_id,
-			'style': 'min-width:15em;'
-		}, [
-			renderBadge(_('Disabled'), '#b94a48'),
-			E('div', { 'style': 'margin-top:.25em;color:#666;' }, _('Section is disabled in UCI'))
-		]);
-	}
+	if (runtime.unknown)
+		return E('div', { 'data-mlo-runtime-section': section_id }, _('Runtime status: unknown'));
 
 	if (!state) {
 		return E('div', {
 			'data-mlo-runtime-section': section_id,
-			'style': 'min-width:15em;'
+			'style': 'overflow-wrap:anywhere;'
 		}, [
-			renderBadge(_('No runtime state'), '#6c757d'),
-			E('div', { 'style': 'margin-top:.25em;color:#666;' }, _('No active interface was reported yet')),
+			renderBadge(_('No runtime state')),
+			E('div', { 'style': 'margin-top:.25em;' }, _('No active interface was reported yet')),
 			cfg.mlo == '1'
-				? E('div', { 'style': 'margin-top:.25em;color:#8a6d3b;' }, _('Save & Apply, then verify driver support if this persists'))
+				? E('div', { 'style': 'margin-top:.25em;' }, _('Save & Apply, then verify driver support if this persists'))
 				: null
 		]);
 	}
 
 	return E('div', {
 		'data-mlo-runtime-section': section_id,
-		'style': 'min-width:15em;'
+		'style': 'overflow-wrap:anywhere;'
 	}, [
 		E('div', { 'style': 'margin-bottom:.2em;' }, compactChildren([
-			renderBadge(state.up ? _('Active') : _('Present'), state.up ? '#2f6f3e' : '#6c757d'),
-			state.mldDetected ? renderBadge(_('MLD runtime'), '#2d6cdf') : null
+			renderBadge(state.up ? _('Active') : _('Down')),
+			state.mldDetected ? renderBadge(_('MLD candidate')) : null
 		])),
 		renderMetaLine(_('ifname'), state.ifnames.length ? state.ifnames.join(', ') : E('em', _('unknown'))),
 		renderMetaLine(_('Runtime radios'), state.radios.join(', ')),
-		renderMetaLine(_('Stations'), String(state.stations))
+		renderMetaLine(_('Stations'), state.stations == null ? _('unknown') : String(state.stations))
 	]);
 }
 
 return view.extend({
-	callLuciWirelessDevices: callLuciWirelessDevices,
-
 	load: function() {
 		return Promise.all([
 			uci.load('wireless'),
 			uci.load('network'),
-			L.resolveDefault(this.callLuciWirelessDevices(), {})
+			fetchRuntime()
 		]);
 	},
 
 	render: function(data) {
 		let m, s, o;
-		let initialStatus = data[2] || {};
+		let runtime = data[2];
 		let radios = uci.sections('wireless', 'wifi-device');
 		let networks = uci.sections('network', 'interface');
 		let radiosByName = radioMap(radios);
-		let runtime = flattenWirelessStatus(initialStatus);
-		let summary = collectSummary(runtime, radios);
-		let quickAdd;
+		let inflight;
 		let refreshRuntime;
 
 		m = new form.Map('wireless', _('Wi-Fi MLO'));
@@ -442,7 +343,7 @@ return view.extend({
 		s.addremove = true;
 		s.sortable = true;
 		s.nodescriptions = true;
-		s.addbtntitle = _('Add MLO-ready interface');
+		s.addbtntitle = _('Add MLO');
 		s.modaltitle = _('Edit wireless interface');
 		s.sectiontitle = function(section_id) {
 			return optionValue(section_id, 'ssid') ||
@@ -450,63 +351,48 @@ return view.extend({
 				section_id;
 		};
 
-		quickAdd = function(mode) {
-			let selectedRadios = radios.slice(0, 2).map(r => r['.name']);
-			let sid;
-			let defaultNetworks = [];
-
-			if (selectedRadios.length < 2) {
-				ui.addNotification(null, E('p', _('At least two configured radios are required before an MLO interface can be created.')));
-				return Promise.resolve();
-			}
-
-			if (mode == 'ap') {
-				if (networks.some(n => n['.name'] == 'lan'))
-					defaultNetworks = [ 'lan' ];
-				else if (networks.length)
-					defaultNetworks = [ networks[0]['.name'] ];
-			}
-			else {
-				if (networks.some(n => n['.name'] == 'wwan'))
-					defaultNetworks = [ 'wwan' ];
-				else if (networks.some(n => n['.name'] == 'wan'))
-					defaultNetworks = [ 'wan' ];
-			}
-
-			sid = nextSectionName('mlo');
-
-			uci.add('wireless', 'wifi-iface', sid);
-			uci.set('wireless', sid, 'mode', mode);
-			uci.set('wireless', sid, 'mlo', '1');
-			uci.set('wireless', sid, 'disabled', '0');
-			uci.set('wireless', sid, 'device', selectedRadios);
-			uci.set('wireless', sid, 'network', defaultNetworks);
-			uci.set('wireless', sid, 'encryption', mode == 'ap' ? 'sae' : 'sae');
-			uci.set('wireless', sid, 'ieee80211w', '2');
-
-			if (mode == 'ap')
-				uci.set('wireless', sid, 'ssid', 'OpenWrt-MLO');
-
-			return s.renderMoreOptionsModal(sid);
-		};
-
 		s.handleAdd = function(ev) {
 			if (ev)
 				ev.preventDefault();
-
-			return quickAdd('ap');
+			if (this.map.readonly)
+				return Promise.resolve();
+			return form.GridSection.prototype.handleAdd.call(this, ev, nextSectionName('mlo')).catch(function(error) {
+				if (s.map.addedSection != null) {
+					uci.remove('wireless', s.map.addedSection);
+					delete s.map.addedSection;
+				}
+				throw error;
+			});
+		};
+		s.renderMoreOptionsModal = function(section_id, ev) {
+			if (this.map.readonly)
+				return Promise.resolve();
+			if (this.map.addedSection == section_id) {
+				uci.set('wireless', section_id, 'mode', 'ap');
+				uci.set('wireless', section_id, 'mlo', '1');
+				uci.set('wireless', section_id, 'encryption', 'sae');
+				uci.set('wireless', section_id, 'ieee80211w', '2');
+			}
+			if (!editableSection(section_id)) {
+				ui.addNotification(null, E('p', {}, [ _('This mode or encryption is not supported by this editor.'), ' ', wirelessLink() ]));
+				return Promise.resolve();
+			}
+			return form.GridSection.prototype.renderMoreOptionsModal.call(this, section_id, ev);
 		};
 
-		o = s.option(form.DummyValue, '_overview', _('Profile'));
-		o.modalonly = false;
-		o.textvalue = function(section_id) {
-			return renderSectionOverview(section_id, radiosByName);
+		s.renderRowActions = function(section_id) {
+			if (this.map.readonly || !editableSection(section_id))
+				return E('td', { 'class': 'td cbi-section-actions' }, wirelessLink());
+			return form.GridSection.prototype.renderRowActions.call(this, section_id);
 		};
 
-		o = s.option(form.DummyValue, '_runtime', _('Runtime'));
+		o = s.option(form.DummyValue, '_overview', _('Details'));
 		o.modalonly = false;
 		o.textvalue = function(section_id) {
-			return renderRuntimeCell(section_id, runtime);
+			return E('div', {}, [
+				renderSectionOverview(section_id, radiosByName),
+				renderRuntimeCell(section_id, runtime)
+			]);
 		};
 
 		s.tab('general', _('General'));
@@ -520,7 +406,7 @@ return view.extend({
 		o.rmempty = false;
 
 		o = s.taboption('general', form.Flag, 'mlo', _('Enable MLO'),
-			_('When enabled, this <code>wifi-iface</code> spans multiple radios through a multi-value <code>device</code> list.'));
+			_('Use multiple radios for this interface.'));
 		o.default = o.enabled;
 		o.rmempty = false;
 
@@ -560,6 +446,7 @@ return view.extend({
 
 		o = s.taboption('general', form.Value, 'ssid', _('SSID'));
 		o.datatype = 'maxlength(32)';
+		o.rmempty = false;
 		o.depends('mode', 'ap');
 		o.depends('mode', 'sta');
 
@@ -568,7 +455,7 @@ return view.extend({
 		o.modalonly = true;
 
 		o = s.taboption('security', form.ListValue, 'encryption', _('Encryption'),
-			_('For AP MLO, WPA3-SAE with Management Frame Protection set to Required is the most compatible starting point in this tree.'));
+			_('WPA3-SAE with required Management Frame Protection is recommended for MLO.'));
 		o.value('sae', _('WPA3-SAE'));
 		o.value('sae-mixed', _('WPA2/WPA3 mixed'));
 		o.value('psk2', _('WPA2-PSK'));
@@ -596,18 +483,36 @@ return view.extend({
 			return true;
 		};
 
-		o = s.taboption('security', form.ListValue, 'ieee80211w', _('802.11w Management Frame Protection'));
+		o = s.taboption('security', form.ListValue, 'ieee80211w', _('802.11w Management Frame Protection'),
+			_('SAE and OWE require Management Frame Protection: select Required.'));
+		o.validate = function(section_id, value) {
+			let encryption = this.section.children.find(opt => opt.option == 'encryption').formvalue(section_id);
+			return [ 'sae', 'owe' ].includes(encryption) && value != '2'
+				? _('SAE and OWE require Management Frame Protection: select Required.') : true;
+		};
 		o.value('0', _('Disabled'));
 		o.value('1', _('Optional'));
 		o.value('2', _('Required'));
 		o.default = '2';
 		o.rmempty = false;
-		o.depends('encryption', 'sae');
 		o.depends('encryption', 'sae-mixed');
 		o.depends('encryption', 'psk2');
 		o.depends('encryption', 'psk-mixed');
-		o.depends('encryption', 'owe');
 		o.modalonly = true;
+
+		// Keep the standard option when hidden; the fixed field writes it below.
+		o.retain = true;
+		o = s.taboption('security', form.ListValue, '_pmf_required', _('802.11w Management Frame Protection'),
+			_('SAE and OWE require Management Frame Protection.'));
+		o.value('2', _('Required'));
+		o.readonly = true;
+		o.forcewrite = true;
+		o.rmempty = false;
+		o.depends('encryption', 'sae');
+		o.depends('encryption', 'owe');
+		o.cfgvalue = function() { return '2'; };
+		o.write = function(section_id) { uci.set('wireless', section_id, 'ieee80211w', '2'); };
+		o.remove = function() {};
 
 		o = s.taboption('advanced', form.Value, 'ifname', _('Interface name'),
 			_('Optional override. Leave empty to use auto-generated names such as <code>ap-mld0</code> or <code>sta-mld0</code>.'));
@@ -644,50 +549,41 @@ return view.extend({
 		o.depends('mode', 'ap');
 		o.modalonly = true;
 
+		for (let option of s.children)
+			option.modalonly = option.option != '_overview';
+
 		refreshRuntime = function(nodes) {
-			return L.resolveDefault(callLuciWirelessDevices(), {}).then(function(status) {
-				let nextRuntime = flattenWirelessStatus(status);
-				return enrichRuntimeStations(nextRuntime).then(function(nextRuntime) {
-					let nextSummary = collectSummary(nextRuntime, radios);
-					let summaryNode = nodes.querySelector('[data-mlo-summary-box="1"]');
-					let nextSummaryNode = renderSummaryBox(nextRuntime, nextSummary,
-						function() { return quickAdd('ap'); },
-						function() { return quickAdd('sta'); },
-						function() { return refreshRuntime(nodes); });
-
-					runtime = nextRuntime;
-					summary = nextSummary;
-
-					replaceNode(summaryNode, nextSummaryNode);
-
-					uci.sections('wireless', 'wifi-iface').forEach(function(section) {
-						let overviewNode = nodes.querySelector('[data-mlo-overview-section="%s"]'.format(section['.name']));
-						let rowNode = nodes.querySelector('[data-mlo-runtime-section="%s"]'.format(section['.name']));
-
-						if (overviewNode)
-							replaceNode(overviewNode, renderSectionOverview(section['.name'], radiosByName));
-
-						if (rowNode)
-							replaceNode(rowNode, renderRuntimeCell(section['.name'], runtime));
-					});
-				});
-			});
+			if (inflight)
+				return inflight;
+			inflight = fetchRuntime().then(function(nextRuntime) {
+				runtime = nextRuntime;
+				replaceNode(nodes.querySelector('[data-mlo-summary-status]'), renderSummaryStatus(runtime, radios));
+				for (let row of nodes.querySelectorAll('[data-mlo-runtime-section]'))
+					replaceNode(row, renderRuntimeCell(row.getAttribute('data-mlo-runtime-section'), runtime));
+			}).finally(function() { inflight = null; });
+			return inflight;
 		};
 
 		return m.render().then(function(nodes) {
-			nodes.insertBefore(renderSummaryBox(runtime, summary,
-				function() { return quickAdd('ap'); },
-				function() { return quickAdd('sta'); },
-				function() { return refreshRuntime(nodes); }),
-			nodes.firstChild);
-
-			return refreshRuntime(nodes).then(function() {
-				poll.add(function() {
-					return refreshRuntime(nodes);
-				}, 5);
-
-				return nodes;
-			});
+			nodes.classList.add('mlo-map');
+			nodes.appendChild(E('style', {}, `
+				.mlo-value.cbi-value { display:flex; flex-wrap:wrap; gap:8px; padding:4px 0; margin:0; }
+				.mlo-value > .cbi-value-title { flex:0 0 96px; width:96px; text-align:left; padding:0; font-weight:500; }
+				.mlo-value > .cbi-value-field { flex:1; min-width:0; overflow-wrap:anywhere; }
+				.mlo-map .ifacebadge { margin:0 8px 8px 0; font-weight:500; }
+				.modal:has([id^="cbid.wireless."]) { min-width:0; width:min(720px,calc(100vw - 32px)); max-width:calc(100vw - 32px); }
+				.modal:has([id^="cbid.wireless."]) .cbi-value-field { min-width:0; }
+			`));
+			nodes.insertBefore(E('div', { 'class': 'cbi-section' }, [
+				E('h3', {}, _('MLO Overview')),
+				renderSummaryStatus(runtime, radios),
+				E('button', {
+					'class': 'cbi-button', 'type': 'button',
+					'click': ui.createHandlerFn(null, function() { return refreshRuntime(nodes); })
+				}, _('Refresh Runtime Status'))
+			]), nodes.firstChild);
+			poll.add(function() { return refreshRuntime(nodes); }, 5);
+			return nodes;
 		});
 	}
 });

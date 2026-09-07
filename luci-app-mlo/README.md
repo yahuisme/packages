@@ -1,23 +1,17 @@
 # luci-app-mlo
 
-Standalone LuCI package for editing OpenWrt Wi-Fi MLO settings.
+原生 LuCI MLO 配置页面，补充无线页面对多射频 `device` 列表的管理能力。
 
-What it does:
-- Adds a new `Network -> MLO` page in LuCI
-- Writes directly to `wireless` UCI sections
-- Exposes `option mlo '1'` and multi-value `device` entries
-- Avoids the stock wireless page limitation where `device` is still handled like a single value
-- Shows runtime MLD detection and active ifnames from `luci-rpc getWirelessDevices`
-- Provides quick-create buttons for AP and STA MLO profiles with safer defaults
+- 管理 AP / STA 接口的 MLO、射频、网络与安全设置。
+- 配置与运行状态分开展示；查询失败显示未知，不视为零终端或运行正常。
+- 使用 LuCI 标准保存与应用流程，仅写入 `wireless` 配置。
 
-Suggested workflow:
-1. Place or symlink this folder into your OpenWrt tree, for example:
-   `ln -s ../../luci-app-mlo openwrt/package/luci-app-mlo`
-2. Enable `luci-app-mlo` in `make menuconfig`
-3. Build and flash
-4. Open LuCI at `Network -> MLO`
+## 使用
 
-Notes:
-- This app edits `/etc/config/wireless` only
-- Save & Apply will use normal LuCI/UCI apply flow
-- Leave `ifname` empty to let netifd create names such as `ap-mld0` or `sta-mld0`
+1. 将本目录放入 OpenWrt 软件包目录，启用 `luci-app-mlo`。
+2. 打开 **网络 → MLO**，添加接口并选择角色、射频、逻辑网络和加密设置。
+3. 保存并应用后，检查运行状态；无线连接可能短暂中断。
+
+MLO 需要固件的 netifd、无线配置脚本、驱动和 wpad 共同支持。应用本身不会为不支持的设备添加 MLO 能力。
+
+未支持的模式或安全配置请使用原生无线页面管理。接口名称留空可由系统自动生成；运行中的 MLD 接口不等于客户端已经建立多链路连接，终端数量也不是 MLO 链路数量。

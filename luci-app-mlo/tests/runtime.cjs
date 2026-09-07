@@ -1,0 +1,23 @@
+const fs=require('fs'),assert=require('assert');
+const source=fs.readFileSync(require('path').join(__dirname, '../htdocs/luci-static/resources/view/mlo.js'),'utf8');
+String.prototype.format=function(...a){let i=0;return this.replace(/%[sd]/g,()=>a[i++]);};
+const L={toArray:v=>v==null?[]:Array.isArray(v)?v:String(v).split(/\s+/),naturalCompare:(a,b)=>a.localeCompare(b),resolveDefault:(p,d)=>p.catch(()=>d),isObject:v=>v!==null&&typeof v==='object',raise:(t,m)=>{throw Error(m)}};
+const rs=fs.readFileSync(require('path').join(process.env.LUCI_RESOURCE_DIR, 'rpc.js'),'utf8');let start=rs.indexOf('\thandleCallReply(req, msg) {');
+const reply=Function('L','return ({'+rs.slice(start,rs.indexOf('\n\t/**',start)).trim().replace(/,$/,'')+'}).handleCallReply')(L);
+let responses={},calls=[];const rpc={declare:spec=>(...a)=>new Promise((resolve,reject)=>{calls.push(a[0]);reply.call({}, {...spec,resolve,reject},{jsonrpc:'2.0',result:responses[a[0]]||[0,{results:[]}]});})};
+let sections=[{'.name':'mlo0',mlo:'1',device:['radio0','radio1']}];const uci={sections:()=>sections};
+const f=Function('rpc','L','uci','_',source.slice(0,source.indexOf('return view.extend'))+'return {flattenWirelessStatus,enrichRuntimeStations,collectSummary,uniqueValues};')(rpc,L,uci,x=>x);
+(async()=>{
+let r=f.flattenWirelessStatus({radio0:{up:false,interfaces:[{section:'mlo0',ifname:'ap-mld0',config:{device:['radio0','radio1']}}]}});
+assert.deepEqual(r.activeMldIfnames,[]);assert(f.collectSummary(r,[{},{}]).warnings.some(w=>w.includes('no active runtime')));
+r=f.flattenWirelessStatus({radio0:{up:'true',interfaces:[{section:'mlo0',ifname:'ap-mld0'}]}});assert.equal(r.sections.mlo0.up,false);
+r=f.flattenWirelessStatus({radio0:{up:true,interfaces:[{section:'mlo0',ifname:'custom0',config:{device:['radio0','radio1']}}]}});assert.deepEqual(r.activeMldIfnames,['custom0']);assert(!f.collectSummary(r,[{},{}]).warnings.some(w=>w.includes('no active runtime')));
+r=f.flattenWirelessStatus({radio0:{up:true,interfaces:[{section:'mlo0',ifname:'custom0',config:{mlo:'1'}}]}});assert.deepEqual(r.activeMldIfnames,['custom0']);
+assert(!f.collectSummary({unknown:true,sections:{},activeMldIfnames:[]},[{},{}]).warnings.some(w=>w.includes('no active runtime')));
+console.log('PASS strict runtime up and consistent custom MLD names');
+if(process.argv.includes('--state-only'))return;
+responses={a:[6],b:[0,{results:[{mac:'AA'}]}]};calls=[];
+r=f.flattenWirelessStatus({radio0:{up:true,interfaces:[{section:'mlo0',ifname:'a'},{section:'mlo0',ifname:'b'},{section:'other',ifname:'b'}]}});await f.enrichRuntimeStations(r);assert.equal(r.sections.mlo0.stations,null);assert.equal(r.sections.other.stations,1);assert.deepEqual(calls.sort(),['a','b']);
+responses={a:[0,{}]};r=f.flattenWirelessStatus({radio0:{up:true,interfaces:[{section:'mlo0',ifname:'a'}]}});await f.enrichRuntimeStations(r);assert.equal(r.sections.mlo0.stations,null);
+assert.deepEqual(f.uniqueValues(['constructor','toString','radio0','radio0']),['constructor','toString','radio0']);console.log('PASS RPC failure/malformed/partial unknown, deduplicated queries and values');
+})().catch(e=>{console.error(e);process.exitCode=1});
