@@ -3238,3 +3238,160 @@ msgstr "有效端口范围（port1:port2）"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:279
 msgid "valid port value"
 msgstr "有效端口值"
+
+msgid "<code>%s</code> will be temporarily overwritten to <code>%s</code> after 50 triggers in 30s if not enabled."
+msgstr "若未启用，若在 30 秒内触发超过 50 次，<code>%s</code> 将被临时覆盖为 <code>%s</code>。"
+
+msgid "Allow insecure connection by default when adding nodes from subscriptions."
+msgstr "从订阅添加节点时默认允许不安全连接。"
+
+msgid "Bind outbound traffic to specific interface. Leave empty to auto detect."
+msgstr "将出站流量绑定到指定网络接口。留空则自动检测。"
+
+msgid "Disable Chrome QUIC handshake fingerprint imitation for compatibility with servers using Ed25519 certificates."
+msgstr "禁用 Chrome QUIC 握手指纹模拟，以兼容使用 Ed25519 证书的服务器。"
+
+msgid "Disables Path MTU Discovery (RFC 8899). Packets will then be at most 1252 (IPv4) / 1232 (IPv6) bytes in size."
+msgstr "禁用路径 MTU 发现（RFC 8899）。数据包大小上限将被限制为 1252（IPv4）/ 1232（IPv6）字节。"
+
+msgid "ECH (Encrypted Client Hello) is a TLS extension that allows a client to encrypt the first part of its ClientHello message."
+msgstr "ECH（Encrypted Client Hello）是一种 TLS 扩展，允许客户端对其 ClientHello 消息的第一部分进行加密。"
+
+msgid "Enable the SUoT protocol, requires server support. Conflict with multiplex."
+msgstr "启用 SUoT 协议，需要服务端支持。与多路复用（Multiplex）冲突。"
+
+msgid "Evaluate the query with the selected server before matching response addresses or IP rule sets."
+msgstr "在匹配响应地址或 IP 规则集之前，先使用选定的服务器评估查询。"
+
+msgid "Fragment TLS handshakes. Due to poor performance, try <code>%s</code> first."
+msgstr "分片 TLS 握手。由于性能开销较大，建议优先尝试 <code>%s</code>。"
+
+msgid "HTTP/3 server behavior when authentication fails.<br/>A 404 page will be returned if empty."
+msgstr "HTTP/3 服务端身份验证失败时的行为。<br/>若留空将返回 404 页面。"
+
+msgid "How long the server should wait for the client to send the authentication command (in seconds)."
+msgstr "服务端等待客户端发送身份验证命令的超时时间（秒）。"
+
+msgid "IPv4 addresses in this option automatically use rule-based proxy routing."
+msgstr "此选项中的 IPv4 地址将自动使用基于规则的代理路由。"
+
+msgid "If enabled, attempts to connect UDP connection to the destination instead of listen."
+msgstr "若启用，将尝试直接向目标建立 UDP 连接而非监听。"
+
+msgid "If enabled, for UDP proxy requests addressed to a domain, the original packet address will be sent in the response instead of the mapped domain."
+msgstr "若启用，对于请求目标为域名的 UDP 代理流量，响应时将发送原始数据包地址而非映射的域名。"
+
+msgid "If enabled, the client transport sends keepalive pings even with no active connections."
+msgstr "若启用，即使当前没有活动连接，客户端传输层也会定期发送保活 Ping。"
+
+msgid "If set, the requested domain name will be resolved to IP before routing."
+msgstr "若设置，请求的域名将在路由决策前预先解析为 IP 地址。"
+
+msgid "If you have the root certificate, use this option instead of allowing insecure."
+msgstr "若你持有根证书，请使用此选项指定证书，而非直接允许不安全连接。"
+
+msgid "In the check, at least the first <code>n</code> idle sessions are kept open."
+msgstr "在检查中，至少保持前 <code>n</code> 个空闲会话处于打开状态。"
+
+msgid "In the check, close sessions that have been idle for longer than this, in seconds."
+msgstr "在检查中，关闭空闲时间超过此设定值的会话（秒）。"
+
+msgid "Interval for sending heartbeat packets for keeping the connection alive (in seconds)."
+msgstr "用于保持连接的心跳包发送间隔（秒）。"
+
+msgid "Legacy protocol support (VMess MD5 Authentication) is provided for compatibility purposes only, use of alterId > 1 is not recommended."
+msgstr "传统协议支持（VMess MD5 认证）仅用于兼容旧节点，不建议使用 alterId > 1。"
+
+msgid "List of IP (v4 or v6) addresses prefixes to be assigned to the interface."
+msgstr "分配给接口的 IP（v4 或 v6）地址前缀列表。"
+
+msgid "MAC addresses in this option automatically use rule-based proxy routing."
+msgstr "此选项中的 MAC 地址将自动使用基于规则的代理路由。"
+
+msgid "Match IP CIDR with query response. Current rule will be skipped if not match."
+msgstr "将查询响应与 IP CIDR 进行匹配。若不匹配将跳过当前规则。"
+
+msgid "Minimum multiplexed streams in a connection before opening a new connection."
+msgstr "在开启新底层连接前，单个连接中允许并发的最小多路复用流数量。"
+
+msgid "Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6)."
+msgstr "分钟（0–59）、小时（0–23）、日（1–31）、月（1–12）、星期（0–6）。"
+
+msgid "Only devices in the lists below are processed. All other devices use direct routing."
+msgstr "仅处理下方列表中的设备。所有其他设备将直接直连路由。"
+
+msgid "Protocol parameter. Will waste traffic randomly if enabled (enabled by default in v2ray and cannot be disabled)."
+msgstr "协议参数。启用后将随机消耗填充流量（v2ray 中默认开启且无法关闭）。"
+
+msgid "Resources were updated, but HomeProxy failed to reload. Check the log for details."
+msgstr "规则资源已更新，但 HomeProxy 重载失败。请检查日志查看详细信息。"
+
+msgid "Specifies DNS server tag to use instead of selecting through DNS routing."
+msgstr "指定要使用的 DNS 服务器标识，绕过 DNS 路由选择。"
+
+msgid "Specifies the time (in seconds) until idle clients should be closed with a GOAWAY frame. PING frames are not considered as activity."
+msgstr "指定空闲客户端发送 GOAWAY 帧关闭前的等待时间（秒）。PING 帧不计为活动流量。"
+
+msgid "Specify target ports to be proxied. Multiple ports must be separated by commas."
+msgstr "指定要代理的目标端口。多个端口必须用英文逗号分隔。"
+
+msgid "Support Hysteria, Shadowsocks, Trojan, v2rayN (VMess), and XTLS (VLESS) online configuration delivery standard."
+msgstr "支持 Hysteria、Shadowsocks、Trojan、v2rayN（VMess）以及 XTLS（VLESS）在线配置订阅标准。"
+
+msgid "Support UDP, TCP, DoH, DoQ, DoT. TCP protocol will be used if not specified."
+msgstr "支持 UDP、TCP、DoH、DoQ、DoT。未指定时将使用 TCP 协议。"
+
+msgid "TUN uses sing-box automatic routing and redirect on Linux; TProxy uses native TCP/UDP transparent proxying."
+msgstr "TUN 在 Linux 上使用 sing-box 自动路由与重定向；TProxy 使用原生内核级 TCP/UDP 透明代理。"
+
+msgid "Tag of another DNS server used to resolve a domain name in the server address."
+msgstr "用于解析服务器地址中域名的另一个 DNS 服务器标识。"
+
+msgid "Tell the client to use the BBR flow control algorithm instead of Hysteria CC."
+msgstr "通知客户端使用 BBR 流控算法替代默认的 Hysteria 拥塞控制。"
+
+msgid "The alternate port to use for the ACME HTTP challenge; if non-empty, this port will be used instead of 80 to spin up a listener for the HTTP challenge."
+msgstr "用于 ACME HTTP 验证的备用端口；若非空，将使用此端口代替 80 端口启动 HTTP 验证监听。"
+
+msgid "The alternate port to use for the ACME TLS-ALPN challenge; the system must forward 443 to this port for challenge to succeed."
+msgstr "用于 ACME TLS-ALPN 验证的备用端口；系统必须将 443 端口转发到此端口才能验证成功。"
+
+msgid "The dns server for resolving China domains. Support UDP, TCP, DoH, DoQ, DoT."
+msgstr "用于解析中国大陆域名的 DNS 服务器。支持 UDP、TCP、DoH、DoQ、DoT。"
+
+msgid "The elliptic curves that will be used in an ECDHE handshake, in preference order. If empty, the default will be used."
+msgstr "ECDHE 握手中使用的椭圆曲线列表（按优先级排序）。留空则使用默认配置。"
+
+msgid "The email address to use when creating or selecting an existing ACME server account."
+msgstr "创建或选择已有 ACME 证书服务器账户时使用的电子邮箱地址。"
+
+msgid "The fallback value in milliseconds used when TLS segmentation cannot automatically determine the wait time."
+msgstr "当 TLS 分段无法自动确定等待时间时的回退值（毫秒）。"
+
+msgid "The maximum number of QUIC concurrent bidirectional streams that a peer is allowed to open."
+msgstr "允许对端打开的最大 QUIC 并发双向流数量。"
+
+msgid "The path to the ECH config, in PEM format. If empty, load from DNS will be attempted."
+msgstr "ECH 配置文件路径（PEM 格式）。若留空将尝试从 DNS 查询加载。"
+
+msgid "The tag of the upstream outbound.<br/>Other dial fields will be ignored when enabled."
+msgstr "上游出站节点的标识标签。<br/>启用后将忽略其他拨号字段。"
+
+msgid "The timeout (in seconds) that after performing a keepalive check, the client will wait for activity. If no activity is detected, the connection will be closed."
+msgstr "执行保活检查后客户端等待活动数据的超时时间（秒）。若未检测到活动，将关闭连接。"
+
+msgid "This is <strong>DANGEROUS</strong>, your traffic is almost like <strong>PLAIN TEXT</strong>! Use at your own risk!"
+msgstr "这非常<strong>危险</strong>，你的流量几乎等同于<strong>明文传输</strong>！请自行承担风险！"
+
+msgid "This is the TUIC port of the UDP over TCP protocol, designed to provide a QUIC stream based UDP relay mode that TUIC does not provide."
+msgstr "这是 UDP over TCP 协议的 TUIC 移植，旨在提供 TUIC 原生未包含的基于 QUIC 流的 UDP 中继模式。"
+
+msgid "Timeout for UDP connections.<br/>Setting a larger value than the inbound UDP timeout will have no effect."
+msgstr "UDP 连接超时时间。<br/>设置大于入站 UDP 超时时间的值将不会生效。"
+
+msgid "To be compatible with Xray-core, set this to <code>Sec-WebSocket-Protocol</code>."
+msgstr "为了与 Xray-core 保持兼容，请将其设置为 <code>Sec-WebSocket-Protocol</code>。"
+
+msgid "Used to verify the hostname on the returned certificates unless insecure is given."
+msgstr "用于验证返回证书上的主机名（除非勾选了允许不安全连接）。"
+
