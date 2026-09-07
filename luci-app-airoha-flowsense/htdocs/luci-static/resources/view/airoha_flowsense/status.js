@@ -47,48 +47,89 @@ return view.extend({
 			E('div', { 'class': 'cbi-map-descr' }, _('Real-time hardware packet processing engine (PPE) offload metrics, link quality, and latency monitoring.'))
 		]);
 
+		// Tabs navigation
+		var activeTab = 'overview';
+		var tabPanes = {};
+
+		var tabList = [
+			{ id: 'overview', name: _('Overview & Quality') },
+			{ id: 'ppe',      name: _('PPE Flow Offload') }
+		];
+
+		var tabNav = E('ul', { 'class': 'cbi-tabmenu' });
+		tabList.forEach(function(t) {
+			var li = E('li', {
+				'class': (t.id === activeTab ? 'cbi-tab' : 'cbi-tab-disabled'),
+				'click': function(ev) {
+					activeTab = t.id;
+					tabNav.querySelectorAll('li').forEach(function(el, idx) {
+						el.className = (tabList[idx].id === activeTab ? 'cbi-tab' : 'cbi-tab-disabled');
+					});
+					Object.keys(tabPanes).forEach(function(k) {
+						tabPanes[k].style.display = (k === activeTab ? '' : 'none');
+					});
+				}
+			}, E('a', { 'href': '#', 'click': function(e){ e.preventDefault(); } }, t.name));
+			tabNav.appendChild(li);
+		});
+		m.appendChild(tabNav);
+
+		// ── Tab 1: Overview & Quality Pane ──
+		var paneOverview = E('div', { 'class': 'cbi-tab-pane' });
+		tabPanes['overview'] = paneOverview;
+
 		// ── Section 1: Offload & Mode Overview ──
-		var modeTable = E('table', { 'class': 'table cbi-section-table', 'id': 'fs-mode-table' }, [
-			E('tr', { 'class': 'tr table-titles' }, [
-				E('th', { 'class': 'th' }, _('Device Mode')),
-				E('th', { 'class': 'th' }, _('HW Flow Offload')),
-				E('th', { 'class': 'th' }, _('VLAN Offload')),
-				E('th', { 'class': 'th' }, _('PPPoE Offload')),
-				E('th', { 'class': 'th' }, _('AP Mode Acceleration'))
+		var modeNode = E('div', { 'class': 'cbi-section-node' }, [
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, _('Device Mode')),
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-mode', 'style': 'font-weight:600' }, '—')
 			]),
-			E('tr', { 'class': 'tr' }, [
-				E('td', { 'class': 'td', 'id': 'fs-val-mode', 'style': 'font-weight:600' }, '—'),
-				E('td', { 'class': 'td', 'id': 'fs-val-flow' }, '—'),
-				E('td', { 'class': 'td', 'id': 'fs-val-vlan' }, '—'),
-				E('td', { 'class': 'td', 'id': 'fs-val-pppoe' }, '—'),
-				E('td', { 'class': 'td', 'id': 'fs-val-apmode' }, '—')
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, _('HW Flow Offload')),
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-flow' }, '—')
+			]),
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, _('VLAN Offload')),
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-vlan' }, '—')
+			]),
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, _('PPPoE Offload')),
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-pppoe' }, '—')
+			]),
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, _('AP Mode Acceleration')),
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-apmode' }, '—')
 			])
 		]);
 
-		m.appendChild(E('div', { 'class': 'cbi-section' }, [
+		paneOverview.appendChild(E('div', { 'class': 'cbi-section' }, [
 			E('h3', {}, _('Acceleration & Operational Mode')),
-			modeTable
+			modeNode
 		]));
 
 		// ── Section 2: Flow Summary & Hardware Buffer ──
-		var flowSummaryTable = E('table', { 'class': 'table cbi-section-table' }, [
-			E('tr', { 'class': 'tr table-titles' }, [
-				E('th', { 'class': 'th' }, _('Hardware Bound Flows')),
-				E('th', { 'class': 'th' }, _('Learning / Unbound Flows')),
-				E('th', { 'class': 'th' }, _('IPv4 / IPv6 Breakdown')),
-				E('th', { 'class': 'th' }, _('Buffer Health / Congestion'))
+		var flowSummaryNode = E('div', { 'class': 'cbi-section-node' }, [
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, _('Hardware Bound Flows')),
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-bnd', 'style': 'font-weight:600;color:#00cc44;font-family:monospace;font-variant-numeric:tabular-nums' }, '—')
 			]),
-			E('tr', { 'class': 'tr' }, [
-				E('td', { 'class': 'td', 'id': 'fs-val-bnd', 'style': 'font-weight:600;color:#00cc44' }, '—'),
-				E('td', { 'class': 'td', 'id': 'fs-val-unb', 'style': 'font-weight:600;color:#f5a623' }, '—'),
-				E('td', { 'class': 'td', 'id': 'fs-val-ip-split' }, '—'),
-				E('td', { 'class': 'td', 'id': 'fs-val-buffer' }, '—')
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, _('Learning / Unbound Flows')),
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-unb', 'style': 'font-weight:600;color:#f5a623;font-family:monospace;font-variant-numeric:tabular-nums' }, '—')
+			]),
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, _('IPv4 / IPv6 Breakdown')),
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-ip-split', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, '—')
+			]),
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, _('Buffer Health / Congestion')),
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-buffer' }, '—')
 			])
 		]);
 
-		m.appendChild(E('div', { 'class': 'cbi-section' }, [
+		paneOverview.appendChild(E('div', { 'class': 'cbi-section' }, [
 			E('h3', {}, _('Flow Engine & Buffer Status')),
-			flowSummaryTable
+			flowSummaryNode
 		]));
 
 		// ── Section 3: Link Latency & Jitter Monitor ──
@@ -103,7 +144,7 @@ return view.extend({
 			]),
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Ping Target')),
-				E('div', { 'class': 'cbi-value-field' }, [
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-target-container' }, [
 					E('div', { 'style': 'display:flex;align-items:center;gap:10px' }, [
 						E('span', { 'id': 'fs-val-target', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600' }, '—'),
 						E('button', {
@@ -132,16 +173,19 @@ return view.extend({
 			])
 		]);
 
-		m.appendChild(E('div', { 'class': 'cbi-section' }, [
+		paneOverview.appendChild(E('div', { 'class': 'cbi-section' }, [
 			E('h3', {}, _('Link Quality & Latency Monitor')),
 			latencyNode
 		]));
 
 		// ── Section 4: Conflict Alerts ──
 		var alertBox = E('div', { 'id': 'fs-alerts-container', 'style': 'display:none;margin-bottom:14px' });
-		m.appendChild(alertBox);
+		paneOverview.appendChild(alertBox);
 
-		// ── Section 5: PPE Flow Offload Table ──
+		// ── Tab 2: PPE Flow Offload Pane ──
+		var panePpe = E('div', { 'class': 'cbi-tab-pane', 'style': 'display:none' });
+		tabPanes['ppe'] = panePpe;
+
 		var ppePauseBtn = E('button', {
 			'class': 'cbi-button cbi-button-neutral',
 			'click': function(ev) {
@@ -160,13 +204,16 @@ return view.extend({
 			])
 		]);
 
-		m.appendChild(E('div', { 'class': 'cbi-section' }, [
+		panePpe.appendChild(E('div', { 'class': 'cbi-section' }, [
 			E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px' }, [
 				E('h3', { 'style': 'margin:0' }, _('PPE Flow Offload Entries')),
 				ppePauseBtn
 			]),
 			ppeTable
 		]));
+
+		m.appendChild(paneOverview);
+		m.appendChild(panePpe);
 
 		// Polling logic
 		function updateData() {

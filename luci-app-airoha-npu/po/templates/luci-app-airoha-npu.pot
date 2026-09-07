@@ -172,3 +172,9 @@ msgstr ""
 #: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:421
 msgid "Unbound:"
 msgstr ""
+
+msgid "SoC Overview"
+msgstr ""
+
+msgid "PPE Flow Offload"
+msgstr ""

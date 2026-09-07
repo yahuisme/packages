@@ -126,14 +126,8 @@ return view.extend({
 		var paneOverview = E('div', { 'class': 'cbi-tab-pane' });
 		tabPanes['overview'] = paneOverview;
 
-		var radioTable = E('table', { 'class': 'table cbi-section-table' }, [
-			E('tr', { 'class': 'tr table-titles' }, [
-				E('th', { 'class': 'th' }, _('Radio Band')),
-				E('th', { 'class': 'th' }, _('Status')),
-				E('th', { 'class': 'th' }, _('Channel / Bandwidth')),
-				E('th', { 'class': 'th' }, _('TX Power')),
-				E('th', { 'class': 'th' }, _('Hardware SKU'))
-			])
+		var radioSection = E('div', { 'class': 'cbi-section' }, [
+			E('h3', {}, _('Radio Status'))
 		]);
 
 		for (var bIdx = 0; bIdx < 3; bIdx++) {
@@ -156,19 +150,29 @@ return view.extend({
 				'style': 'font-weight:600;color:#00cc44'
 			}, _('Unlocked (Full Power)'));
 
-			radioTable.appendChild(E('tr', { 'class': 'tr' }, [
-				E('td', { 'class': 'td', 'style': 'font-weight:600' }, band.name),
-				E('td', { 'class': 'td' }, statusBadge),
-				E('td', { 'class': 'td', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, channel + ' / ' + htmode),
-				E('td', { 'class': 'td', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, txp),
-				E('td', { 'class': 'td' }, skuBadge)
-			]));
+			var card = E('div', { 'class': 'cbi-section-node', 'style': 'border:1px solid var(--cbi-border-color, #e0e0e0);border-radius:6px;padding:12px 14px;margin-bottom:12px' }, [
+				E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px' }, [
+					E('h4', { 'style': 'margin:0;font-weight:600' }, rName + ' (' + band.name + ')'),
+					statusBadge
+				]),
+				E('div', { 'class': 'cbi-value' }, [
+					E('label', { 'class': 'cbi-value-title' }, _('Channel / Bandwidth')),
+					E('div', { 'class': 'cbi-value-field', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, channel + ' / ' + htmode)
+				]),
+				E('div', { 'class': 'cbi-value' }, [
+					E('label', { 'class': 'cbi-value-title' }, _('TX Power')),
+					E('div', { 'class': 'cbi-value-field', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, txp)
+				]),
+				E('div', { 'class': 'cbi-value' }, [
+					E('label', { 'class': 'cbi-value-title' }, _('Hardware SKU')),
+					E('div', { 'class': 'cbi-value-field' }, skuBadge)
+				])
+			]);
+
+			radioSection.appendChild(card);
 		}
 
-		paneOverview.appendChild(E('div', { 'class': 'cbi-section' }, [
-			E('h3', {}, _('Radio Status')),
-			radioTable
-		]));
+		paneOverview.appendChild(radioSection);
 
 		var clientTable = E('table', { 'class': 'table cbi-section-table', 'id': 'wifi7-client-table' }, [
 			E('tr', { 'class': 'tr table-titles' }, [

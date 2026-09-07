@@ -48,3 +48,9 @@ msgstr ""
 
 msgid "VLAN Offload"
 msgstr ""
+
+msgid "Overview & Quality"
+msgstr ""
+
+msgid "PPE Flow Offload"
+msgstr ""

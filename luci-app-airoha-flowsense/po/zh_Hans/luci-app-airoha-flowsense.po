@@ -366,6 +366,13 @@ msgstr "原始流 (Original Flow)"
 msgid "PPE Flow Offload Entries"
 msgstr "PPE 硬件流表条目"
 
+msgid "Overview & Quality"
+msgstr "监控概览"
+
+msgid "PPE Flow Offload"
+msgstr "PPE 硬件流表"
+
+
 msgid "Ping Target"
 msgstr "Ping 测速目标"
 

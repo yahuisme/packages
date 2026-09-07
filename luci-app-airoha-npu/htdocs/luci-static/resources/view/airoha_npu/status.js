@@ -91,25 +91,60 @@ return view.extend({
 			E('div', { 'class': 'cbi-map-descr' }, _('Comprehensive overview of Airoha NPU hardware offload, CPU dynamic frequency / OPP overclocking, and Frame Engine performance.'))
 		]);
 
+		// Tabs navigation
+		var activeTab = 'overview';
+		var tabPanes = {};
+
+		var tabList = [
+			{ id: 'overview', name: _('SoC Overview') },
+			{ id: 'ppe',      name: _('PPE Flow Offload') }
+		];
+
+		var tabNav = E('ul', { 'class': 'cbi-tabmenu' });
+		tabList.forEach(function(t) {
+			var li = E('li', {
+				'class': (t.id === activeTab ? 'cbi-tab' : 'cbi-tab-disabled'),
+				'click': function(ev) {
+					activeTab = t.id;
+					tabNav.querySelectorAll('li').forEach(function(el, idx) {
+						el.className = (tabList[idx].id === activeTab ? 'cbi-tab' : 'cbi-tab-disabled');
+					});
+					Object.keys(tabPanes).forEach(function(k) {
+						tabPanes[k].style.display = (k === activeTab ? '' : 'none');
+					});
+				}
+			}, E('a', { 'href': '#', 'click': function(e){ e.preventDefault(); } }, t.name));
+			tabNav.appendChild(li);
+		});
+		m.appendChild(tabNav);
+
+		// ── Tab 1: SoC Overview Pane ──
+		var paneOverview = E('div', { 'class': 'cbi-tab-pane' });
+		tabPanes['overview'] = paneOverview;
+
 		// ── Section 1: NPU Status & Metrics ──
-		var npuSummaryTable = E('table', { 'class': 'table cbi-section-table', 'id': 'npu-summary-table' }, [
-			E('tr', { 'class': 'tr table-titles' }, [
-				E('th', { 'class': 'th' }, _('NPU Core Status')),
-				E('th', { 'class': 'th' }, _('Clock / Cores')),
-				E('th', { 'class': 'th' }, _('Offload Flows (Bound / Total)')),
-				E('th', { 'class': 'th' }, _('Reserved Memory'))
+		var npuSummaryNode = E('div', { 'class': 'cbi-section-node' }, [
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, _('NPU Core Status')),
+				E('div', { 'class': 'cbi-value-field', 'id': 'npu-val-status' }, '—')
 			]),
-			E('tr', { 'class': 'tr' }, [
-				E('td', { 'class': 'td', 'id': 'npu-val-status' }, '—'),
-				E('td', { 'class': 'td', 'id': 'npu-val-clock' }, '—'),
-				E('td', { 'class': 'td', 'id': 'npu-val-flows' }, '—'),
-				E('td', { 'class': 'td', 'id': 'npu-val-memory' }, '—')
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, _('Clock / Cores')),
+				E('div', { 'class': 'cbi-value-field', 'id': 'npu-val-clock', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, '—')
+			]),
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, _('Offload Flows (Bound / Total)')),
+				E('div', { 'class': 'cbi-value-field', 'id': 'npu-val-flows', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, '—')
+			]),
+			E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, _('Reserved Memory')),
+				E('div', { 'class': 'cbi-value-field', 'id': 'npu-val-memory', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, '—')
 			])
 		]);
 
-		m.appendChild(E('div', { 'class': 'cbi-section' }, [
+		paneOverview.appendChild(E('div', { 'class': 'cbi-section' }, [
 			E('h3', {}, _('NPU Core Status')),
-			npuSummaryTable
+			npuSummaryNode
 		]));
 
 		// ── Section 2: Hardware Offload Acceleration Switches ──
@@ -141,7 +176,7 @@ return view.extend({
 			])
 		]);
 
-		m.appendChild(E('div', { 'class': 'cbi-section' }, [
+		paneOverview.appendChild(E('div', { 'class': 'cbi-section' }, [
 			E('h3', {}, _('Hardware Acceleration')),
 			offloadGrid
 		]));
@@ -196,12 +231,15 @@ return view.extend({
 			])
 		]);
 
-		m.appendChild(E('div', { 'class': 'cbi-section' }, [
+		paneOverview.appendChild(E('div', { 'class': 'cbi-section' }, [
 			E('h3', {}, _('CPU Frequency & Overclocking')),
 			cpuInfoNode
 		]));
 
-		// ── Section 4: PPE Flow Table ──
+		// ── Tab 2: PPE Flow Offload Pane ──
+		var panePpe = E('div', { 'class': 'cbi-tab-pane', 'style': 'display:none' });
+		tabPanes['ppe'] = panePpe;
+
 		var ppePauseBtn = E('button', {
 			'class': 'cbi-button cbi-button-neutral',
 			'click': function(ev) {
@@ -221,13 +259,16 @@ return view.extend({
 			])
 		]);
 
-		m.appendChild(E('div', { 'class': 'cbi-section' }, [
+		panePpe.appendChild(E('div', { 'class': 'cbi-section' }, [
 			E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px' }, [
 				E('h3', { 'style': 'margin:0' }, _('PPE Flow Offload Entries')),
 				ppePauseBtn
 			]),
 			ppeTable
 		]));
+
+		m.appendChild(paneOverview);
+		m.appendChild(panePpe);
 
 		// Data polling & updates
 		function updateData() {
