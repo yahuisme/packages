@@ -76,7 +76,7 @@ function radioMap(radios) {
 
 function renderBadge(label, background, foreground) {
 	return E('span', {
-		'style': 'display:inline-block;margin:0 .35em .35em 0;padding:.15em .55em;border-radius:999px;background:%s;color:%s;font-size:12px;line-height:1.3;white-space:nowrap;'.format(background, foreground || '#fff')
+		'style': 'display:inline-block;margin:0 .35em .35em 0;padding:.2em .6em;border-radius:4px;background:%s;color:%s;font-size:11px;font-weight:600;line-height:1.2;white-space:nowrap;'.format(background, foreground || '#fff')
 	}, label);
 }
 
@@ -281,18 +281,18 @@ function collectSummary(runtime, radios) {
 
 function renderMetric(label, value) {
 	return E('div', {
-		'style': 'flex:1 1 10em;min-width:10em;padding:.85em 1em;border:1px solid #d7d7d7;border-radius:10px;background:#fafafa;'
+		'style': 'flex:1 1 10em;min-width:10em;padding:.85em 1em;border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;background:var(--cbi-input-bg,#fafafa);box-sizing:border-box;'
 	}, [
-		E('div', { 'style': 'font-size:12px;color:#666;margin-bottom:.25em;' }, label),
-		E('div', { 'style': 'font-size:22px;font-weight:600;line-height:1.2;' }, value)
+		E('div', { 'style': 'font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:.35em;' }, label),
+		E('div', { 'style': 'font-size:18px;font-family:monospace;font-weight:600;line-height:1.2;color:var(--cbi-text-color,inherit);' }, value)
 	]);
 }
 
 function renderSummaryBox(runtime, summary, addApMlo, addStaMlo, refreshStatus) {
 	let warningList = summary.warnings.length
-		? E('ul', { 'style': 'margin:.75em 0 0 1.2em;' },
+		? E('ul', { 'style': 'margin:.75em 0 0 1.2em;color:var(--cbi-warning-color,#f5a623);' },
 			summary.warnings.map(w => E('li', { 'style': 'margin:.25em 0;' }, w)))
-		: E('div', { 'style': 'margin-top:.75em;color:#2f6f3e;' },
+		: E('div', { 'style': 'margin-top:.75em;color:#00cc44;font-weight:500;' },
 			_('Runtime detection looks healthy. Auto-generated MLD names appear as <code>ap-mldX</code> or <code>sta-mldX</code>.'));
 
 		return E('div', {
