@@ -1,454 +1,150 @@
-/*
- * SPDX-License-Identifier: Apache-2.0
- *
- * LuCI Support for Airoha NPU Status
- * Native, unified, elegant and robust LuCI UI
- */
-
 'use strict';
-'require dom';
-'require poll';
-'require rpc';
-'require ui';
 'require view';
+'require rpc';
+'require poll';
+'require ui';
 
-const callNpuStatus = rpc.declare({ object: 'luci.airoha_npu', method: 'getStatus' });
-const callPpeEntries = rpc.declare({ object: 'luci.airoha_npu', method: 'getPpeEntries' });
-const callTokenInfo = rpc.declare({ object: 'luci.airoha_npu', method: 'getTokenInfo' });
-const callFrameEngine = rpc.declare({ object: 'luci.airoha_npu', method: 'getFrameEngine' });
-const callSetGovernor = rpc.declare({ object: 'luci.airoha_npu', method: 'setGovernor', params: ['governor'] });
-const callSetMaxFreq = rpc.declare({ object: 'luci.airoha_npu', method: 'setMaxFreq', params: ['freq'] });
-const callSetOverclock = rpc.declare({ object: 'luci.airoha_npu', method: 'setOverclock', params: ['freq_mhz'] });
-const callGetVlanOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getVlanOffload' });
-const callSetVlanOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setVlanOffload', params: ['enabled'] });
-const callGetPppoeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getPppoeOffload' });
-const callSetPppoeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setPppoeOffload', params: ['enabled'] });
-const callGetFlowOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getFlowOffload' });
-const callSetFlowOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setFlowOffload', params: ['enabled'] });
-const callGetApModeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'getApModeOffload' });
-const callSetApModeOffload = rpc.declare({ object: 'luci.airoha_npu', method: 'setApModeOffload', params: ['enabled'] });
+var getStatus = rpc.declare({ object: 'luci.airoha_npu', method: 'getStatus', expect: { '': {} }, raise: true });
+var getInfo = rpc.declare({ object: 'luci.airoha_npu', method: 'getInfo', expect: { '': {} }, raise: true });
+var getFlow = rpc.declare({ object: 'luci.airoha_npu', method: 'getFlowOffload', expect: { '': {} }, raise: true });
+var setGovernor = rpc.declare({ object: 'luci.airoha_npu', method: 'setGovernor', params: ['governor'], expect: { '': {} }, raise: true });
+var setFrequency = rpc.declare({ object: 'luci.airoha_npu', method: 'setMaxFreq', params: ['freq'], expect: { '': {} }, raise: true });
+var setFlow = rpc.declare({ object: 'luci.airoha_npu', method: 'setFlowOffload', params: ['enabled'], expect: { '': {} }, raise: true });
 
-function isEnabled(value) {
-	return value === true || value === 1 || value === '1';
+function text(value) { return value == null || value === '' ? _('Unknown') : String(value); }
+function frequency(value) { return typeof value === 'number' && value > 0 ? (value / 1000) + ' MHz' : _('Unknown'); }
+function governor(value) {
+	var labels = { performance: _('Performance'), powersave: _('Power saving'), schedutil: _('Scheduler utilization'), ondemand: _('On demand'), conservative: _('Conservative'), userspace: _('Userspace') };
+	return labels[value] || text(value);
 }
-
-function fmtFreq(khz) {
-	if (!khz || khz === 0) return 'N/A';
-	return (khz / 1000).toFixed(0) + ' MHz';
+function row(label, node) {
+	return E('div', { 'class': 'cbi-value' }, [
+		E('label', { 'class': 'cbi-value-title', 'for': node.id }, label),
+		E('div', { 'class': 'cbi-value-field' }, node)
+	]);
 }
-
-function governorLabel(governor) {
-	var labels = {
-		conservative: _('Conservative'),
-		ondemand: _('On Demand'),
-		performance: _('Performance'),
-		powersave: _('Powersave'),
-		schedutil: _('Schedutil'),
-		userspace: _('Userspace')
+function message(code) {
+	var errors = {
+		invalid: _('The requested value is not supported by the kernel or is invalid.'),
+		busy: _('Another operation is in progress. Retry later.'),
+		unavailable: _('The required system interface is unavailable.'),
+		pending_changes: _('Apply or revert pending firewall changes first.'),
+		write_failed: _('The change failed. Previous settings were restored.'),
+		rollback_failed: _('The change failed and recovery could not be verified. Check the system settings.')
 	};
-	return labels[governor] || (governor ? _(governor) : '');
-}
-
-function calcTotalMem(regions) {
-	var t = 0;
-	(regions || []).forEach(function(r) {
-		var m = (r.size || '').match(/(\d+)\s*(KiB|MiB|GiB)/i);
-		if (m) {
-			var s = parseInt(m[1]);
-			var u = m[2][0].toUpperCase();
-			t += u === 'G' ? s * 1048576 : u === 'M' ? s * 1024 : s;
-		}
-	});
-	return t >= 1024 ? (t / 1024).toFixed(0) + ' MiB' : t + ' KiB';
-}
-
-function createToggleSwitch(checked, onChange) {
-	var attrs = {
-		'type': 'checkbox',
-		'style': 'cursor:pointer'
-	};
-	if (checked) {
-		attrs.checked = 'checked';
-	}
-	var input = E('input', attrs);
-	input.addEventListener('change', function(ev) {
-		onChange(ev.target.checked ? 1 : 0, input);
-	});
-	return input;
-}
-
-var themeCSS = '\
-.npu-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:14px}\
-.npu-summary-card{background:var(--cbi-section-bg,#fff);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box;padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center}\
-.npu-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
-.npu-card-value{font-size:18px;font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,inherit)}\
-.npu-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
-@media(max-width:1050px){.npu-summary-grid{grid-template-columns:repeat(2,minmax(160px,1fr))}}\
-@media(max-width:640px){.npu-summary-grid{grid-template-columns:1fr}.npu-summary-card{min-height:68px}}\
-';
-
-function injectCSS() {
-	var el = document.getElementById('airoha-npu-theme-css');
-	if (!el) {
-		el = document.createElement('style');
-		el.id = 'airoha-npu-theme-css';
-		document.head.appendChild(el);
-	}
-	el.textContent = themeCSS;
+	return errors[code] || _('The operation failed. Refresh the page and try again.');
 }
 
 return view.extend({
 	load: function() {
-		return Promise.resolve([]);
+		return Promise.all([getInfo(), getStatus(), getFlow()].map(function(p) {
+			return p.catch(function() { return null; });
+		}));
 	},
-
 	render: function(data) {
-		injectCSS();
-		var ppeUpdatesPaused = false;
-		var latestPpeEntries = [];
-
-		var m = E('div', { 'class': 'cbi-map' }, [
-			E('h2', {}, _('Airoha NPU & SoC Status')),
-			E('div', { 'class': 'cbi-map-descr' }, _('Comprehensive overview of Airoha NPU hardware offload, CPU dynamic frequency / OPP overclocking, and Frame Engine performance.'))
-		]);
-
-		// Tabs navigation
-		var activeTab = 'overview';
-		var tabPanes = {};
-
-		var tabList = [
-			{ id: 'overview', name: _('SoC Overview') },
-			{ id: 'ppe',      name: _('PPE Flow Offload') }
-		];
-
-		var tabNav = E('ul', { 'class': 'cbi-tabmenu' });
-		tabList.forEach(function(t) {
-			var li = E('li', {
-				'class': (t.id === activeTab ? 'cbi-tab' : 'cbi-tab-disabled'),
-				'click': function(ev) {
-					activeTab = t.id;
-					tabNav.querySelectorAll('li').forEach(function(el, idx) {
-						el.className = (tabList[idx].id === activeTab ? 'cbi-tab' : 'cbi-tab-disabled');
-					});
-					Object.keys(tabPanes).forEach(function(k) {
-						tabPanes[k].style.display = (k === activeTab ? '' : 'none');
-					});
-				}
-			}, E('a', { 'href': '#', 'click': function(e){ e.preventDefault(); } }, t.name));
-			tabNav.appendChild(li);
-		});
-		m.appendChild(tabNav);
-
-		// ── Tab 1: SoC Overview Pane ──
-		var paneOverview = E('div', { 'class': 'cbi-tab-pane' });
-		tabPanes['overview'] = paneOverview;
-
-		// ── Section 1: NPU Status & Metrics ──
-		var npuSummaryNode = E('div', { 'class': 'npu-summary-grid' }, [
-			E('div', { 'class': 'npu-summary-card' }, [
-				E('div', { 'class': 'npu-card-title' }, _('NPU Core Status')),
-				E('div', { 'class': 'npu-card-value', 'id': 'npu-val-status' }, '—'),
-				E('div', { 'class': 'npu-card-sub', 'id': 'npu-sub-status' }, '—')
-			]),
-			E('div', { 'class': 'npu-summary-card' }, [
-				E('div', { 'class': 'npu-card-title' }, _('Clock / Cores')),
-				E('div', { 'class': 'npu-card-value', 'id': 'npu-val-clock' }, '—'),
-				E('div', { 'class': 'npu-card-sub', 'id': 'npu-sub-clock' }, '—')
-			]),
-			E('div', { 'class': 'npu-summary-card' }, [
-				E('div', { 'class': 'npu-card-title' }, _('Offload Flows (Bound / Total)')),
-				E('div', { 'class': 'npu-card-value', 'id': 'npu-val-flows' }, '—'),
-				E('div', { 'class': 'npu-card-sub', 'id': 'npu-sub-flows' }, '—')
-			]),
-			E('div', { 'class': 'npu-summary-card' }, [
-				E('div', { 'class': 'npu-card-title' }, _('Reserved Memory')),
-				E('div', { 'class': 'npu-card-value', 'id': 'npu-val-memory' }, '—'),
-				E('div', { 'class': 'npu-card-sub', 'id': 'npu-sub-memory' }, '—')
-			])
-		]);
-
-		paneOverview.appendChild(E('div', { 'class': 'cbi-section' }, [
-			E('h3', {}, _('NPU Core Status')),
-			npuSummaryNode
-		]));
-
-		// ── Section 2: Hardware Offload Acceleration Switches ──
-		var offloadGrid = E('table', { 'class': 'table cbi-section-table' }, [
-			E('tr', { 'class': 'tr table-titles' }, [
-				E('th', { 'class': 'th' }, _('Offload Feature')),
-				E('th', { 'class': 'th' }, _('Description')),
-				E('th', { 'class': 'th', 'style': 'text-align:right' }, _('State'))
-			]),
-			E('tr', { 'class': 'tr' }, [
-				E('td', { 'class': 'td', 'style': 'font-weight:600' }, _('HW Flow Offload')),
-				E('td', { 'class': 'td', 'style': 'color:#888' }, _('Firewall hardware flow table acceleration')),
-				E('td', { 'class': 'td', 'style': 'text-align:right', 'id': 'toggle-cell-flow' }, '—')
-			]),
-			E('tr', { 'class': 'tr' }, [
-				E('td', { 'class': 'td', 'style': 'font-weight:600' }, _('VLAN Offload')),
-				E('td', { 'class': 'td', 'style': 'color:#888' }, _('Hardware acceleration for 802.1Q tagged VLAN traffic')),
-				E('td', { 'class': 'td', 'style': 'text-align:right', 'id': 'toggle-cell-vlan' }, '—')
-			]),
-			E('tr', { 'class': 'tr' }, [
-				E('td', { 'class': 'td', 'style': 'font-weight:600' }, _('PPPoE Offload')),
-				E('td', { 'class': 'td', 'style': 'color:#888' }, _('Hardware acceleration for PPPoE session streams')),
-				E('td', { 'class': 'td', 'style': 'text-align:right', 'id': 'toggle-cell-pppoe' }, '—')
-			]),
-			E('tr', { 'class': 'tr' }, [
-				E('td', { 'class': 'td', 'style': 'font-weight:600' }, _('AP Mode Acceleration')),
-				E('td', { 'class': 'td', 'style': 'color:#888' }, _('L2 bridge fast-path forwarding without netfilter overhead')),
-				E('td', { 'class': 'td', 'style': 'text-align:right', 'id': 'toggle-cell-apmode' }, '—')
-			])
-		]);
-
-		paneOverview.appendChild(E('div', { 'class': 'cbi-section' }, [
-			E('h3', {}, _('Hardware Acceleration')),
-			offloadGrid
-		]));
-
-		// ── Section 3: CPU Frequency & Overclocking ──
-		var cpuInfoNode = E('div', { 'class': 'cbi-section-node' }, [
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('CPU Information')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'cpu-info-val', 'style': 'font-weight:600' }, '—')
-			]),
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('Current Frequency')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'cpu-curfreq-val', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums;font-size:14px;color:var(--cbi-button-apply-bg, #10b981);font-weight:600' }, '—')
-			]),
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('Governor')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'cpu-gov-field' }, '—')
-			]),
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('Max Freq')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'cpu-maxfreq-field' }, '—')
-			]),
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('CPU OPP / Overclock (Max 1400 MHz)')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'cpu-oc-field' }, [
-					E('div', { 'style': 'display:flex;align-items:center;gap:10px' }, [
-						E('select', { 'id': 'cpu-oc-select', 'class': 'cbi-input-select', 'style': 'width:150px' }, [1200, 1250, 1300, 1350, 1400].map(function(f) {
-							return E('option', { 'value': f, 'selected': (f === 1200 ? '' : null) }, f + ' MHz');
-						})),
-						E('button', {
-							'class': 'cbi-button cbi-button-action',
-							'click': function(ev) {
-								var f = parseInt(document.getElementById('cpu-oc-select').value);
-								if (f > 1200 && !confirm(_('Frequencies above 1200 MHz use extended DTS OPP entries and may increase heat or reduce stability. Continue?'))) return;
-								ev.target.disabled = true;
-								callSetOverclock(f).then(function(res) {
-									ev.target.disabled = false;
-									if (res && res.error) {
-										ui.addNotification(null, E('p', {}, _('Failed: ') + res.error), 'error');
-									} else {
-										ui.addNotification(null, E('p', {}, _('CPU set to ') + res.actual_mhz + ' MHz'), 'info');
-									}
-								}).catch(function(err) {
-									ev.target.disabled = false;
-									ui.addNotification(null, E('p', {}, _('Failed: ') + err.message), 'error');
-								});
-							}
-						}, _('Apply'))
-					]),
-					E('span', { 'class': 'cbi-value-description' }, _('Please select a preset frequency between 1200-1400 MHz'))
-				])
-			])
-		]);
-
-		paneOverview.appendChild(E('div', { 'class': 'cbi-section' }, [
-			E('h3', {}, _('CPU Frequency & Overclocking')),
-			cpuInfoNode
-		]));
-
-		// ── Tab 2: PPE Flow Offload Pane ──
-		var panePpe = E('div', { 'class': 'cbi-tab-pane', 'style': 'display:none' });
-		tabPanes['ppe'] = panePpe;
-
-		var ppePauseBtn = E('button', {
-			'class': 'cbi-button cbi-button-neutral',
-			'click': function(ev) {
-				ppeUpdatesPaused = !ppeUpdatesPaused;
-				ev.target.textContent = ppeUpdatesPaused ? _('Resume') : _('Pause');
-			}
-		}, _('Pause'));
-
-		var ppeTable = E('table', { 'class': 'table cbi-section-table', 'id': 'ppe-table' }, [
-			E('tr', { 'class': 'tr table-titles' }, [
-				E('th', { 'class': 'th' }, _('Index')),
-				E('th', { 'class': 'th' }, _('State')),
-				E('th', { 'class': 'th' }, _('Type')),
-				E('th', { 'class': 'th' }, _('Original Flow')),
-				E('th', { 'class': 'th' }, _('New Flow')),
-				E('th', { 'class': 'th' }, _('Ethernet'))
-			])
-		]);
-
-		panePpe.appendChild(E('div', { 'class': 'cbi-section' }, [
-			E('div', { 'style': 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px' }, [
-				E('h3', { 'style': 'margin:0' }, _('PPE Flow Offload Entries')),
-				ppePauseBtn
-			]),
-			ppeTable
-		]));
-
-		m.appendChild(paneOverview);
-		m.appendChild(panePpe);
-
-		// Data polling & updates
-		function updateData() {
-			Promise.all([
-				callNpuStatus(),
-				callGetVlanOffload(),
-				callGetPppoeOffload(),
-				callGetFlowOffload(),
-				callGetApModeOffload(),
-				ppeUpdatesPaused ? Promise.resolve(null) : callPpeEntries()
-			]).then(function(res) {
-				var st = res[0] || {};
-				var vo = res[1] || {};
-				var ppo = res[2] || {};
-				var flo = res[3] || {};
-				var apo = res[4] || {};
-				var ppe = res[5];
-
-				// 1. Update NPU Summary
-				var active = isEnabled(st.npu_loaded);
-				var clock = st.npu_clock ? Math.round(st.npu_clock / 1000000) : 0;
-				var cores = st.npu_cores || 0;
-				var bound = st.offload_bound || 0;
-				var total = st.offload_total || 0;
-				var mem = Array.isArray(st.memory_regions) ? st.memory_regions : [];
-
-				var sStatus = document.getElementById('npu-val-status');
-				if (sStatus) {
-					while (sStatus.firstChild) sStatus.removeChild(sStatus.firstChild);
-					sStatus.appendChild(E('span', {
-						'style': 'color:' + (active ? '#10b981' : 'inherit')
-					}, active ? _('Activated') : _('Not Activated')));
-				}
-				var subStatus = document.getElementById('npu-sub-status');
-				if (subStatus) subStatus.textContent = active ? _('NPU device ready') : _('Driver unavailable');
-
-				var sClock = document.getElementById('npu-val-clock');
-				if (sClock) sClock.textContent = clock ? clock + ' MHz' : 'N/A';
-				var subClock = document.getElementById('npu-sub-clock');
-				if (subClock) subClock.textContent = cores ? cores + ' ' + _('Cores') : '—';
-
-				var sFlows = document.getElementById('npu-val-flows');
-				if (sFlows) sFlows.textContent = bound + ' / ' + total;
-				var subFlows = document.getElementById('npu-sub-flows');
-				if (subFlows) subFlows.textContent = _('Bound / total PPE flows');
-
-				var sMem = document.getElementById('npu-val-memory');
-				if (sMem) sMem.textContent = calcTotalMem(mem);
-				var subMem = document.getElementById('npu-sub-memory');
-				if (subMem) subMem.textContent = mem.length ? mem.length + ' ' + _('memory regions') : _('Reserved Memory');
-
-				// 2. Update Switches
-				function bindSwitch(cellId, enabled, callFn) {
-					var cell = document.getElementById(cellId);
-					if (!cell) return;
-					while (cell.firstChild) cell.removeChild(cell.firstChild);
-					var sw = createToggleSwitch(isEnabled(enabled), function(val, input) {
-						input.disabled = true;
-						callFn(val).then(function(r) {
-							input.disabled = false;
-							if (r && r.error) {
-								input.checked = !val;
-								ui.addNotification(null, E('p', {}, _('Error: ') + r.error), 'error');
-							}
-						}).catch(function() {
-							input.checked = !val;
-							input.disabled = false;
-						});
-					});
-					cell.appendChild(sw);
-				}
-
-				bindSwitch('toggle-cell-flow', flo.enabled, callSetFlowOffload);
-				bindSwitch('toggle-cell-vlan', vo.enabled, callSetVlanOffload);
-				bindSwitch('toggle-cell-pppoe', ppo.enabled, callSetPppoeOffload);
-				bindSwitch('toggle-cell-apmode', apo.enabled, callSetApModeOffload);
-
-				// 3. Update CPU Info
-				var cpuInfo = document.getElementById('cpu-info-val');
-				if (cpuInfo) {
-					cpuInfo.textContent = (st.soc_compat || 'Airoha SoC') + ' · ' + (st.cpu_arch || '') +
-					                      (st.cpu_temp && st.cpu_temp !== 'N/A' ? ' (' + st.cpu_temp + ')' : '') +
-					                      ' · ' + (st.cpu_count || 0) + ' ' + _('Cores');
-				}
-
-				var curFreq = document.getElementById('cpu-curfreq-val');
-				if (curFreq) curFreq.textContent = fmtFreq(st.cpu_hw_freq || st.cpu_cur_freq);
-
-				// Governor select
-				var govField = document.getElementById('cpu-gov-field');
-				if (govField && !govField.querySelector('select:focus')) {
-					while (govField.firstChild) govField.removeChild(govField.firstChild);
-					var gs = (st.cpu_avail_governors || '').trim().split(/\s+/).filter(Boolean);
-					var sel = E('select', {
-						'class': 'cbi-input-select',
-						'style': 'width:180px',
-						'change': function(ev) {
-							var g = ev.target.value;
-							ev.target.disabled = true;
-							callSetGovernor(g).then(function() { ev.target.disabled = false; })
-								.catch(function() { ev.target.disabled = false; });
-						}
-					}, gs.map(function(g) {
-						return E('option', { 'value': g, 'selected': (g === st.cpu_governor ? '' : null) }, governorLabel(g));
-					}));
-					govField.appendChild(sel);
-				}
-
-				// Max freq select
-				var maxFreqField = document.getElementById('cpu-maxfreq-field');
-				if (maxFreqField && !maxFreqField.querySelector('select:focus')) {
-					while (maxFreqField.firstChild) maxFreqField.removeChild(maxFreqField.firstChild);
-					var fs = (st.cpu_avail_freqs || '').trim().split(/\s+/).filter(Boolean);
-					var selF = E('select', {
-						'class': 'cbi-input-select',
-						'style': 'width:180px',
-						'change': function(ev) {
-							var f = ev.target.value;
-							ev.target.disabled = true;
-							callSetMaxFreq(parseInt(f)).then(function() { ev.target.disabled = false; })
-								.catch(function() { ev.target.disabled = false; });
-						}
-					}, fs.map(function(f) {
-						return E('option', { 'value': f, 'selected': (parseInt(f) === parseInt(st.cpu_max_freq) ? '' : null) }, fmtFreq(f));
-					}));
-					maxFreqField.appendChild(selF);
-				}
-
-				// 4. Update PPE Entries
-				if (ppe && Array.isArray(ppe.entries)) {
-					var rows = ppe.entries.slice(0, 100).map(function(e) {
-						var eth = e.eth || '';
-						if (eth === '00:00:00:00:00:00->00:00:00:00:00:00') eth = '-';
-						return [
-							e.index,
-							E('span', { 'style': 'font-weight:600;color:' + (e.state === 'BND' ? '#10b981' : '#888') }, e.state),
-							e.type,
-							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, e.orig || '-'),
-							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, e.new_flow || '-'),
-							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, eth)
-						];
-					});
-					var ppeTb = document.getElementById('ppe-table');
-					if (ppeTb) {
-						cbi_update_table(ppeTb, rows, E('em', { 'style': 'color:#888' }, _('No entries')));
-					}
-				}
-			});
+		var self = this, info = data[0] || {}, status = data[1] || {}, flow = data[2] || {};
+		self.active = true;
+		var metrics = {};
+		function metric(id, label, value) {
+			metrics[id] = E('span', { id: 'npu-' + id, style: 'overflow-wrap:anywhere' }, text(value));
+			return row(label, metrics[id]);
 		}
-
-		updateData();
-		poll.add(updateData, 5);
-
-		return m;
+		function control(id, label, options, value, call) {
+			var select = E('select', { id: 'npu-' + id, name: 'npu-' + id, 'class': 'cbi-input-select', style: 'width:16em;max-width:100%' },
+				[E('option', { value: '' }, _('Select a value'))].concat(options.map(function(o) { return E('option', { value: o[0] }, o[1]); })));
+			select.value = value == null ? '' : String(value);
+			select.disabled = !L.hasViewPermission() || !options.length;
+			var button = E('button', { 'class': 'cbi-button cbi-button-apply', type: 'button', click: function() {
+				if (!select.value || self.saving) return;
+				self.saving = true; button.disabled = true;
+				return call(select.value).then(function(result) {
+					if (result.result !== 'ok') throw new Error(message(result.error));
+					ui.addNotification(null, E('p', {}, _('Settings applied.')), 'info');
+					return self.refresh();
+				}).catch(function(error) {
+					ui.addNotification(null, E('p', {}, error.message || message()), 'error');
+				}).finally(function() { self.saving = false; button.disabled = select.disabled; });
+			} }, _('Apply'));
+			button.disabled = select.disabled;
+			return E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title', 'for': select.id }, label),
+				E('div', { 'class': 'cbi-value-field' }, [select, ' ', button])
+			]);
+		}
+		var notice = E('p', { role: 'status' }, '');
+		function update(s, f) {
+			if (!self.active) return;
+			s = s || {}; f = f || {};
+			metrics.current.textContent = frequency(s.cpu_cur_freq);
+			metrics.maximum.textContent = frequency(s.cpu_max_freq);
+			metrics.governor.textContent = governor(s.cpu_governor);
+			metrics.online.textContent = text(s.cpu_count);
+			metrics.clock.textContent = typeof s.npu_clock === 'number' && s.npu_clock > 0 ? (s.npu_clock / 1000000) + ' MHz' : _('Unknown');
+			metrics.driver.textContent = s.npu_bound === true ? _('Bound (not a health check)') : s.npu_bound === false ? _('Not bound') : _('Unknown');
+			metrics.offload.textContent = f.enabled === true ? _('Enabled in firewall configuration') : f.enabled === false ? _('Disabled in firewall configuration') : _('Unknown');
+		}
+		var words = function(value) { return typeof value === 'string' ? value.trim().split(/\s+/).filter(Boolean) : []; };
+		var page = E('div', { 'class': 'cbi-map' }, [
+			E('h2', {}, _('Airoha SoC Status')),
+			notice,
+			E('div', { 'class': 'cbi-section' }, [
+				metric('soc', _('SoC compatible (device tree)'), info.soc_compat),
+				metric('driver', _('NPU driver binding')),
+				metric('clock', _('NPU clock')),
+				metric('firmware', _('Firmware file (device tree)'), info.firmware_file),
+				metric('version', _('Firmware file version (not running version)'), info.firmware_file_version),
+				metric('online', _('Online CPUs')),
+				metric('current', _('CPU current frequency (cpufreq)')),
+				metric('maximum', _('CPU frequency limit (cpufreq)')),
+				metric('governor', _('CPU governor')),
+				metric('offload', _('Hardware flow offloading configuration'))
+			]),
+			E('div', { 'class': 'cbi-section' }, [
+				E('h3', {}, _('Kernel CPU controls')),
+				E('p', {}, _('Only kernel-supported values are offered. The frequency limit is not a fixed clock. CPU changes last until reboot or another service changes them.')),
+				control('governor-setting', _('Governor'), words(info.governors).filter(function(v) { return /^[a-zA-Z0-9_-]+$/.test(v); }).map(function(v) { return [v, governor(v)]; }), status.cpu_governor, setGovernor),
+				control('frequency', _('Maximum CPU frequency'), words(info.frequencies).filter(function(v) { return /^[1-9][0-9]{0,9}$/.test(v); }).map(function(v) { return [v, frequency(Number(v))]; }), status.cpu_max_freq, setFrequency)
+			]),
+			E('div', { 'class': 'cbi-section' }, [
+				E('h3', {}, _('Firewall flow offloading')),
+				E('p', {}, _('Sets software and hardware flow offloading together and reloads the firewall. This may interrupt connections. Bridge filtering is not an offload switch; configure AP networking in the native network settings and follow your firmware documentation.')),
+				control('flow', _('Hardware flow offloading'), [['0', _('Disabled')], ['1', _('Enabled')]], typeof flow.enabled === 'boolean' ? (flow.enabled ? '1' : '0') : '', setFlow),
+				E('a', { href: L.url('admin/network/network') }, _('Network settings')),
+				E('p', {}, _('Inspect PPE flows in Airoha FlowSense, if installed.'))
+			])
+		]);
+		update(status, flow);
+		if (data.some(function(v) { return !v; })) notice.textContent = _('Status unavailable or stale. Refresh to retry static information.');
+		self.refresh = function() {
+			return Promise.all([getStatus(), getFlow()]).then(function(values) {
+				if (!self.active) return;
+				update(values[0], values[1]);
+				notice.textContent = data[0] ? _('Last updated') + ': ' + new Date().toLocaleTimeString() : _('Status unavailable or stale. Refresh to retry static information.');
+			}).catch(function() {
+				if (!self.active) return;
+				update(null, null);
+				notice.textContent = _('Status unavailable or stale. Refresh to retry static information.');
+			});
+		};
+		self.pollFn = function() { return self.saving ? Promise.resolve() : self.refresh(); };
+		self.onHide = self.cleanup.bind(self);
+		window.addEventListener('pagehide', self.onHide);
+		var mounted = false;
+		self.observer = new MutationObserver(function() {
+			if (page.isConnected) mounted = true;
+			else if (mounted) self.cleanup();
+		});
+		self.observer.observe(document.body, { childList: true, subtree: true });
+		poll.add(self.pollFn, 5);
+		return page;
 	},
-
-	handleSaveApply: null, handleSave: null, handleReset: null
+	cleanup: function() {
+		this.active = false;
+		if (this.pollFn) poll.remove(this.pollFn);
+		if (this.observer) this.observer.disconnect();
+		if (this.onHide) window.removeEventListener('pagehide', this.onHide);
+	},
+	handleSave: null,
+	handleSaveApply: null,
+	handleReset: null
 });

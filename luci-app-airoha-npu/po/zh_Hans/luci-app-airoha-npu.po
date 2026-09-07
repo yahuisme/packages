@@ -1,374 +1,139 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: \n"
-"POT-Creation-Date: \n"
-"PO-Revision-Date: \n"
-"Last-Translator: \n"
-"Language-Team: \n"
-"Language: zh_CN\n"
-"MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 3.8\n"
+"Language: zh_Hans\n"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:327
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:406
-msgid "Active"
-msgstr "已激活"
-
-msgid "Activated"
-msgstr "已激活"
-
-msgid "Not Activated"
-msgstr "未激活"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:284
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:454
-#: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/luci/menu.d/luci-app-airoha-npu.json:3
 msgid "Airoha SoC Status"
 msgstr "Airoha SoC 状态"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:224
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:233
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:237
+msgid "Another operation is in progress. Retry later."
+msgstr "另一项操作正在进行，请稍后重试。"
+
 msgid "Apply"
 msgstr "应用"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:221
-msgid "Applying..."
-msgstr "正在应用..."
+msgid "Apply or revert pending firewall changes first."
+msgstr "请先应用或撤销待处理的防火墙更改。"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:350
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:420
-msgid "Bound:"
-msgstr "已绑定："
+msgid "Bound (not a health check)"
+msgstr "已绑定（不代表健康检查通过）"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:362
-msgid "Bytes"
-msgstr "字节"
+msgid "CPU current frequency (cpufreq)"
+msgstr "CPU 当前频率（cpufreq）"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:470
-msgid "Control Settings"
-msgstr "CPU控制设置"
+msgid "CPU frequency limit (cpufreq)"
+msgstr "CPU 频率上限（cpufreq）"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:310
-msgid "CPU Cores"
-msgstr "CPU 核心"
+msgid "CPU governor"
+msgstr "CPU 调速器"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:460
-msgid "CPU Info"
-msgstr "CPU 信息"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:467
-msgid "Core Count"
-msgstr "核心数量"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:288
-msgid "CPU Frequency"
-msgstr "CPU 频率"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:229
-msgid "CPU set to"
-msgstr "CPU 设置为"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:291
-msgid "Current Frequency"
-msgstr "当前频率"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:399
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:505
-msgid "<=1400 MHz uses kernel cpufreq OPP. Higher frequencies are unavailable."
-msgstr "<=1400 MHz 使用内核 cpufreq OPP。更高频率不可用。"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:510
-msgid "<=1400 MHz: DTS OPP (kernel cpufreq)."
-msgstr "<=1400 MHz：DTS OPP（内核 cpufreq）。"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:390
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:498
-msgid "Frequencies above 1200 MHz use extended DTS OPP entries and may increase heat or reduce stability. Continue?"
-msgstr "超过 1200 MHz 将使用扩展的 DTS OPP 档位，可能增加发热或降低稳定性。是否继续？"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:360
-msgid "Ethernet"
-msgstr "以太网"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:85
-msgid "Failed to set governor:"
-msgstr "设置调速器失败："
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:112
-msgid "Failed to set max frequency:"
-msgstr "设置最大频率失败："
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:212
-msgid "Frequency must be 500-1400 MHz"
-msgstr "频率必须介于 500–1400 MHz 之间"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:296
-msgid "Governor"
-msgstr "运行模式"
-
-msgid "conservative"
-msgstr "保守模式"
-
-msgid "ondemand"
-msgstr "按需模式"
-
-msgid "userspace"
-msgstr "用户空间"
-
-msgid "powersave"
-msgstr "省电模式"
-
-msgid "performance"
-msgstr "性能模式"
-
-#: feeds/luci/applications/luci-app-airoha-npu/root/usr/share/rpcd/acl.d/luci-app-airoha-npu.json:3
-msgid "Grant access to Airoha NPU status (NPU + CPU + Overclock)"
-msgstr "授予访问 Airoha NPU 状态（NPU + CPU + 超频）的权限"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:355
-msgid "Index"
-msgstr "索引"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:301
-msgid "Max Frequency"
-msgstr "最大频率"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:476
-msgid "Max Freq"
-msgstr "最大频率"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:331
-msgid "NPU Clock / Cores"
-msgstr "NPU 时钟 / 核心"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:321
-msgid "NPU Firmware Version"
-msgstr "NPU 固件版本"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:318
-msgid "NPU Information"
-msgstr "NPU 信息"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:325
-msgid "NPU & Offload Engine"
-msgstr "NPU硬件引擎"
-
-msgid "NPU Status"
-msgstr "NPU 状态"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:359
-msgid "New Flow"
-msgstr "新连接"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:328
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:411
-msgid "Not Active"
-msgstr "未激活"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:322
-msgid "Not available"
-msgstr "不可用"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:339
-msgid "Offload Statistics"
-msgstr "卸载统计"
-
-msgid "AP Mode Acceleration"
-msgstr "AP 模式加速"
-
-msgid "Flow Offload"
-msgstr "硬件流量加速"
-
-msgid "PPPoE Offload"
-msgstr "PPPoE 加速"
-
-msgid "VLAN Offload"
-msgstr "VLAN 加速"
-
-msgid "HW Offload"
-msgstr "硬件加速"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:358
-msgid "Original Flow"
-msgstr "原始连接"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:306
-msgid "Overclock"
-msgstr "超频"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:226
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:234
-msgid "Overclock failed:"
-msgstr "超频失败："
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:347
-msgid "PPE Flow Offload Entries"
-msgstr "PPE 硬件流表条目"
-
-msgid "SoC Overview"
-msgstr "SoC 概览"
-
-msgid "PPE Flow Offload"
-msgstr "PPE 硬件流表"
-
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:631
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:635
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:644
-msgid "Pause"
-msgstr "暂停"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:635
-msgid "Resume"
-msgstr "继续"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:361
-msgid "Packets"
-msgstr "数据包"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:335
-msgid "Reserved Memory"
-msgstr "NPU 内存"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:476
-msgid "Firmware / Clock / Cores"
-msgstr "固件 / 时钟 / 核心"
-
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:497
-msgid "Frame Engine"
-msgstr "帧引擎"
-
-msgid "Enabled"
-msgstr "已启用"
+msgid "Conservative"
+msgstr "保守调速"
 
 msgid "Disabled"
 msgstr "已禁用"
 
-msgid "Failed: "
-msgstr "失败："
+msgid "Disabled in firewall configuration"
+msgstr "防火墙配置中已禁用"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:387
-msgid "Must be 500-1400 MHz"
-msgstr "必须在 500-1400 MHz 之间"
+msgid "Enabled"
+msgstr "已启用"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:356
-msgid "State"
-msgstr "状态"
+msgid "Enabled in firewall configuration"
+msgstr "防火墙配置中已启用"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:349
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:419
-msgid "Total:"
-msgstr "总计："
+msgid "Firewall flow offloading"
+msgstr "防火墙流量卸载"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:357
-msgid "Type"
-msgstr "类型"
+msgid "Firmware file (device tree)"
+msgstr "固件文件（设备树）"
 
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:351
-#: feeds/luci/applications/luci-app-airoha-npu/htdocs/luci-static/resources/view/airoha_npu/status.js:421
-msgid "Unbound:"
-msgstr "未绑定："
+msgid "Firmware file version (not running version)"
+msgstr "固件文件版本（非运行版本）"
 
-msgid "Bound / total PPE flows"
-msgstr "已绑定 / 总 PPE 流量"
+msgid "Governor"
+msgstr "调速器"
 
-msgid "CPU OPP / Overclock (Max 1400 MHz)"
-msgstr "CPU OPP / 超频 · 上限 1400 MHz"
+msgid "Hardware flow offloading"
+msgstr "硬件流量卸载"
 
-msgid "CPU set to "
-msgstr "CPU 已设置为 "
+msgid "Hardware flow offloading configuration"
+msgstr "硬件流量卸载配置"
 
-msgid "Click to disable"
-msgstr "点击禁用"
+msgid "Inspect PPE flows in Airoha FlowSense, if installed."
+msgstr "如已安装，可在 Airoha FlowSense 中查看 PPE 流表。"
 
-msgid "Click to enable"
-msgstr "点击启用"
+msgid "Kernel CPU controls"
+msgstr "内核 CPU 控制"
 
-msgid "Conservative"
-msgstr "保守模式"
+msgid "Last updated"
+msgstr "最后更新"
 
-msgid "Cores"
-msgstr "核"
+msgid "Maximum CPU frequency"
+msgstr "CPU 最高频率"
 
-msgid "Driver unavailable"
-msgstr "驱动不可用"
+msgid "NPU clock"
+msgstr "NPU 时钟"
 
-msgid "Error: "
-msgstr "错误："
+msgid "NPU driver binding"
+msgstr "NPU 驱动绑定"
 
-msgid "HW Flow Offload"
-msgstr "硬件流量加速"
+msgid "Network settings"
+msgstr "网络设置"
 
-msgid "NPU device ready"
-msgstr "NPU 设备就绪"
+msgid "Not bound"
+msgstr "未绑定"
 
-msgid "On Demand"
-msgstr "按需模式"
+msgid "On demand"
+msgstr "按需调速"
+
+msgid "Online CPUs"
+msgstr "在线 CPU 数量"
+
+msgid "Only kernel-supported values are offered. The frequency limit is not a fixed clock. CPU changes last until reboot or another service changes them."
+msgstr "仅提供内核支持的值。频率上限并非锁定频率。CPU 更改持续到重启或被其他服务修改。"
 
 msgid "Performance"
-msgstr "性能模式"
+msgstr "性能优先"
 
-msgid "Please select a preset frequency between 1200-1400 MHz"
-msgstr "请选择 1200–1400 MHz 的预设频率"
+msgid "Power saving"
+msgstr "节能优先"
 
-msgid "Powersave"
-msgstr "省电模式"
+msgid "Scheduler utilization"
+msgstr "调度器利用率"
 
-msgid "Schedutil"
-msgstr "调度模式"
+msgid "Select a value"
+msgstr "请选择"
+
+msgid "Sets software and hardware flow offloading together and reloads the firewall. This may interrupt connections. Bridge filtering is not an offload switch; configure AP networking in the native network settings and follow your firmware documentation."
+msgstr "同时设置软件和硬件流量卸载并重新加载防火墙，可能中断连接。桥接过滤不是卸载开关；请在原生网络设置中配置 AP 网络并参考固件文档。"
+
+msgid "Settings applied."
+msgstr "设置已应用。"
+
+msgid "SoC compatible (device tree)"
+msgstr "SoC 兼容标识（设备树）"
+
+msgid "Status unavailable or stale. Refresh to retry static information."
+msgstr "状态不可用或已过期。请刷新页面以重试静态信息。"
+
+msgid "The change failed and recovery could not be verified. Check the system settings."
+msgstr "更改失败且无法验证恢复结果，请检查系统设置。"
+
+msgid "The change failed. Previous settings were restored."
+msgstr "更改失败，已恢复原设置。"
+
+msgid "The operation failed. Refresh the page and try again."
+msgstr "操作失败，请刷新页面后重试。"
+
+msgid "The requested value is not supported by the kernel or is invalid."
+msgstr "请求的值无效或不受内核支持。"
+
+msgid "The required system interface is unavailable."
+msgstr "所需的系统接口不可用。"
+
+msgid "Unknown"
+msgstr "未知"
 
 msgid "Userspace"
 msgstr "用户空间"
-
-msgid "memory regions"
-msgstr "个内存区域"
-
-
-msgid "Airoha NPU & SoC Status"
-msgstr "Airoha NPU 与 SoC 状态"
-
-msgid "CPU Frequency & Overclocking"
-msgstr "CPU 调频与超频控制"
-
-msgid "CPU Information"
-msgstr "CPU 基本信息"
-
-msgid "Clock / Cores"
-msgstr "主频 / 核心数"
-
-msgid "Comprehensive overview of Airoha NPU hardware offload, CPU dynamic frequency / OPP overclocking, and Frame Engine performance."
-msgstr "全面总览 Airoha NPU 硬件加速、CPU 动态调频与 OPP 超频，以及帧引擎转发性能。"
-
-msgid "Description"
-msgstr "功能描述"
-
-msgid "Firewall hardware flow table acceleration"
-msgstr "防火墙硬件流表快速转发加速"
-
-msgid "Hardware Acceleration"
-msgstr "硬件加速功能"
-
-msgid "Hardware acceleration for 802.1Q tagged VLAN traffic"
-msgstr "802.1Q VLAN 标签流量硬件加速"
-
-msgid "Hardware acceleration for PPPoE session streams"
-msgstr "PPPoE 拨号会话流量硬件加速"
-
-msgid "L2 bridge fast-path forwarding without netfilter overhead"
-msgstr "二层网桥快速转发，免除 netfilter 额外开销"
-
-msgid "NPU Core Status"
-msgstr "NPU 核心状态"
-
-msgid "No entries"
-msgstr "无数据条目"
-
-msgid "Offload Feature"
-msgstr "加速特性"
-
-msgid "Offload Flows (Bound / Total)"
-msgstr "加速流表 (已绑定 / 总数)"
-
