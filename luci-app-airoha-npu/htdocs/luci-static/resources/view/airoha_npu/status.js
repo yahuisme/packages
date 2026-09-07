@@ -63,11 +63,14 @@ function calcTotalMem(regions) {
 }
 
 function createToggleSwitch(checked, onChange) {
-	var input = E('input', {
+	var attrs = {
 		'type': 'checkbox',
-		'checked': checked,
 		'style': 'cursor:pointer'
-	});
+	};
+	if (checked) {
+		attrs.checked = 'checked';
+	}
+	var input = E('input', attrs);
 	input.addEventListener('change', function(ev) {
 		onChange(ev.target.checked ? 1 : 0, input);
 	});
