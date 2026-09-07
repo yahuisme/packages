@@ -319,3 +319,49 @@ msgstr "用户空间"
 msgid "memory regions"
 msgstr "个内存区域"
 
+
+msgid "Airoha NPU & SoC Status"
+msgstr "Airoha NPU 与 SoC 状态"
+
+msgid "CPU Frequency & Overclocking"
+msgstr "CPU 调频与超频控制"
+
+msgid "CPU Information"
+msgstr "CPU 基本信息"
+
+msgid "Clock / Cores"
+msgstr "主频 / 核心数"
+
+msgid "Comprehensive overview of Airoha NPU hardware offload, CPU dynamic frequency / OPP overclocking, and Frame Engine performance."
+msgstr "全面总览 Airoha NPU 硬件加速、CPU 动态调频与 OPP 超频，以及帧引擎转发性能。"
+
+msgid "Description"
+msgstr "功能描述"
+
+msgid "Firewall hardware flow table acceleration"
+msgstr "防火墙硬件流表快速转发加速"
+
+msgid "Hardware Acceleration"
+msgstr "硬件加速功能"
+
+msgid "Hardware acceleration for 802.1Q tagged VLAN traffic"
+msgstr "802.1Q VLAN 标签流量硬件加速"
+
+msgid "Hardware acceleration for PPPoE session streams"
+msgstr "PPPoE 拨号会话流量硬件加速"
+
+msgid "L2 bridge fast-path forwarding without netfilter overhead"
+msgstr "二层网桥快速转发，免除 netfilter 额外开销"
+
+msgid "NPU Core Status"
+msgstr "NPU 核心状态"
+
+msgid "No entries"
+msgstr "无数据条目"
+
+msgid "Offload Feature"
+msgstr "加速特性"
+
+msgid "Offload Flows (Bound / Total)"
+msgstr "加速流表 (已绑定 / 总数)"
+
