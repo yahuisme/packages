@@ -136,3 +136,9 @@ msgstr ""
 
 msgid "Wireless Networks & MLO"
 msgstr ""
+
+msgid "Interface / Band"
+msgstr ""
+
+msgid "Standard / Bandwidth"
+msgstr ""

@@ -36,6 +36,40 @@ function formatSignal(signal) {
 	return E('span', { 'style': 'font-weight:600;color:' + color }, signal + ' dBm');
 }
 
+function formatProtocolBadge(c) {
+	var rx = c.rx || {};
+	var tx = c.tx || {};
+	var isEht = rx.eht || tx.eht;
+	var isHe = rx.he || tx.he;
+	var isVht = rx.vht || tx.vht;
+	var isHt = rx.ht || tx.ht;
+
+	var mhz = rx.mhz || tx.mhz;
+	var bwStr = mhz ? ' ' + mhz + 'MHz' : '';
+
+	if (isEht) {
+		return E('span', {
+			'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#00c8ff;color:#000;display:inline-block'
+		}, 'Wi-Fi 7' + bwStr);
+	}
+	if (isHe) {
+		return E('span', {
+			'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#00cc44;color:#fff;display:inline-block'
+		}, 'Wi-Fi 6' + bwStr);
+	}
+	if (isVht) {
+		return E('span', {
+			'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#3b82f6;color:#fff;display:inline-block'
+		}, 'Wi-Fi 5' + bwStr);
+	}
+	if (isHt) {
+		return E('span', {
+			'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#6b7280;color:#fff;display:inline-block'
+		}, 'Wi-Fi 4' + bwStr);
+	}
+	return E('span', { 'style': 'color:#888' }, 'Legacy' + bwStr);
+}
+
 function formatRate(rate) {
 	if (!rate) return '—';
 	return (rate / 1000).toFixed(1) + ' Mbit/s';
@@ -136,8 +170,9 @@ return view.extend({
 
 		var clientTable = E('table', { 'class': 'table cbi-section-table', 'id': 'wifi7-client-table' }, [
 			E('tr', { 'class': 'tr table-titles' }, [
-				E('th', { 'class': 'th' }, _('Interface')),
+				E('th', { 'class': 'th' }, _('Interface / Band')),
 				E('th', { 'class': 'th' }, _('MAC Address')),
+				E('th', { 'class': 'th' }, _('Standard / Bandwidth')),
 				E('th', { 'class': 'th' }, _('Signal')),
 				E('th', { 'class': 'th' }, _('TX Rate')),
 				E('th', { 'class': 'th' }, _('RX Rate'))
@@ -398,12 +433,36 @@ return view.extend({
 						return { ifname: ifname, label: devMap[ifname], clients: [] };
 					});
 				})).then(function(results) {
+					// 1. Detect MLO multi-link clients across multiple bands
+					var macBandCount = {};
+					results.forEach(function(r) {
+						r.clients.forEach(function(c) {
+							var m = (c.mac || '').toLowerCase();
+							if (!m) return;
+							macBandCount[m] = (macBandCount[m] || 0) + 1;
+						});
+					});
+
+					// 2. Render all clients
 					var allClients = [];
 					results.forEach(function(r) {
 						r.clients.forEach(function(c) {
+							var m = (c.mac || '').toLowerCase();
+							var isMloStation = (macBandCount[m] > 1);
+
+							var macNode = [
+								E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums;margin-right:6px' }, c.mac)
+							];
+							if (isMloStation) {
+								macNode.push(E('span', {
+									'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#00c8ff;color:#000;display:inline-block'
+								}, 'MLO'));
+							}
+
 							allClients.push([
 								E('span', { 'style': 'font-weight:600' }, r.label),
-								E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, c.mac),
+								E('span', {}, macNode),
+								formatProtocolBadge(c),
 								formatSignal(c.signal),
 								E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, formatRate(c.tx_rate)),
 								E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, formatRate(c.rx_rate))

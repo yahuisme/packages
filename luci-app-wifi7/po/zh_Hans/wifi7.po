@@ -138,3 +138,9 @@ msgstr "无线网络"
 
 msgid "Wireless Networks & MLO"
 msgstr "无线网络与 MLO"
+
+msgid "Interface / Band"
+msgstr "接口 / 频段"
+
+msgid "Standard / Bandwidth"
+msgstr "协议 / 频宽"
