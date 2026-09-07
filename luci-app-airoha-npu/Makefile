@@ -2,43 +2,19 @@
 
 include $(TOPDIR)/rules.mk
 
-LUCI_NAME:=luci-app-airoha-npu
-PKG_VERSION:=1.1.0
-PKG_RELEASE:=5
-PKG_LICENSE:=Apache-2.0
-PKG_MAINTAINER:=Airoha Maintainer
-TITLE:=LuCI Support for Airoha NPU Status
-
 LUCI_TITLE:=LuCI Support for Airoha NPU Status
 LUCI_DESCRIPTION:=Displays real-time Airoha NPU status including NPU utilization, \
 	CPU frequency and load, frame engine statistics, and supports CPU overclocking.
 LUCI_DEPENDS:=+luci-base +kmod-br-netfilter
+LUCI_PKGARCH:=all
 
-include $(TOPDIR)/feeds/luci/luci.mk
+PKG_NAME:=luci-app-airoha-npu
+PKG_VERSION:=1.1.0
+PKG_RELEASE:=5
+PKG_LICENSE:=Apache-2.0
+PKG_MAINTAINER:=Airoha Maintainer
 
-define Package/$(LUCI_NAME)/install
-	# Install LuCI frontend views
-	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/airoha_npu
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/airoha_npu/status.js $(1)/www/luci-static/resources/view/airoha_npu/
-
-	# Install RPC backend script (executable)
-	$(INSTALL_DIR) $(1)/usr/libexec/rpcd
-	$(INSTALL_BIN) ./root/usr/libexec/rpcd/luci.airoha_npu $(1)/usr/libexec/rpcd/
-
-	# Install LuCI menu configuration
-	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
-	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-airoha-npu.json $(1)/usr/share/luci/menu.d/
-
-	# Install RPC ACL configuration
-	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
-	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-airoha-npu.json $(1)/usr/share/rpcd/acl.d/
-
-	# Preserve runtime-created acceleration settings during sysupgrade.
-	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
-	$(INSTALL_DATA) ./root/lib/upgrade/keep.d/luci-app-airoha-npu $(1)/lib/upgrade/keep.d/
-endef
-
-define Package/$(LUCI_NAME)/postinst
+define Package/luci-app-airoha-npu/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
 
@@ -77,7 +53,7 @@ fi
 exit 0
 endef
 
-define Package/$(LUCI_NAME)/prerm
+define Package/luci-app-airoha-npu/prerm
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
 
@@ -85,5 +61,7 @@ define Package/$(LUCI_NAME)/prerm
 
 exit 0
 endef
+
+include $(TOPDIR)/feeds/luci/luci.mk
 
 # call BuildPackage - OpenWrt buildroot signature

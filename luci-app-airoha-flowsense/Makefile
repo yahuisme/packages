@@ -2,56 +2,24 @@
 
 include $(TOPDIR)/rules.mk
 
-LUCI_NAME:=luci-app-airoha-flowsense
-PKG_VERSION:=1.1.3
-PKG_RELEASE:=6
-PKG_LICENSE:=Apache-2.0
-PKG_MAINTAINER:=Airoha Maintainer
-TITLE:=LuCI Support for Airoha FlowSense
-
 LUCI_TITLE:=LuCI Support for Airoha FlowSense
 LUCI_DESCRIPTION:=Provides real-time monitoring and control for Airoha PPE hardware offload. \
 	Displays NPU token usage, flow entry count, flow/VLAN/PPPoE and AP-mode acceleration status, \
 	and allows enabling/disabling hardware offload for specific interfaces.
 LUCI_DEPENDS:=+luci-base
+LUCI_PKGARCH:=all
 
-include $(TOPDIR)/feeds/luci/luci.mk
+PKG_NAME:=luci-app-airoha-flowsense
+PKG_VERSION:=1.1.3
+PKG_RELEASE:=6
+PKG_LICENSE:=Apache-2.0
+PKG_MAINTAINER:=Airoha Maintainer
 
-define Package/$(LUCI_NAME)/install
-	# Install LuCI frontend views
-	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/airoha_flowsense
-	$(INSTALL_DATA) ./htdocs/luci-static/resources/view/airoha_flowsense/status.js $(1)/www/luci-static/resources/view/airoha_flowsense/
-
-	# Install UCI configuration
-	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_DATA) ./root/etc/config/npu-monitor $(1)/etc/config/
-
-	# Install init.d script (executable)
-	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) ./root/etc/init.d/npu-jitter $(1)/etc/init.d/
-
-	# Install RPC backend script (executable)
-	$(INSTALL_DIR) $(1)/usr/libexec/rpcd
-	$(INSTALL_BIN) ./root/usr/libexec/rpcd/luci.airoha_flowsense $(1)/usr/libexec/rpcd/
-
-	# Install NPU jitter daemon (executable)
-	$(INSTALL_DIR) $(1)/usr/libexec
-	$(INSTALL_BIN) ./root/usr/libexec/npu-jitter-daemon $(1)/usr/libexec/
-
-	# Install LuCI menu configuration
-	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
-	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-airoha-flowsense.json $(1)/usr/share/luci/menu.d/
-
-	# Install RPC ACL configuration
-	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
-	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-airoha-flowsense.json $(1)/usr/share/rpcd/acl.d/
-endef
-
-define Package/$(LUCI_NAME)/conffiles
+define Package/luci-app-airoha-flowsense/conffiles
 /etc/config/npu-monitor
 endef
 
-define Package/$(LUCI_NAME)/postinst
+define Package/luci-app-airoha-flowsense/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
 
@@ -61,7 +29,7 @@ define Package/$(LUCI_NAME)/postinst
 exit 0
 endef
 
-define Package/$(LUCI_NAME)/prerm
+define Package/luci-app-airoha-flowsense/prerm
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
 
@@ -70,5 +38,7 @@ define Package/$(LUCI_NAME)/prerm
 /etc/init.d/rpcd reload 2>/dev/null
 exit 0
 endef
+
+include $(TOPDIR)/feeds/luci/luci.mk
 
 # call BuildPackage - OpenWrt buildroot signature
