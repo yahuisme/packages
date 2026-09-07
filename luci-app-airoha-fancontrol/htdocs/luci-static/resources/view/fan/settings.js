@@ -237,9 +237,13 @@ return view.extend({
 
 		o = s.option(form.Value, 'manual_pwm', _('Manual Fan Speed (PWM)'),
 			_('Set a fixed PWM value (0-255). 0 = Off, 255 = Full Speed'));
-		o.datatype = 'range(0,255)';
+		o.datatype = 'and(uinteger,range(0,255))';
 		o.default = '127';
+		o.validate = function(sectionId, value) {
+			return /^(0|[1-9][0-9]*)$/.test(value) && +value <= 255 || _('Enter an integer from 0 to 255 without leading zeros.');
+		};
 		o.depends('mode', 'manual');
+		o.retain = true;
 		o.rmempty = false;
 
 		o = s.option(form.ListValue, 'curve_preset', _('Fan Curve Preset'));
@@ -248,6 +252,7 @@ return view.extend({
 		o.value('performance', _('Performance - Higher speeds, lower temps'));
 		o.value('custom', _('Custom - Define your own curve'));
 		o.default = 'balanced';
+		o.retain = true;
 		o.depends('mode', 'auto');
 
 		o = s.option(form.DummyValue, '_curve_graph', _('Curve Preview'));
@@ -262,6 +267,29 @@ return view.extend({
 		s.anonymous = true;
 		s.addremove = false;
 
+		function validateCurve(sectionId, value) {
+			function field(name, section) {
+				var options = m.lookupOption(name, section);
+				var option = options && options[0];
+				var current = option && option.formvalue(section);
+				return current != null ? current : uci.get('fan', section, name);
+			}
+			if (field('mode', 'settings') !== 'auto' || field('curve_preset', 'settings') !== 'custom')
+				return true;
+			var previousTemp = -1, previousPwm = 0;
+			for (var point = 1; point <= 5; point++) {
+				var t = 'point' + point + '_temp', p = 'point' + point + '_pwm';
+				var temp = this.option === t ? value : field(t, sectionId);
+				var pwm = point === 5 ? '255' : this.option === p ? value : field(p, sectionId);
+				if (!/^(0|[1-9][0-9]*)$/.test(temp) || !/^(0|[1-9][0-9]*)$/.test(pwm) ||
+					+temp > 100 || +pwm > 255 || +temp <= previousTemp || +pwm < previousPwm)
+					return _('Temperatures must increase (0-100), PWM must not decrease (0-255), and point 5 is fixed at 255.');
+				previousTemp = +temp;
+				previousPwm = +pwm;
+			}
+			return true;
+		}
+
 		var defaults = {
 			point1_temp: 40, point1_pwm: 54,
 			point2_temp: 50, point2_pwm: 69,
@@ -273,14 +301,26 @@ return view.extend({
 		for (var i = 1; i <= 5; i++) {
 			o = s.option(form.Value, 'point' + i + '_temp',
 				_('\u7B2C%d\u70B9 - \u6E29\u5EA6 (\u00B0C)').format(i));
-			o.datatype = 'range(0,100)';
+			o.datatype = 'and(uinteger,range(0,100))';
+			o.validate = validateCurve;
 			o.default = String(defaults['point' + i + '_temp']);
+			o.depends({ 'fan.settings.mode': 'auto', 'fan.settings.curve_preset': 'custom' });
+			o.retain = true;
 			o.rmempty = false;
 
 			o = s.option(form.Value, 'point' + i + '_pwm',
 				_('\u7B2C%d\u70B9 - PWM (0-255)').format(i));
-			o.datatype = 'range(0,255)';
+			o.datatype = 'and(uinteger,range(0,255))';
 			o.default = String(defaults['point' + i + '_pwm']);
+			o.depends({ 'fan.settings.mode': 'auto', 'fan.settings.curve_preset': 'custom' });
+			o.retain = true;
+			o.readonly = (i === 5);
+			if (i === 5) {
+				o.forcewrite = true;
+				o.cfgvalue = function() { return '255'; };
+				o.write = function(sectionId) { uci.set('fan', sectionId, 'point5_pwm', '255'); };
+			}
+			o.validate = validateCurve;
 			o.rmempty = false;
 		}
 

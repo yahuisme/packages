@@ -76,6 +76,7 @@ function injectCSS() {
 }
 
 function tempColor(temp) {
+	if (temp == null) return '#6b7280';
 	if (temp <= 40) return '#00cc44';
 	if (temp <= 55) return '#f5a623';
 	if (temp <= 70) return '#f97316';
@@ -105,6 +106,7 @@ function persistHistory() {
 }
 
 function modeInfo(uciMode) {
+	if (uciMode !== 'manual' && uciMode !== 'auto') return { value: _('Unknown'), sub: _('Read failed'), color: '#6b7280' };
 	return uciMode === 'manual'
 		? { value: _('Manual'), sub: '固定 PWM 输出', color: '#f5a623' }
 		: { value: _('Automatic'), sub: '按风扇曲线自动调速', color: '#00c8ff' };
@@ -113,16 +115,19 @@ function modeInfo(uciMode) {
 function presetInfo(uciMode, preset) {
 	if (uciMode === 'manual') return { value: _('Manual'), sub: '当前不使用曲线', color: '#6b7280' };
 	var labels = { quiet: '静音', balanced: '平衡', performance: '性能', custom: '自定义' };
+	if (!labels[preset]) return modeInfo('unknown');
 	var descriptions = { quiet: '优先降低噪声', balanced: '噪声与散热平衡', performance: '优先散热', custom: '自定义温度曲线' };
 	return { value: labels[preset] || labels.balanced, sub: descriptions[preset] || descriptions.balanced, color: '#00cc44' };
 }
 
 function summaryData(status) {
-	var mode = modeInfo(status.uci_mode);
-	var preset = presetInfo(status.uci_mode, status.uci_preset);
+	var actualMode = status.fan_mode === 1 ? 'manual' : status.fan_mode === 2 ? 'auto' : 'unknown';
+	var mode = modeInfo(actualMode);
+	if (actualMode !== 'unknown' && actualMode !== status.uci_mode) mode.sub = _('Configured mode differs from hardware');
+	var preset = actualMode === 'unknown' ? modeInfo('unknown') : presetInfo(actualMode, status.uci_preset);
 	return [
-		{ id: 'fan-summary-rpm', title: _('Fan Speed'), value: (status.fan_rpm || 0) + ' RPM', sub: (status.fan_percentage || 0) + '% PWM 输出', color: '#00c8ff' },
-		{ id: 'fan-summary-pwm', title: 'PWM', value: (status.fan_pwm || 0) + ' / 255', sub: (status.fan_percentage || 0) + '%', color: '#00cc44' },
+		{ id: 'fan-summary-rpm', title: _('Fan Speed'), value: (status.fan_rpm != null ? status.fan_rpm : '—') + ' RPM', sub: (status.fan_percentage != null ? status.fan_percentage : '—') + '% PWM 输出', color: '#00c8ff' },
+		{ id: 'fan-summary-pwm', title: 'PWM', value: (status.fan_pwm != null ? status.fan_pwm : '—') + ' / 255', sub: (status.fan_percentage != null ? status.fan_percentage : '—') + '%', color: '#00cc44' },
 		{ id: 'fan-summary-mode', title: _('Control Mode'), value: mode.value, sub: mode.sub, color: mode.color },
 		{ id: 'fan-summary-preset', title: _('Fan Curve Preset'), value: preset.value, sub: preset.sub, color: preset.color }
 	];
@@ -152,11 +157,11 @@ function updateSummary(status) {
 
 function createTempGauge(label, temp, id) {
 	var color = tempColor(temp);
-	var percentage = Math.min(100, Math.max(3, temp));
+	var percentage = (temp == null ? 0 : Math.min(100, Math.max(3, temp)));
 	return E('div', { 'id': id, 'class': 'fan-temp-card', 'style': '--fan-temp-accent:' + color }, [
 		E('div', { 'class': 'fan-temp-row' }, [
 			E('span', { 'class': 'fan-temp-label' }, label),
-			E('span', { 'class': 'fan-temp-value' }, temp + '\u00b0C')
+			E('span', { 'class': 'fan-temp-value' }, (temp != null ? temp + '\u00b0C' : '—'))
 		]),
 		E('div', { 'class': 'fan-temp-track' }, [
 			E('div', { 'class': 'fan-temp-fill', 'style': 'width:' + percentage + '%' })
@@ -171,13 +176,14 @@ function updateGauge(id, temp) {
 	var value = card.querySelector('.fan-temp-value');
 	var fill = card.querySelector('.fan-temp-fill');
 	card.style.setProperty('--fan-temp-accent', color);
-	if (value) value.textContent = temp + '\u00b0C';
-	if (fill) fill.style.width = Math.min(100, Math.max(3, temp)) + '%';
+	if (value) value.textContent = (temp != null ? temp + '\u00b0C' : '—');
+	if (fill) fill.style.width = (temp == null ? 0 : Math.min(100, Math.max(3, temp))) + '%';
 }
 
 function appendHistory(status) {
+	if (status.temp_board == null || status.fan_pwm == null || status.fan_rpm == null) return;
 	var now = Date.now();
-	history.push({ time: now, temperature: status.temp_board || 0, pwm: status.fan_pwm || 0, rpm: status.fan_rpm || 0 });
+	history.push({ time: now, temperature: status.temp_board, pwm: status.fan_pwm || 0, rpm: status.fan_rpm || 0 });
 	while (history.length && history[0].time < now - HISTORY_WINDOW_MS) history.shift();
 	persistHistory();
 }
@@ -296,24 +302,24 @@ return view.extend({
 			E('div', { 'class': 'fan-panel' }, [
 				E('div', { 'class': 'fan-panel-title' }, '实时趋势'),
 				E('div', { 'class': 'fan-chart-grid' }, [
-					chartCard('主板温度', (status.temp_board || 0) + '\u00b0C', 'fc-temp', '#f97316'),
-					chartCard('风扇 PWM', (status.fan_pwm || 0) + ' / 255', 'fc-pwm', '#00c8ff'),
-					chartCard(_('Fan Speed'), (status.fan_rpm || 0) + ' RPM', 'fc-rpm', '#00cc44')
+					chartCard('主板温度', (status.temp_board != null ? status.temp_board : '—') + '\u00b0C', 'fc-temp', '#f97316'),
+					chartCard('风扇 PWM', (status.fan_pwm != null ? status.fan_pwm : '—') + ' / 255', 'fc-pwm', '#00c8ff'),
+					chartCard(_('Fan Speed'), (status.fan_rpm != null ? status.fan_rpm : '—') + ' RPM', 'fc-rpm', '#00cc44')
 				])
 			]),
 			E('div', { 'class': 'fan-panel' }, [
 				E('div', { 'class': 'fan-panel-title' }, _('Temperatures')),
 				E('div', { 'class': 'fan-temp-grid' }, [
 					temperatureGroup(_('System'), [
-						createTempGauge(_('CPU'), status.temp_cpu || 0, 'temp-cpu'),
-						createTempGauge(_('Board (Fan Curve)'), status.temp_board || 0, 'temp-board'),
-						createTempGauge(_('10G PHY'), status.temp_phy1 || 0, 'temp-phy1'),
-						createTempGauge(_('Switch PHY'), status.temp_phy2 || 0, 'temp-phy2')
+						createTempGauge(_('CPU'), status.temp_cpu, 'temp-cpu'),
+						createTempGauge(_('Board (Fan Curve)'), status.temp_board, 'temp-board'),
+						createTempGauge(_('10G PHY'), status.temp_phy1, 'temp-phy1'),
+						createTempGauge(_('Switch PHY'), status.temp_phy2, 'temp-phy2')
 					]),
 					temperatureGroup(_('WiFi'), [
-						createTempGauge(_('2.4 GHz Radio'), status.wifi_24g || 0, 'temp-wifi24g'),
-						createTempGauge(_('5 GHz Radio'), status.wifi_5g || 0, 'temp-wifi5g'),
-						createTempGauge(_('6 GHz Radio'), status.wifi_6g || 0, 'temp-wifi6g')
+						createTempGauge(_('2.4 GHz Radio'), status.wifi_24g, 'temp-wifi24g'),
+						createTempGauge(_('5 GHz Radio'), status.wifi_5g, 'temp-wifi5g'),
+						createTempGauge(_('6 GHz Radio'), status.wifi_6g, 'temp-wifi6g')
 					])
 				])
 			])
@@ -324,18 +330,24 @@ return view.extend({
 				current = current || {};
 				injectCSS();
 				updateSummary(current);
-				updateGauge('temp-cpu', current.temp_cpu || 0);
-				updateGauge('temp-board', current.temp_board || 0);
-				updateGauge('temp-phy1', current.temp_phy1 || 0);
-				updateGauge('temp-phy2', current.temp_phy2 || 0);
-				updateGauge('temp-wifi24g', current.wifi_24g || 0);
-				updateGauge('temp-wifi5g', current.wifi_5g || 0);
-				updateGauge('temp-wifi6g', current.wifi_6g || 0);
-				var values = [ ['fc-temp-val', (current.temp_board || 0) + '\u00b0C'], ['fc-pwm-val', (current.fan_pwm || 0) + ' / 255'], ['fc-rpm-val', (current.fan_rpm || 0) + ' RPM'] ];
+				updateGauge('temp-cpu', current.temp_cpu);
+				updateGauge('temp-board', current.temp_board);
+				updateGauge('temp-phy1', current.temp_phy1);
+				updateGauge('temp-phy2', current.temp_phy2);
+				updateGauge('temp-wifi24g', current.wifi_24g);
+				updateGauge('temp-wifi5g', current.wifi_5g);
+				updateGauge('temp-wifi6g', current.wifi_6g);
+				var values = [ ['fc-temp-val', (current.temp_board != null ? current.temp_board : '—') + '\u00b0C'], ['fc-pwm-val', (current.fan_pwm != null ? current.fan_pwm : '—') + ' / 255'], ['fc-rpm-val', (current.fan_rpm != null ? current.fan_rpm : '—') + ' RPM'] ];
 				values.forEach(function(item) { var el = document.getElementById(item[0]); if (el) el.textContent = item[1]; });
 				appendHistory(current);
 				drawAllCharts();
-			}, this));
+			}, this)).catch(function() {
+				updateSummary({});
+				['temp-cpu', 'temp-board', 'temp-phy1', 'temp-phy2', 'temp-wifi24g', 'temp-wifi5g', 'temp-wifi6g'].forEach(function(id) { updateGauge(id, null); });
+				['fc-temp-val', 'fc-pwm-val', 'fc-rpm-val'].forEach(function(id) { var el = document.getElementById(id); if (el) el.textContent = '—'; });
+				var cards = document.querySelectorAll('.fan-card-sub');
+				for (var i = 0; i < cards.length; i++) cards[i].textContent = _('Read failed');
+			});
 		}, this);
 
 		requestAnimationFrame(function() {

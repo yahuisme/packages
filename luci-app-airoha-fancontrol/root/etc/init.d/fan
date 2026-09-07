@@ -1,65 +1,105 @@
 #!/bin/sh /etc/rc.common
+
 START=99
 USE_PROCD=1
 
-# Dynamically find NCT7802 fan controller hwmon device
-find_nct7802() {
-	for hwmon in /sys/class/hwmon/hwmon*; do
-		if [ -f "$hwmon/name" ] && [ "$(cat "$hwmon/name" 2>/dev/null)" = "nct7802" ]; then
-			echo "$hwmon"
-			return
-		fi
-	done
-	echo "/sys/class/hwmon/hwmon5"  # fallback
+find_hwmon() {
+    local hwmon name
+    for hwmon in /sys/class/hwmon/hwmon*; do
+        [ -f "$hwmon/name" ] || continue
+        read -r name < "$hwmon/name" 2>/dev/null || continue
+        [ "$name" = nct7802 ] || continue
+        [ -f "$hwmon/pwm1" ] && [ -f "$hwmon/pwm1_enable" ] || continue
+        printf '%s\n' "$hwmon"
+        return 0
+    done
+    return 1
 }
 
-HWMON=$(find_nct7802)
+valid_range() {
+    # Canonical decimal only: sysfs parses PWM with base 0.
+    case "$1" in ''|*[!0-9]*|0[0-9]*|????*) return 1 ;; esac
+    [ "$1" -ge "$2" ] && [ "$1" -le "$3" ]
+}
+
+read_curve() {
+    local preset="$1" i temp pwm previous_temp=-1 previous_pwm=0
+    for i in 1 2 3 4 5; do
+        temp=$(uci -q get "fan.${preset}.point${i}_temp") || return 1
+        pwm=$(uci -q get "fan.${preset}.point${i}_pwm") || return 1
+        valid_range "$temp" 0 100 && valid_range "$pwm" 0 255 || return 1
+        [ "$temp" -gt "$previous_temp" ] && [ "$pwm" -ge "$previous_pwm" ] || return 1
+        [ "$i" -lt 5 ] || [ "$pwm" -eq 255 ] || return 1
+        previous_temp=$temp
+        previous_pwm=$pwm
+        printf '%s %s\n' "$temp" "$pwm"
+    done
+}
+
+write_hwmon() {
+    local value="$1" file="$2"
+    [ -w "$file" ] || return 1
+    printf '%s\n' "$value" 2>/dev/null > "$file"
+}
+
+full_speed() {
+    local hwmon="$1" failed=0
+    # NCT7802 accepts enable=1 (manual) or 2 (automatic), never 0.
+    # Preload full PWM before leaving auto. Attempt both writes on I/O error.
+    write_hwmon 255 "$hwmon/pwm1" || failed=1
+    write_hwmon 1 "$hwmon/pwm1_enable" || failed=1
+    return "$failed"
+}
 
 apply_curve() {
-	local preset="$1"
-	local temp pwm
-	for i in 1 2 3 4 5; do
-		temp=$(uci -q get fan.${preset}.point${i}_temp)
-		pwm=$(uci -q get fan.${preset}.point${i}_pwm)
-		if [ -n "$temp" ]; then
-			echo $((temp * 1000)) > ${HWMON}/pwm1_auto_point${i}_temp 2>/dev/null
-		fi
-		if [ -n "$pwm" ] && [ "$i" -lt 5 ]; then
-			echo "$pwm" > ${HWMON}/pwm1_auto_point${i}_pwm 2>/dev/null
-		fi
-	done
+    local hwmon="$1" i=1
+    shift
+    while [ "$#" -gt 0 ]; do
+        write_hwmon "$(($1 * 1000))" "$hwmon/pwm1_auto_point${i}_temp" || return 1
+        [ "$i" -eq 5 ] || write_hwmon "$2" "$hwmon/pwm1_auto_point${i}_pwm" || return 1
+        shift 2
+        i=$((i + 1))
+    done
+    write_hwmon 2 "$hwmon/pwm1_enable"
 }
 
 apply_settings() {
-	local mode preset manual_pwm
-	[ ! -d "$HWMON" ] && return 1
-
-	mode=$(uci -q get fan.settings.mode)
-	preset=$(uci -q get fan.settings.curve_preset)
-	manual_pwm=$(uci -q get fan.settings.manual_pwm)
-
-	# Disable auto mode temporarily to write settings
-	echo 1 > ${HWMON}/pwm1_enable 2>/dev/null
-
-	case "$mode" in
-		manual)
-			[ -n "$manual_pwm" ] && echo "$manual_pwm" > ${HWMON}/pwm1 2>/dev/null
-			;;
-		auto|*)
-			[ -n "$preset" ] && apply_curve "$preset"
-			echo 2 > ${HWMON}/pwm1_enable 2>/dev/null
-			;;
-	esac
+    local hwmon mode preset manual_pwm selected
+    mode=$(uci -q get fan.settings.mode) || return 1
+    # LuCI saves UCI directly: validate all active settings before touching hardware.
+    # Inactive fields may be absent after a LuCI dependency change.
+    case "$mode" in
+        manual)
+            manual_pwm=$(uci -q get fan.settings.manual_pwm) || return 1
+            valid_range "$manual_pwm" 0 255 || return 1
+            ;;
+        auto)
+            preset=$(uci -q get fan.settings.curve_preset) || return 1
+            case "$preset" in quiet|balanced|performance|custom) ;; *) return 1 ;; esac
+            selected=$(read_curve "$preset") || return 1
+            ;;
+        *) return 1 ;;
+    esac
+    hwmon=$(find_hwmon) || return 1
+    if full_speed "$hwmon"; then
+        if [ "$mode" = manual ]; then
+            write_hwmon "$manual_pwm" "$hwmon/pwm1" && return 0
+        else
+            apply_curve "$hwmon" $selected && return 0
+        fi
+    fi
+    full_speed "$hwmon" || logger -t fan 'Failed to establish full-speed fallback'
+    return 1
 }
 
 start_service() {
-	apply_settings
+    apply_settings
 }
 
 reload_service() {
-	apply_settings
+    apply_settings
 }
 
 service_triggers() {
-	procd_add_reload_trigger "fan"
+    procd_add_reload_trigger fan
 }

@@ -154,6 +154,18 @@ msgstr "自动（闭环）"
 msgid "Unknown"
 msgstr "未知"
 
+msgid "Temperatures must increase (0-100), PWM must not decrease (0-255), and point 5 is fixed at 255."
+msgstr "温度须为 0–100 的递增整数，PWM 须为 0–255 的非递减整数，第五点固定为 255。"
+
+msgid "Enter an integer from 0 to 255 without leading zeros."
+msgstr "请输入 0–255 的整数，不要使用前导零。"
+
+msgid "Configured mode differs from hardware"
+msgstr "配置模式与硬件状态不一致"
+
+msgid "Read failed"
+msgstr "读取失败"
+
 #: htdocs/luci-static/resources/view/fan/settings.js:153
 msgid "Curve Preview"
 msgstr "曲线预览"

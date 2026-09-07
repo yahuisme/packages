@@ -5,10 +5,7 @@
 			"ubus": {
 				"luci.fan": [ "getStatus", "getCurve", "getAllCurves" ]
 			},
-			"uci": [ "fan" ],
-			"file": {
-				"/sys/class/hwmon/hwmon5/*": [ "read" ]
-			}
+			"uci": [ "fan" ]
 		},
 		"write": {
 			"ubus": {
