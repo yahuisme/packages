@@ -57,7 +57,7 @@ return view.extend({
 				E('th', { 'class': 'th' }, _('AP Mode Acceleration'))
 			]),
 			E('tr', { 'class': 'tr' }, [
-				E('td', { 'class': 'td', 'id': 'fs-val-mode', 'style': 'font-weight:700' }, '—'),
+				E('td', { 'class': 'td', 'id': 'fs-val-mode', 'style': 'font-weight:600' }, '—'),
 				E('td', { 'class': 'td', 'id': 'fs-val-flow' }, '—'),
 				E('td', { 'class': 'td', 'id': 'fs-val-vlan' }, '—'),
 				E('td', { 'class': 'td', 'id': 'fs-val-pppoe' }, '—'),
@@ -79,8 +79,8 @@ return view.extend({
 				E('th', { 'class': 'th' }, _('Buffer Health / Congestion'))
 			]),
 			E('tr', { 'class': 'tr' }, [
-				E('td', { 'class': 'td', 'id': 'fs-val-bnd', 'style': 'font-weight:700;color:#00cc44' }, '—'),
-				E('td', { 'class': 'td', 'id': 'fs-val-unb', 'style': 'font-weight:700;color:#f5a623' }, '—'),
+				E('td', { 'class': 'td', 'id': 'fs-val-bnd', 'style': 'font-weight:600;color:#00cc44' }, '—'),
+				E('td', { 'class': 'td', 'id': 'fs-val-unb', 'style': 'font-weight:600;color:#f5a623' }, '—'),
 				E('td', { 'class': 'td', 'id': 'fs-val-ip-split' }, '—'),
 				E('td', { 'class': 'td', 'id': 'fs-val-buffer' }, '—')
 			])
@@ -95,7 +95,7 @@ return view.extend({
 		var latencyNode = E('div', { 'class': 'cbi-section-node' }, [
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Upstream Latency')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-latency', 'style': 'font-family:monospace;font-weight:700;color:#00cc44' }, '—')
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-latency', 'style': 'font-family:monospace;font-weight:600;color:#00cc44' }, '—')
 			]),
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Jitter')),
@@ -265,7 +265,7 @@ return view.extend({
 						var stateCol = (e.state === 'BND') ? '#00cc44' : '#f5a623';
 						return [
 							e.index,
-							E('span', { 'style': 'font-weight:700;color:' + stateCol }, e.state),
+							E('span', { 'style': 'font-weight:600;color:' + stateCol }, e.state),
 							e.type,
 							E('span', { 'style': 'font-family:monospace' }, e.orig || '-'),
 							E('span', { 'style': 'font-family:monospace' }, e.new_flow || '-')

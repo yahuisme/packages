@@ -231,7 +231,7 @@ return view.extend({
 				});
 
 				var card = E('div', { 'class': 'cbi-section-node', 'style': 'border:1px solid #e0e0e0;border-radius:6px;padding:12px 14px;margin-bottom:12px' }, [
-					E('h4', { 'style': 'margin:0 0 10px;font-weight:700' }, radSec + ' (' + band.name + ')'),
+					E('h4', { 'style': 'margin:0 0 10px;font-weight:600' }, radSec + ' (' + band.name + ')'),
 					E('div', { 'class': 'cbi-value' }, [
 						E('label', { 'class': 'cbi-value-title' }, _('Enabled')),
 						E('div', { 'class': 'cbi-value-field' }, [
@@ -326,7 +326,7 @@ return view.extend({
 				}).join(' + ');
 
 				var mloBadge = isMlo ? E('span', {
-					'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;background:#00c8ff;color:#000;margin-right:6px;display:inline-block'
+					'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#00c8ff;color:#000;margin-right:6px;display:inline-block'
 				}, 'MLO') : null;
 
 				var ifcState = (ifc.disabled === '1')
@@ -334,7 +334,7 @@ return view.extend({
 					: E('span', { 'style': 'padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600;background:#00cc44;color:#fff' }, _('Enabled'));
 
 				ifaceTable.appendChild(E('tr', { 'class': 'tr' }, [
-					E('td', { 'class': 'td', 'style': 'font-weight:700' }, ifc.ssid || ifc['.name']),
+					E('td', { 'class': 'td', 'style': 'font-weight:600' }, ifc.ssid || ifc['.name']),
 					E('td', { 'class': 'td', 'style': 'font-family:monospace' }, ifc.ifname || ifc['.name']),
 					E('td', { 'class': 'td' }, [ mloBadge, devStr ]),
 					E('td', { 'class': 'td' }, (ifc.mode || 'ap').toUpperCase()),

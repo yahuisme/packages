@@ -151,7 +151,7 @@ return view.extend({
 			]),
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Current Frequency')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'cpu-curfreq-val', 'style': 'font-family:monospace;font-size:14px;color:#00cc44;font-weight:700' }, '—')
+				E('div', { 'class': 'cbi-value-field', 'id': 'cpu-curfreq-val', 'style': 'font-family:monospace;font-size:14px;color:#00cc44;font-weight:600' }, '—')
 			]),
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Governor')),
@@ -254,7 +254,7 @@ return view.extend({
 				if (sStatus) {
 					while (sStatus.firstChild) sStatus.removeChild(sStatus.firstChild);
 					sStatus.appendChild(E('span', {
-						'style': 'font-weight:700;color:' + (active ? '#00cc44' : '#888')
+						'style': 'font-weight:600;color:' + (active ? '#00cc44' : '#888')
 					}, active ? _('Activated') : _('Not Activated')));
 				}
 
@@ -351,7 +351,7 @@ return view.extend({
 						if (eth === '00:00:00:00:00:00->00:00:00:00:00:00') eth = '-';
 						return [
 							e.index,
-							E('span', { 'style': 'font-weight:700;color:' + (e.state === 'BND' ? '#00cc44' : '#888') }, e.state),
+							E('span', { 'style': 'font-weight:600;color:' + (e.state === 'BND' ? '#00cc44' : '#888') }, e.state),
 							e.type,
 							E('span', { 'style': 'font-family:monospace' }, e.orig || '-'),
 							E('span', { 'style': 'font-family:monospace' }, e.new_flow || '-'),
