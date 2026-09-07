@@ -1,7 +1,7 @@
 {
 	"admin/status/fan": {
 		"title": "Fan Control",
-		"order": 90,
+		"order": 16,
 		"action": {
 			"type": "firstchild"
 		},

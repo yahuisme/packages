@@ -1,7 +1,7 @@
 {
 	"admin/status/flowsense": {
 		"title": "Airoha FlowSense",
-		"order": 16,
+		"order": 17,
 		"action": {
 			"type": "view",
 			"path": "airoha_flowsense/status"
