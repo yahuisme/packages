@@ -10,38 +10,15 @@ var callGetAllCurves = rpc.declare({
 });
 
 var settingsCSS = '\
-.fan-settings{--fan-blue:#00c8ff;--fan-green:#00cc44;--fan-amber:#f5a623;--fan-red:#d0021b;max-width:1180px;margin:0 auto;padding-bottom:20px}\
-.fan-settings .cbi-map-descr{position:relative;margin:0 0 16px;padding:15px 18px 15px 20px;border:1px solid var(--fan-border);border-left:4px solid var(--fan-blue);border-radius:10px;background:linear-gradient(135deg,var(--fan-card-bg),var(--fan-input-bg));box-shadow:0 5px 18px var(--fan-shadow);color:var(--fan-muted);font-size:12px;line-height:1.6}\
-.fan-settings .cbi-section{position:relative;background:var(--fan-card-bg);border:1px solid var(--fan-border);border-radius:12px;padding:18px;margin:14px 0!important;box-sizing:border-box;box-shadow:0 5px 18px var(--fan-shadow);overflow:hidden}\
-.fan-settings .cbi-section>h3{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:700;letter-spacing:.2px;margin:0 0 14px;padding:0 0 12px;border-bottom:1px solid var(--fan-border);color:var(--fan-text)}\
-.fan-settings .cbi-section>h3:before{content:"";display:block;width:5px;height:20px;border-radius:99px;background:linear-gradient(180deg,var(--fan-blue),var(--fan-green));box-shadow:0 0 12px rgba(0,200,255,.25)}\
-.fan-settings .fan-curve-section>h3:before{background:linear-gradient(180deg,#a855f7,#f97316);box-shadow:0 0 12px rgba(168,85,247,.25)}\
-.fan-settings .cbi-section-descr{color:var(--fan-muted);font-size:12px;line-height:1.6;margin:-4px 0 12px}\
-.fan-settings .cbi-value{display:grid;grid-template-columns:minmax(180px,.72fr) minmax(260px,1.28fr);align-items:center;gap:16px;border-bottom:1px solid var(--fan-border);padding:12px 0;margin:0}\
-.fan-settings .cbi-value:last-child{border-bottom:0}\
-.fan-settings .cbi-value-title{color:var(--fan-text);font-size:13px;font-weight:600;line-height:1.35}\
-.fan-settings .cbi-value-description{display:block;color:var(--fan-muted);font-size:11px;font-weight:400;line-height:1.45;margin-top:5px}\
-.fan-settings .cbi-value-field{min-width:0}\
-.fan-settings .cbi-value-field input,.fan-settings .cbi-value-field select{width:100%;box-sizing:border-box;min-height:38px;padding:8px 11px;border:1px solid var(--fan-border);border-radius:7px;background:var(--fan-input-bg);color:var(--fan-text);font-size:13px;transition:border-color .18s,box-shadow .18s,background .18s}\
-.fan-settings .cbi-value-field input:hover,.fan-settings .cbi-value-field select:hover{border-color:var(--fan-blue)}\
-.fan-settings .cbi-value-field input:focus,.fan-settings .cbi-value-field select:focus{border-color:var(--fan-blue);background:var(--fan-card-bg);box-shadow:0 0 0 3px rgba(0,200,255,.14);outline:0}\
-.fan-settings .cbi-value-field input[type=number]{font-family:monospace;font-weight:700}\
-.fan-settings .fan-control-section{background:linear-gradient(145deg,var(--fan-card-bg),var(--fan-input-bg))}\
-.fan-settings .fan-control-section [data-name="_curve_graph"]{display:block;padding:14px 0 0;margin-top:4px;border-top:1px solid var(--fan-border)}\
-.fan-settings .fan-control-section [data-name="_curve_graph"] .cbi-value-title{margin-bottom:8px}\
-.fan-settings .fan-control-section [data-name="_curve_graph"] .cbi-value-field{width:100%}\
-.fan-curve-wrap{max-width:none;border:1px solid var(--fan-border);border-left:4px solid var(--fan-blue);border-radius:10px;padding:12px;background:linear-gradient(145deg,var(--fan-input-bg),var(--fan-card-bg));box-shadow:inset 0 0 0 1px rgba(0,200,255,.06)}\
-.fan-curve-canvas{display:block;width:100%;height:320px;background:var(--fan-canvas-bg);border:1px solid var(--fan-border);border-radius:7px;box-sizing:border-box}\
-.fan-settings .fan-curve-section{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}\
-.fan-settings .fan-curve-section>h3,.fan-settings .fan-curve-section>.cbi-section-descr{grid-column:1/-1}\
-.fan-settings .fan-curve-section .cbi-value{display:flex!important;flex-direction:column!important;align-items:stretch;gap:8px;width:100%;box-sizing:border-box;padding:14px;border:1px solid var(--fan-border);border-left:3px solid var(--fan-amber);border-radius:9px;background:var(--fan-input-bg);box-shadow:0 2px 8px var(--fan-shadow)}\
-.fan-settings .fan-curve-section .cbi-value[data-name$="_pwm"]{border-left-color:var(--fan-blue)}\
-.fan-settings .fan-curve-section .cbi-value .cbi-value-title{display:block!important;flex:none!important;float:none!important;width:auto!important;position:static;clear:both;margin:0!important;line-height:1.4;white-space:normal}\
-.fan-settings .fan-curve-section .cbi-value .cbi-value-field{display:block!important;flex:none!important;width:100%;position:static;clear:both;margin:0!important}\
-.fan-settings .cbi-button{border-radius:7px;font-weight:600;transition:transform .18s,box-shadow .18s}\
-.fan-settings .cbi-button:hover{transform:translateY(-1px);box-shadow:0 4px 12px var(--fan-shadow)}\
-@media(max-width:760px){.fan-settings .fan-curve-section{grid-template-columns:1fr}.fan-settings .fan-curve-section>h3,.fan-settings .fan-curve-section>.cbi-section-descr{grid-column:auto}}\
-@media(max-width:640px){.fan-settings{padding-bottom:12px}.fan-settings .cbi-section{padding:13px;margin:11px 0!important}.fan-settings .cbi-value{display:block;padding:11px 0}.fan-settings .cbi-value-title{display:block;margin-bottom:7px}.fan-settings .cbi-value-field{margin-left:0!important}.fan-settings .fan-curve-section .cbi-value{padding:12px}.fan-curve-canvas{height:250px}}\
+.fan-settings{max-width:1180px;margin:0 auto}\
+.fan-curve-wrap{border:1px solid var(--cbi-border-color,#d0d0d0);border-radius:6px;padding:12px;background:var(--cbi-section-bg,#fff);margin-top:8px}\
+.fan-curve-canvas{display:block;width:100%;height:300px;background:var(--cbi-input-bg,#fafafa);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px;box-sizing:border-box}\
+.fan-settings .fan-curve-section .cbi-section-node{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}\
+.fan-settings .fan-curve-section .cbi-value{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--cbi-border-color,#f0f0f0)}\
+.fan-settings .fan-curve-section .cbi-value-title{width:auto;margin:0;font-size:13px;font-weight:500}\
+.fan-settings .fan-curve-section .cbi-value-field{width:auto;margin:0}\
+.fan-settings .fan-curve-section .cbi-value-field input{width:96px!important;min-width:96px;max-width:96px;text-align:center;font-family:monospace;font-weight:600}\
+@media(max-width:760px){.fan-settings .fan-curve-section .cbi-section-node{grid-template-columns:1fr}}\
 ';
 
 var _settingsDarkMode = null;
