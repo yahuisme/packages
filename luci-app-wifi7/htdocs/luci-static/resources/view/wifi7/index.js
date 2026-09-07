@@ -1,23 +1,20 @@
-/*
- * SPDX-License-Identifier: GPL-2.0-only
- *
- * LuCI WiFi 7 Manager for MT7996
- * Harmonious, robust and native LuCI UI (Overview, Radio Config, MLO Networks)
- */
-
 'use strict';
-'require dom';
-'require fs';
-'require poll';
+'require view';
 'require rpc';
 'require uci';
 'require ui';
-'require view';
+'require poll';
 
 const callWirelessStatus = rpc.declare({
 	object: 'network.wireless',
 	method: 'status',
 	expect: { '': {} }
+});
+
+const callIwinfoDevices = rpc.declare({
+	object: 'iwinfo',
+	method: 'devices',
+	expect: { devices: [] }
 });
 
 const callIwinfoAssocList = rpc.declare({
@@ -28,16 +25,10 @@ const callIwinfoAssocList = rpc.declare({
 });
 
 const BANDS = {
-	0: { name: '2.4 GHz', defBw: 'HE40',   maxTxp: 20 },
-	1: { name: '5 GHz',   defBw: 'EHT160', maxTxp: 23 },
-	2: { name: '6 GHz',   defBw: 'EHT320', maxTxp: 23 }
+	0: { name: '2.4 GHz', defBw: 'HE40',   maxTxp: 30 },
+	1: { name: '5 GHz',   defBw: 'EHT160', maxTxp: 30 },
+	2: { name: '6 GHz',   defBw: 'EHT320', maxTxp: 30 }
 };
-
-function parseTxPower(info) {
-	if (!info) return null;
-	var m = info.match(/Current TX Power:\s*([0-9.]+)\s*dBm/i);
-	return m ? m[1] : null;
-}
 
 function formatSignal(signal) {
 	if (signal == null || signal === 0) return '—';
@@ -54,18 +45,12 @@ return view.extend({
 	load: function() {
 		return Promise.all([
 			callWirelessStatus(),
-			fs.read('/sys/kernel/debug/ieee80211/phy0/mt76/sku_disable').catch(function() { return null; }),
-			fs.read('/sys/kernel/debug/ieee80211/phy0/mt76/band0/txpower_info').catch(function() { return null; }),
-			fs.read('/sys/kernel/debug/ieee80211/phy0/mt76/band1/txpower_info').catch(function() { return null; }),
-			fs.read('/sys/kernel/debug/ieee80211/phy0/mt76/band2/txpower_info').catch(function() { return null; }),
 			uci.load('wireless')
 		]);
 	},
 
 	render: function(data) {
 		var wstatus = data[0] || {};
-		var skuDisable = (data[1] || '').trim();
-		var txInfos = [ data[2], data[3], data[4] ];
 
 		var m = E('div', { 'class': 'cbi-map' }, [
 			E('h2', {}, _('WiFi 7')),
@@ -79,7 +64,7 @@ return view.extend({
 		var tabList = [
 			{ id: 'overview', name: _('Overview & Clients') },
 			{ id: 'radios',   name: _('Radio Settings') },
-			{ id: 'mlo',      name: _('MLO Networks') }
+			{ id: 'mlo',      name: _('Wireless Networks') }
 		];
 
 		var tabNav = E('ul', { 'class': 'cbi-tabmenu' });
@@ -124,7 +109,7 @@ return view.extend({
 			var radConfig = radStatus.config || {};
 			var channel = radConfig.channel || _('Auto');
 			var htmode = radConfig.htmode || band.defBw;
-			var txp = parseTxPower(txInfos[bIdx]) || (radConfig.txpower ? radConfig.txpower + ' dBm' : _('Auto'));
+			var txp = radConfig.txpower ? radConfig.txpower + ' dBm' : _('Auto');
 
 			var statusBadge = E('span', {
 				'style': 'padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600;display:inline-block;' +
@@ -132,14 +117,14 @@ return view.extend({
 			}, isUp ? _('Up') : _('Disabled'));
 
 			var skuBadge = E('span', {
-				'style': 'font-weight:600;' + (skuDisable === '0' ? 'color:#00cc44' : 'color:#f5a623')
-			}, skuDisable === '0' ? _('Unlocked (Full Power)') : _('Standard / Locked'));
+				'style': 'font-weight:600;color:#00cc44'
+			}, _('Unlocked (Full Power)'));
 
 			radioTable.appendChild(E('tr', { 'class': 'tr' }, [
 				E('td', { 'class': 'td', 'style': 'font-weight:600' }, band.name),
 				E('td', { 'class': 'td' }, statusBadge),
 				E('td', { 'class': 'td', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, channel + ' / ' + htmode),
-				E('td', { 'class': 'td', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, (typeof txp === 'string' && txp.indexOf('dBm') === -1) ? txp + ' dBm' : txp),
+				E('td', { 'class': 'td', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, txp),
 				E('td', { 'class': 'td' }, skuBadge)
 			]));
 		}
@@ -165,45 +150,57 @@ return view.extend({
 		]));
 
 		// ══════════════════════════════════════════════════════════════════
-		// Tab 2: Radio Settings (Fine-tuning Channels & TX Power)
+		// Tab 2: Radio Settings
 		// ══════════════════════════════════════════════════════════════════
 		var paneRadios = E('div', { 'class': 'cbi-tab-pane', 'style': 'display:none' });
 		tabPanes['radios'] = paneRadios;
 
 		var radioForms = E('div', { 'class': 'cbi-section' }, [
-			E('h3', {}, _('Physical Radio Configuration')),
+			E('h3', {}, _('Radio Hardware Settings')),
 			E('div', { 'class': 'cbi-section-descr' }, _('Configure channels, bandwidth modes, and transmit powers for each physical band.'))
 		]);
 
 		for (var bandIdx = 0; bandIdx < 3; bandIdx++) {
 			(function(idx) {
-				var radSec = 'radio' + idx;
 				var band = BANDS[idx];
+				var radSec = 'radio' + idx;
 				var curChan = uci.get('wireless', radSec, 'channel') || 'auto';
 				var curHt = uci.get('wireless', radSec, 'htmode') || band.defBw;
 				var curTxp = uci.get('wireless', radSec, 'txpower') || '';
 				var curDis = uci.get('wireless', radSec, 'disabled') === '1';
 
-				var chanOpts = idx === 0 ? ['auto', '1', '6', '11']
-				             : idx === 1 ? ['auto', '36', '40', '44', '48', '52', '56', '60', '64', '100', '149', '153', '157', '161']
-				             : ['auto', '37', '53', '69', '85', '101', '117', '133', '149', '165', '181', '197', '213'];
-
-				var htOpts = idx === 0 ? ['HE20', 'HE40', 'EHT40']
-				           : idx === 1 ? ['HE20', 'HE40', 'HE80', 'HE160', 'EHT80', 'EHT160']
-				           : ['EHT80', 'EHT160', 'EHT320'];
+				// Channel selector options
+				var chanOpts = ['auto'];
+				if (idx === 0) chanOpts = ['auto', '1', '6', '11'];
+				else if (idx === 1) chanOpts = ['auto', '36', '40', '44', '48', '52', '56', '60', '64', '100', '149', '153', '157', '161'];
+				else if (idx === 2) chanOpts = ['auto', '1', '5', '9', '13', '17', '21', '33', '37', '65', '97'];
 
 				var chanSelect = E('select', {
 					'class': 'cbi-input-select',
-					'change': function(e) { uci.set('wireless', radSec, 'channel', e.target.value); }
+					'change': function(e) {
+						uci.set('wireless', radSec, 'channel', e.target.value);
+					}
 				}, chanOpts.map(function(c) {
-					return E('option', { 'value': c, 'selected': (c === curChan ? '' : null) }, c === 'auto' ? _('Auto') : c);
+					var o = E('option', { 'value': c }, c === 'auto' ? _('Auto') : c);
+					if (c === String(curChan)) o.selected = true;
+					return o;
 				}));
+
+				// Bandwidth selector
+				var htOpts = [];
+				if (idx === 0) htOpts = ['HE20', 'HE40', 'EHT20', 'EHT40'];
+				else if (idx === 1) htOpts = ['HE20', 'HE40', 'HE80', 'HE160', 'EHT80', 'EHT160'];
+				else if (idx === 2) htOpts = ['EHT80', 'EHT160', 'EHT320'];
 
 				var htSelect = E('select', {
 					'class': 'cbi-input-select',
-					'change': function(e) { uci.set('wireless', radSec, 'htmode', e.target.value); }
+					'change': function(e) {
+						uci.set('wireless', radSec, 'htmode', e.target.value);
+					}
 				}, htOpts.map(function(h) {
-					return E('option', { 'value': h, 'selected': (h === curHt ? '' : null) }, h);
+					var o = E('option', { 'value': h }, h);
+					if (h === curHt) o.selected = true;
+					return o;
 				}));
 
 				var txpInput = E('input', {
@@ -221,13 +218,12 @@ return view.extend({
 					}
 				});
 
-				var disCheckbox = E('input', {
-					'type': 'checkbox',
-					'checked': curDis,
-					'change': function(e) {
-						if (e.target.checked) uci.set('wireless', radSec, 'disabled', '1');
-						else uci.unset('wireless', radSec, 'disabled');
-					}
+				var disAttrs = { 'type': 'checkbox' };
+				if (!curDis) disAttrs.checked = 'checked';
+				var disCheckbox = E('input', disAttrs);
+				disCheckbox.addEventListener('change', function(e) {
+					if (!e.target.checked) uci.set('wireless', radSec, 'disabled', '1');
+					else uci.unset('wireless', radSec, 'disabled');
 				});
 
 				var card = E('div', { 'class': 'cbi-section-node', 'style': 'border:1px solid var(--cbi-border-color, #e0e0e0);border-radius:6px;padding:12px 14px;margin-bottom:12px' }, [
@@ -236,14 +232,7 @@ return view.extend({
 						E('label', { 'class': 'cbi-value-title' }, _('Enabled')),
 						E('div', { 'class': 'cbi-value-field' }, [
 							E('label', {}, [
-								E('input', {
-									'type': 'checkbox',
-									'checked': !curDis,
-									'change': function(e) {
-										if (!e.target.checked) uci.set('wireless', radSec, 'disabled', '1');
-										else uci.unset('wireless', radSec, 'disabled');
-									}
-								}),
+								disCheckbox,
 								' ' + _('Enable Radio')
 							])
 						])
@@ -289,13 +278,13 @@ return view.extend({
 		paneRadios.appendChild(E('div', { 'style': 'margin-top:14px;text-align:right' }, saveApplyBtn));
 
 		// ══════════════════════════════════════════════════════════════════
-		// Tab 3: MLO Networks & Multi-Link Configurations
+		// Tab 3: Wireless Networks & MLO Configurations
 		// ══════════════════════════════════════════════════════════════════
 		var paneMlo = E('div', { 'class': 'cbi-tab-pane', 'style': 'display:none' });
 		tabPanes['mlo'] = paneMlo;
 
 		var mloSec = E('div', { 'class': 'cbi-section' }, [
-			E('h3', {}, _('Wi-Fi 7 Multi-Link (MLO) Networks')),
+			E('h3', {}, _('Wireless Networks & MLO')),
 			E('div', { 'class': 'cbi-section-descr' }, _('Multi-Link Operation aggregates multiple bands (2.4GHz, 5GHz, 6GHz) into a unified high-throughput SSID.'))
 		]);
 
@@ -329,13 +318,28 @@ return view.extend({
 					'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#00c8ff;color:#000;margin-right:6px;display:inline-block'
 				}, 'MLO') : null;
 
-				var ifcState = (ifc.disabled === '1')
-					? E('span', { 'class': 'badge label-danger', 'style': 'font-size:11px;font-weight:600' }, _('Disabled'))
-					: E('span', { 'class': 'badge label-success', 'style': 'font-size:11px;font-weight:600' }, _('Enabled'));
+				// Determine real online status from wstatus
+				var isRunning = false;
+				var realIfname = ifc.ifname || null;
+				devList.forEach(function(d) {
+					var rad = wstatus[d];
+					if (rad && rad.up === true && Array.isArray(rad.interfaces)) {
+						rad.interfaces.forEach(function(ri) {
+							if (ri.section === ifc['.name']) {
+								isRunning = true;
+								if (ri.ifname) realIfname = ri.ifname;
+							}
+						});
+					}
+				});
+
+				var ifcState = isRunning
+					? E('span', { 'class': 'badge label-success', 'style': 'font-size:11px;font-weight:600' }, _('Enabled'))
+					: E('span', { 'class': 'badge label-danger', 'style': 'font-size:11px;font-weight:600' }, _('Disabled'));
 
 				ifaceTable.appendChild(E('tr', { 'class': 'tr' }, [
 					E('td', { 'class': 'td', 'style': 'font-weight:600' }, ifc.ssid || ifc['.name']),
-					E('td', { 'class': 'td', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, ifc.ifname || ifc['.name']),
+					E('td', { 'class': 'td', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, realIfname || ifc['.name']),
 					E('td', { 'class': 'td' }, [ mloBadge, devStr ]),
 					E('td', { 'class': 'td' }, (ifc.mode || 'ap').toUpperCase()),
 					E('td', { 'class': 'td' }, ifc.encryption || _('None')),
@@ -353,36 +357,61 @@ return view.extend({
 		m.appendChild(paneMlo);
 
 		// Dynamic station update
-		function updateStations() {
-			var activeIfaces = ifaces.map(function(ifc) { return ifc.ifname; }).filter(Boolean);
-			if (!activeIfaces.length) {
-				renderEmptyClients();
-				return;
-			}
-
-			Promise.all(activeIfaces.map(function(ifname) {
-				return callIwinfoAssocList(ifname).then(function(res) {
-					return { ifname: ifname, clients: res.results || [] };
-				}).catch(function() {
-					return { ifname: ifname, clients: [] };
-				});
-			})).then(function(results) {
-				var allClients = [];
-				results.forEach(function(r) {
-					r.clients.forEach(function(c) {
-						allClients.push([
-							r.ifname,
-							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, c.mac),
-							formatSignal(c.signal),
-							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, formatRate(c.tx_rate)),
-							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, formatRate(c.rx_rate))
-						]);
+		function getActiveIfaces() {
+			var devList = [];
+			// 1. From network.wireless status
+			Object.keys(wstatus).forEach(function(radName) {
+				var rad = wstatus[radName];
+				if (rad && Array.isArray(rad.interfaces)) {
+					rad.interfaces.forEach(function(ifc) {
+						if (ifc.ifname && devList.indexOf(ifc.ifname) < 0)
+							devList.push(ifc.ifname);
 					});
+				}
+			});
+			// 2. Query iwinfo devices as supplement
+			return callIwinfoDevices().then(function(res) {
+				var devs = Array.isArray(res.devices) ? res.devices : [];
+				devs.forEach(function(d) {
+					if (d && devList.indexOf(d) < 0) devList.push(d);
 				});
+				return devList;
+			}).catch(function() {
+				return devList;
+			});
+		}
 
-				var tb = document.getElementById('wifi7-client-table');
-				if (!tb) return;
-				cbi_update_table(tb, allClients, E('em', { 'style': 'color:#888' }, _('No connected clients')));
+		function updateStations() {
+			getActiveIfaces().then(function(activeIfaces) {
+				if (!activeIfaces.length) {
+					renderEmptyClients();
+					return;
+				}
+
+				Promise.all(activeIfaces.map(function(ifname) {
+					return callIwinfoAssocList(ifname).then(function(res) {
+						return { ifname: ifname, clients: res.results || [] };
+					}).catch(function() {
+						return { ifname: ifname, clients: [] };
+					});
+				})).then(function(results) {
+					var allClients = [];
+					results.forEach(function(r) {
+						r.clients.forEach(function(c) {
+							allClients.push([
+								r.ifname,
+								E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, c.mac),
+								formatSignal(c.signal),
+								E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, formatRate(c.tx_rate)),
+								E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, formatRate(c.rx_rate))
+							]);
+						});
+					});
+
+					var tb = document.getElementById('wifi7-client-table');
+					if (!tb) return;
+					cbi_update_table(tb, allClients, E('em', { 'style': 'color:#888' }, _('No connected clients')));
+				});
 			});
 		}
 
@@ -398,5 +427,7 @@ return view.extend({
 		return m;
 	},
 
-	handleSaveApply: null, handleSave: null, handleReset: null
+	handleSaveApply: null,
+	handleSave: null,
+	handleReset: null
 });
