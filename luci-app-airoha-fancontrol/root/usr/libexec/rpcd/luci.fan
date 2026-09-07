@@ -1,49 +1,5 @@
 #!/bin/sh
 
-find_hwmon() {
-    local hwmon name
-
-    for hwmon in /sys/class/hwmon/hwmon*; do
-        [ -f "$hwmon/name" ] || continue
-        read -r name < "$hwmon/name" 2>/dev/null || continue
-        [ "$name" = nct7802 ] || continue
-        [ -f "$hwmon/pwm1" ] && [ -f "$hwmon/pwm1_enable" ] || continue
-        printf '%s\n' "$hwmon"
-        return 0
-    done
-    return 1
-}
-
-find_mt7996_hwmon() {
-    local band="$1" hwmon name
-    for hwmon in /sys/class/hwmon/hwmon*; do
-        [ -f "$hwmon/name" ] || continue
-        read -r name < "$hwmon/name" 2>/dev/null || continue
-        case "$name" in
-            mt7996_phy0."$band"|mt7996_phy0_"$band")
-                printf '%s\n' "$hwmon"
-                return 0
-                ;;
-        esac
-    done
-    return 1
-}
-
-find_phy_hwmon() {
-    local suffix="$1" hwmon name
-    for hwmon in /sys/class/hwmon/hwmon*; do
-        [ -f "$hwmon/name" ] || continue
-        read -r name < "$hwmon/name" 2>/dev/null || continue
-        case "$name" in
-            *"$suffix")
-                printf '%s\n' "$hwmon"
-                return 0
-                ;;
-        esac
-    done
-    return 1
-}
-
 read_integer() {
     local file="$1" value
     [ -r "$file" ] || return 1
@@ -86,12 +42,30 @@ preset_valid() {
 }
 
 get_status() {
-    local hwmon phy1 phy2 wifi24 wifi5 wifi6
+    local hwmon= phy1= phy2= wifi24= wifi5= wifi6= sensor name zone
     local temp_cpu=null temp_board=null temp_phy1=null temp_phy2=null
     local wifi_24g=null wifi_5g=null wifi_6g=null fan_rpm=null fan_pwm=null fan_mode=null
     local fan_percentage=null mode_desc=Unknown uci_mode uci_preset uci_manual_pwm
 
-    hwmon=$(find_hwmon) || hwmon=
+    # W1700K board wiring: MDIO :05 is LAN, :08 is WAN. MT7996
+    # phy0.0/1/2 (also underscore names) are this board's 2.4/5/6 GHz.
+    # These are board-specific mappings, not a generic band inference.
+    for sensor in /sys/class/hwmon/hwmon*; do
+        [ -r "$sensor/name" ] || continue
+        read -r name < "$sensor/name" || continue
+        case "$name" in
+            nct7802)
+                if [ -z "$hwmon" ] && [ -f "$sensor/pwm1" ] && [ -f "$sensor/pwm1_enable" ]; then
+                    hwmon=$sensor
+                fi
+                ;;
+            *:05) [ -n "$phy1" ] || phy1=$sensor ;;
+            *:08) [ -n "$phy2" ] || phy2=$sensor ;;
+            mt7996_phy0.0|mt7996_phy0_0) [ -n "$wifi24" ] || wifi24=$sensor ;;
+            mt7996_phy0.1|mt7996_phy0_1) [ -n "$wifi5" ] || wifi5=$sensor ;;
+            mt7996_phy0.2|mt7996_phy0_2) [ -n "$wifi6" ] || wifi6=$sensor ;;
+        esac
+    done
     if [ -n "$hwmon" ]; then
         temp_board=$(read_temp "$hwmon/temp1_input")
         fan_rpm=$(read_value "$hwmon/fan1_input")
@@ -102,14 +76,18 @@ get_status() {
         valid_range "$fan_mode" 1 2 || fan_mode=null
         valid_range "$fan_pwm" 0 255 && fan_percentage=$((fan_pwm * 100 / 255))
     fi
-    temp_cpu=$(read_temp /sys/class/thermal/thermal_zone0/temp)
-    phy1=$(find_phy_hwmon :05) || phy1=
-    phy2=$(find_phy_hwmon :08) || phy2=
+    for zone in /sys/class/thermal/thermal_zone*; do
+        [ -r "$zone/type" ] || continue
+        read -r name < "$zone/type" || continue
+        case "$name" in
+            cpu-thermal|cpu_thermal|soc-thermal|soc_thermal)
+                temp_cpu=$(read_temp "$zone/temp")
+                [ "$temp_cpu" = null ] || break
+                ;;
+        esac
+    done
     [ -n "$phy1" ] && temp_phy1=$(read_temp "$phy1/temp1_input")
     [ -n "$phy2" ] && temp_phy2=$(read_temp "$phy2/temp1_input")
-    wifi24=$(find_mt7996_hwmon 0) || wifi24=
-    wifi5=$(find_mt7996_hwmon 1) || wifi5=
-    wifi6=$(find_mt7996_hwmon 2) || wifi6=
     [ -n "$wifi24" ] && wifi_24g=$(read_temp "$wifi24/temp1_input")
     [ -n "$wifi5" ] && wifi_5g=$(read_temp "$wifi5/temp1_input")
     [ -n "$wifi6" ] && wifi_6g=$(read_temp "$wifi6/temp1_input")
@@ -131,135 +109,12 @@ get_status() {
         "$fan_rpm" "$fan_pwm" "$fan_percentage" "$fan_mode" "$mode_desc" "$uci_mode" "$uci_preset" "$uci_manual_pwm"
 }
 
-get_curve() {
-    local preset="$1" i temp pwm first=1
-    preset_valid "$preset" || preset=balanced
-    printf '{"preset":"%s","points":[' "$preset"
-    for i in 1 2 3 4 5; do
-        temp=$(uci_value "fan.${preset}.point${i}_temp" null)
-        pwm=$(uci_value "fan.${preset}.point${i}_pwm" null)
-        valid_range "$temp" 0 100 || temp=null
-        valid_range "$pwm" 0 255 || pwm=null
-        [ "$first" -eq 1 ] || printf ','
-        first=0
-        printf '{"temp":%s,"pwm":%s}' "$temp" "$pwm"
-    done
-    printf ']}\n'
-}
-
-get_all_curves() {
-    local first=1 preset i temp pwm
-    printf '{'
-    for preset in quiet balanced performance custom; do
-        [ "$first" -eq 1 ] || printf ','
-        first=0
-        printf '"%s":[' "$preset"
-        for i in 1 2 3 4 5; do
-            temp=$(uci_value "fan.${preset}.point${i}_temp" null)
-            pwm=$(uci_value "fan.${preset}.point${i}_pwm" null)
-            valid_range "$temp" 0 100 || temp=null
-            valid_range "$pwm" 0 255 || pwm=null
-            [ "$i" -eq 1 ] || printf ','
-            printf '{"temp":%s,"pwm":%s}' "$temp" "$pwm"
-        done
-        printf ']'
-    done
-    printf '}\n'
-}
-
-reload_fan() {
-    /etc/init.d/fan reload >/dev/null 2>&1
-}
-
-set_mode() {
-    case "$1" in manual|auto) ;; *) curve_error 'Invalid mode'; return 1 ;; esac
-    save_settings "fan.settings.mode=$1"
-}
-
-set_manual_pwm() {
-    valid_range "$1" 0 255 || { curve_error 'Invalid PWM value (0-255)'; return 1; }
-    save_settings "fan.settings.manual_pwm=$1"
-}
-
-set_preset() {
-    preset_valid "$1" || { curve_error 'Invalid preset'; return 1; }
-    save_settings "fan.settings.curve_preset=$1"
-}
-
-# A failed save/apply restores configuration, never the previous hardware output.
-save_settings() {
-    local backup assignment failed=0
-    backup=$(uci -q export fan) || { curve_error 'Failed to back up fan configuration'; return 1; }
-    for assignment in "$@"; do
-        uci set "$assignment" || { failed=1; break; }
-    done
-    if [ "$failed" -eq 0 ]; then
-        uci commit fan && reload_fan || failed=1
-    fi
-    if [ "$failed" -ne 0 ]; then
-        if uci -q revert fan && printf '%s\n' "$backup" | uci import fan; then
-            curve_error 'Failed to save or apply fan configuration; configuration restored'
-        else
-            curve_error 'Failed to save or apply fan configuration; rollback failed'
-        fi
-        return 1
-    fi
-    printf '{"success":true}\n'
-}
-
-curve_error() {
-    printf '{"success":false,"error":"%s"}\n' "$1"
-    return 1
-}
-
-set_custom_curve() {
-    local json="$1" i idx temp pwm previous_temp=-1 previous_pwm=0
-    local points="" extra
-    command -v jsonfilter >/dev/null 2>&1 || { curve_error 'jsonfilter not available'; return 1; }
-    extra=$(printf '%s\n' "$json" | jsonfilter -t '@.points' 2>/dev/null)
-    [ "$extra" = array ] || { curve_error 'Expected a curve array'; return 1; }
-    # jsonfilter omits JSON null. Trailing null entries have no effect; only
-    # the five validated points below are ever saved or applied.
-    extra=$(printf '%s\n' "$json" | jsonfilter -t '@.points[5]' 2>/dev/null)
-    [ -z "$extra" ] || { curve_error 'Expected five curve points'; return 1; }
-    for i in 1 2 3 4 5; do
-        idx=$((i - 1))
-        temp=$(printf '%s\n' "$json" | jsonfilter -e "@.points[${idx}].temp" 2>/dev/null)
-        pwm=$(printf '%s\n' "$json" | jsonfilter -e "@.points[${idx}].pwm" 2>/dev/null)
-        valid_range "$temp" 0 100 && valid_range "$pwm" 0 255 || {
-            curve_error 'Invalid curve point'; return 1;
-        }
-        [ "$temp" -gt "$previous_temp" ] && [ "$pwm" -ge "$previous_pwm" ] || {
-            curve_error 'Curve points must be ordered'; return 1;
-        }
-        points="$points $temp $pwm"
-        previous_temp=$temp
-        previous_pwm=$pwm
-    done
-    [ "$previous_pwm" -eq 255 ] || { curve_error 'Last PWM point must be 255'; return 1; }
-    set -- $points
-    local assignments=""
-    for i in 1 2 3 4 5; do
-        assignments="$assignments fan.custom.point${i}_temp=$1 fan.custom.point${i}_pwm=$2"
-        shift 2
-    done
-    save_settings $assignments fan.settings.curve_preset=custom
-}
-
 case "$1" in
-    list)
-        printf '{"getStatus":{},"getCurve":{"preset":"str"},"getAllCurves":{},"setMode":{"mode":"str"},"setManualPwm":{"pwm":"int"},"setPreset":{"preset":"str"},"setCustomCurve":{"points":"array"}}\n'
-        ;;
+    list) printf '{"getStatus":{}}\n' ;;
     call)
         case "$2" in
             getStatus) get_status ;;
-            getCurve) read -r input; preset=$(printf '%s\n' "$input" | jsonfilter -e '@.preset' 2>/dev/null); get_curve "$preset" ;;
-            getAllCurves) get_all_curves ;;
-            setMode) read -r input; set_mode "$(printf '%s\n' "$input" | jsonfilter -e '@.mode' 2>/dev/null)" ;;
-            setManualPwm) read -r input; set_manual_pwm "$(printf '%s\n' "$input" | jsonfilter -e '@.pwm' 2>/dev/null)" ;;
-            setPreset) read -r input; set_preset "$(printf '%s\n' "$input" | jsonfilter -e '@.preset' 2>/dev/null)" ;;
-            setCustomCurve) read -r input; set_custom_curve "$input" ;;
-            *) printf '{"error":"Invalid method"}\n' ;;
+            *) printf '{"error":"Invalid method"}\n'; exit 1 ;;
         esac
         ;;
 esac

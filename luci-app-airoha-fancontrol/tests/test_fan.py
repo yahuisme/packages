@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Isolated BusyBox ash regression tests; UCI/jsonfilter adapters, no host sysfs/services."""
+"""Isolated BusyBox ash regression tests; read-only UCI adapter, no host sysfs/services."""
 import json
 import os
 from pathlib import Path
@@ -10,37 +10,15 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 ADAPTER = '''#!/usr/bin/env python3
-import json, os, sys, re
+import json, os, sys
 from pathlib import Path
-p=Path(os.environ['STATE']); db=json.loads(p.read_text()); args=sys.argv[1:]
-if Path(sys.argv[0]).name == 'jsonfilter':
- try:
-  obj=json.load(sys.stdin); expr=args[-1]
-  for part in re.findall(r'[A-Za-z_]+|[0-9]+',expr): obj=obj[int(part)] if part.isdigit() else obj[part]
-  if '-t' in args: print('array' if isinstance(obj,list) else type(obj).__name__)
-  elif isinstance(obj,list): print(json.dumps(obj))
-  else: print(obj)
- except (ValueError,KeyError,IndexError,TypeError): sys.exit(1)
- sys.exit(0)
+args=sys.argv[1:]
 while args and args[0].startswith('-'): args.pop(0)
-cmd=args.pop(0)
-with open(os.environ['UCI_LOG'],'a') as log: log.write(cmd+' '+repr(args)+'\\n')
-if cmd=='get':
- if args[0] not in db: sys.exit(1)
- print(db[args[0]])
-elif cmd=='export': print(json.dumps(db))
-elif cmd=='import': db=json.load(sys.stdin)
-elif cmd=='revert': pass
-elif cmd=='set':
- if len(args)!=1: sys.exit(1)
- key,value=args[0].split('=',1)
- if key==os.environ.get('FAIL_SET'): sys.exit(1)
- db[key]=value
-elif cmd=='commit':
- marker=Path(os.environ['STATE']+'.failed')
- if os.environ.get('FAIL_COMMIT') and not marker.exists(): marker.touch(); sys.exit(1)
-else: sys.exit(1)
-p.write_text(json.dumps(db))
+if len(args)!=2 or args[0]!='get': sys.exit(1)
+with open(os.environ['UCI_LOG'],'a') as log: log.write(' '.join(args)+'\\n')
+db=json.loads(Path(os.environ['STATE']).read_text())
+if args[1] not in db: sys.exit(1)
+print(db[args[1]])
 '''
 
 class FanTest(unittest.TestCase):
@@ -49,8 +27,7 @@ class FanTest(unittest.TestCase):
   self.d=Path(self.tmp.name); self.hw=self.d/'sys/class/hwmon/hwmon8'; self.hw.mkdir(parents=True)
   self.state=self.d/'state.json'; self.log=self.d/'writes'; self.log.touch()
   self.env=dict(os.environ,STATE=str(self.state),UCI_LOG=str(self.d/'uci.log'),PATH=str(self.d)+':'+os.environ['PATH'])
-  for name in ('uci','jsonfilter'):
-   p=self.d/name; p.write_text(ADAPTER); p.chmod(0o755)
+  p=self.d/'uci'; p.write_text(ADAPTER); p.chmod(0o755)
   db={}; section=''
   for line in (ROOT/'root/etc/config/fan').read_text().splitlines():
    a=shlex.split(line)
@@ -88,11 +65,12 @@ apply_settings
   return subprocess.run(['busybox','ash','-c',wrapper],env=self.env,text=True,capture_output=True)
  def rpc(self,method,payload=None):
   p=self.script('root/usr/libexec/rpcd/luci.fan')
-  # Reload is isolated and logged; never invoke a host service.
-  self.assertIn('    false >/dev/null 2>&1',p.read_text())
-  text=p.read_text().replace('    false >/dev/null 2>&1',f'    printf reload >> {self.d}/reload; [ "${{FAIL_RELOAD:-0}}" = 0 ]')
-  p.write_text(text)
   return subprocess.run(['busybox','ash',str(p),'call',method],input=json.dumps(payload or {})+'\n',env=self.env,text=True,capture_output=True)
+ def test_rpc_is_read_only(self):
+  script=self.script('root/usr/libexec/rpcd/luci.fan')
+  result=subprocess.run(['busybox','ash',str(script),'list'],text=True,capture_output=True)
+  self.assertEqual(json.loads(result.stdout), {'getStatus':{}})
+
  def test_invalid_last_point_never_writes(self):
   self.config(**{'fan.balanced.point5_pwm':'254'})
   r=self.run_init(); self.assertNotEqual(r.returncode,0); self.assertEqual(self.log.read_text(),'')
@@ -103,6 +81,27 @@ apply_settings
     (self.hw/'temp1_input').write_text(value+'\n')
     r=self.rpc('getStatus'); data=json.loads(r.stdout)
     self.assertIsNone(data['temp_board']); self.assertEqual(r.stderr,'')
+ def test_cpu_matches_type_not_probe_order(self):
+  for index,kind,temp in [(0,'unrelated','99000'),(7,'cpu-thermal','51000')]:
+   zone=self.d/f'sys/class/thermal/thermal_zone{index}'
+   zone.mkdir(parents=True)
+   (zone/'type').write_text(kind+'\n'); (zone/'temp').write_text(temp+'\n')
+  self.assertEqual(json.loads(self.rpc('getStatus').stdout)['temp_cpu'],51)
+  (self.d/'sys/class/thermal/thermal_zone7/type').write_text('unrelated\n')
+  self.assertIsNone(json.loads(self.rpc('getStatus').stdout)['temp_cpu'])
+
+ def test_w1700k_sensor_names_are_preserved(self):
+  for index,name,temp in [(1,'mdio:05',41000),(2,'mdio:08',42000),
+                           (3,'mt7996_phy0.0',43000),(4,'mt7996_phy0_1',44000),
+                           (5,'mt7996_phy0.2',45000),(6,'mt7996_phy1.0',99000)]:
+   sensor=self.d/f'sys/class/hwmon/hwmon{index}'
+   sensor.mkdir(parents=True)
+   (sensor/'name').write_text(name+'\n')
+   (sensor/'temp1_input').write_text(str(temp)+'\n')
+  data=json.loads(self.rpc('getStatus').stdout)
+  self.assertEqual([data[k] for k in ('temp_phy1','temp_phy2','wifi_24g','wifi_5g','wifi_6g')],
+                   [41,42,43,44,45])
+
  def test_status_missing_is_null(self):
   (self.hw/'fan1_input').unlink()
   data=json.loads(self.rpc('getStatus').stdout)
@@ -114,39 +113,15 @@ apply_settings
   self.assertEqual(data['temp_board'],-12); self.assertEqual(data['fan_rpm'],1500)
   self.assertEqual(data['fan_pwm'],80); self.assertEqual(data['fan_mode'],2)
   self.assertEqual(data['fan_percentage'],31); self.assertTrue(data['available'])
- def test_curve_missing_is_null(self):
-  self.config(**{'fan.custom.point2_temp':None,'fan.custom.point3_pwm':'008'})
-  data=json.loads(self.rpc('getAllCurves').stdout)
-  self.assertIsNone(data['custom'][1]['temp']); self.assertIsNone(data['custom'][2]['pwm'])
-
- def points(self):
-  return {'points':[{'temp':t,'pwm':p} for t,p in zip((30,40,50,60,70),(50,80,100,150,255))]}
- def test_custom_curve_save(self):
-  r=self.rpc('setCustomCurve',self.points()); self.assertEqual(r.returncode,0,r.stdout+r.stderr)
-  self.assertTrue(json.loads(r.stdout)['success'])
-  db=json.loads(self.state.read_text()); self.assertEqual(db['fan.custom.point1_temp'],'30')
-  self.assertEqual(db['fan.settings.curve_preset'],'custom')
-  self.assertEqual((self.d/'reload').read_text(),'reload')
- def test_custom_curve_set_failure_rolls_back(self):
-  before=json.loads(self.state.read_text()); self.env['FAIL_SET']='fan.custom.point3_pwm'
-  r=self.rpc('setCustomCurve',self.points()); self.assertNotEqual(r.returncode,0)
-  self.assertFalse(json.loads(r.stdout)['success']); self.assertEqual(json.loads(self.state.read_text()),before)
-  self.assertFalse((self.d/'reload').exists())
- def test_custom_curve_commit_failure_rolls_back(self):
-  before=json.loads(self.state.read_text()); self.env['FAIL_COMMIT']='1'
-  r=self.rpc('setCustomCurve',self.points()); self.assertNotEqual(r.returncode,0)
-  self.assertFalse(json.loads(r.stdout)['success']); self.assertEqual(json.loads(self.state.read_text()),before)
-  self.assertFalse((self.d/'reload').exists())
- def test_custom_curve_reload_failure_does_not_reload_old_hardware(self):
-  self.env['FAIL_RELOAD']='1'
-  r=self.rpc('setCustomCurve',self.points()); self.assertNotEqual(r.returncode,0)
-  self.assertFalse(json.loads(r.stdout)['success']); self.assertEqual((self.d/'reload').read_text(),'reload')
- def test_invalid_curve_payload_json_error(self):
-  for points in ([],[{'temp':'--1','pwm':255}]*5,self.points()['points']+[{'temp':90,'pwm':255}]):
-   with self.subTest(points=points):
-    before=self.state.read_text(); r=self.rpc('setCustomCurve',{'points':points})
-    self.assertNotEqual(r.returncode,0); self.assertFalse(json.loads(r.stdout)['success'])
+ def test_removed_methods_cannot_modify_configuration(self):
+  before=self.state.read_text()
+  for method in ('getCurve','getAllCurves','setMode','setManualPwm','setPreset','setCustomCurve'):
+   with self.subTest(method=method):
+    result=self.rpc(method, {'mode':'manual','pwm':0})
+    self.assertNotEqual(result.returncode,0)
+    self.assertEqual(json.loads(result.stdout),{'error':'Invalid method'})
     self.assertEqual(self.state.read_text(),before)
+    self.assertFalse((self.d/'uci.log').exists())
 
  def test_all_invalid_config_has_no_io(self):
   original=self.state.read_text()

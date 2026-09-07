@@ -2,17 +2,11 @@
 'require view';
 'require form';
 'require uci';
-'require rpc';
-
-var callGetAllCurves = rpc.declare({
-	object: 'luci.fan',
-	method: 'getAllCurves'
-});
 
 var settingsCSS = '\
 .fan-settings{width:100%}\
-.fan-curve-wrap{border:1px solid var(--cbi-border-color,#d0d0d0);border-radius:6px;padding:12px;background:var(--cbi-section-bg,#fff);margin-top:8px}\
-.fan-curve-canvas{display:block;width:100%;height:300px;background:var(--cbi-input-bg,#fafafa);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px;box-sizing:border-box}\
+.fan-curve-wrap{border:1px solid var(--cbi-border-color,#d0d0d0);border-radius:6px;padding:12px;background:var(--cbi-section-bg,transparent);margin-top:8px}\
+.fan-curve-canvas{display:block;width:100%;height:300px;background:var(--cbi-input-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px;box-sizing:border-box}\
 .fan-settings .fan-curve-section .cbi-section-node{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}\
 .fan-settings .fan-curve-section .cbi-value{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--cbi-border-color,#f0f0f0)}\
 .fan-settings .fan-curve-section .cbi-value-title{width:auto;margin:0;font-size:13px;font-weight:500}\
@@ -21,36 +15,24 @@ var settingsCSS = '\
 @media(max-width:760px){.fan-settings .fan-curve-section .cbi-section-node{grid-template-columns:1fr}}\
 ';
 
-var _settingsDarkMode = null;
-
-function isDarkMode() {
-	var els = [document.body, document.querySelector('.main-content'), document.querySelector('#maincontent'), document.querySelector('.cbi-map')];
-	for (var i = 0; i < els.length; i++) {
-		if (!els[i]) continue;
-		var rgb = window.getComputedStyle(els[i]).backgroundColor.match(/\d+/g);
-		if (!rgb || rgb.length < 3) continue;
-		return (parseInt(rgb[0]) * 299 + parseInt(rgb[1]) * 587 + parseInt(rgb[2]) * 114) / 1000 < 128;
-	}
-	return document.querySelectorAll('link[href*="dark"],link[href*="glass"]').length > 0;
-}
-
 function injectCSS() {
-	var el = document.getElementById('fan-settings-theme-css');
-	if (!el) {
-		el = document.createElement('style');
-		el.id = 'fan-settings-theme-css';
-		document.head.appendChild(el);
-	}
-	var dark = isDarkMode();
-	if (dark === _settingsDarkMode) return;
-	_settingsDarkMode = dark;
-	el.textContent = settingsCSS + (dark
-		? ':root{--fan-card-bg:#1e1e1e;--fan-canvas-bg:#191919;--fan-input-bg:#252525;--fan-border:#333;--fan-muted:#a3a3a3;--fan-text:#ececec;--fan-shadow:rgba(0,0,0,.24);--fan-grid:rgba(255,255,255,.14);--fan-axis:#b5b5b5}'
-		: ':root{--fan-card-bg:#fff;--fan-canvas-bg:#fbfcfd;--fan-input-bg:#f7f9fb;--fan-border:#d0d0d0;--fan-muted:#666;--fan-text:#222;--fan-shadow:rgba(40,65,90,.08);--fan-grid:rgba(80,90,100,.18);--fan-axis:#555}');
+	if (document.getElementById('fan-settings-theme-css')) return;
+	var el = document.createElement('style');
+	el.id = 'fan-settings-theme-css';
+	el.textContent = settingsCSS;
+	document.head.appendChild(el);
 }
 
-function canvasColor(canvas, property, fallback) {
-	return window.getComputedStyle(canvas).getPropertyValue(property).trim() || fallback;
+function validPoints(points) {
+	var previousTemp = -1, previousPwm = 0;
+	return Array.isArray(points) && points.length === 5 && points.every(function(pt, i) {
+		if (!pt || !/^(0|[1-9][0-9]*)$/.test(pt.temp) || !/^(0|[1-9][0-9]*)$/.test(pt.pwm) ||
+			+pt.temp > 100 || +pt.pwm > 255 || +pt.temp <= previousTemp || +pt.pwm < previousPwm ||
+			(i === 4 && +pt.pwm !== 255)) return false;
+		previousTemp = +pt.temp;
+		previousPwm = +pt.pwm;
+		return true;
+	});
 }
 
 function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
@@ -66,14 +48,10 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
 	var width = cssW;
 	var height = cssH;
 	var padding = 40;
-	var background = canvasColor(canvas, '--fan-canvas-bg', '#fbfcfd');
-	var grid = canvasColor(canvas, '--fan-grid', 'rgba(80,90,100,.18)');
-	var axis = canvasColor(canvas, '--fan-axis', '#555');
-	var muted = canvasColor(canvas, '--fan-muted', '#666');
-	var text = canvasColor(canvas, '--fan-text', '#222');
-
-	ctx.fillStyle = background;
-	ctx.fillRect(0, 0, width, height);
+	var style = window.getComputedStyle(canvas);
+	var grid = style.borderTopColor;
+	var axis = style.color, muted = style.color, text = style.color;
+	ctx.clearRect(0, 0, width, height);
 
 	ctx.strokeStyle = grid;
 	ctx.lineWidth = 1;
@@ -123,7 +101,7 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
 	};
 
 	function drawLine(points, color, alpha, lineW, dots) {
-		if (!points || !points.length) return;
+		if (!validPoints(points)) return;
 		ctx.strokeStyle = color;
 		ctx.lineWidth = lineW || 1.5;
 		ctx.globalAlpha = alpha != null ? alpha : 0.4;
@@ -146,10 +124,16 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
 	}
 
 	Object.keys(curves).forEach(function(preset) {
-		var isActive = preset === activePreset && !customPreview;
+		if (preset === 'custom' && activePreset === 'custom') return;
+		var isActive = preset === activePreset;
 		drawLine(curves[preset], colors[preset], isActive ? 1 : 0.3, isActive ? 2.5 : 1, isActive);
 	});
 
+	if (activePreset === 'custom' && !customPreview) {
+		ctx.fillStyle = text;
+		ctx.textAlign = 'center';
+		ctx.fillText(_('Complete valid curve points to preview.'), width / 2, height / 2);
+	}
 	if (customPreview) {
 		drawLine(customPreview, '#ff6600', 1, 2.5, true);
 	}
@@ -185,25 +169,26 @@ function readCustomPoints() {
 	for (var i = 1; i <= 5; i++) {
 		var tEl = document.querySelector('[data-name="point' + i + '_temp"] input');
 		var pEl = document.querySelector('[data-name="point' + i + '_pwm"] input');
-		var temp = tEl ? parseInt(tEl.value, 10) : 0;
-		var pwm = pEl ? parseInt(pEl.value, 10) : 0;
-		if (isNaN(temp)) temp = 0;
-		if (isNaN(pwm)) pwm = 0;
-		points.push({ temp: Math.min(100, Math.max(0, temp)), pwm: Math.min(255, Math.max(0, pwm)) });
+		var temp = tEl && tEl.value, pwm = pEl && pEl.value;
+		points.push({ temp: temp, pwm: pwm });
 	}
-	return points;
+	return validPoints(points) ? points : null;
 }
 
 return view.extend({
 	load: function() {
-		return Promise.all([
-			uci.load('fan'),
-			callGetAllCurves()
-		]);
+		return uci.load('fan');
 	},
 
 	render: function(data) {
-		var curves = data[1] || {};
+		var curves = {};
+		['quiet', 'balanced', 'performance', 'custom'].forEach(function(preset) {
+			curves[preset] = [];
+			for (var i = 1; i <= 5; i++) {
+				curves[preset].push({ temp: uci.get('fan', preset, 'point' + i + '_temp'),
+					pwm: uci.get('fan', preset, 'point' + i + '_pwm') });
+			}
+		});
 		var m, s, o;
 		injectCSS();
 
@@ -219,7 +204,7 @@ return view.extend({
 		o.default = 'auto';
 
 		o = s.option(form.Value, 'manual_pwm', _('Manual Fan Speed (PWM)'),
-			_('Set a fixed PWM value (0-255). 0 = Off, 255 = Full Speed'));
+			_('Set a fixed PWM value (0-255). 0 = Off, 255 = Full Speed. Stopping the fan may cause overheating.'));
 		o.datatype = 'and(uinteger,range(0,255))';
 		o.default = '127';
 		o.validate = function(sectionId, value) {
@@ -315,7 +300,7 @@ return view.extend({
 			if (sections[0]) sections[0].classList.add('fan-control-section');
 			if (sections[1]) sections[1].classList.add('fan-curve-section');
 			requestAnimationFrame(function() {
-				injectCSS();
+				if (!node.isConnected) return;
 				var presetSelect = node.querySelector('[data-name="curve_preset"] select');
 				var modeSelect = node.querySelector('[data-name="mode"] select');
 				var point1Marker = node.querySelector('[data-name="point1_temp"]');
@@ -340,6 +325,7 @@ return view.extend({
 				}
 
 				function redrawCanvas() {
+					if (!node.isConnected) return;
 					var preset = getCurrentPreset();
 					if (preset === 'custom') {
 						drawCurveCanvas('curve-canvas', curves, preset, readCustomPoints());
@@ -348,20 +334,28 @@ return view.extend({
 					}
 				}
 
-				redrawCanvas();
 				toggleCustomSection();
+				redrawCanvas();
+				var resize = new ResizeObserver(redrawCanvas);
+				resize.observe(node);
+				var removal = new MutationObserver(function() {
+					if (node.isConnected) return;
+					resize.disconnect();
+					removal.disconnect();
+				});
+				removal.observe(document.body, { childList: true, subtree: true });
 
 				if (presetSelect) {
 					presetSelect.addEventListener('change', function() {
 						toggleCustomSection();
-						setTimeout(redrawCanvas, 50);
+						redrawCanvas();
 					});
 				}
 
 				if (modeSelect) {
 					modeSelect.addEventListener('change', function() {
 						toggleCustomSection();
-						setTimeout(redrawCanvas, 50);
+						redrawCanvas();
 					});
 				}
 

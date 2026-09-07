@@ -3,15 +3,18 @@
 		"description": "Grant access to Airoha fan control",
 		"read": {
 			"ubus": {
-				"luci.fan": [ "getStatus", "getCurve", "getAllCurves" ]
+				"luci.fan": [
+					"getStatus"
+				]
 			},
-			"uci": [ "fan" ]
+			"uci": [
+				"fan"
+			]
 		},
 		"write": {
-			"ubus": {
-				"luci.fan": [ "setMode", "setManualPwm", "setPreset", "setCustomCurve" ]
-			},
-			"uci": [ "fan" ]
+			"uci": [
+				"fan"
+			]
 		}
 	}
 }

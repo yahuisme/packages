@@ -32,3 +32,67 @@ assert.strictEqual(cards[2].value,'Manual');
 assert(cards[0].value.includes('—')); assert(cards[1].value.includes('—'));
 assert.notStrictEqual(cards[2].sub,'固定 PWM 输出');
 console.log('frontend validator lifecycle, rescue mode, fixed PWM5, actual mode and unknown data: PASS');
+
+// A malformed edit must disappear, never turn into a plausible zero curve.
+let fields = {};
+for (let i = 1; i <= 5; i++) {
+ fields['point'+i+'_temp'] = {value:String(i*10)};
+ fields['point'+i+'_pwm'] = {value:String(i===5?255:i*40)};
+}
+let preview = {document:{querySelector:selector=>fields[selector.match(/data-name="([^"]+)/)[1]]}};
+vm.createContext(preview);
+vm.runInContext(source.slice(source.indexOf('function validPoints'),source.indexOf('function drawCurveCanvas')),preview);
+vm.runInContext(source.slice(source.indexOf('function readCustomPoints'),source.indexOf('return view.extend')),preview);
+assert.strictEqual(preview.readCustomPoints().length,5);
+fields.point2_temp.value='20.5';
+assert.strictEqual(preview.readCustomPoints(),null);
+for (const bad of ['', '020', '20x', '-1', '101']) {
+ fields.point2_temp.value=bad;
+ assert.strictEqual(preview.readCustomPoints(),null,bad);
+}
+fields.point2_temp.value='10';
+assert.strictEqual(preview.readCustomPoints(),null);
+fields.point2_temp.value='20'; fields.point5_pwm.value='254';
+assert.strictEqual(preview.readCustomPoints(),null);
+
+let clock=1000000;
+let telemetry={Date:{now:()=>clock},history:[],HISTORY_WINDOW_MS:120000};
+vm.createContext(telemetry);
+vm.runInContext(status.slice(status.indexOf('function appendHistory'),status.indexOf('function chartScale')),telemetry);
+telemetry.appendHistory({temp_board:null,fan_pwm:0,fan_rpm:1234});
+assert.strictEqual(telemetry.history.length,1);
+assert.strictEqual(telemetry.history[0].temperature,null);
+assert.strictEqual(telemetry.history[0].pwm,0);
+assert.strictEqual(telemetry.history[0].rpm,1234);
+clock+=125000; telemetry.appendHistory({});
+assert.strictEqual(telemetry.history.length,1);
+assert.strictEqual(telemetry.history[0].time,clock);
+assert.strictEqual(telemetry.history[0].rpm,null);
+
+vm.runInContext(status.slice(status.indexOf('function tempColor'),status.indexOf('function modeInfo')),ctx);
+assert.strictEqual(ctx.tempColor(50),'#f59e0b');
+assert.strictEqual(ctx.tempColor(-12),'#10b981');
+assert.strictEqual(ctx.tempColor(NaN),'inherit');
+assert.strictEqual(ctx.tempColor(151),'inherit');
+assert.strictEqual(cards[3].title,'Configured Curve');
+assert(!source.includes('getAllCurves'));
+assert(!source.includes('isDarkMode'));
+assert(!source.includes(':root'));
+assert(source.includes('Stopping the fan may cause overheating.'));
+assert(status.includes('poll.add(fetchData, 5)'));
+for (const js of [source,status]) {
+ assert(js.includes('ResizeObserver'));
+ assert(js.includes('.disconnect()'));
+}
+
+let operations=[];
+let canvasContext=new Proxy({}, {get:(_o,key)=>(...args)=>operations.push([key,...args]),set:()=>true});
+let plot={Date:{now:()=>clock},HISTORY_WINDOW_MS:120000,TIME_GRID_INTERVAL_MS:10000,
+ TIME_LABEL_INTERVAL_MS:30000,VALUE_GRID_DIVISIONS:4,window:{devicePixelRatio:1},getComputedStyle:()=>({color:'black'})};
+vm.createContext(plot);
+vm.runInContext(status.slice(status.indexOf('function chartScale'),status.indexOf('function chartCard')),plot);
+let canvas={clientWidth:300,clientHeight:110,getContext:()=>canvasContext};
+plot.drawChart(canvas,[{time:clock-10000,rpm:1000},{time:clock-5000,rpm:null},{time:clock,rpm:1500}], 'rpm',
+ {minMax:1000,step:500,format:String,lineColor:'green'});
+let finalPath=operations.slice(operations.map(x=>x[0]).lastIndexOf('beginPath'));
+assert.strictEqual(finalPath.filter(x=>x[0]==='lineTo').length,0,'missing reading must break the line');
