@@ -7,7 +7,7 @@ msgid "Airoha FlowSense"
 msgstr "Airoha 流量传感器"
 
 msgid "AP Mode Acceleration"
-msgstr "AP模式加速"
+msgstr "AP 模式加速"
 
 msgid "Disabled"
 msgstr "已禁用"
@@ -212,9 +212,6 @@ msgid "HW offload is enabled but ISP latency is high. Latency management may be 
 msgstr "硬件加速已启用，但 ISP 延迟较高。延迟管理可能被硬件加速跳过。"
 
 # Band health
-msgid "No clients"
-msgstr "无客户端"
-
 msgid "Drop:"
 msgstr "丢包："
 
@@ -381,4 +378,23 @@ msgstr "实时监控硬件数据包处理引擎（PPE）加速指标、链路质
 
 msgid "Upstream Latency"
 msgstr "上行网络延迟"
+
+msgid "Firewall hardware flow table acceleration"
+msgstr "防火墙硬件流表快速转发加速"
+
+msgid "Hardware acceleration for 802.1Q tagged VLAN traffic"
+msgstr "802.1Q VLAN 标签流量硬件加速"
+
+msgid "Hardware acceleration for PPPoE session streams"
+msgstr "PPPoE 拨号会话流量硬件加速"
+
+msgid "L2 bridge fast-path forwarding without netfilter overhead"
+msgstr "二层网桥快速转发，免除 netfilter 额外开销"
+
+msgid "NAT and hardware offload"
+msgstr "NAT 与硬件流控加速"
+
+msgid "Bridge fast-path forwarding"
+msgstr "网桥快速转发模式"
+
 

@@ -129,9 +129,6 @@ msgstr "WiFi 7"
 msgid "Wi-Fi 7 Multi-Link (MLO) Networks"
 msgstr "Wi-Fi 7 多链路聚合（MLO）网络"
 
-msgid "WiFi 7"
-msgstr "WiFi 7"
-
 
 msgid "Wireless Networks"
 msgstr "无线网络"
@@ -144,3 +141,57 @@ msgstr "接口 / 频段"
 
 msgid "Standard / Bandwidth"
 msgstr "协议 / 频宽"
+
+msgid "Zero-Wait DFS (Background Radar)"
+msgstr "零等待 DFS (背景雷达)"
+
+msgid "Enables MT7996 background radar listening for zero-wait DFS channel switching."
+msgstr "启用 MT7996 硬件后台雷达监听，免去信道切换时 60 秒的静默等待。"
+
+msgid "LPI Indoor Mode"
+msgstr "LPI 室内低功耗模式"
+
+msgid "Low Power Indoor compliance for 6 GHz band."
+msgstr "6 GHz 频段遵循 LPI 低功耗室内标准规范。"
+
+msgid "Advanced Wi-Fi 7 Tuning"
+msgstr "Wi-Fi 7 高级特性调谐"
+
+msgid "Country Code"
+msgstr "国家代码"
+
+msgid "Explicit Beamforming"
+msgstr "显式波束成形 (Beamforming)"
+
+msgid "Directional antenna signal focusing for compatible devices."
+msgstr "针对兼容设备提供天线定向信号能量汇聚增强。"
+
+msgid "Spatial Reuse (SR)"
+msgstr "空间复用 (Spatial Reuse)"
+
+msgid "Wi-Fi 7 BSS coloring and concurrent transmission optimization."
+msgstr "启用 Wi-Fi 7 BSS 着色与多设备空间复用并发吞吐优化。"
+
+msgid "Channel Utilization"
+msgstr "信道占用率"
+
+msgid "Online Stations"
+msgstr "在线设备数"
+
+msgid "Radio Hardware & DFS Status"
+msgstr "硬件射频与 DFS 状态"
+
+msgid "MT76 Firmware"
+msgstr "MT76 驱动固件"
+
+msgid "5GHz DFS Status"
+msgstr "5GHz DFS 状态"
+
+msgid "Operating (Normal)"
+msgstr "正常工作中 (已就绪)"
+
+msgid "DFS CAC Scanning..."
+msgstr "DFS CAC 雷达扫描静默中..."
+
+msgid "Online Time"
+msgstr "在线时长"

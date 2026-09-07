@@ -77,12 +77,33 @@ function createToggleSwitch(checked, onChange) {
 	return input;
 }
 
+var themeCSS = '\
+.npu-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:14px}\
+.npu-summary-card{background:var(--cbi-section-bg,#fff);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box;padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center}\
+.npu-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
+.npu-card-value{font-size:18px;font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,inherit)}\
+.npu-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+@media(max-width:1050px){.npu-summary-grid{grid-template-columns:repeat(2,minmax(160px,1fr))}}\
+@media(max-width:640px){.npu-summary-grid{grid-template-columns:1fr}.npu-summary-card{min-height:68px}}\
+';
+
+function injectCSS() {
+	var el = document.getElementById('airoha-npu-theme-css');
+	if (!el) {
+		el = document.createElement('style');
+		el.id = 'airoha-npu-theme-css';
+		document.head.appendChild(el);
+	}
+	el.textContent = themeCSS;
+}
+
 return view.extend({
 	load: function() {
 		return Promise.resolve([]);
 	},
 
 	render: function(data) {
+		injectCSS();
 		var ppeUpdatesPaused = false;
 		var latestPpeEntries = [];
 
@@ -123,22 +144,26 @@ return view.extend({
 		tabPanes['overview'] = paneOverview;
 
 		// ── Section 1: NPU Status & Metrics ──
-		var npuSummaryNode = E('div', { 'class': 'cbi-section-node' }, [
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('NPU Core Status')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'npu-val-status' }, '—')
+		var npuSummaryNode = E('div', { 'class': 'npu-summary-grid' }, [
+			E('div', { 'class': 'npu-summary-card' }, [
+				E('div', { 'class': 'npu-card-title' }, _('NPU Core Status')),
+				E('div', { 'class': 'npu-card-value', 'id': 'npu-val-status' }, '—'),
+				E('div', { 'class': 'npu-card-sub', 'id': 'npu-sub-status' }, '—')
 			]),
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('Clock / Cores')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'npu-val-clock', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, '—')
+			E('div', { 'class': 'npu-summary-card' }, [
+				E('div', { 'class': 'npu-card-title' }, _('Clock / Cores')),
+				E('div', { 'class': 'npu-card-value', 'id': 'npu-val-clock' }, '—'),
+				E('div', { 'class': 'npu-card-sub', 'id': 'npu-sub-clock' }, '—')
 			]),
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('Offload Flows (Bound / Total)')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'npu-val-flows', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, '—')
+			E('div', { 'class': 'npu-summary-card' }, [
+				E('div', { 'class': 'npu-card-title' }, _('Offload Flows (Bound / Total)')),
+				E('div', { 'class': 'npu-card-value', 'id': 'npu-val-flows' }, '—'),
+				E('div', { 'class': 'npu-card-sub', 'id': 'npu-sub-flows' }, '—')
 			]),
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('Reserved Memory')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'npu-val-memory', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, '—')
+			E('div', { 'class': 'npu-summary-card' }, [
+				E('div', { 'class': 'npu-card-title' }, _('Reserved Memory')),
+				E('div', { 'class': 'npu-card-value', 'id': 'npu-val-memory' }, '—'),
+				E('div', { 'class': 'npu-card-sub', 'id': 'npu-sub-memory' }, '—')
 			])
 		]);
 
@@ -189,7 +214,7 @@ return view.extend({
 			]),
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Current Frequency')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'cpu-curfreq-val', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums;font-size:14px;color:var(--cbi-button-apply-bg, #00cc44);font-weight:600' }, '—')
+				E('div', { 'class': 'cbi-value-field', 'id': 'cpu-curfreq-val', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums;font-size:14px;color:var(--cbi-button-apply-bg, #10b981);font-weight:600' }, '—')
 			]),
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Governor')),
@@ -290,6 +315,7 @@ return view.extend({
 				// 1. Update NPU Summary
 				var active = isEnabled(st.npu_loaded);
 				var clock = st.npu_clock ? Math.round(st.npu_clock / 1000000) : 0;
+				var cores = st.npu_cores || 0;
 				var bound = st.offload_bound || 0;
 				var total = st.offload_total || 0;
 				var mem = Array.isArray(st.memory_regions) ? st.memory_regions : [];
@@ -298,18 +324,26 @@ return view.extend({
 				if (sStatus) {
 					while (sStatus.firstChild) sStatus.removeChild(sStatus.firstChild);
 					sStatus.appendChild(E('span', {
-						'style': 'font-weight:600;color:' + (active ? '#00cc44' : '#888')
+						'style': 'color:' + (active ? '#10b981' : 'inherit')
 					}, active ? _('Activated') : _('Not Activated')));
 				}
+				var subStatus = document.getElementById('npu-sub-status');
+				if (subStatus) subStatus.textContent = active ? _('NPU device ready') : _('Driver unavailable');
 
 				var sClock = document.getElementById('npu-val-clock');
-				if (sClock) sClock.textContent = (clock ? clock + ' MHz' : 'N/A') + ' (' + (st.npu_cores || 0) + ' ' + _('Cores') + ')';
+				if (sClock) sClock.textContent = clock ? clock + ' MHz' : 'N/A';
+				var subClock = document.getElementById('npu-sub-clock');
+				if (subClock) subClock.textContent = cores ? cores + ' ' + _('Cores') : '—';
 
 				var sFlows = document.getElementById('npu-val-flows');
 				if (sFlows) sFlows.textContent = bound + ' / ' + total;
+				var subFlows = document.getElementById('npu-sub-flows');
+				if (subFlows) subFlows.textContent = _('Bound / total PPE flows');
 
 				var sMem = document.getElementById('npu-val-memory');
 				if (sMem) sMem.textContent = calcTotalMem(mem);
+				var subMem = document.getElementById('npu-sub-memory');
+				if (subMem) subMem.textContent = mem.length ? mem.length + ' ' + _('memory regions') : _('Reserved Memory');
 
 				// 2. Update Switches
 				function bindSwitch(cellId, enabled, callFn) {
@@ -395,7 +429,7 @@ return view.extend({
 						if (eth === '00:00:00:00:00:00->00:00:00:00:00:00') eth = '-';
 						return [
 							e.index,
-							E('span', { 'style': 'font-weight:600;color:' + (e.state === 'BND' ? '#00cc44' : '#888') }, e.state),
+							E('span', { 'style': 'font-weight:600;color:' + (e.state === 'BND' ? '#10b981' : '#888') }, e.state),
 							e.type,
 							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, e.orig || '-'),
 							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, e.new_flow || '-'),

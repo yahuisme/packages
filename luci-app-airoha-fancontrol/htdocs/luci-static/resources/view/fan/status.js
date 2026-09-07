@@ -17,24 +17,24 @@ var HISTORY_STORAGE_KEY = 'airoha-fancontrol-history-v1';
 var history = [];
 
 var themeCSS = '\
-.fan-dashboard{width:100%;--fan-blue:#00c8ff;--fan-green:#00cc44;--fan-amber:#f5a623;--fan-red:#d0021b;font-family:system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.5;color:var(--cbi-text-color,#222)}\
+.fan-dashboard{width:100%;font-family:system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.5;color:var(--cbi-text-color,#222)}\
 .fan-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:14px}\
 .fan-summary-card,.fan-panel,.fan-chart-card,.fan-temp-card{background:var(--cbi-section-bg,#fff);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
-.fan-summary-card{border-left:3px solid var(--fan-accent,var(--cbi-border-color,#e0e0e0));padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center}\
+.fan-summary-card{padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center}\
 .fan-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
-.fan-card-value{font-size:18px;font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600;color:var(--fan-accent,inherit)}\
+.fan-card-value{font-size:18px;font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,inherit)}\
 .fan-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
 .fan-panel{padding:14px;margin:14px 0}\
 .fan-panel-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,#222);padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
 .fan-chart-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}\
-.fan-chart-card{border-left:3px solid var(--fan-chart-accent,var(--cbi-border-color,#e0e0e0));padding:10px 12px;min-width:0}\
+.fan-chart-card{padding:10px 12px;min-width:0}\
 .fan-chart-value{font-size:18px;font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,#222)}\
 .fan-chart-canvas{display:block;width:100%;height:110px;margin-top:8px;background:var(--cbi-input-bg,#fafafa);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
 .fan-temp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}\
 .fan-temp-group{min-width:0}\
 .fan-temp-group-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin:0 0 8px}\
 .fan-temp-list{display:grid;gap:6px}\
-.fan-temp-card{border-left:3px solid var(--fan-temp-accent,var(--cbi-border-color,#e0e0e0));padding:8px 10px;min-width:0}\
+.fan-temp-card{padding:8px 10px;min-width:0}\
 .fan-temp-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px}\
 .fan-temp-label{font-size:12px;color:var(--cbi-text-color,#222);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
 .fan-temp-value{font-family:monospace;font-variant-numeric:tabular-nums;font-size:14px;font-weight:600;color:var(--fan-temp-accent);white-space:nowrap}\
@@ -56,10 +56,10 @@ function injectCSS() {
 
 function tempColor(temp) {
 	if (temp == null) return '#6b7280';
-	if (temp <= 50) return '#00cc44';
-	if (temp <= 65) return '#f5a623';
+	if (temp <= 50) return '#10b981';
+	if (temp <= 65) return '#f59e0b';
 	if (temp <= 75) return '#f97316';
-	return '#d0021b';
+	return '#ef4444';
 }
 
 function restoreHistory() {
@@ -124,7 +124,7 @@ function summaryData(status) {
 
 function renderSummary(status) {
 	return E('div', { 'class': 'fan-summary-grid' }, summaryData(status).map(function(card) {
-		return E('div', { 'id': card.id, 'class': 'fan-summary-card', 'style': '--fan-accent:' + card.color }, [
+		return E('div', { 'id': card.id, 'class': 'fan-summary-card' }, [
 			E('div', { 'class': 'fan-card-title' }, card.title),
 			E('div', { 'class': 'fan-card-value' }, card.value),
 			E('div', { 'class': 'fan-card-sub' }, card.sub)
@@ -136,7 +136,6 @@ function updateSummary(status) {
 	summaryData(status).forEach(function(card) {
 		var el = document.getElementById(card.id);
 		if (!el) return;
-		el.style.setProperty('--fan-accent', card.color);
 		var value = el.querySelector('.fan-card-value');
 		var sub = el.querySelector('.fan-card-sub');
 		if (value) value.textContent = card.value;
@@ -254,8 +253,8 @@ function drawChart(canvas, hist, key, options) {
 	ctx.stroke();
 }
 
-function chartCard(label, valueText, canvasId, color) {
-	return E('div', { 'class': 'fan-chart-card', 'style': '--fan-chart-accent:' + color }, [
+function chartCard(label, valueText, canvasId) {
+	return E('div', { 'class': 'fan-chart-card' }, [
 		E('div', { 'class': 'fan-card-title' }, label),
 		E('div', { 'id': canvasId + '-val', 'class': 'fan-chart-value' }, valueText),
 		E('canvas', { 'id': canvasId, 'class': 'fan-chart-canvas' })
@@ -264,9 +263,9 @@ function chartCard(label, valueText, canvasId, color) {
 
 function drawAllCharts() {
 	if (!history.length) return;
-	drawChart(document.getElementById('fc-temp'), history, 'temperature', { minMax: 40, step: 20, lineColor: '#f97316', fillColor: 'rgba(249,115,22,.16)', format: function(value) { return value + '\u00b0'; } });
-	drawChart(document.getElementById('fc-pwm'), history, 'pwm', { minMax: 100, step: 50, lineColor: '#00c8ff', fillColor: 'rgba(0,200,255,.14)', format: function(value) { return String(value); } });
-	drawChart(document.getElementById('fc-rpm'), history, 'rpm', { minMax: 1000, step: 500, lineColor: '#00cc44', fillColor: 'rgba(0,204,68,.14)', format: function(value) { return String(value); } });
+	drawChart(document.getElementById('fc-temp'), history, 'temperature', { minMax: 40, step: 20, lineColor: '#f97316', fillColor: 'rgba(249,115,22,.12)', format: function(value) { return value + '\u00b0'; } });
+	drawChart(document.getElementById('fc-pwm'), history, 'pwm', { minMax: 100, step: 50, lineColor: '#0ea5e9', fillColor: 'rgba(14,165,233,.12)', format: function(value) { return String(value); } });
+	drawChart(document.getElementById('fc-rpm'), history, 'rpm', { minMax: 1000, step: 500, lineColor: '#10b981', fillColor: 'rgba(16,185,129,.12)', format: function(value) { return String(value); } });
 }
 
 function temperatureGroup(title, entries) {
@@ -291,9 +290,9 @@ return view.extend({
 			E('div', { 'class': 'fan-panel' }, [
 				E('div', { 'class': 'fan-panel-title' }, _('Real-time Trends')),
 				E('div', { 'class': 'fan-chart-grid' }, [
-					chartCard(_('Board Temperature'), (status.temp_board != null ? status.temp_board : '—') + '\u00b0C', 'fc-temp', '#f97316'),
-					chartCard(_('Fan PWM'), (status.fan_pwm != null ? status.fan_pwm : '—') + ' / 255', 'fc-pwm', '#00c8ff'),
-					chartCard(_('Fan Speed'), (status.fan_rpm != null ? status.fan_rpm : '—') + ' RPM', 'fc-rpm', '#00cc44')
+					chartCard(_('Board Temperature'), (status.temp_board != null ? status.temp_board : '—') + '\u00b0C', 'fc-temp'),
+					chartCard(_('Fan PWM'), (status.fan_pwm != null ? status.fan_pwm : '—') + ' / 255', 'fc-pwm'),
+					chartCard(_('Fan Speed'), (status.fan_rpm != null ? status.fan_rpm : '—') + ' RPM', 'fc-rpm')
 				])
 			]),
 			E('div', { 'class': 'fan-panel' }, [
@@ -302,8 +301,8 @@ return view.extend({
 					temperatureGroup(_('System'), [
 						createTempGauge(_('CPU'), status.temp_cpu, 'temp-cpu'),
 						createTempGauge(_('Board (Fan Curve)'), status.temp_board, 'temp-board'),
-						createTempGauge(_('10G PHY'), status.temp_phy1, 'temp-phy1'),
-						createTempGauge(_('Switch PHY'), status.temp_phy2, 'temp-phy2')
+						createTempGauge('10G WAN', status.temp_phy2, 'temp-phy2'),
+						createTempGauge('10G LAN', status.temp_phy1, 'temp-phy1')
 					]),
 					temperatureGroup(_('WiFi'), [
 						createTempGauge(_('2.4 GHz Radio'), status.wifi_24g, 'temp-wifi24g'),

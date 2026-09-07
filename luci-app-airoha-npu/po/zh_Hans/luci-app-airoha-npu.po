@@ -177,7 +177,7 @@ msgid "Offload Statistics"
 msgstr "卸载统计"
 
 msgid "AP Mode Acceleration"
-msgstr "AP模式加速"
+msgstr "AP 模式加速"
 
 msgid "Flow Offload"
 msgstr "硬件流量加速"

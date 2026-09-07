@@ -27,9 +27,25 @@ function isEnabled(v) {
 	return v === true || v === 1 || v === '1';
 }
 
-function formatRate(bytes, dt) {
-	if (!bytes || !dt || dt <= 0) return '0.00 Mbit/s';
-	return (bytes * 8 / dt / 1e6).toFixed(2) + ' Mbit/s';
+var themeCSS = '\
+.fs-summary-grid{display:grid;grid-template-columns:repeat(5,minmax(140px,1fr));gap:10px;margin-bottom:14px}\
+.fs-summary-card{background:var(--cbi-section-bg,#fff);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box;padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center}\
+.fs-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
+.fs-card-value{font-size:18px;font-weight:600;color:var(--cbi-text-color,inherit)}\
+.fs-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+@media(max-width:1200px){.fs-summary-grid{grid-template-columns:repeat(3,minmax(140px,1fr))}}\
+@media(max-width:800px){.fs-summary-grid{grid-template-columns:repeat(2,minmax(140px,1fr))}}\
+@media(max-width:480px){.fs-summary-grid{grid-template-columns:1fr}.fs-summary-card{min-height:68px}}\
+';
+
+function injectCSS() {
+	var el = document.getElementById('airoha-flowsense-theme-css');
+	if (!el) {
+		el = document.createElement('style');
+		el.id = 'airoha-flowsense-theme-css';
+		document.head.appendChild(el);
+	}
+	el.textContent = themeCSS;
 }
 
 return view.extend({
@@ -38,6 +54,7 @@ return view.extend({
 	},
 
 	render: function() {
+		injectCSS();
 		var ppeUpdatesPaused = false;
 		var lastEthStats = null;
 		var lastEthTime = 0;
@@ -79,26 +96,31 @@ return view.extend({
 		tabPanes['overview'] = paneOverview;
 
 		// ── Section 1: Offload & Mode Overview ──
-		var modeNode = E('div', { 'class': 'cbi-section-node' }, [
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('Device Mode')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-mode', 'style': 'font-weight:600' }, '—')
+		var modeNode = E('div', { 'class': 'fs-summary-grid' }, [
+			E('div', { 'class': 'fs-summary-card' }, [
+				E('div', { 'class': 'fs-card-title' }, _('Device Mode')),
+				E('div', { 'class': 'fs-card-value', 'id': 'fs-val-mode' }, '—'),
+				E('div', { 'class': 'fs-card-sub', 'id': 'fs-sub-mode' }, '—')
 			]),
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('HW Flow Offload')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-flow' }, '—')
+			E('div', { 'class': 'fs-summary-card' }, [
+				E('div', { 'class': 'fs-card-title' }, _('HW Flow Offload')),
+				E('div', { 'class': 'fs-card-value', 'id': 'fs-val-flow' }, '—'),
+				E('div', { 'class': 'fs-card-sub' }, _('Firewall hardware flow table acceleration'))
 			]),
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('VLAN Offload')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-vlan' }, '—')
+			E('div', { 'class': 'fs-summary-card' }, [
+				E('div', { 'class': 'fs-card-title' }, _('VLAN Offload')),
+				E('div', { 'class': 'fs-card-value', 'id': 'fs-val-vlan' }, '—'),
+				E('div', { 'class': 'fs-card-sub' }, _('Hardware acceleration for 802.1Q tagged VLAN traffic'))
 			]),
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('PPPoE Offload')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-pppoe' }, '—')
+			E('div', { 'class': 'fs-summary-card' }, [
+				E('div', { 'class': 'fs-card-title' }, _('PPPoE Offload')),
+				E('div', { 'class': 'fs-card-value', 'id': 'fs-val-pppoe' }, '—'),
+				E('div', { 'class': 'fs-card-sub' }, _('Hardware acceleration for PPPoE session streams'))
 			]),
-			E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, _('AP Mode Acceleration')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-apmode' }, '—')
+			E('div', { 'class': 'fs-summary-card' }, [
+				E('div', { 'class': 'fs-card-title' }, _('AP Mode Acceleration')),
+				E('div', { 'class': 'fs-card-value', 'id': 'fs-val-apmode' }, '—'),
+				E('div', { 'class': 'fs-card-sub' }, _('L2 bridge fast-path forwarding without netfilter overhead'))
 			])
 		]);
 
@@ -111,11 +133,11 @@ return view.extend({
 		var flowSummaryNode = E('div', { 'class': 'cbi-section-node' }, [
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Hardware Bound Flows')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-bnd', 'style': 'font-weight:600;color:#00cc44;font-family:monospace;font-variant-numeric:tabular-nums' }, '—')
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-bnd', 'style': 'font-weight:600;color:#10b981;font-family:monospace;font-variant-numeric:tabular-nums' }, '—')
 			]),
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Learning / Unbound Flows')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-unb', 'style': 'font-weight:600;color:#f5a623;font-family:monospace;font-variant-numeric:tabular-nums' }, '—')
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-unb', 'style': 'font-weight:600;color:#f59e0b;font-family:monospace;font-variant-numeric:tabular-nums' }, '—')
 			]),
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('IPv4 / IPv6 Breakdown')),
@@ -136,7 +158,7 @@ return view.extend({
 		var latencyNode = E('div', { 'class': 'cbi-section-node' }, [
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Upstream Latency')),
-				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-latency', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-button-apply-bg, #00cc44)' }, '—')
+				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-latency', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-button-apply-bg, #10b981)' }, '—')
 			]),
 			E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title' }, _('Jitter')),
@@ -146,12 +168,12 @@ return view.extend({
 				E('label', { 'class': 'cbi-value-title' }, _('Ping Target')),
 				E('div', { 'class': 'cbi-value-field', 'id': 'fs-val-target-container' }, [
 					E('div', { 'style': 'display:flex;align-items:center;gap:10px' }, [
-						E('span', { 'id': 'fs-val-target', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600' }, '—'),
+						E('span', { 'id': 'fs-val-target', 'style': 'font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600' }, '223.5.5.5'),
 						E('button', {
 							'class': 'cbi-button cbi-button-action',
 							'click': function(ev) {
 								var currentTarget = document.getElementById('fs-val-target').textContent.trim();
-								var newTarget = window.prompt(_('Ping target IP:'), currentTarget || '223.5.5.5');
+								var newTarget = window.prompt(_('Ping target IP:'), (currentTarget && currentTarget !== '—') ? currentTarget : '223.5.5.5');
 								if (newTarget && newTarget !== currentTarget) {
 									ev.target.disabled = true;
 									callSetPingTarget(newTarget).then(function(res) {
@@ -226,27 +248,26 @@ return view.extend({
 
 				// 1. Update Mode & Switches
 				var modeEl = document.getElementById('fs-val-mode');
+				var subModeEl = document.getElementById('fs-sub-mode');
 				if (modeEl) {
 					var isAp = (dm.mode === 'ap');
 					modeEl.textContent = isAp ? _('AP MODE') : _('ROUTER MODE');
-					modeEl.style.color = isAp ? '#00c8ff' : '#00cc44';
+					modeEl.style.color = isAp ? '#0ea5e9' : '#10b981';
+					if (subModeEl) subModeEl.textContent = isAp ? _('Bridge fast-path forwarding') : _('NAT and hardware offload');
 				}
 
-				function setBadge(cellId, enabled) {
+				function setCardStatus(cellId, enabled) {
 					var el = document.getElementById(cellId);
 					if (!el) return;
-					while (el.firstChild) el.removeChild(el.firstChild);
 					var on = isEnabled(enabled);
-					el.appendChild(E('span', {
-						'style': 'padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600;' +
-						         (on ? 'background:var(--cbi-button-apply-bg, #00cc44);color:#fff' : 'background:var(--cbi-muted-color, #6b7280);color:#fff')
-					}, on ? _('Enabled') : _('Disabled')));
+					el.textContent = on ? _('Enabled') : _('Disabled');
+					el.style.color = on ? '#10b981' : 'inherit';
 				}
 
-				setBadge('fs-val-flow', (res.flow || {}).enabled);
-				setBadge('fs-val-vlan', (res.vlan || {}).enabled);
-				setBadge('fs-val-pppoe', (res.pppoe || {}).enabled);
-				setBadge('fs-val-apmode', (res.apmode || {}).enabled);
+				setCardStatus('fs-val-flow', (res.flow || {}).enabled);
+				setCardStatus('fs-val-vlan', (res.vlan || {}).enabled);
+				setCardStatus('fs-val-pppoe', (res.pppoe || {}).enabled);
+				setCardStatus('fs-val-apmode', (res.apmode || {}).enabled);
 
 				// 2. Update Flows
 				var bnd = ppe.bnd || {};
@@ -264,7 +285,7 @@ return view.extend({
 				var bufEl = document.getElementById('fs-val-buffer');
 				if (bufEl) {
 					bufEl.textContent = _('Healthy / Normal');
-					bufEl.style.color = '#00cc44';
+					bufEl.style.color = '#10b981';
 					bufEl.style.fontWeight = '600';
 				}
 
@@ -273,7 +294,7 @@ return view.extend({
 				if (latEl) {
 					var lat = jitter.last_ping || 0;
 					latEl.textContent = lat > 0 ? lat.toFixed(2) + ' ms' : '—';
-					latEl.style.color = (lat > 0 && lat <= 30) ? '#00cc44' : (lat <= 80) ? '#f5a623' : '#d0021b';
+					latEl.style.color = (lat > 0 && lat <= 30) ? '#10b981' : (lat <= 80) ? '#f59e0b' : '#ef4444';
 				}
 
 				var jitEl = document.getElementById('fs-val-jitter');
@@ -309,7 +330,7 @@ return view.extend({
 				if (!ppeUpdatesPaused && bnd && Array.isArray(bnd.entries)) {
 					var allEntries = (bnd.entries || []).concat(unb.entries || []);
 					var rows = allEntries.slice(0, 100).map(function(e) {
-						var stateCol = (e.state === 'BND') ? '#00cc44' : '#f5a623';
+						var stateCol = (e.state === 'BND') ? '#10b981' : '#f59e0b';
 						return [
 							e.index,
 							E('span', { 'style': 'font-weight:600;color:' + stateCol }, e.state),
