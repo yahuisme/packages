@@ -326,3 +326,52 @@ msgid "Userspace"
 msgstr "用户空间"
 
 
+
+msgid "Acceleration & Operational Mode"
+msgstr "加速特性与工作模式"
+
+msgid "Buffer Health / Congestion"
+msgstr "缓冲区健康 / 拥塞状态"
+
+msgid "Device Mode"
+msgstr "设备模式"
+
+msgid "Flow Engine & Buffer Status"
+msgstr "流引擎与缓冲区状态"
+
+msgid "Hardware Bound Flows"
+msgstr "硬件已绑定加速流 (BND)"
+
+msgid "Healthy / Normal"
+msgstr "正常 / 畅通"
+
+msgid "IPv4 / IPv6 Breakdown"
+msgstr "IPv4 / IPv6 分布"
+
+msgid "Jitter"
+msgstr "抖动 (Jitter)"
+
+msgid "Learning / Unbound Flows"
+msgstr "学习中 / 未绑定流 (UNB)"
+
+msgid "Link Quality & Latency Monitor"
+msgstr "链路质量与延迟监控"
+
+msgid "New Flow"
+msgstr "转换流 (New Flow)"
+
+msgid "Original Flow"
+msgstr "原始流 (Original Flow)"
+
+msgid "PPE Flow Offload Entries"
+msgstr "PPE 硬件流表条目"
+
+msgid "Ping Target"
+msgstr "Ping 测速目标"
+
+msgid "Real-time hardware packet processing engine (PPE) offload metrics, link quality, and latency monitoring."
+msgstr "实时监控硬件数据包处理引擎（PPE）加速指标、链路质量与端到端延迟。"
+
+msgid "Upstream Latency"
+msgstr "上行网络延迟"
+
