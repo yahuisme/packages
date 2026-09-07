@@ -1,56 +1,129 @@
 msgid ""
-msgstr "Content-Type: text/plain; charset=UTF-8\n"
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
 
 msgid "Airoha FlowSense"
 msgstr ""
 
-msgid "AP Mode Acceleration"
+msgid "Bound / Unbound flows"
+msgstr ""
+
+msgid "Configured switches do not prove that individual connections are offloaded."
+msgstr ""
+
+msgid "Data unavailable; previous readings cleared."
 msgstr ""
 
 msgid "Disabled"
 msgstr ""
 
+msgid "Down"
+msgstr ""
+
+msgid "Enable periodic probes"
+msgstr ""
+
 msgid "Enabled"
 msgstr ""
 
-msgid "Error: "
+msgid "Ethernet links"
 msgstr ""
 
-msgid "HW Flow Offload"
+msgid "Hardware flow offload"
 msgstr ""
 
-msgid "Index"
+msgid "IPv4 / IPv6 / Other"
 msgstr ""
 
-msgid "No entries"
+msgid "IPv4 address or hostname"
 msgstr ""
 
-msgid "Original"
+msgid "Last update"
 msgstr ""
 
-msgid "Pause"
+msgid "Latest RTT"
 msgstr ""
 
-msgid "PPPoE Offload"
+msgid "Link / Speed"
 msgstr ""
 
-msgid "Resume"
+msgid "Link quality"
 msgstr ""
 
-msgid "State"
+msgid "New Flow"
 msgstr ""
 
-msgid "Translated"
+msgid "Offload configuration"
 msgstr ""
 
-msgid "Type"
-msgstr ""
-
-msgid "VLAN Offload"
+msgid "Original Flow"
 msgstr ""
 
 msgid "Overview & Quality"
 msgstr ""
 
 msgid "PPE Flow Offload"
+msgstr ""
+
+msgid "PPE data unavailable"
+msgstr ""
+
+msgid "PPE summary"
+msgstr ""
+
+msgid "Pause"
+msgstr ""
+
+msgid "RTT mean absolute deviation"
+msgstr ""
+
+msgid "RX / TX rate"
+msgstr ""
+
+msgid "RX drops"
+msgstr ""
+
+msgid "RX errors"
+msgstr ""
+
+msgid "Rates use interface counters; hardware-bypassed traffic may not be fully counted. Errors and drops are interval increments."
+msgstr ""
+
+msgid "Resume"
+msgstr ""
+
+msgid "Save & Apply"
+msgstr ""
+
+msgid "Shown / Total"
+msgstr ""
+
+msgid "Software flow offload"
+msgstr ""
+
+msgid "Stopped or stale"
+msgstr ""
+
+msgid "TX drops"
+msgstr ""
+
+msgid "TX errors"
+msgstr ""
+
+msgid "Unable to apply monitor settings. Check the target and service."
+msgstr ""
+
+msgid "Unavailable"
+msgstr ""
+
+msgid "Unknown"
+msgstr ""
+
+msgid "Up"
+msgstr ""
+
+msgid "Waiting for data"
+msgstr ""
+
+msgid "Window packet loss"
 msgstr ""
