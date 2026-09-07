@@ -4,12 +4,12 @@ include $(TOPDIR)/rules.mk
 
 LUCI_NAME:=luci-app-airoha-flowsense
 PKG_VERSION:=1.1.3
-PKG_RELEASE:=5
+PKG_RELEASE:=6
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=Airoha Maintainer
-TITLE:=LuCI Airoha Airoha FlowSense
+TITLE:=LuCI Support for Airoha FlowSense
 
-LUCI_TITLE:=LuCI Airoha Airoha FlowSense
+LUCI_TITLE:=LuCI Support for Airoha FlowSense
 LUCI_DESCRIPTION:=Provides real-time monitoring and control for Airoha PPE hardware offload. \
 	Displays NPU token usage, flow entry count, flow/VLAN/PPPoE and AP-mode acceleration status, \
 	and allows enabling/disabling hardware offload for specific interfaces.
@@ -55,17 +55,9 @@ define Package/$(LUCI_NAME)/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
 
-# Enable and start the npu-jitter service
 /etc/init.d/npu-jitter enable 2>/dev/null
 /etc/init.d/npu-jitter start 2>/dev/null
-
-# Reload rpcd to register the new luci.airoha_flowsense backend
 /etc/init.d/rpcd reload 2>/dev/null
-
-# Clear LuCI cache so the new menu entries are picked up
-rm -f /tmp/luci-indexcache.*
-rm -rf /tmp/luci-modulecache/
-
 exit 0
 endef
 
@@ -73,13 +65,9 @@ define Package/$(LUCI_NAME)/prerm
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
 
-# Stop and disable the npu-jitter service
 /etc/init.d/npu-jitter stop 2>/dev/null
 /etc/init.d/npu-jitter disable 2>/dev/null
-
-# Reload rpcd to unregister the luci.airoha_flowsense backend
 /etc/init.d/rpcd reload 2>/dev/null
-
 exit 0
 endef
 

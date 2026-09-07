@@ -7,7 +7,7 @@
 TARGET="${1:-223.5.5.5}"
 RESULT_FILE="/tmp/npu-jitter.json"
 WINDOW=10
-INTERVAL=2  # seconds between pings
+INTERVAL=5  # seconds between pings (aligned with LuCI 5s polling cycle)
 
 ping_values=""
 count=0
@@ -20,29 +20,27 @@ while true; do
 		ping_values="$ping_values $rtt"
 		count=$((count + 1))
 
-		# Trim to window size
-		if [ "$count" -gt "$WINDOW" ]; then
-			ping_values=$(echo "$ping_values" | awk '{
-				for (i = NF - '"$WINDOW"' + 1; i <= NF; i++) printf $i " "
-			}')
-			count=$WINDOW
-		fi
-
-		# Calculate mean absolute deviation (jitter) and last ping
-		result=$(echo "$ping_values" | awk -v c="$count" '{
-			n = NF
+		# Trim to window size and calculate mean absolute deviation (jitter) in single awk
+		result=$(printf '%s' "$ping_values" | awk -v w="$WINDOW" -v t="$TARGET" '{
+			start = (NF > w) ? (NF - w + 1) : 1
+			n = NF - start + 1
 			sum = 0
-			for (i = 1; i <= n; i++) sum += $i
+			trimmed = ""
+			for (i = start; i <= NF; i++) {
+				sum += $i
+				trimmed = (trimmed == "") ? $i : (trimmed " " $i)
+			}
 			avg = sum / n
 			dev = 0
-			for (i = 1; i <= n; i++) dev += ($i > avg ? $i - avg : avg - $i)
+			for (i = start; i <= NF; i++) dev += ($i > avg ? $i - avg : avg - $i)
 			jitter = dev / n
-			last = $n
-			printf "{\"jitter\":%.2f,\"last_ping\":%.2f,\"samples\":%d,\"target\":\"%s\",\"reachable\":true,\"available\":true}", \
-				jitter, last, c, "'"$TARGET"'"
+			printf "{\"jitter\":%.2f,\"last_ping\":%.2f,\"samples\":%d,\"target\":\"%s\",\"reachable\":true,\"available\":true}\n%s", \
+				jitter, $NF, n, t, trimmed
 		}')
 
-		echo "$result" > "$RESULT_FILE"
+		echo "$result" | head -n 1 > "$RESULT_FILE"
+		ping_values=$(echo "$result" | tail -n 1)
+		count=$(echo "$ping_values" | wc -w)
 	else
 		# Unreachable — preserve sample count but mark unreachable
 		printf '{"jitter":0,"last_ping":0,"samples":%d,"target":"%s","reachable":false,"available":true}\n' \

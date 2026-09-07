@@ -273,3 +273,22 @@ msgstr "错误"
 
 msgid "ERRORS"
 msgstr "错误"
+
+msgid "PPE Flow Monitor"
+msgstr "PPE 流量监控"
+
+msgid "Work Mode"
+msgstr "工作模式"
+
+msgid "LOAD"
+msgstr "负载"
+
+msgid "FREQ"
+msgstr "频率"
+
+msgid "RETRY"
+msgstr "重传"
+
+msgid "MAX"
+msgstr "上限"
+

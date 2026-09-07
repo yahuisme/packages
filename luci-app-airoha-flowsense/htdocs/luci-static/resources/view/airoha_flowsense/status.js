@@ -17,7 +17,6 @@ var _maxEthMbps      = {};    // iface -> peak Mbps seen; grows, never shrinks
 
 /* ── RPC Declarations ── */
 var callGetOverview     = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getOverview' });
-var callGetPingTarget    = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getPingTarget' });
 var callSetPingTarget    = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setPingTarget', params: ['target'] });
 
 /* ── Theme-adaptive CSS ── */
@@ -131,14 +130,14 @@ var bandInfo = [
 function fmtFreq(khz) { return (!khz || khz === 0) ? 'N/A' : (khz / 1000).toFixed(0) + ' MHz'; }
 function governorLabel(governor) {
 	var labels = {
-		conservative: '\u4fdd\u5b88\u6a21\u5f0f',
-		ondemand: '\u6309\u9700\u6a21\u5f0f',
-		performance: '\u6027\u80fd\u6a21\u5f0f',
-		powersave: '\u7701\u7535\u6a21\u5f0f',
-		schedutil: '\u8c03\u5ea6\u6a21\u5f0f',
-		userspace: '\u7528\u6237\u7a7a\u95f4'
+		conservative: _('Conservative'),
+		ondemand: _('On Demand'),
+		performance: _('Performance'),
+		powersave: _('Powersave'),
+		schedutil: _('Schedutil'),
+		userspace: _('Userspace')
 	};
-	return labels[governor] || _(governor);
+	return labels[governor] || (governor ? _(governor) : '');
 }
 
 function fmtK(n) {
@@ -159,9 +158,9 @@ function calcTotalMem(regions) {
 
 function pleHealth(free) {
 	if (typeof free !== 'number' || free < 0) return { text: 'N/A', color: '#888' };
-	if (free >= 1000000) return { text: '\u6b63\u5e38', color: '#4caf50' };
-	if (free >=  100000) return { text: '\u8b66\u544a', color: '#ff9800' };
-	return { text: '\u5371\u9669', color: '#f44336' };
+	if (free >= 1000000) return { text: _('OK'),   color: '#4caf50' };
+	if (free >=  100000) return { text: _('WARN'), color: '#ff9800' };
+	return { text: _('CRIT'), color: '#f44336' };
 }
 
 function formatPleCount(free) {
@@ -264,97 +263,6 @@ function freqBarState(hw, min, max, pll, gov) {
 	return { freq: oc ? pll_khz : Math.min(hw,max), max: oc ? pll_khz : max, oc: oc };
 }
 
-
-
-
-
-
-/* ── PPE Panels ── */
-function renderPpePanel(label, labelColor, stateLabel, stateClass, entries, total, showNew) {
-	var rows = [
-		E('tr', { 'class': 'tr cbi-section-table-titles' }, [
-			E('th', { 'class': 'th', 'style': 'width:55px' }, _('Index')),
-			E('th', { 'class': 'th', 'style': 'width:45px' }, _('State')),
-			E('th', { 'class': 'th', 'style': 'width:65px' }, _('Type')),
-			E('th', { 'class': 'th' }, _('Original'))
-		].concat(showNew ? [ E('th', { 'class': 'th' }, _('Translated')) ] : []))
-	];
-
-	(entries || []).forEach(function(e) {
-		rows.push(E('tr', { 'class': 'tr' }, [
-			E('td', { 'class': 'td', 'style': 'font-size:11px;font-family:monospace' }, e.index||'-'),
-			E('td', { 'class': 'td' }, E('span', { 'class': stateClass, 'style': 'font-size:10px' }, stateLabel)),
-			E('td', { 'class': 'td', 'style': 'font-size:11px' }, (e.type||'').trim()),
-			E('td', { 'class': 'td', 'style': 'font-size:11px;font-family:monospace;word-break:break-all' }, e.orig||'-')
-		].concat(showNew ? [
-			E('td', { 'class': 'td', 'style': 'font-size:11px;font-family:monospace;word-break:break-all' }, e.new_flow||'-')
-		] : [])));
-	});
-
-	if (!entries || entries.length === 0) {
-		rows.push(E('tr', { 'class': 'tr' }, [
-			E('td', { 'class': 'td soc-muted', 'colspan': showNew ? '5' : '4', 'style': 'text-align:center;padding:12px' }, _('No entries'))
-		]));
-	}
-
-	var countText = total + ' entries' + (total > 25 ? ' (showing 25)' : '');
-	return E('div', { 'style': 'flex:1;min-width:0' }, [
-		E('div', { 'style': 'display:flex;align-items:baseline;gap:8px;margin-bottom:6px' }, [
-			E('span', { 'style': 'font-weight:700;font-size:13px;color:'+labelColor }, label),
-			E('span', { 'class': 'soc-muted', 'style': 'font-size:11px', 'id': 'ppe-count-'+(showNew?'bnd':'unb') }, countText)
-		]),
-		E('div', { 'style': 'overflow-x:auto' }, [
-			E('table', { 'class': 'table', 'id': 'ppe-table-'+(showNew?'bnd':'unb'), 'style': 'font-size:11px' }, rows)
-		])
-	]);
-}
-
-function renderPpePanels(ppe) {
-	var bnd = ppe.bnd || { total: 0, entries: [] };
-	var unb = ppe.unb || { total: 0, entries: [] };
-	return E('div', { 'style': 'display:flex;gap:16px;align-items:flex-start' }, [
-		renderPpePanel('BND — Hardware Offloaded', '#00c8ff', 'BND', 'label-success', bnd.entries, bnd.total, true),
-		renderPpePanel('UNB — Pending / Learning', '#4caf50', 'UNB', '', unb.entries, unb.total, false)
-	]);
-}
-
-function updatePpePanels(ppe) {
-	var bnd = ppe.bnd || { total: 0, entries: [] };
-	var unb = ppe.unb || { total: 0, entries: [] };
-
-	function refreshPanel(tableId, countId, entries, total, showNew, stateLabel, stateClass) {
-		var el = document.getElementById(countId);
-		if (el) el.textContent = total + ' entries' + (total > 25 ? ' (showing 25)' : '');
-		var tb = document.getElementById(tableId);
-		if (!tb) return;
-		while (tb.rows.length > 1) tb.deleteRow(1);
-		if (!entries || entries.length === 0) {
-			var row = tb.insertRow(-1); row.className = 'tr';
-			var cell = row.insertCell(-1); cell.className = 'td soc-muted';
-			cell.colSpan = showNew ? 5 : 4;
-			cell.style.textAlign = 'center'; cell.style.padding = '12px';
-			cell.textContent = 'No entries';
-			return;
-		}
-		entries.forEach(function(e) {
-			var row = tb.insertRow(-1); row.className = 'tr';
-			var c1 = row.insertCell(-1); c1.className='td'; c1.style='font-size:11px;font-family:monospace'; c1.textContent=e.index||'-';
-			var c2 = row.insertCell(-1); c2.className='td';
-			var badge = document.createElement('span');
-			if (stateClass) badge.className = stateClass;
-			badge.style.fontSize = '10px';
-			badge.textContent = stateLabel;
-			c2.appendChild(badge);
-			var c3 = row.insertCell(-1); c3.className='td'; c3.style='font-size:11px'; c3.textContent=(e.type||'').trim();
-			var c4 = row.insertCell(-1); c4.className='td'; c4.style='font-size:11px;font-family:monospace;word-break:break-all'; c4.textContent=e.orig||'-';
-			if (showNew) { var c5=row.insertCell(-1); c5.className='td'; c5.style='font-size:11px;font-family:monospace;word-break:break-all'; c5.textContent=e.new_flow||'-'; }
-		});
-	}
-
-	refreshPanel('ppe-table-bnd', 'ppe-count-bnd', bnd.entries, bnd.total, true, 'BND', 'label-success');
-	refreshPanel('ppe-table-unb', 'ppe-count-unb', unb.entries, unb.total, false, 'UNB', '');
-}
-
 /* ── PPE Tachometer (embedded inside compass inner fill) ── */
 function buildTachoInner(ppe, cs, mode) {
 	var bnd    = ppe.bnd || {};
@@ -379,8 +287,8 @@ function buildTachoInner(ppe, cs, mode) {
 	UNB_SCALE = Math.max(UNB_SCALE, 8);
 	var unbLit = Math.min(TICKS, Math.round((unbTot / UNB_SCALE) * TICKS));
 
-	var modeText   = mode === 'ap' ? 'AP \u6a21\u5f0f' : '\u8def\u7531\u6a21\u5f0f';
-	var statusText = cs.npuActive ? '\u786c\u4ef6\u52a0\u901f' : (cs.hwEnabled ? 'NPU \u7a7a\u95f2' : 'CPU \u8def\u5f84');
+	var modeText   = mode === 'ap' ? _('AP MODE') : _('ROUTER MODE');
+	var statusText = cs.npuActive ? _('HW ACCELERATED') : (cs.hwEnabled ? _('NPU IDLE') : _('CPU PATH'));
 	var statusCol  = cs.npuActive ? '#00c8ff' : (cs.hwEnabled ? '#888' : '#ff6b35');
 	var bndColor   = bndTot > 0 ? '#00c8ff' : 'var(--soc-muted)';
 	var unbColor   = unbTot > 0 ? '#ff9800' : 'var(--soc-muted)';
@@ -436,11 +344,11 @@ function buildTachoInner(ppe, cs, mode) {
 	p.push('<text x="150" y="113" text-anchor="middle" fill="var(--soc-text)" font-size="11" font-weight="700" font-family="monospace" letter-spacing="0">'+modeText+'</text>');
 	p.push('<text x="150" y="125" text-anchor="middle" fill="'+statusCol+'" font-size="10" font-weight="700" font-family="monospace" letter-spacing="0">'+statusText+'</text>');
 	p.push('<text x="150" y="145" text-anchor="middle" fill="'+bndColor+'" font-size="24" font-weight="700" font-family="monospace">'+bndTot+'</text>');
-	p.push('<text x="150" y="157" text-anchor="middle" fill="var(--soc-muted)" font-size="10" font-weight="700" font-family="monospace" letter-spacing="0">\u5df2\u7ed1\u5b9a</text>');
+	p.push('<text x="150" y="157" text-anchor="middle" fill="var(--soc-muted)" font-size="10" font-weight="700" font-family="monospace" letter-spacing="0">'+_('BND FLOWS')+'</text>');
 	p.push('<text x="117" y="176" text-anchor="middle" fill="#00c8ff"  font-size="10" font-weight="600" font-family="monospace">v4: '+n4+'</text>');
 	p.push('<text x="183" y="176" text-anchor="middle" fill="#9c27b0"  font-size="10" font-weight="600" font-family="monospace">v6: '+n6+'</text>');
 	p.push('<text x="150" y="190" text-anchor="middle" fill="'+unbColor+'" font-size="15" font-weight="700" font-family="monospace">'+unbTot+'</text>');
-	p.push('<text x="150" y="201" text-anchor="middle" fill="var(--soc-muted)" font-size="10" font-weight="700" font-family="monospace" letter-spacing="0">\u672a\u7ed1\u5b9a</text>');
+	p.push('<text x="150" y="201" text-anchor="middle" fill="var(--soc-muted)" font-size="10" font-weight="700" font-family="monospace" letter-spacing="0">'+_('UNB FLOWS')+'</text>');
 
 	return p.join('');
 }
@@ -517,7 +425,7 @@ function renderPpeTerminalBody(ppe) {
 function renderPpeTerminal(ppe, pauseButton) {
 	var bar = E('div', { 'class': 'ppe-terminal-bar' }, [
 		E('span', { 'class': 'ppe-terminal-dot' }),
-		E('span', { 'class': 'ppe-terminal-title' }, 'PPE 流量监控'),
+		E('span', { 'class': 'ppe-terminal-title' }, _('PPE Flow Monitor')),
 		pauseButton
 	]);
 	var body = E('div', { 'class': 'ppe-terminal-body', 'id': 'ppe-terminal-body' }, renderPpeTerminalBody(ppe));
@@ -745,10 +653,10 @@ function buildCompassSVG(cs, mode, ppe) {
 	// West: latency arc
 	'<path id="cp-arc-west" d="'+pWest+'" fill="none" stroke="'+cs.latColor+'" stroke-width="9" stroke-linecap="round" opacity="0.7"/>' +
 	// Quadrant labels — curved textPath following each arc
-	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="0" opacity="0.9" fill="#00c8ff"><textPath href="#tp-north" startOffset="50%" text-anchor="middle">NPU \u8def\u5f84</textPath></text>' +
-	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="0" opacity="0.9" id="cp-lbl-south"><textPath href="#tp-south" startOffset="50%" text-anchor="middle">\u786c\u4ef6\u7f13\u51b2</textPath></text>' +
-	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="0" opacity="0.9" id="cp-lbl-east"><textPath href="#tp-east"  startOffset="50%" text-anchor="middle">\u5b8c\u6574\u6027</textPath></text>' +
-	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="0" opacity="0.9" id="cp-lbl-west"><textPath href="#tp-west"  startOffset="50%" text-anchor="middle">\u5ef6\u8fdf</textPath></text>' +
+	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="0" opacity="0.9" fill="#00c8ff"><textPath href="#tp-north" startOffset="50%" text-anchor="middle">' + _('NPU PATH') + '</textPath></text>' +
+	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="0" opacity="0.9" id="cp-lbl-south"><textPath href="#tp-south" startOffset="50%" text-anchor="middle">' + _('HW BUFFER') + '</textPath></text>' +
+	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="0" opacity="0.9" id="cp-lbl-east"><textPath href="#tp-east"  startOffset="50%" text-anchor="middle">' + _('INTEGRITY') + '</textPath></text>' +
+	'<text font-size="11" font-weight="600" font-family="monospace" letter-spacing="0" opacity="0.9" id="cp-lbl-west"><textPath href="#tp-west"  startOffset="50%" text-anchor="middle">' + _('LATENCY') + '</textPath></text>' +
 	// Latency needle
 	'<line id="cp-needle" x1="150" y1="150" x2="'+tip[0].toFixed(1)+'" y2="'+tip[1].toFixed(1)+'" stroke="'+cs.latColor+'" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>' +
 	'<circle id="cp-needle-pivot" cx="150" cy="150" r="4" fill="'+cs.latColor+'" opacity="0.9"/>' +
@@ -796,13 +704,13 @@ function updateCompassSVG(cs, mode, ppe) {
 
 	// Update compass label text (translations may not be ready during initial render)
 	var cpText = document.getElementById('cp-lbl-north');
-	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = 'NPU \u8def\u5f84'; }
+	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = _('NPU PATH'); }
 	cpText = document.getElementById('cp-lbl-south');
-	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = '\u786c\u4ef6\u7f13\u51b2'; }
+	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = _('HW BUFFER'); }
 	cpText = document.getElementById('cp-lbl-east');
-	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = '\u5b8c\u6574\u6027'; }
+	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = _('INTEGRITY'); }
 	cpText = document.getElementById('cp-lbl-west');
-	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = '\u5ef6\u8fdf'; }
+	if (cpText) { var tp = cpText.querySelector('textPath'); if (tp) tp.textContent = _('LATENCY'); }
 	sa('cp-lbl-west',     'fill',  cs.latColor);
 	sa('cp-lbl-east',     'fill',  cs.eastColor);
 
@@ -836,7 +744,7 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 
 	// Colours
 	var npuStatusCol = cs.npuActive ? '#00c8ff' : (cs.hwEnabled ? '#888' : '#ff6b35');
-	var npuStatus    = cs.npuActive ? '\u786c\u4ef6\u52a0\u901f' : (cs.hwEnabled ? 'NPU \u7a7a\u95f2' : 'CPU \u8def\u5f84');
+	var npuStatus    = cs.npuActive ? _('HW ACCELERATED') : (cs.hwEnabled ? _('NPU IDLE') : _('CPU PATH'));
 	var npuColor     = offloadPct > 60 ? '#00c8ff' : offloadPct > 30 ? '#f5a623' : '#888';
 
 	var TICKS = 90;
@@ -857,8 +765,8 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 	p.push('<circle cx="150" cy="150" r="83" fill="none" stroke="var(--soc-border)" stroke-width="0.5" opacity="0.35"/>');
 
 	// Ring labels at 9 and 3 o'clock
-	p.push('<text x="107" y="153" text-anchor="middle" fill="#ffe066" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">◄\u8d1f\u8f7d</text>');
-	p.push('<text x="193" y="153" text-anchor="middle" fill="#00cc44" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">\u9891\u7387►</text>');
+	p.push('<text x="107" y="153" text-anchor="middle" fill="#ffe066" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">◄' + _('LOAD') + '</text>');
+	p.push('<text x="193" y="153" text-anchor="middle" fill="#00cc44" font-size="9" font-weight="600" font-family="monospace" opacity="0.85">' + _('FREQ') + '►</text>');
 
 	// Tachometer ticks
 	for (var i = 0; i < TICKS; i++) {
@@ -892,7 +800,7 @@ function buildCpuNpuTacho(cs, ppe, st, ti) {
 	p.push('<text x="150" y="159" text-anchor="middle" fill="#ffe066" font-size="9" font-weight="600" font-family="monospace" letter-spacing="0">CPU</text>');
 	p.push('<text x="150" y="175" text-anchor="middle" fill="'+npuStatusCol+'" font-size="9" font-weight="600" font-family="monospace">'+npuStatus+'</text>');
 	p.push('<text x="150" y="190" text-anchor="middle" fill="'+npuColor+'" font-size="13" font-weight="700" font-family="monospace">'+offloadPct+'%</text>');
-	p.push('<text x="150" y="200" text-anchor="middle" fill="var(--soc-muted)" font-size="8" font-family="monospace" letter-spacing="0">\u52a0\u901f\u5360\u6bd4</text>');
+	p.push('<text x="150" y="200" text-anchor="middle" fill="var(--soc-muted)" font-size="8" font-family="monospace" letter-spacing="0">'+_('OFFLOADED')+'</text>');
 
 	// PLE pool — curved textPath at r=91, south arc (CCW 160°→20°), outside the freq ring.
 	// Matches the "UNB/BND FLOWS" curved-text style used on the WiFi band gauges.
@@ -1013,8 +921,8 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 	p.push('<circle cx="150" cy="150" r="83" fill="none" stroke="var(--soc-border)" stroke-width="0.5" opacity="0.35"/>');
 
 	// Ring labels at 9 / 3 o'clock
-	p.push('<text x="107" y="153" text-anchor="middle" fill="'+retryCol+'" font-size="11" font-weight="700" font-family="monospace" opacity="0.9">◄\u91cd\u4f20</text>');
-	p.push('<text x="193" y="153" text-anchor="middle" fill="'+accent+'" font-size="11" font-weight="700" font-family="monospace" opacity="0.9">\u53d1\u9001►</text>');
+	p.push('<text x="107" y="153" text-anchor="middle" fill="'+retryCol+'" font-size="11" font-weight="700" font-family="monospace" opacity="0.9">◄' + _('RETRY') + '</text>');
+	p.push('<text x="193" y="153" text-anchor="middle" fill="'+accent+'" font-size="11" font-weight="700" font-family="monospace" opacity="0.9">' + _('TX') + '►</text>');
 
 	// Tachometer ticks
 	for (var i = 0; i < TICKS; i++) {
@@ -1076,10 +984,10 @@ function buildWifiBandTacho(bandIdx, ws, qType, bndCount, unbCount) {
 	p.push('<text x="150" y="164" text-anchor="middle" fill="'+accent+'" font-size="10" font-weight="700" font-family="monospace" letter-spacing="0">MBPS</text>');
 
 	// Max scale hint
-	p.push('<text x="150" y="175" text-anchor="middle" fill="var(--soc-muted)" font-size="9" font-weight="600" font-family="monospace">\u4e0a\u9650 '+Math.round(maxScale)+'</text>');
+	p.push('<text x="150" y="175" text-anchor="middle" fill="var(--soc-muted)" font-size="9" font-weight="600" font-family="monospace">' + _('MAX') + ' ' + Math.round(maxScale) + '</text>');
 
 	// Station count
-	p.push('<text x="150" y="187" text-anchor="middle" fill="var(--soc-muted)" font-size="10" font-weight="600" font-family="monospace">'+stations+' \u5ba2\u6237\u7aef</text>');
+	p.push('<text x="150" y="187" text-anchor="middle" fill="var(--soc-muted)" font-size="10" font-weight="600" font-family="monospace">' + stations + ' ' + _('STA') + '</text>');
 
 	// Signal + retry (only when relevant)
 	if (stations > 0 && signal !== 0)
@@ -1411,16 +1319,16 @@ function modeStatusData(dm, apo, flo, vo, ppo) {
 	return [
 		{
 			id: 'mode-status-mode',
-			title: '工作模式',
+			title: _('Work Mode'),
 			value: mode === 'ap' ? _('AP MODE') : mode === 'router' ? _('ROUTER MODE') : _('DETECTING'),
 			sub: detected,
 			color: mode === 'ap' ? '#00c8ff' : mode === 'router' ? '#00cc44' : '#b45309',
 			cls: mode === 'ap' ? 'mode-ap' : mode === 'router' ? 'mode-router' : 'mode-detecting'
 		},
-		accelerationCard('mode-status-ap', 'AP模式加速', isEnabled(apo.enabled)),
-		accelerationCard('mode-status-flow', '硬件流量加速', isEnabled(flo.enabled)),
-		accelerationCard('mode-status-vlan', 'VLAN 加速', isEnabled(vo.enabled)),
-		accelerationCard('mode-status-pppoe', 'PPPoE 加速', isEnabled(ppo.enabled))
+		accelerationCard('mode-status-ap', _('AP Mode Acceleration'), isEnabled(apo.enabled)),
+		accelerationCard('mode-status-flow', _('HW Flow Offload'), isEnabled(flo.enabled)),
+		accelerationCard('mode-status-vlan', _('VLAN Offload'), isEnabled(vo.enabled)),
+		accelerationCard('mode-status-pppoe', _('PPPoE Offload'), isEnabled(ppo.enabled))
 	];
 }
 
