@@ -29,7 +29,7 @@
                 "network.wireless":    [ "status" ],
                 "network.interface.*": [ "status" ],
                 "hostapd.*":           [ "get_status", "get_clients" ],
-                "iwinfo":              [ "info", "devices", "scan" ]
+                "iwinfo":              [ "info", "devices", "scan", "assoclist" ]
             },
             "uci": [ "wireless" ]
         },
