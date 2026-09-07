@@ -1,0 +1,132 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "1-%d dBm, leave empty for regulatory auto"
+msgstr ""
+
+msgid "Advanced Wi-Fi 7 management: Tri-band physical radios, MLO multi-link aggregation, and live station metrics."
+msgstr ""
+
+msgid "Auto"
+msgstr ""
+
+msgid "Bands / Device"
+msgstr ""
+
+msgid "Bandwidth / Mode"
+msgstr ""
+
+msgid "Channel / Bandwidth"
+msgstr ""
+
+msgid "Configure channels, bandwidth modes, and transmit powers for each physical band."
+msgstr ""
+
+msgid "Connected Clients"
+msgstr ""
+
+msgid "Disabled"
+msgstr ""
+
+msgid "Enable Radio"
+msgstr ""
+
+msgid "Enabled"
+msgstr ""
+
+msgid "Encryption"
+msgstr ""
+
+msgid "Failed to apply configuration: "
+msgstr ""
+
+msgid "Hardware SKU"
+msgstr ""
+
+msgid "Interface"
+msgstr ""
+
+msgid "MAC Address"
+msgstr ""
+
+msgid "MLO Networks"
+msgstr ""
+
+msgid "Mode"
+msgstr ""
+
+msgid "Multi-Link Operation aggregates multiple bands (2.4GHz, 5GHz, 6GHz) into a unified high-throughput SSID."
+msgstr ""
+
+msgid "No connected clients"
+msgstr ""
+
+msgid "No wireless interfaces configured"
+msgstr ""
+
+msgid "None"
+msgstr ""
+
+msgid "Operating Channel"
+msgstr ""
+
+msgid "Overview & Clients"
+msgstr ""
+
+msgid "Physical Radio Configuration"
+msgstr ""
+
+msgid "RX Rate"
+msgstr ""
+
+msgid "Radio Band"
+msgstr ""
+
+msgid "Radio Settings"
+msgstr ""
+
+msgid "Radio Status"
+msgstr ""
+
+msgid "Radio configuration applied successfully."
+msgstr ""
+
+msgid "SSID"
+msgstr ""
+
+msgid "Save & Apply"
+msgstr ""
+
+msgid "Signal"
+msgstr ""
+
+msgid "Standard / Locked"
+msgstr ""
+
+msgid "Status"
+msgstr ""
+
+msgid "TX Power"
+msgstr ""
+
+msgid "TX Power (dBm)"
+msgstr ""
+
+msgid "TX Rate"
+msgstr ""
+
+msgid "Unlocked (Full Power)"
+msgstr ""
+
+msgid "Up"
+msgstr ""
+
+msgid "Wi-Fi 7 (MT7996)"
+msgstr ""
+
+msgid "Wi-Fi 7 Multi-Link (MLO) Networks"
+msgstr ""
+
+msgid "WiFi 7"
+msgstr ""
+

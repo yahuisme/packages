@@ -22,9 +22,14 @@ _restore() {
 }
 
 (
-    while [ "$(cat /sys/kernel/debug/ieee80211/phy0/mt76/sku_disable 2>/dev/null)" != "0" ]; do
+    timeout=30
+    while [ "$timeout" -gt 0 ]; do
+        [ -r /sys/kernel/debug/ieee80211/phy0/mt76/sku_disable ] || exit 0
+        [ "$(cat /sys/kernel/debug/ieee80211/phy0/mt76/sku_disable 2>/dev/null)" = "0" ] && break
         sleep 1
+        timeout=$((timeout - 1))
     done
+    [ "$timeout" -gt 0 ] || exit 0
     _restore 0
     _restore 2
 ) &

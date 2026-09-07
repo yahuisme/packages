@@ -1,0 +1,134 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: zh_Hans\n"
+
+msgid "1-%d dBm, leave empty for regulatory auto"
+msgstr "1–%d dBm，留空则自动跟随国家监管上限"
+
+msgid "Advanced Wi-Fi 7 management: Tri-band physical radios, MLO multi-link aggregation, and live station metrics."
+msgstr "高级 Wi-Fi 7 管理中心：三频物理射频、MLO 多链路聚合以及实时站点监控。"
+
+msgid "Auto"
+msgstr "自动"
+
+msgid "Bands / Device"
+msgstr "频段 / 射频设备"
+
+msgid "Bandwidth / Mode"
+msgstr "频宽 / 模式"
+
+msgid "Channel / Bandwidth"
+msgstr "信道 / 频宽"
+
+msgid "Configure channels, bandwidth modes, and transmit powers for each physical band."
+msgstr "配置各物理频段的工作信道、频宽模式以及发射功率。"
+
+msgid "Connected Clients"
+msgstr "已连接客户端"
+
+msgid "Disabled"
+msgstr "已禁用"
+
+msgid "Enable Radio"
+msgstr "启用该频段"
+
+msgid "Enabled"
+msgstr "已启用"
+
+msgid "Encryption"
+msgstr "加密协议"
+
+msgid "Failed to apply configuration: "
+msgstr "应用配置失败："
+
+msgid "Hardware SKU"
+msgstr "硬件 SKU"
+
+msgid "Interface"
+msgstr "网络接口"
+
+msgid "MAC Address"
+msgstr "MAC 地址"
+
+msgid "MLO Networks"
+msgstr "MLO 多链路网络"
+
+msgid "Mode"
+msgstr "工作模式"
+
+msgid "Multi-Link Operation aggregates multiple bands (2.4GHz, 5GHz, 6GHz) into a unified high-throughput SSID."
+msgstr "多链路操作（MLO）将多个频段（2.4GHz、5GHz、6GHz）聚合为一个高吞吐联合 SSID。"
+
+msgid "No connected clients"
+msgstr "暂无已连接的客户端"
+
+msgid "No wireless interfaces configured"
+msgstr "未配置任何无线接口"
+
+msgid "None"
+msgstr "无加密"
+
+msgid "Operating Channel"
+msgstr "工作信道"
+
+msgid "Overview & Clients"
+msgstr "总览与客户端"
+
+msgid "Physical Radio Configuration"
+msgstr "物理射频参数配置"
+
+msgid "RX Rate"
+msgstr "接收速率"
+
+msgid "Radio Band"
+msgstr "无线射频频段"
+
+msgid "Radio Settings"
+msgstr "射频参数设置"
+
+msgid "Radio Status"
+msgstr "射频状态"
+
+msgid "Radio configuration applied successfully."
+msgstr "射频配置已成功应用并生效。"
+
+msgid "SSID"
+msgstr "网络名称 (SSID)"
+
+msgid "Save & Apply"
+msgstr "保存并应用"
+
+msgid "Signal"
+msgstr "信号强度"
+
+msgid "Standard / Locked"
+msgstr "标准 / 锁定"
+
+msgid "Status"
+msgstr "状态"
+
+msgid "TX Power"
+msgstr "发射功率"
+
+msgid "TX Power (dBm)"
+msgstr "发射功率 (dBm)"
+
+msgid "TX Rate"
+msgstr "发送速率"
+
+msgid "Unlocked (Full Power)"
+msgstr "已解锁（全功率）"
+
+msgid "Up"
+msgstr "运行中"
+
+msgid "Wi-Fi 7 (MT7996)"
+msgstr "Wi-Fi 7 (MT7996)"
+
+msgid "Wi-Fi 7 Multi-Link (MLO) Networks"
+msgstr "Wi-Fi 7 多链路聚合（MLO）网络"
+
+msgid "WiFi 7"
+msgstr "Wi-Fi 7"
+

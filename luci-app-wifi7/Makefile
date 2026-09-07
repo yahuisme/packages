@@ -4,7 +4,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-wifi7
-PKG_VERSION:=3.0.0
+PKG_VERSION:=3.1.0
 PKG_RELEASE:=1
 
 LUCI_TITLE:=LuCI Support for WiFi 7 (MT7996)
@@ -16,14 +16,5 @@ PKG_LICENSE:=GPL-2.0-or-later
 PKG_LICENSE_FILES:=LICENSE
 
 include $(TOPDIR)/feeds/luci/luci.mk
-
-define Package/luci-app-wifi7/postinst
-#!/bin/sh
-sed -i 's/@@PKG_VERSION@@/$(PKG_VERSION)/' \
-	"$${IPKG_INSTROOT}/www/luci-static/resources/view/wifi7/index.js" 2>/dev/null
-exit 0
-endef
-
-# call BuildPackage - OpenWrt buildroot signature
 
 # call BuildPackage - OpenWrt buildroot signature

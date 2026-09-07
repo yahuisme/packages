@@ -7,7 +7,12 @@
             "path": "wifi7/index"
         },
         "depends": {
-            "acl": [ "luci-app-wifi7" ]
+            "acl": [ "luci-app-wifi7" ],
+            "uci": {
+                "wireless": {
+                    "@wifi-device": true
+                }
+            }
         }
     }
 }
