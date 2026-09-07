@@ -108,15 +108,25 @@ function persistHistory() {
 function modeInfo(uciMode) {
 	if (uciMode !== 'manual' && uciMode !== 'auto') return { value: _('Unknown'), sub: _('Read failed'), color: '#6b7280' };
 	return uciMode === 'manual'
-		? { value: _('Manual'), sub: '固定 PWM 输出', color: '#f5a623' }
-		: { value: _('Automatic'), sub: '按风扇曲线自动调速', color: '#00c8ff' };
+		? { value: _('Manual'), sub: _('Fixed PWM output'), color: '#f5a623' }
+		: { value: _('Automatic'), sub: _('Following fan curve'), color: '#00c8ff' };
 }
 
 function presetInfo(uciMode, preset) {
-	if (uciMode === 'manual') return { value: _('Manual'), sub: '当前不使用曲线', color: '#6b7280' };
-	var labels = { quiet: '静音', balanced: '平衡', performance: '性能', custom: '自定义' };
+	if (uciMode === 'manual') return { value: _('Manual'), sub: _('Curve is paused'), color: '#6b7280' };
+	var labels = {
+		quiet: _('Quiet'),
+		balanced: _('Balanced'),
+		performance: _('Performance'),
+		custom: _('Custom')
+	};
 	if (!labels[preset]) return modeInfo('unknown');
-	var descriptions = { quiet: '优先降低噪声', balanced: '噪声与散热平衡', performance: '优先散热', custom: '自定义温度曲线' };
+	var descriptions = {
+		quiet: _('Low noise priority'),
+		balanced: _('Noise and cooling balanced'),
+		performance: _('Cooling priority'),
+		custom: _('Custom temperature curve')
+	};
 	return { value: labels[preset] || labels.balanced, sub: descriptions[preset] || descriptions.balanced, color: '#00cc44' };
 }
 
@@ -126,7 +136,7 @@ function summaryData(status) {
 	if (actualMode !== 'unknown' && actualMode !== status.uci_mode) mode.sub = _('Configured mode differs from hardware');
 	var preset = actualMode === 'unknown' ? modeInfo('unknown') : presetInfo(actualMode, status.uci_preset);
 	return [
-		{ id: 'fan-summary-rpm', title: _('Fan Speed'), value: (status.fan_rpm != null ? status.fan_rpm : '—') + ' RPM', sub: (status.fan_percentage != null ? status.fan_percentage : '—') + '% PWM 输出', color: '#00c8ff' },
+		{ id: 'fan-summary-rpm', title: _('Fan Speed'), value: (status.fan_rpm != null ? status.fan_rpm : '—') + ' RPM', sub: (status.fan_percentage != null ? status.fan_percentage : '—') + '% ' + _('PWM output'), color: '#00c8ff' },
 		{ id: 'fan-summary-pwm', title: 'PWM', value: (status.fan_pwm != null ? status.fan_pwm : '—') + ' / 255', sub: (status.fan_percentage != null ? status.fan_percentage : '—') + '%', color: '#00cc44' },
 		{ id: 'fan-summary-mode', title: _('Control Mode'), value: mode.value, sub: mode.sub, color: mode.color },
 		{ id: 'fan-summary-preset', title: _('Fan Curve Preset'), value: preset.value, sub: preset.sub, color: preset.color }
@@ -300,10 +310,10 @@ return view.extend({
 			E('div', { 'class': 'cbi-map-descr' }, _('View real-time fan speed and system temperatures.')),
 			renderSummary(status),
 			E('div', { 'class': 'fan-panel' }, [
-				E('div', { 'class': 'fan-panel-title' }, '实时趋势'),
+				E('div', { 'class': 'fan-panel-title' }, _('Real-time Trends')),
 				E('div', { 'class': 'fan-chart-grid' }, [
-					chartCard('主板温度', (status.temp_board != null ? status.temp_board : '—') + '\u00b0C', 'fc-temp', '#f97316'),
-					chartCard('风扇 PWM', (status.fan_pwm != null ? status.fan_pwm : '—') + ' / 255', 'fc-pwm', '#00c8ff'),
+					chartCard(_('Board Temperature'), (status.temp_board != null ? status.temp_board : '—') + '\u00b0C', 'fc-temp', '#f97316'),
+					chartCard(_('Fan PWM'), (status.fan_pwm != null ? status.fan_pwm : '—') + ' / 255', 'fc-pwm', '#00c8ff'),
 					chartCard(_('Fan Speed'), (status.fan_rpm != null ? status.fan_rpm : '—') + ' RPM', 'fc-rpm', '#00cc44')
 				])
 			]),
