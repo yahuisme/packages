@@ -142,3 +142,18 @@ msgstr ""
 
 msgid "Standard / Bandwidth"
 msgstr ""
+msgid "Operating (Normal)"
+msgstr ""
+
+msgid "Operating (CAC Passed)"
+msgstr ""
+
+msgid "Non-DFS Channel (Active)"
+msgstr ""
+
+msgid "DFS CAC Scanning..."
+msgstr ""
+
+msgid "Online Time"
+msgstr ""
+

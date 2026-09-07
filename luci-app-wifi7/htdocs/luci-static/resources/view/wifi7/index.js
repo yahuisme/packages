@@ -13,6 +13,26 @@ var callExec = rpc.declare({
 	expect: {}
 });
 
+var callIwinfoDevices = rpc.declare({
+	object: 'iwinfo',
+	method: 'devices',
+	expect: { devices: [] }
+});
+
+var callIwinfoAssocList = rpc.declare({
+	object: 'iwinfo',
+	method: 'assoclist',
+	params: [ 'device' ],
+	expect: { results: [] }
+});
+
+var callIwinfoInfo = rpc.declare({
+	object: 'iwinfo',
+	method: 'info',
+	params: [ 'device' ],
+	expect: {}
+});
+
 var BANDS = {
 	0: { name: '2.4 GHz', defBw: 'HE40',   maxTxp: 30 },
 	1: { name: '5 GHz',   defBw: 'EHT160', maxTxp: 30 },
@@ -56,6 +76,47 @@ function formatSignal(signal) {
 	if (signal == null || signal === 0) return '—';
 	var color = signal >= -50 ? '#10b981' : signal >= -65 ? '#0ea5e9' : signal >= -75 ? '#f59e0b' : '#ef4444';
 	return E('span', { 'style': 'font-weight:600;color:' + color }, signal + ' dBm');
+}
+
+function formatRate(rate) {
+	if (!rate) return '—';
+	if (typeof rate === 'number')
+		return (rate / 1000).toFixed(1) + ' Mbit/s';
+	return String(rate);
+}
+
+function formatProtocolFromIwinfo(c) {
+	var rx = c.rx || {};
+	var tx = c.tx || {};
+	var isEht = rx.eht || tx.eht;
+	var isHe = rx.he || tx.he;
+	var isVht = rx.vht || tx.vht;
+	var isHt = rx.ht || tx.ht;
+
+	var mhz = rx.mhz || tx.mhz;
+	var bwStr = mhz ? ' ' + mhz + 'MHz' : '';
+
+	if (isEht) {
+		return E('span', {
+			'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#0ea5e9;color:#fff;display:inline-block'
+		}, 'Wi-Fi 7' + bwStr);
+	}
+	if (isHe) {
+		return E('span', {
+			'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#10b981;color:#fff;display:inline-block'
+		}, 'Wi-Fi 6' + bwStr);
+	}
+	if (isVht) {
+		return E('span', {
+			'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#3b82f6;color:#fff;display:inline-block'
+		}, 'Wi-Fi 5' + bwStr);
+	}
+	if (isHt) {
+		return E('span', {
+			'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#6b7280;color:#fff;display:inline-block'
+		}, 'Wi-Fi 4' + bwStr);
+	}
+	return E('span', { 'style': 'color:#888' }, 'Legacy' + bwStr);
 }
 
 function formatRateBadge(rateStr) {
@@ -565,97 +626,200 @@ return view.extend({
 		m.appendChild(paneRadios);
 		m.appendChild(paneClients);
 
-		// Data polling & updates
+		// ══════════════════════════════════════════════════════════════════
+		// High-Efficiency Native Data Polling (iwinfo + hostapd RPC)
+		// ══════════════════════════════════════════════════════════════════
 		function updateData() {
-			var pollCmd = [
-				'echo "===FW===" && cat /sys/kernel/debug/ieee80211/phy0/mt76/fw_version 2>/dev/null',
-				'echo "===DFS===" && cat /sys/kernel/debug/ieee80211/phy0/mt76/dfs_status 2>/dev/null',
-				'for l in 0 1 2; do echo "===HOSTAPD:$l===" && hostapd_cli -i ap-mld-1 -l $l stat 2>/dev/null; done',
-				'for l in 0 1 2; do echo "===LTP:$l===" && cat /sys/kernel/debug/ieee80211/phy0/netdev:*/link-$l/txpower 2>/dev/null; done',
-				'for dev in $(iw dev 2>/dev/null | awk \'/Interface/{print $2}\'); do echo "===IFACE:$dev==="; iw dev "$dev" station dump 2>/dev/null; done'
-			].join(' && ');
+			return callIwinfoDevices().then(function(devRes) {
+				var devs = Array.isArray(devRes.devices) ? devRes.devices : [];
 
-			callExec('/bin/sh', ['-c', pollCmd]).then(function(res) {
-				var raw = (res && res.stdout) ? res.stdout : '';
-				var sections = {};
-				var curSec = null;
-				var curLines = [];
+				// Parallel queries via fast C-based RPC: iwinfo assoclist & info for all devices
+				var assocTasks = devs.map(function(d) {
+					return callIwinfoAssocList(d).then(function(r) {
+						return { device: d, clients: r.results || [] };
+					}).catch(function() {
+						return { device: d, clients: [] };
+					});
+				});
 
-				raw.split('\n').forEach(function(line) {
-					if (line.indexOf('===') === 0 && line.lastIndexOf('===') > 2) {
-						if (curSec) sections[curSec] = curLines.join('\n');
-						curSec = line.replace(/===/g, '').trim();
-						curLines = [];
-					} else {
-						curLines.push(line);
+				var infoTasks = devs.map(function(d) {
+					return callIwinfoInfo(d).then(function(r) {
+						return { device: d, info: r || {} };
+					}).catch(function() {
+						return { device: d, info: {} };
+					});
+				});
+
+				// Lightweight fallback probe for MLO links, dynamic hostapd metrics, survey and firmware
+				var shellProbe = [
+					'echo "===FW==="',
+					'dmesg 2>/dev/null | grep -iE "mt7996.*(firmware|build|rom)" | tail -n 1 | sed "s/^.*: //"',
+					'echo "===HOSTAPD==="',
+					'for s in /var/run/hostapd/*; do [ -S "$s" ] || continue; bn=$(basename "$s"); echo "---H:$bn---"; hostapd_cli -p /var/run/hostapd -i "$bn" stat 2>/dev/null; for l in 0 1 2; do lstat=$(hostapd_cli -p /var/run/hostapd -i "$bn" -l $l stat 2>/dev/null); [ -n "$lstat" ] && echo "---HL:$bn:$l---" && echo "$lstat"; done; done',
+					'echo "===SURVEY==="',
+					'for dev in $(iw dev 2>/dev/null | awk \'/Interface/{print $2}\'); do echo "---S:$dev---"; iw dev "$dev" survey dump 2>/dev/null | grep -E "frequency|channel active time|channel busy time" | head -n 12; done',
+					'echo "===STATIONS==="',
+					'for dev in $(iw dev 2>/dev/null | awk \'/Interface/{print $2}\'); do echo "===IFACE:$dev==="; iw dev "$dev" station dump 2>/dev/null; done'
+				].join('; ');
+
+				return Promise.all([
+					Promise.all(assocTasks),
+					Promise.all(infoTasks),
+					callExec('/bin/sh', ['-c', shellProbe]).catch(function() { return { stdout: '' }; })
+				]);
+			}).then(function(results) {
+				var assocListResults = results[0] || [];
+				var infoResults = results[1] || [];
+				var shellRaw = (results[2] && results[2].stdout) ? results[2].stdout : '';
+
+				var infoByDev = {};
+				infoResults.forEach(function(item) {
+					infoByDev[item.device] = item.info;
+				});
+
+				// Parse hostapd stats, surveys & stations from shell probe
+				var hostapdMap = {};
+				var curHKey = null;
+				var curHLines = [];
+				var staLines = [];
+				var fwLine = '';
+				var surveyMap = {};
+				var curSDev = null;
+				var sActive = 0, sBusy = 0;
+				var section = '';
+
+				shellRaw.split('\n').forEach(function(line) {
+					if (line.indexOf('===FW===') === 0) {
+						section = 'FW';
+						return;
+					}
+					if (line.indexOf('===HOSTAPD===') === 0) {
+						section = 'HOSTAPD';
+						return;
+					}
+					if (line.indexOf('===SURVEY===') === 0) {
+						section = 'SURVEY';
+						return;
+					}
+					if (line.indexOf('===STATIONS===') === 0 || line.indexOf('===IFACE:') === 0) {
+						section = 'STATIONS';
+						staLines.push(line);
+						return;
+					}
+
+					if (section === 'FW') {
+						if (!fwLine && line.trim()) fwLine = line.trim();
+					} else if (section === 'HOSTAPD') {
+						if (line.indexOf('---H') === 0 && line.lastIndexOf('---') > 2) {
+							if (curHKey) hostapdMap[curHKey] = parseHostapdStat(curHLines.join('\n'));
+							curHKey = line.replace(/---/g, '').trim();
+							curHLines = [];
+						} else {
+							curHLines.push(line);
+						}
+					} else if (section === 'SURVEY') {
+						if (line.indexOf('---S:') === 0) {
+							if (curSDev && sActive > 0 && sBusy >= 0) {
+								surveyMap[curSDev] = Math.round((sBusy / sActive) * 100);
+							}
+							curSDev = line.replace('---S:', '').replace(/---/g, '').trim();
+							sActive = 0; sBusy = 0;
+							return;
+						}
+						var mAct = line.match(/channel active time:\s+(\d+)/);
+						if (mAct) sActive = parseInt(mAct[1]);
+						var mBsy = line.match(/channel busy time:\s+(\d+)/);
+						if (mBsy) sBusy = parseInt(mBsy[1]);
+					} else if (section === 'STATIONS') {
+						staLines.push(line);
 					}
 				});
-				if (curSec) sections[curSec] = curLines.join('\n');
+				if (curHKey) hostapdMap[curHKey] = parseHostapdStat(curHLines.join('\n'));
+				if (curSDev && sActive > 0 && sBusy >= 0) {
+					surveyMap[curSDev] = Math.round((sBusy / sActive) * 100);
+				}
 
-				// 1. Firmware version
-				var fw = (sections['FW'] || '').trim();
+				// 1. Hardware Firmware & 5GHz DFS Status (Tab 1)
 				var fwEl = document.getElementById('wifi7-val-fw');
-				if (fwEl) fwEl.textContent = fw ? fw : 'MT7996 Firmware';
+				if (fwEl) fwEl.textContent = fwLine ? fwLine : 'MediaTek MT7996e (Kernel mac80211)';
 
-				// 2. 5GHz DFS status
-				var dfsRaw = (sections['DFS'] || '').trim();
 				var dfsEl = document.getElementById('wifi7-val-dfs');
 				if (dfsEl) {
-					if (!dfsRaw) {
-						dfsEl.textContent = _('Operating (Normal)');
-						dfsEl.style.color = '#10b981';
-					} else if (dfsRaw.indexOf('cac') !== -1) {
+					var r1Dev = devMapByName['radio1'];
+					var r1Dis = r1Dev ? !r1Dev.isUp() : (uci.get('wireless', 'radio1', 'disabled') === '1');
+					var r1Chan = parseInt((r1Dev && r1Dev.get('channel')) ? r1Dev.get('channel') : (uci.get('wireless', 'radio1', 'channel') || '0'));
+					var isDfsChan = (r1Chan >= 52 && r1Chan <= 144);
+
+					var dfsState = null;
+					Object.keys(hostapdMap).forEach(function(k) {
+						if (!dfsState && hostapdMap[k]['dfs_state'])
+							dfsState = hostapdMap[k]['dfs_state'];
+					});
+
+					if (r1Dis) {
+						dfsEl.textContent = _('Disabled');
+						dfsEl.style.color = 'inherit';
+					} else if (dfsState === 'cac' || dfsState === 'scanning') {
 						dfsEl.textContent = _('DFS CAC Scanning...');
 						dfsEl.style.color = '#f59e0b';
+					} else if (isDfsChan) {
+						dfsEl.textContent = _('Operating (CAC Passed)');
+						dfsEl.style.color = '#10b981';
+					} else if (r1Chan > 0) {
+						dfsEl.textContent = _('Non-DFS Channel (Active)');
+						dfsEl.style.color = '#10b981';
 					} else {
-						dfsEl.textContent = dfsRaw;
-						dfsEl.style.color = 'inherit';
+						dfsEl.textContent = _('Operating (Normal)');
+						dfsEl.style.color = '#10b981';
 					}
 				}
 
-				// 3. Radio Stats (Channel, Util, TxPower, Sta count)
-				for (var idx = 0; idx < 3; idx++) {
-					var hStat = parseHostapdStat(sections['HOSTAPD:' + idx] || '');
-					var utilEl = document.getElementById('wifi7-val-util-' + idx);
-					var chanEl = document.getElementById('wifi7-val-chan-' + idx);
-					var txpEl = document.getElementById('wifi7-val-txp-' + idx);
-					var staEl = document.getElementById('wifi7-val-sta-' + idx);
-
-					if (hStat['channel'] && chanEl) {
-						var bw = bwCodeMap[hStat['eht_oper_chwidth']] || (hStat['eht_oper_chwidth'] ? hStat['eht_oper_chwidth'] + ' MHz' : BANDS[idx].defBw);
-						chanEl.textContent = hStat['channel'] + ' / ' + bw;
-					}
-
-					if (utilEl) {
-						var u = parseInt(hStat['chan_util_avg']);
-						utilEl.textContent = (!isNaN(u) && u <= 100) ? u + '%' : '—';
-					}
-
-					var ltpRaw = (sections['LTP:' + idx] || '').trim();
-					if (txpEl) {
-						var val = ltpRaw || hStat['max_txpower'];
-						if (val) txpEl.textContent = val + ' dBm';
-					}
-
-					if (staEl) {
-						var nSta = hStat['num_sta[0]'] || '0';
-						staEl.textContent = nSta;
-					}
-				}
-
-				// 4. Clients table
-				var staRaw = '';
-				Object.keys(sections).forEach(function(k) {
-					if (k.indexOf('IFACE:') === 0) {
-						staRaw += '===IFACE:' + k.replace('IFACE:', '') + '===\n' + sections[k] + '\n';
-					}
-				});
-
-				var stations = parseAllStations(staRaw);
-				var allClients = [];
+				// 2. Aggregate Stations from both iwinfo and iw station dump
+				var clientsByMac = {};
+				var bandStaCounts = { 0: 0, 1: 0, 2: 0 };
 				var bandNames = { '0': '2.4 GHz', '1': '5 GHz', '2': '6 GHz' };
 
-				stations.forEach(function(sta) {
+				// Parse iw station dump (has Link 0/1/2 MLO awareness)
+				var iwStations = parseAllStations(staLines.join('\n'));
+				iwStations.forEach(function(sta) {
+					clientsByMac[sta.mac] = sta;
+				});
+
+				// Merge with iwinfo assoclist
+				assocListResults.forEach(function(item) {
+					var devName = item.device;
+					var bIdx = devName.indexOf('.1-') !== -1 ? 1 : (devName.indexOf('.2-') !== -1 ? 2 : 0);
+
+					item.clients.forEach(function(c) {
+						var mac = (c.mac || '').toLowerCase();
+						if (!mac) return;
+
+						if (!clientsByMac[mac]) {
+							clientsByMac[mac] = {
+								mac: mac,
+								iface: devName,
+								links: {},
+								signal: c.signal || null,
+								tx_rate: formatRate(c.tx_rate),
+								rx_rate: formatRate(c.rx_rate),
+								connected: c.connected_time ? c.connected_time + 's' : '—',
+								protocolBadge: formatProtocolFromIwinfo(c)
+							};
+						} else {
+							if (!clientsByMac[mac].signal && c.signal)
+								clientsByMac[mac].signal = c.signal;
+							if (!clientsByMac[mac].tx_rate && c.tx_rate)
+								clientsByMac[mac].tx_rate = formatRate(c.tx_rate);
+							if (!clientsByMac[mac].rx_rate && c.rx_rate)
+								clientsByMac[mac].rx_rate = formatRate(c.rx_rate);
+						}
+					});
+				});
+
+				// Build Client Rows (Tab 3) & Count Stations per Band (Tab 1)
+				var allClients = [];
+				Object.keys(clientsByMac).forEach(function(mac) {
+					var sta = clientsByMac[mac];
 					var activeLinks = Object.keys(sta.links || {}).filter(function(lid) {
 						var lk = sta.links[lid];
 						return lk && (!lk.idle || lk.signal !== null);
@@ -664,6 +828,10 @@ return view.extend({
 					if (activeLinks.length > 0) {
 						activeLinks.sort().forEach(function(lid) {
 							var lk = sta.links[lid];
+							var bIdx = parseInt(lid);
+							if (!isNaN(bIdx) && bandStaCounts[bIdx] !== undefined) {
+								bandStaCounts[bIdx]++;
+							}
 							var bLabel = bandNames[lid] || ('Link ' + lid);
 							var macNode = [
 								E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums;margin-right:6px' }, sta.mac),
@@ -672,7 +840,7 @@ return view.extend({
 								}, 'MLO')
 							];
 							allClients.push([
-								E('span', { 'style': 'font-weight:600' }, sta.iface + ' (' + bLabel + ')'),
+								E('span', { 'style': 'font-weight:600' }, (sta.iface || 'ap-mld') + ' (' + bLabel + ')'),
 								E('span', {}, macNode),
 								formatRateBadge(lk.tx_rate || lk.rx_rate),
 								formatSignal(lk.signal),
@@ -683,14 +851,20 @@ return view.extend({
 						});
 					} else {
 						var ifn = sta.iface || '';
-						var bLabel = ifn.indexOf('0.0') !== -1 ? '2.4 GHz' : (ifn.indexOf('0.1') !== -1 ? '5 GHz' : (ifn.indexOf('0.2') !== -1 ? '6 GHz' : ifn));
+						var bIdx = 0;
+						if (ifn.indexOf('.1-') !== -1 || ifn.indexOf('radio1') !== -1) bIdx = 1;
+						else if (ifn.indexOf('.2-') !== -1 || ifn.indexOf('radio2') !== -1) bIdx = 2;
+						else if (ifn.indexOf('.0-') !== -1 || ifn.indexOf('radio0') !== -1) bIdx = 0;
+						bandStaCounts[bIdx]++;
+
+						var bLabel = bandNames[bIdx] || ifn;
 						var macNode = [
 							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, sta.mac)
 						];
 						allClients.push([
 							E('span', { 'style': 'font-weight:600' }, ifn ? ifn + ' (' + bLabel + ')' : bLabel),
 							E('span', {}, macNode),
-							formatRateBadge(sta.tx_rate || sta.rx_rate),
+							sta.protocolBadge || formatRateBadge(sta.tx_rate || sta.rx_rate),
 							formatSignal(sta.signal),
 							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, sta.tx_rate || '—'),
 							E('span', { 'style': 'font-family:monospace;font-variant-numeric:tabular-nums' }, sta.rx_rate || '—'),
@@ -699,6 +873,75 @@ return view.extend({
 					}
 				});
 
+				// 3. Update Radio Cards (Tab 1: Channel, Utilization, TX Power, Online Stations)
+				for (var idx = 0; idx < 3; idx++) {
+					var utilEl = document.getElementById('wifi7-val-util-' + idx);
+					var chanEl = document.getElementById('wifi7-val-chan-' + idx);
+					var txpEl = document.getElementById('wifi7-val-txp-' + idx);
+					var staEl = document.getElementById('wifi7-val-sta-' + idx);
+
+					// Check hostapd stats for this band
+					var hStat = null;
+					Object.keys(hostapdMap).forEach(function(k) {
+						if (k.indexOf('HL:') === 0 && k.slice(-2) === ':' + idx) {
+							hStat = hostapdMap[k];
+						} else if (!hStat && (k.indexOf('.' + idx + '-') !== -1 || k.indexOf('radio' + idx) !== -1)) {
+							hStat = hostapdMap[k];
+						}
+					});
+
+					// Find iwinfo info for matching interface
+					var iwInfo = null;
+					Object.keys(infoByDev).forEach(function(d) {
+						if (!iwInfo && (d.indexOf('.' + idx + '-') !== -1 || d.indexOf('radio' + idx) !== -1)) {
+							iwInfo = infoByDev[d];
+						}
+					});
+
+					// Channel / Bandwidth
+					if (chanEl) {
+						var ch = (hStat && hStat['channel']) || (iwInfo && iwInfo.channel) || null;
+						var bw = null;
+						if (hStat && hStat['eht_oper_chwidth']) {
+							bw = bwCodeMap[hStat['eht_oper_chwidth']] || (hStat['eht_oper_chwidth'] + ' MHz');
+						}
+						if (ch) {
+							chanEl.textContent = ch + ' / ' + (bw || BANDS[idx].defBw);
+						}
+					}
+
+					// Channel Utilization
+					if (utilEl) {
+						var u = null;
+						if (hStat && hStat['chan_util_avg']) {
+							var parsedU = parseInt(hStat['chan_util_avg']);
+							if (!isNaN(parsedU) && parsedU <= 100) u = parsedU;
+						}
+						if (u === null) {
+							// Check survey calculation fallback
+							Object.keys(surveyMap).forEach(function(sdev) {
+								if (u === null && (sdev.indexOf('.' + idx + '-') !== -1 || sdev.indexOf('radio' + idx) !== -1)) {
+									if (surveyMap[sdev] >= 0 && surveyMap[sdev] <= 100)
+										u = surveyMap[sdev];
+								}
+							});
+						}
+						utilEl.textContent = (u !== null) ? u + '%' : '—';
+					}
+
+					// TX Power
+					if (txpEl) {
+						var pwr = (hStat && hStat['max_txpower']) || (iwInfo && iwInfo.txpower) || null;
+						if (pwr) txpEl.textContent = Math.round(parseFloat(pwr)) + ' dBm';
+					}
+
+					// Online Stations Count (Accurate Real-Time Counter)
+					if (staEl) {
+						staEl.textContent = bandStaCounts[idx] || 0;
+					}
+				}
+
+				// 4. Render Connected Clients (Tab 3)
 				var tb = document.getElementById('wifi7-client-table');
 				if (tb) {
 					cbi_update_table(tb, allClients, E('em', { 'style': 'color:#888' }, _('No connected clients')));

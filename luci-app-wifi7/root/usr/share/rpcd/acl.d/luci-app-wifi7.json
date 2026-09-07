@@ -22,7 +22,8 @@
                 "/sbin/iw":                  [ "exec" ],
                 "/bin/logread":              [ "exec" ],
                 "/sbin/logread":             [ "exec" ],
-                "/usr/sbin/logread":         [ "exec" ]
+                "/usr/sbin/logread":         [ "exec" ],
+                "/bin/dmesg":                [ "exec" ]
             },
             "ubus": {
                 "file":                [ "exec" ],

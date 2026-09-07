@@ -190,6 +190,12 @@ msgstr "5GHz DFS 状态"
 msgid "Operating (Normal)"
 msgstr "正常工作中 (已就绪)"
 
+msgid "Operating (CAC Passed)"
+msgstr "正常工作 (CAC 已通过)"
+
+msgid "Non-DFS Channel (Active)"
+msgstr "非 DFS 信道 (活跃)"
+
 msgid "DFS CAC Scanning..."
 msgstr "DFS CAC 雷达扫描静默中..."
 
