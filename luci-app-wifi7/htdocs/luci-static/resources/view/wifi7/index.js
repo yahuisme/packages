@@ -74,16 +74,25 @@ return view.extend({
 	load: function() {
 		return Promise.all([
 			network.getWifiDevices(),
+			network.getWifiNetworks(),
 			uci.load('wireless')
 		]);
 	},
 
 	render: function(data) {
 		var wifiDevs = (data && data[0]) ? data[0] : [];
+		var wifiNets = (data && data[1]) ? data[1] : [];
 		var devMapByName = {};
 		wifiDevs.forEach(function(d) {
 			if (d && typeof d.getName === 'function') {
 				devMapByName[d.getName()] = d;
+			}
+		});
+
+		var netMapBySid = {};
+		wifiNets.forEach(function(n) {
+			if (n && n.sid) {
+				netMapBySid[n.sid] = n;
 			}
 		});
 
@@ -374,21 +383,24 @@ return view.extend({
 					'style': 'padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#00c8ff;color:#000;margin-right:6px;display:inline-block'
 				}, 'MLO') : null;
 
-				// Check real device status
+				// Check real device & network status
 				var isRunning = false;
 				var realIfname = ifc.ifname || null;
-				devList.forEach(function(d) {
-					var rDev = devMapByName[d];
-					if (rDev && rDev.isUp()) {
-						var nets = rDev.getWifiNetworks();
-						(nets || []).forEach(function(wn) {
-							if (wn.sid === ifc['.name'] || wn.getIfname()) {
-								isRunning = true;
-								if (wn.getIfname()) realIfname = wn.getIfname();
-							}
-						});
-					}
-				});
+				var netInst = netMapBySid[ifc['.name']];
+
+				if (netInst) {
+					if (netInst.isUp()) isRunning = true;
+					if (netInst.getIfname()) realIfname = netInst.getIfname();
+				}
+
+				if (!isRunning) {
+					devList.forEach(function(d) {
+						var rDev = devMapByName[d];
+						if (rDev && rDev.isUp()) {
+							isRunning = true;
+						}
+					});
+				}
 
 				var ifcState = isRunning
 					? E('span', { 'class': 'badge label-success', 'style': 'font-size:11px;font-weight:600' }, _('Enabled'))
