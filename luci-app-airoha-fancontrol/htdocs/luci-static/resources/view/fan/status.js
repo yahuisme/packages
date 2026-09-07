@@ -56,9 +56,9 @@ function injectCSS() {
 
 function tempColor(temp) {
 	if (temp == null) return '#6b7280';
-	if (temp <= 40) return '#00cc44';
-	if (temp <= 55) return '#f5a623';
-	if (temp <= 70) return '#f97316';
+	if (temp <= 50) return '#00cc44';
+	if (temp <= 65) return '#f5a623';
+	if (temp <= 75) return '#f97316';
 	return '#d0021b';
 }
 

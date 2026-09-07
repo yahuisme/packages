@@ -123,12 +123,12 @@ msgstr "已解锁（全功率）"
 msgid "Up"
 msgstr "运行中"
 
-msgid "Wi-Fi 7 (MT7996)"
-msgstr "Wi-Fi 7 (MT7996)"
+msgid "WiFi 7"
+msgstr "WiFi 7"
 
 msgid "Wi-Fi 7 Multi-Link (MLO) Networks"
 msgstr "Wi-Fi 7 多链路聚合（MLO）网络"
 
 msgid "WiFi 7"
-msgstr "Wi-Fi 7"
+msgstr "WiFi 7"
 

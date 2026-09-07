@@ -121,7 +121,7 @@ msgstr ""
 msgid "Up"
 msgstr ""
 
-msgid "Wi-Fi 7 (MT7996)"
+msgid "WiFi 7"
 msgstr ""
 
 msgid "Wi-Fi 7 Multi-Link (MLO) Networks"

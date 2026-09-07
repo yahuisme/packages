@@ -68,7 +68,7 @@ return view.extend({
 		var txInfos = [ data[2], data[3], data[4] ];
 
 		var m = E('div', { 'class': 'cbi-map' }, [
-			E('h2', {}, _('Wi-Fi 7 (MT7996)')),
+			E('h2', {}, _('WiFi 7')),
 			E('div', { 'class': 'cbi-map-descr' }, _('Advanced Wi-Fi 7 management: Tri-band physical radios, MLO multi-link aggregation, and live station metrics.'))
 		]);
 

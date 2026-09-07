@@ -1,7 +1,7 @@
 {
     "admin/network/wifi7": {
         "title": "WiFi 7",
-        "order": 15,
+        "order": 17,
         "action": {
             "type": "view",
             "path": "wifi7/index"
