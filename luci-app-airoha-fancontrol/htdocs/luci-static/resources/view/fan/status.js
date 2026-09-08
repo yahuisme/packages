@@ -14,21 +14,22 @@ var HISTORY_WINDOW_MS = 2 * 60 * 1000;
 var TIME_GRID_INTERVAL_MS = 10 * 1000;
 var TIME_LABEL_INTERVAL_MS = 30 * 1000;
 var VALUE_GRID_DIVISIONS = 4;
+var HISTORY_KEY = 'airoha-fan-history-v1';
 var history = [];
 
 var themeCSS = '\
-.fan-dashboard{width:100%;font-family:system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit)}\
+.fan-dashboard{--fan-font-ui:system-ui,-apple-system,sans-serif;--fan-font-mono:ui-monospace,monospace;font-family:var(--fan-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit)}\
 .fan-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:14px}\
 .fan-summary-card,.fan-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
 .fan-summary-card{padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center}\
 .fan-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
-.fan-card-value{font-size:18px;font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,inherit)}\
+.fan-card-value{font-size:18px;font-family:var(--fan-font-mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,inherit)}\
 .fan-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
 .fan-panel{padding:14px;margin:14px 0}\
 .fan-panel-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
 .fan-chart-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}\
 .fan-chart-card{padding:10px 12px;min-width:0}\
-.fan-chart-canvas{display:block;width:100%;height:110px;margin-top:8px;background:var(--cbi-input-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
+.fan-chart-canvas{display:block;width:100%;height:110px;margin-top:8px;background:var(--fan-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
 .fan-temp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}\
 .fan-temp-group{min-width:0}\
 .fan-temp-group-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin:0 0 8px}\
@@ -36,22 +37,39 @@ var themeCSS = '\
 .fan-temp-card{padding:8px 10px;min-width:0}\
 .fan-temp-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px}\
 .fan-temp-label{font-size:12px;color:var(--cbi-text-color,inherit);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
-.fan-temp-value{font-family:monospace;font-variant-numeric:tabular-nums;font-size:14px;font-weight:600;color:var(--fan-temp-accent);white-space:nowrap}\
+.fan-temp-value{font-family:var(--fan-font-mono);font-variant-numeric:tabular-nums;font-size:14px;font-weight:600;color:var(--fan-temp-accent);white-space:nowrap}\
 .fan-temp-track{height:14px!important;min-height:14px;border-radius:999px;overflow:hidden;background:var(--cbi-border-color,#e0e0e0)}\
 .fan-temp-fill{height:100%;border-radius:inherit;background:var(--fan-temp-accent);transition:width .3s,background .3s}\
 @media(max-width:1050px){.fan-summary-grid{grid-template-columns:repeat(2,minmax(160px,1fr))}.fan-chart-grid{grid-template-columns:1fr}}\
 @media(max-width:640px){.fan-summary-grid,.fan-temp-grid{grid-template-columns:1fr}.fan-panel{padding:10px}.fan-summary-card{min-height:68px}.fan-chart-canvas{height:100px}}\
 ';
 
+var _darkMode = null;
+
+function isDarkMode() {
+	var els = [document.body, document.querySelector('.main-content'), document.querySelector('#maincontent')];
+	for (var i = 0; i < els.length; i++) {
+		if (!els[i]) continue;
+		var rgb = window.getComputedStyle(els[i]).backgroundColor.match(/\d+/g);
+		if (!rgb || rgb.length < 3) continue;
+		return (parseInt(rgb[0]) * 299 + parseInt(rgb[1]) * 587 + parseInt(rgb[2]) * 114) / 1000 < 128;
+	}
+	return false;
+}
+
 function injectCSS() {
 	var el = document.getElementById('fan-theme-css');
-	if (el) return;
 	if (!el) {
 		el = document.createElement('style');
 		el.id = 'fan-theme-css';
 		document.head.appendChild(el);
 	}
-	el.textContent = themeCSS;
+	var dark = isDarkMode();
+	if (dark === _darkMode) return;
+	_darkMode = dark;
+	el.textContent = themeCSS + (dark
+		? ':root{--fan-canvas-bg:#191919;--fan-grid:rgba(255,255,255,.12);--fan-axis:#a0a0a0}'
+		: ':root{--fan-canvas-bg:#fbfcfd;--fan-grid:rgba(80,90,100,.18);--fan-axis:#555}');
 }
 
 function tempColor(temp) {
@@ -137,6 +155,25 @@ function updateGauge(id, temp) {
 	if (fill) fill.style.width = (temp == null ? 0 : Math.min(100, Math.max(3, temp))) + '%';
 }
 
+function restoreHistory() {
+	try {
+		var saved = JSON.parse(window.localStorage.getItem(HISTORY_KEY) || '[]');
+		var cutoff = Date.now() - HISTORY_WINDOW_MS;
+		if (!Array.isArray(saved)) return;
+		history = saved.filter(function(s) {
+			return s && typeof s.time === 'number' && s.time >= cutoff;
+		});
+	} catch (e) {
+		history = [];
+	}
+}
+
+function persistHistory() {
+	try {
+		window.localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+	} catch (e) {}
+}
+
 function appendHistory(status) {
 	var now = Date.now();
 	function value(key, min, max) {
@@ -146,6 +183,7 @@ function appendHistory(status) {
 	history.push({ time: now, temperature: value('temp_board', -128, 150),
 		pwm: value('fan_pwm', 0, 255), rpm: value('fan_rpm', 0, 1350000) });
 	while (history.length && history[0].time < now - HISTORY_WINDOW_MS) history.shift();
+	persistHistory();
 }
 
 function chartScale(hist, key, minMax, step) {
@@ -169,14 +207,15 @@ function drawChart(canvas, hist, key, options) {
 	hist = hist.filter(function(sample) { return sample.time >= now - HISTORY_WINDOW_MS && sample.time <= now; });
 	var start = now - HISTORY_WINDOW_MS;
 	var maximum = chartScale(hist, key, options.minMax, options.step);
-	var minimum = Math.min(0, ...hist.filter(function(sample) { return sample[key] != null; }).map(function(sample) { return sample[key]; }));
-	var labelColor = style.color || '#666';
+	var minimum = 0;
+	var gridColor = style.getPropertyValue('--fan-grid').trim() || 'rgba(127,127,127,.24)';
+	var axisColor = style.getPropertyValue('--fan-axis').trim() || style.color || '#666';
 
 	canvas.width = Math.round(width * dpr);
 	canvas.height = Math.round(height * dpr);
 	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 	ctx.clearRect(0, 0, width, height);
-	ctx.strokeStyle = 'rgba(127,127,127,.24)';
+	ctx.strokeStyle = gridColor;
 	ctx.lineWidth = 1;
 	ctx.beginPath();
 	for (var e = 0; e <= HISTORY_WINDOW_MS; e += TIME_GRID_INTERVAL_MS) {
@@ -191,13 +230,13 @@ function drawChart(canvas, hist, key, options) {
 	}
 	ctx.stroke();
 
-	ctx.fillStyle = labelColor;
+	ctx.fillStyle = axisColor;
 	ctx.font = '10px system-ui, sans-serif';
 	ctx.textAlign = 'right';
 	ctx.textBaseline = 'top';
 	ctx.fillText(options.format(maximum), pad.left - 4, pad.top - 1);
 	ctx.textBaseline = 'middle';
-	ctx.fillText(options.format((maximum + minimum) / 2), pad.left - 4, pad.top + plotH / 2);
+	ctx.fillText(options.format(maximum / 2), pad.left - 4, pad.top + plotH / 2);
 	ctx.textBaseline = 'bottom';
 	ctx.fillText(options.format(minimum), pad.left - 4, plotB + 1);
 	for (var t = 0; t <= HISTORY_WINDOW_MS; t += TIME_LABEL_INTERVAL_MS) {
@@ -207,19 +246,38 @@ function drawChart(canvas, hist, key, options) {
 		ctx.fillText(remaining ? '-' + remaining + 's' : '0', lx, height);
 	}
 
+	if (!hist.length) return;
+	ctx.beginPath();
+	ctx.moveTo(pad.left, plotB);
+	for (var i = 0; i < hist.length; i++) {
+		var sample = hist[i];
+		var val = sample[key];
+		if (val == null || !Number.isFinite(val)) {
+			if (i > 0) ctx.lineTo(pad.left + (sample.time - start) / HISTORY_WINDOW_MS * plotW, plotB);
+		} else {
+			var x = pad.left + (sample.time - start) / HISTORY_WINDOW_MS * plotW;
+			var y = plotB - (val - minimum) / (maximum - minimum) * plotH;
+			ctx.lineTo(x, y);
+		}
+	}
+	ctx.lineTo(pad.left + (hist[hist.length - 1].time - start) / HISTORY_WINDOW_MS * plotW, plotB);
+	ctx.closePath();
+	ctx.fillStyle = options.fillColor;
+	ctx.fill();
+
 	ctx.beginPath();
 	var previous = null;
 	for (var j = 0; j < hist.length; j++) {
-		var sample = hist[j];
-		if (sample[key] == null || !Number.isFinite(sample[key])) {
+		var s = hist[j];
+		if (s[key] == null || !Number.isFinite(s[key])) {
 			previous = null;
 			continue;
 		}
-		var x = pad.left + (sample.time - start) / HISTORY_WINDOW_MS * plotW;
-		var y = plotB - (sample[key] - minimum) / (maximum - minimum) * plotH;
-		if (!previous || sample.time - previous.time > 10000) ctx.moveTo(x, y);
-		else ctx.lineTo(x, y);
-		previous = sample;
+		var px = pad.left + (s.time - start) / HISTORY_WINDOW_MS * plotW;
+		var py = plotB - (s[key] - minimum) / (maximum - minimum) * plotH;
+		if (!previous || s.time - previous.time > 10000) ctx.moveTo(px, py);
+		else ctx.lineTo(px, py);
+		previous = s;
 	}
 	ctx.strokeStyle = options.lineColor;
 	ctx.lineWidth = 1.7;
@@ -235,9 +293,10 @@ function chartCard(label, canvasId) {
 
 function drawAllCharts() {
 	if (!history.length) return;
-	drawChart(document.getElementById('fc-temp'), history, 'temperature', { minMax: 40, step: 20, lineColor: '#f97316', format: function(value) { return value + '\u00b0'; } });
-	drawChart(document.getElementById('fc-pwm'), history, 'pwm', { minMax: 100, step: 50, lineColor: '#0ea5e9', format: function(value) { return String(value); } });
-	drawChart(document.getElementById('fc-rpm'), history, 'rpm', { minMax: 1000, step: 500, lineColor: '#10b981', format: function(value) { return String(value); } });
+	injectCSS();
+	drawChart(document.getElementById('fc-temp'), history, 'temperature', { minMax: 40, step: 20, lineColor: '#f97316', fillColor: 'rgba(249,115,22,.14)', format: function(v) { return v + '\u00b0'; } });
+	drawChart(document.getElementById('fc-pwm'), history, 'pwm', { minMax: 100, step: 50, lineColor: '#0ea5e9', fillColor: 'rgba(14,165,233,.14)', format: function(v) { return String(v); } });
+	drawChart(document.getElementById('fc-rpm'), history, 'rpm', { minMax: 1000, step: 500, lineColor: '#10b981', fillColor: 'rgba(16,185,129,.14)', format: function(v) { return String(v); } });
 }
 
 function temperatureGroup(title, entries) {
@@ -254,7 +313,7 @@ return view.extend({
 
 	render: function(data) {
 		injectCSS();
-		history = [];
+		restoreHistory();
 		var status = data || {};
 		var viewEl = E('div', { 'class': 'cbi-map fan-dashboard' }, [
 			E('div', { 'class': 'cbi-map-descr' }, _('View real-time fan speed and system temperatures.')),

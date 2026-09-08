@@ -4,23 +4,43 @@
 'require uci';
 
 var settingsCSS = '\
-.fan-settings{width:100%}\
-.fan-curve-wrap{border:1px solid var(--cbi-border-color,#d0d0d0);border-radius:6px;padding:12px;background:var(--cbi-section-bg,transparent);margin-top:8px}\
-.fan-curve-canvas{display:block;width:100%;height:300px;background:var(--cbi-input-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px;box-sizing:border-box}\
+.fan-settings{--fan-font-ui:system-ui,-apple-system,sans-serif;--fan-font-mono:ui-monospace,monospace;width:100%;font-family:var(--fan-font-ui)}\
+.fan-curve-wrap{border:1px solid var(--cbi-border-color,#d0d0d0);border-radius:6px;padding:12px;background:var(--fan-canvas-bg,#fbfcfd);margin-top:8px}\
+.fan-curve-canvas{display:block;width:100%;height:300px;background:var(--fan-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px;box-sizing:border-box}\
 .fan-settings .fan-curve-section .cbi-section-node{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}\
 .fan-settings .fan-curve-section .cbi-value{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--cbi-border-color,#f0f0f0)}\
 .fan-settings .fan-curve-section .cbi-value-title{width:auto;margin:0;font-size:13px;font-weight:500}\
 .fan-settings .fan-curve-section .cbi-value-field{width:auto;margin:0}\
-.fan-settings .fan-curve-section .cbi-value-field input{width:96px!important;min-width:96px;max-width:96px;text-align:center;font-family:monospace;font-variant-numeric:tabular-nums;font-weight:600}\
+.fan-settings .fan-curve-section .cbi-value-field input{width:96px!important;min-width:96px;max-width:96px;text-align:center;font-family:var(--fan-font-mono);font-variant-numeric:tabular-nums;font-weight:600}\
 @media(max-width:760px){.fan-settings .fan-curve-section .cbi-section-node{grid-template-columns:1fr}}\
 ';
 
+var _darkMode = null;
+
+function isDarkMode() {
+	var els = [document.body, document.querySelector('.main-content'), document.querySelector('#maincontent')];
+	for (var i = 0; i < els.length; i++) {
+		if (!els[i]) continue;
+		var rgb = window.getComputedStyle(els[i]).backgroundColor.match(/\d+/g);
+		if (!rgb || rgb.length < 3) continue;
+		return (parseInt(rgb[0]) * 299 + parseInt(rgb[1]) * 587 + parseInt(rgb[2]) * 114) / 1000 < 128;
+	}
+	return false;
+}
+
 function injectCSS() {
-	if (document.getElementById('fan-settings-theme-css')) return;
-	var el = document.createElement('style');
-	el.id = 'fan-settings-theme-css';
-	el.textContent = settingsCSS;
-	document.head.appendChild(el);
+	var el = document.getElementById('fan-settings-theme-css');
+	if (!el) {
+		el = document.createElement('style');
+		el.id = 'fan-settings-theme-css';
+		document.head.appendChild(el);
+	}
+	var dark = isDarkMode();
+	if (dark === _darkMode) return;
+	_darkMode = dark;
+	el.textContent = settingsCSS + (dark
+		? ':root{--fan-canvas-bg:#191919;--fan-grid:rgba(255,255,255,.12);--fan-axis:#a0a0a0}'
+		: ':root{--fan-canvas-bg:#fbfcfd;--fan-grid:rgba(80,90,100,.18);--fan-axis:#555}');
 }
 
 function validPoints(points) {
@@ -49,8 +69,9 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
 	var height = cssH;
 	var padding = 40;
 	var style = window.getComputedStyle(canvas);
-	var grid = style.borderTopColor;
-	var axis = style.color, muted = style.color, text = style.color;
+	var grid = style.getPropertyValue('--fan-grid').trim() || style.borderTopColor;
+	var axis = style.getPropertyValue('--fan-axis').trim() || style.color;
+	var text = axis;
 	ctx.clearRect(0, 0, width, height);
 
 	ctx.strokeStyle = grid;
@@ -82,7 +103,7 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
 	ctx.fillText(_('PWM (0-255)'), 0, 0);
 	ctx.restore();
 
-	ctx.fillStyle = muted;
+	ctx.fillStyle = text;
 	ctx.font = '9px sans-serif';
 	ctx.textAlign = 'center';
 	for (var t = 0; t <= 100; t += 20) {
@@ -326,6 +347,7 @@ return view.extend({
 
 				function redrawCanvas() {
 					if (!node.isConnected) return;
+					injectCSS();
 					var preset = getCurrentPreset();
 					if (preset === 'custom') {
 						drawCurveCanvas('curve-canvas', curves, preset, readCustomPoints());
