@@ -9,7 +9,7 @@ PKG_RELEASE:=3
 
 LUCI_TITLE:=LuCI Support for WiFi 7 (MT7996)
 LUCI_DESCRIPTION:=LuCI WiFi 7 Manager with support for MLO, 6GHz, diagnostics and multi-band status.
-LUCI_DEPENDS:=+luci-base +rpcd-mod-iwinfo +iw +hostapd-cli
+LUCI_DEPENDS:=+luci-base +rpcd-mod-iwinfo +iw
 LUCI_PKGARCH:=all
 PKG_MAINTAINER:=Petr Wozniak <petr.wozniak@gmail.com>
 PKG_LICENSE:=GPL-2.0-or-later
