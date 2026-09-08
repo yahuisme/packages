@@ -21,6 +21,11 @@ var themeCSS = '\
 [data-theme="dark"],[data-dark="true"],[data-darkmode="true"],.dark-mode,:root[data-dark="true"]{--fs-canvas-bg:#191919;--fs-grid:rgba(255,255,255,.12);--fs-axis:#a0a0a0}\
 .flowsense-dashboard{--fs-font-ui:system-ui,-apple-system,sans-serif;--fs-font-mono:ui-monospace,monospace;font-family:var(--fs-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit)}\
 .flowsense-dashboard .cbi-tabmenu{margin-bottom:16px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
+.fs-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:10px;margin-bottom:14px}\
+.fs-summary-card{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center;box-sizing:border-box}\
+.fs-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
+.fs-card-value{font-size:18px;font-family:var(--fs-font-mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,inherit)}\
+.fs-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
 .fs-card-neutral{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
 .fs-chart-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:12px 14px;margin:12px 0}\
 .fs-chart-title{font-size:13px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:6px;margin-bottom:10px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
@@ -29,7 +34,16 @@ var themeCSS = '\
 .fs-chart-card .fs-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
 .fs-chart-canvas{display:block;width:100%;height:100px;margin-top:6px;background:var(--fs-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
 .flowsense-dashboard .cbi-section-node{padding:12px 14px;margin-bottom:12px}\
+.fs-iface-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,0.12))}\
+.fs-iface-title{display:flex;align-items:baseline;gap:8px}\
+.fs-iface-name{font-size:14px;font-weight:600;color:var(--cbi-text-color,inherit);font-family:var(--fs-font-mono)}\
+.fs-iface-badge{display:inline-flex;align-items:center;padding:1px 6px;font-size:11px;font-weight:500;border-radius:4px;border:1px solid var(--cbi-border-color,#e0e0e0);color:var(--cbi-muted-color,#666)}\
+.fs-badge-up{border-color:var(--cbi-success-color,#2ea44f);color:var(--cbi-success-color,#2ea44f);background:rgba(46,164,79,0.08)}\
+.fs-badge-up::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:currentColor;margin-right:4px}\
+.fs-badge-down{border-color:var(--cbi-border-color,rgba(128,128,128,0.2));color:var(--cbi-muted-color,#888);opacity:0.75}\
+@media(max-width:1050px){.fs-summary-grid{grid-template-columns:repeat(2,minmax(140px,1fr))}}\
 @media(max-width:760px){.fs-chart-grid{grid-template-columns:1fr}}\
+@media(max-width:640px){.fs-summary-grid{grid-template-columns:1fr}.fs-summary-card{min-height:68px}}\
 ';
 
 function injectCSS() {
@@ -274,6 +288,29 @@ return view.extend({
 		var hw = E('span'), sw = E('span'), counts = E('span'), ip = E('span');
 		var ping = E('span'), deviation = E('span'), loss = E('span');
 		var interfaces = E('div');
+
+		var summaryCards = {
+			rx: { val: E('span', { 'class': 'fs-card-value' }, '—'), sub: E('span', { 'class': 'fs-card-sub' }, '—') },
+			tx: { val: E('span', { 'class': 'fs-card-value' }, '—'), sub: E('span', { 'class': 'fs-card-sub' }, '—') },
+			ppe: { val: E('span', { 'class': 'fs-card-value' }, '—'), sub: E('span', { 'class': 'fs-card-sub' }, '—') },
+			quality: { val: E('span', { 'class': 'fs-card-value' }, '—'), sub: E('span', { 'class': 'fs-card-sub' }, '—') }
+		};
+
+		function renderSummaryCard(id, title, card) {
+			return E('div', { 'id': 'fs-summary-' + id, 'class': 'fs-summary-card' }, [
+				E('div', { 'class': 'fs-card-title' }, title),
+				card.val,
+				card.sub
+			]);
+		}
+
+		var summaryGrid = E('div', { 'class': 'fs-summary-grid' }, [
+			renderSummaryCard('rx', _('Total Download'), summaryCards.rx),
+			renderSummaryCard('tx', _('Total Upload'), summaryCards.tx),
+			renderSummaryCard('ppe', _('PPE Flow Engine'), summaryCards.ppe),
+			renderSummaryCard('quality', _('Network Quality'), summaryCards.quality)
+		]);
+
 		var target = E('input', { id: 'fs-target', name: 'fs-target', 'class': 'cbi-input-text', style: 'width:192px', maxlength: 253 });
 		var monitor = E('input', { id: 'fs-monitor', name: 'fs-monitor', type: 'checkbox' });
 		target.addEventListener('input', function() { dirty = true; });
@@ -290,9 +327,7 @@ return view.extend({
 		} }, _('Save & Apply'));
 		
 		var first = E('div', {}, [
-			E('div', { 'class': 'cbi-section' }, [E('h3', {}, _('Offload configuration')), metric(_('Hardware flow offload'), hw), metric(_('Software flow offload'), sw),
-				E('div', { 'class': 'cbi-section-descr' }, _('Configured switches do not prove that individual connections are offloaded.'))]),
-			E('div', { 'class': 'cbi-section' }, [E('h3', {}, _('PPE summary')), metric(_('Bound / Unbound flows'), counts), metric(_('IPv4 / IPv6 / Other'), ip)]),
+			summaryGrid,
 			E('div', { 'class': 'fs-chart-panel' }, [
 				E('div', { 'class': 'fs-chart-title' }, _('PPE Flow Trends')),
 				E('div', { 'class': 'fs-chart-grid' }, [
@@ -300,10 +335,23 @@ return view.extend({
 					chartCard(_('Unbound Flows'), 'fc-unb')
 				])
 			]),
-			E('div', { 'class': 'cbi-section' }, [E('h3', {}, _('Ethernet links')), E('div', { 'class': 'cbi-section-descr' }, _('Rates use interface counters; hardware-bypassed traffic may not be fully counted. Errors and drops are interval increments.')), interfaces]),
-			E('div', { 'class': 'cbi-section' }, [E('h3', {}, _('Link quality')), metric(_('Latest RTT'), ping), metric(_('RTT mean absolute deviation'), deviation), metric(_('Window packet loss'), loss),
+			E('div', { 'class': 'cbi-section' }, [
+				E('h3', {}, _('Ethernet links')),
+				E('div', { 'class': 'cbi-section-descr' }, _('Rates use interface counters; hardware-bypassed traffic may not be fully counted. Errors and drops are interval increments.')),
+				interfaces
+			]),
+			E('div', { 'class': 'cbi-section' }, [
+				E('h3', {}, _('Link quality')),
+				metric(_('Latest RTT'), ping),
+				metric(_('RTT mean absolute deviation'), deviation),
+				metric(_('Window packet loss'), loss),
+				metric(_('Hardware flow offload'), hw),
+				metric(_('Software flow offload'), sw),
+				metric(_('IPv4 / IPv6 / Other'), ip),
 				E('div', { 'class': 'cbi-value' }, [E('label', { 'class': 'cbi-value-title', 'for': 'fs-target' }, _('IPv4 address or hostname')), E('div', { 'class': 'cbi-value-field' }, target)]),
-				E('div', { 'class': 'cbi-value' }, [E('label', { 'class': 'cbi-value-title', 'for': 'fs-monitor' }, _('Enable periodic probes')), E('div', { 'class': 'cbi-value-field' }, monitor)]), button])
+				E('div', { 'class': 'cbi-value' }, [E('label', { 'class': 'cbi-value-title', 'for': 'fs-monitor' }, _('Enable periodic probes')), E('div', { 'class': 'cbi-value-field' }, monitor)]),
+				button
+			])
 		]);
 		var detail = E('div'), detailMessage = E('div', { 'class': 'cbi-section-descr' });
 		var pause = E('button', { 'class': 'cbi-button', click: function() { paused = !paused; pause.textContent = paused ? _('Resume') : _('Pause'); if (!paused) update(); } }, _('Pause'));
@@ -331,20 +379,32 @@ return view.extend({
 				ping.textContent = jitter ? value(jitter.last_ping, ' ms') : _('Stopped or stale');
 				deviation.textContent = jitter ? value(jitter.deviation, ' ms') : '—';
 				loss.textContent = jitter ? value(jitter.loss, '%') + ' (' + jitter.received + '/' + jitter.samples + ')' : '—';
-				
-				appendHistory(data);
-				drawAllCharts();
-				
+
+				var totalRxBps = 0, totalTxBps = 0, hasTotal = false;
 				interfaces.replaceChildren();
 				(data.interfaces || []).forEach(function(port) {
 					var before = previous && previous.ports[port.device], dt = previous ? data.uptime - previous.time : 0;
 					if (before && before.ifindex !== port.ifindex) before = null;
 					var rx = change(port.stats, before && before.stats, 'rx_bytes', dt), tx = change(port.stats, before && before.stats, 'tx_bytes', dt);
+					if (rx != null && dt > 0) { totalRxBps += rx * 8 / dt; hasTotal = true; }
+					if (tx != null && dt > 0) { totalTxBps += tx * 8 / dt; hasTotal = true; }
 					var rxRateText = rx == null ? '—' : formatMbps(rx * 8 / dt / 1000000) + ' Mbit/s';
 					var txRateText = tx == null ? '—' : formatMbps(tx * 8 / dt / 1000000) + ' Mbit/s';
+
+					var isCarrierUp = port.carrier === true;
+					var isCarrierDown = port.carrier === false;
+					var statusBadge = E('span', {
+						'class': 'fs-iface-badge' + (isCarrierUp ? ' fs-badge-up' : isCarrierDown ? ' fs-badge-down' : '')
+					}, port.carrier == null ? _('Unknown') : isCarrierUp ? _('Up') : _('Down'));
+
 					var card = E('div', { 'class': 'cbi-section-node fs-card-neutral' }, [
-						E('h4', {}, port.device),
-						metric(_('Link / Speed'), (port.carrier == null ? _('Unknown') : port.carrier ? _('Up') : _('Down')) + ' / ' + value(port.speed, ' Mbit/s')),
+						E('div', { 'class': 'fs-iface-header' }, [
+							E('div', { 'class': 'fs-iface-title' }, [
+								E('span', { 'class': 'fs-iface-name' }, port.device),
+								E('span', { style: 'font-size:12px;color:var(--cbi-muted-color,#888)' }, value(port.speed, ' Mbit/s'))
+							]),
+							statusBadge
+						]),
 						metric(_('RX / TX rate'), rxRateText + ' / ' + txRateText)
 					]);
 					['rx_errors','tx_errors','rx_dropped','tx_dropped'].forEach(function(key, i) { 
@@ -362,6 +422,26 @@ return view.extend({
 					
 					interfaces.appendChild(card);
 				});
+
+				// 更新 Summary Cards
+				summaryCards.rx.val.textContent = hasTotal ? formatMbps(totalRxBps / 1000000) + ' Mbit/s' : '—';
+				summaryCards.rx.sub.textContent = _('All interfaces combined');
+
+				summaryCards.tx.val.textContent = hasTotal ? formatMbps(totalTxBps / 1000000) + ' Mbit/s' : '—';
+				summaryCards.tx.sub.textContent = _('All interfaces combined');
+
+				summaryCards.ppe.val.textContent = ppe.available && ppe.bnd != null ? ppe.bnd + ' ' + _('Flows') : _('Unavailable');
+				summaryCards.ppe.sub.textContent = ppe.available
+					? (ppe.unb != null ? _('Unbound') + ': ' + ppe.unb : '—') + (data.configured_hw ? ' · ' + _('HW PPE') : '')
+					: _('PPE engine inactive');
+
+				summaryCards.quality.val.textContent = jitter && jitter.last_ping != null ? value(jitter.last_ping, ' ms') : '—';
+				summaryCards.quality.sub.textContent = jitter
+					? _('Loss') + ': ' + (jitter.loss != null ? jitter.loss + '%' : '0%') + (jitter.deviation != null ? ' · ±' + jitter.deviation + 'ms' : '')
+					: _('Probe inactive');
+
+				appendHistory(data);
+				drawAllCharts();
 				previous = { time: data.uptime, ports: {} }; (data.interfaces || []).forEach(function(p) { previous.ports[p.device] = p; });
 				message.textContent = _('Last update') + ': ' + new Date(data.timestamp * 1000).toLocaleTimeString();
 				if (active !== 1 || paused) return;
@@ -378,7 +458,11 @@ return view.extend({
 			}).catch(function() {
 				if (!root.isConnected) return;
 				previous = null; message.textContent = _('Data unavailable; previous readings cleared.');
-				[hw,sw,counts,ip,ping,deviation,loss].forEach(function(el) { el.textContent = '—'; }); 
+				[hw,sw,counts,ip,ping,deviation,loss].forEach(function(el) { el.textContent = '—'; });
+				summaryCards.rx.val.textContent = '—'; summaryCards.rx.sub.textContent = '—';
+				summaryCards.tx.val.textContent = '—'; summaryCards.tx.sub.textContent = '—';
+				summaryCards.ppe.val.textContent = '—'; summaryCards.ppe.sub.textContent = '—';
+				summaryCards.quality.val.textContent = '—'; summaryCards.quality.sub.textContent = '—';
 				interfaces.replaceChildren(); detail.replaceChildren(); detailMessage.textContent = _('PPE data unavailable');
 			}).finally(function() { pending = null; });
 			return pending;

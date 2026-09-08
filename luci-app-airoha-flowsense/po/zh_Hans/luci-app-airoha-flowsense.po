@@ -147,5 +147,38 @@ msgstr "等待数据"
 msgid "Window packet loss"
 msgstr "采样窗口丢包率"
 
+msgid "Total Download"
+msgstr "总下行速率"
+
+msgid "Total Upload"
+msgstr "总上行速率"
+
+msgid "PPE Flow Engine"
+msgstr "PPE 流控引擎"
+
+msgid "Network Quality"
+msgstr "链路网络质量"
+
+msgid "All interfaces combined"
+msgstr "全部网口聚合统计"
+
+msgid "Flows"
+msgstr "条流"
+
+msgid "Unbound"
+msgstr "未绑定"
+
+msgid "HW PPE"
+msgstr "硬件加速"
+
+msgid "PPE engine inactive"
+msgstr "流控引擎未就绪"
+
+msgid "Loss"
+msgstr "丢包"
+
+msgid "Probe inactive"
+msgstr "质量探测未启用"
+
 msgid "FlowSense telemetry and probe settings"
 msgstr "FlowSense telemetry and probe settings"
