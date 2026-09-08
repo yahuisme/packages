@@ -61,6 +61,9 @@ function radioLabel(radio) {
 	if (radio.channel)
 		bits.push(_('channel %s').format(radio.channel));
 
+	if (radio.disabled == '1')
+		bits.push(_('Disabled'));
+
 	return bits.join(' | ');
 }
 
@@ -74,7 +77,12 @@ function radioMap(radios) {
 }
 
 function renderBadge(label) {
-	return E('span', { 'class': 'ifacebadge' }, [ String(label ?? '') ]);
+	let cls = 'ifacebadge mlo-badge';
+	let s = String(label ?? '');
+	if (s === 'Active' || s === 'MLO' || s === 'Enabled') cls += ' mlo-badge-active';
+	else if (s === 'Verified MLD') cls += ' mlo-badge-verified';
+	else if (s === 'Disabled' || s === 'Down') cls += ' mlo-badge-disabled';
+	return E('span', { 'class': cls }, [ s ]);
 }
 
 function renderMetaLine(label, value) {
@@ -227,6 +235,13 @@ function collectSummary(runtime, radios) {
 	return summary;
 }
 
+function renderSummaryCard(title, value) {
+	return E('div', { 'class': 'mlo-summary-card' }, [
+		E('div', { 'class': 'mlo-card-title' }, [ title ]),
+		E('div', { 'class': 'mlo-card-value' }, [ value ])
+	]);
+}
+
 function renderSummaryStatus(runtime, radios) {
 	let summary = collectSummary(runtime, radios);
 	let warningNodes = summary.warnings.map(w => E('div', { 'class': 'mlo-warning-item' }, [
@@ -234,11 +249,14 @@ function renderSummaryStatus(runtime, radios) {
 		E('span', {}, w)
 	]));
 
+	let mldValue = runtime.unknown ? _('unknown') : (runtime.activeMldIfnames.join(', ') || _('none'));
+
 	return E('div', { 'data-mlo-summary-status': '' }, [
-		renderMetaLine(_('Configured radios'), String(radios.length)),
-		renderMetaLine(_('MLO-enabled'), String(summary.mloIfaces)),
-		renderMetaLine(_('Verified active MLD interfaces'), runtime.unknown ? _('unknown') :
-			(runtime.activeMldIfnames.join(', ') || _('none'))),
+		E('div', { 'class': 'mlo-summary-grid' }, [
+			renderSummaryCard(_('Configured radios'), String(radios.length)),
+			renderSummaryCard(_('MLO-enabled'), String(summary.mloIfaces)),
+			renderSummaryCard(_('Verified active MLD interfaces'), mldValue)
+		]),
 		E('div', { 'class': 'cbi-value-description mlo-hint' }, _('Runtime names and multi-radio configuration are hints, not proof of client MLO links.')),
 		warningNodes.length ? E('div', { 'class': 'mlo-warnings' }, warningNodes) : null
 	]);
@@ -261,31 +279,35 @@ function renderSectionOverview(section_id, radiosByName) {
 	let networks = uniqueValues(cfg.network);
 	let issues = [];
 
+	let allRadiosDisabled = devices.length > 0 && devices.every(dev => radiosByName[dev] && radiosByName[dev].disabled == '1');
+	let isEnabled = cfg.disabled != '1' && !allRadiosDisabled;
+
 	if (cfg.mlo == '1' && devices.length < 2)
-		issues.push(E('div', { 'style': 'margin-top:.25em;' }, _('Needs at least two radios')));
+		issues.push(E('div', { 'class': 'mlo-issue-item' }, _('Needs at least two radios')));
 
 	if (cfg.mlo == '1' && cfg.mode == 'ap' && ![ 'sae', 'sae-mixed', 'owe' ].includes(cfg.encryption))
-		issues.push(E('div', { 'style': 'margin-top:.25em;' }, _('AP MLO is usually paired with WPA3-SAE or OWE')));
+		issues.push(E('div', { 'class': 'mlo-issue-item' }, _('AP MLO is usually paired with WPA3-SAE or OWE')));
 
 	if (cfg.mlo == '1' && cfg.ifname && cfg.ifname.indexOf('mld') < 0)
-		issues.push(E('div', { 'style': 'margin-top:.25em;' }, _('Custom ifname overrides the default ap-mldX / sta-mldX naming')));
+		issues.push(E('div', { 'class': 'mlo-issue-item' }, _('Custom ifname overrides the default ap-mldX / sta-mldX naming')));
 
-		return E('div', {
-			'data-mlo-overview-section': section_id,
-			'style': 'overflow-wrap:anywhere;'
-		}, [
-			E('div', { 'style': 'margin-bottom:.2em;' }, [
+	return E('div', {
+		'class': 'mlo-panel mlo-overview-panel',
+		'data-mlo-overview-section': section_id,
+		'style': 'overflow-wrap:anywhere;'
+	}, [
+		E('div', { 'class': 'mlo-panel-header' }, [
 			renderBadge(cfg.mlo == '1' ? _('MLO') : _('Single-link')),
 			renderBadge((cfg.mode || 'ap').toUpperCase()),
-			renderBadge(cfg.disabled == '1' ? _('Disabled') : _('Enabled'))
-			]),
-			renderMetaLine(_('SSID'), cfg.ssid || E('em', _('unset'))),
-			renderMetaLine(_('Radios'), devices.length
-				? devices.map(dev => radiosByName[dev] ? radioLabel(radiosByName[dev]) : dev).join(', ')
-				: E('em', _('none'))),
-			renderMetaLine(_('Networks'), networks.length ? networks.join(', ') : E('em', _('none'))),
-			renderMetaLine(_('Security'), cfg.encryption || E('em', _('unset'))),
-			E('div', {}, issues)
+			renderBadge(isEnabled ? _('Enabled') : _('Disabled'))
+		]),
+		renderMetaLine(_('SSID'), cfg.ssid || E('em', _('unset'))),
+		renderMetaLine(_('Radios'), devices.length
+			? devices.map(dev => radiosByName[dev] ? radioLabel(radiosByName[dev]) : dev).join(', ')
+			: E('em', _('none'))),
+		renderMetaLine(_('Networks'), networks.length ? networks.join(', ') : E('em', _('none'))),
+		renderMetaLine(_('Security'), cfg.encryption || E('em', _('unset'))),
+		issues.length ? E('div', { 'class': 'mlo-issues-box' }, issues) : null
 	]);
 }
 
@@ -294,26 +316,35 @@ function renderRuntimeCell(section_id, runtime) {
 	let state = runtime.sections[section_id];
 
 	if (runtime.unknown)
-		return E('div', { 'data-mlo-runtime-section': section_id }, _('Runtime status: unknown'));
+		return E('div', {
+			'class': 'mlo-panel mlo-runtime-panel',
+			'data-mlo-runtime-section': section_id
+		}, _('Runtime status: unknown'));
 
 	if (!state) {
 		return E('div', {
+			'class': 'mlo-panel mlo-runtime-panel',
 			'data-mlo-runtime-section': section_id,
 			'style': 'overflow-wrap:anywhere;'
 		}, [
-			renderBadge(_('No runtime state')),
-			E('div', { 'style': 'margin-top:.25em;' }, _('No active interface was reported yet')),
-			cfg.mlo == '1'
-				? E('div', { 'style': 'margin-top:.25em;' }, _('Save & Apply, then verify driver support if this persists'))
-				: null
+			E('div', { 'class': 'mlo-panel-header' }, [
+				renderBadge(_('No runtime state'))
+			]),
+			E('div', { 'class': 'mlo-status-empty' }, [
+				E('div', {}, _('No active interface was reported yet')),
+				cfg.mlo == '1'
+					? E('div', { 'class': 'mlo-hint-text' }, _('Save & Apply, then verify driver support if this persists'))
+					: null
+			])
 		]);
 	}
 
 	return E('div', {
+		'class': 'mlo-panel mlo-runtime-panel',
 		'data-mlo-runtime-section': section_id,
 		'style': 'overflow-wrap:anywhere;'
 	}, [
-		E('div', { 'style': 'margin-bottom:.2em;' }, compactChildren([
+		E('div', { 'class': 'mlo-panel-header' }, compactChildren([
 			renderBadge(state.up ? _('Active') : _('Down')),
 			state.mldDetected ? renderBadge(_('Verified MLD')) : null
 		])),
@@ -574,26 +605,48 @@ return view.extend({
 		return m.render().then(function(nodes) {
 			nodes.classList.add('mlo-map');
 			nodes.appendChild(E('style', {}, `
-				.mlo-map .cbi-value.mlo-value { display:grid; grid-template-columns:minmax(7rem, 9rem) minmax(0, 1fr); gap:4px 12px; padding:6px 0; margin:0; align-items:start; }
-				.mlo-map .cbi-value.mlo-value > .cbi-value-title { flex:0 0 96px; width:96px; text-align:left; padding:0; font-weight:500; }
-				.mlo-map .cbi-value.mlo-value > .cbi-value-field { flex:1; min-width:0; overflow-wrap:anywhere; }
-				.mlo-map .ifacebadge { margin:0 8px 8px 0; font-weight:500; }
-				.mlo-map .mlo-hint { margin:8px 0; font-size:90%; opacity:0.85; }
-				.mlo-map .mlo-warnings { margin:6px 0 12px 0; display:flex; flex-direction:column; gap:4px; }
-				.mlo-map .mlo-warning-item { display:flex; align-items:flex-start; gap:6px; font-size:90%; color:var(--cbi-warning-color, #c08400); }
+				.mlo-map { --mlo-border: var(--cbi-border-color, rgba(128,128,128,0.15)); --mlo-bg: var(--cbi-section-bg, rgba(128,128,128,0.03)); }
+				.mlo-map .mlo-header-bar { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+				.mlo-map .mlo-header-bar > h3 { margin:0; }
+				.mlo-map .mlo-summary-grid { display:grid; grid-template-columns:repeat(3, minmax(180px, 1fr)); gap:12px; margin-bottom:8px; }
+				.mlo-map .mlo-summary-card { background:var(--mlo-bg); border:1px solid var(--mlo-border); border-radius:6px; padding:10px 14px; min-height:68px; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box; }
+				.mlo-map .mlo-card-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.3px; color:var(--cbi-muted-color, #666); margin-bottom:4px; }
+				.mlo-map .mlo-card-value { font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; color:var(--cbi-text-color, inherit); }
+				.mlo-map .mlo-hint { margin:8px 0; font-size:12px; opacity:0.8; }
+				.mlo-map .mlo-warnings { margin:8px 0; display:flex; flex-direction:column; gap:4px; }
+				.mlo-map .mlo-warning-item { display:flex; align-items:flex-start; gap:6px; font-size:12px; color:var(--cbi-warning-color, #c08400); }
 				.mlo-map .mlo-warning-bullet { flex-shrink:0; font-weight:600; }
-				.mlo-map .mlo-details-cell { display:flex; flex-direction:column; gap:8px; }
-				.mlo-map .mlo-cell-divider { height:1px; background:var(--cbi-border-color, rgba(128,128,128,0.15)); margin:2px 0; }
-				.modal.cbi-modal{min-width:0;width:min(720px,calc(100vw - 32px));max-width:calc(100vw - 32px)}\
-				.modal.cbi-modal .cbi-value-field{min-width:0}\
+				.mlo-map .mlo-details-cell { display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:stretch; padding:4px 0; }
+				.mlo-map .mlo-cell-divider { display:none; }
+				.mlo-map .mlo-panel { background:var(--mlo-bg); border:1px solid var(--mlo-border); border-radius:6px; padding:10px 12px; display:flex; flex-direction:column; gap:2px; box-sizing:border-box; }
+				.mlo-map .mlo-panel-header { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid var(--mlo-border); }
+				.mlo-map .mlo-badge { margin:0; padding:2px 6px; font-size:11px; font-weight:500; border-radius:4px; line-height:1.4; }
+				.mlo-map .mlo-badge-active { border-color:var(--cbi-success-color, #2ea44f); color:var(--cbi-success-color, #2ea44f); }
+				.mlo-map .mlo-badge-verified { border-color:var(--cbi-info-color, #0969da); color:var(--cbi-info-color, #0969da); }
+				.mlo-map .mlo-badge-disabled { opacity:0.6; }
+				.mlo-map .cbi-value.mlo-value { display:flex; align-items:baseline; padding:3px 0; margin:0; font-size:13px; min-height:auto; }
+				.mlo-map .cbi-value.mlo-value > .cbi-value-title { width:80px; flex:0 0 80px; text-align:left; padding:0; font-size:12px; font-weight:500; color:var(--cbi-muted-color, #666); }
+				.mlo-map .cbi-value.mlo-value > .cbi-value-field { flex:1; min-width:0; padding:0; overflow-wrap:anywhere; }
+				.mlo-map .mlo-issues-box { margin-top:6px; padding-top:6px; border-top:1px dashed var(--mlo-border); }
+				.mlo-map .mlo-issue-item { font-size:12px; color:var(--cbi-warning-color, #c08400); margin-top:2px; }
+				.mlo-map .mlo-status-empty { font-size:12px; color:var(--cbi-muted-color, #888); padding:8px 0; }
+				.mlo-map .mlo-hint-text { margin-top:4px; opacity:0.85; }
+				.modal.cbi-modal { min-width:0; width:min(720px, calc(100vw - 32px)); max-width:calc(100vw - 32px); }
+				.modal.cbi-modal .cbi-value-field { min-width:0; }
+				@media (max-width: 860px) {
+					.mlo-map .mlo-summary-grid { grid-template-columns:1fr; }
+					.mlo-map .mlo-details-cell { grid-template-columns:1fr; gap:8px; }
+				}
 			`));
 			nodes.insertBefore(E('div', { 'class': 'cbi-section' }, [
-				E('h3', {}, _('MLO Overview')),
-				renderSummaryStatus(runtime, radios),
-				E('button', {
-					'class': 'cbi-button', 'type': 'button',
-					'click': ui.createHandlerFn(null, function() { return refreshRuntime(nodes); })
-				}, _('Refresh Runtime Status'))
+				E('div', { 'class': 'mlo-header-bar' }, [
+					E('h3', {}, _('MLO Overview')),
+					E('button', {
+						'class': 'cbi-button', 'type': 'button',
+						'click': ui.createHandlerFn(null, function() { return refreshRuntime(nodes); })
+					}, _('Refresh Runtime Status'))
+				]),
+				renderSummaryStatus(runtime, radios)
 			]), nodes.firstChild);
 			poll.add(function() { return refreshRuntime(nodes); }, 5);
 			return nodes;
