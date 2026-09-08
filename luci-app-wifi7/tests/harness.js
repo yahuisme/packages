@@ -23,7 +23,8 @@ const devices=Object.keys(config).map(name=>({getName:()=>name,get:k=>config[nam
 const network={getWifiDevices:async()=>devices,getWifiNetworks:async()=>[],flushCache:async()=>{}};
 let pollFn, clientRows=[], diagnosticCalls=0; const calls=[];
 URL.createObjectURL=()=>'blob:test'; URL.revokeObjectURL=()=>{}; dom.window.HTMLAnchorElement.prototype.click=function(){};
-const rpcSource=fs.readFileSync(process.env.LUCI_RPC,'utf8');
+const rpcPath = process.env.LUCI_RPC || (process.env.LUCI_RESOURCE_DIR ? require('path').join(process.env.LUCI_RESOURCE_DIR, 'rpc.js') : null) || '/tmp/luci-upstream/modules/luci-base/htdocs/luci-static/resources/rpc.js';
+const rpcSource = fs.readFileSync(rpcPath, 'utf8');
 const upstream=new Function('baseclass','request','L',rpcSource)({extend:x=>x},{},{env:{},url:()=>'',isObject:x=>x&&typeof x==='object',raise:(...x)=>{throw Error(x.join(' '))}});
 const rpc={declare:spec=>(...args)=>new Promise((resolve,reject)=>{
  calls.push([spec.method,...args]);

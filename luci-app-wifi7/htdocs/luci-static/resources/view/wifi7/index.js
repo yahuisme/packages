@@ -98,8 +98,8 @@ return view.extend({
 			}) : [];
 			if (!r.htmode) modes.unshift('');
 			var width = select(prefix + 'width', modes, r.htmode);
-			var power = E('input', { id: prefix + 'power', name: prefix + 'power', type: 'number', min: '1', max: '30', step: '1', value: r.txpower || '', placeholder: _('Auto'), 'class': 'cbi-input-text', style: 'width:96px' });
-			var country = E('input', { id: prefix + 'country', name: prefix + 'country', value: r.country || '', maxlength: '2', pattern: '[A-Za-z0-9]{2}', placeholder: _('Auto'), 'class': 'cbi-input-text', style: 'width:96px' });
+			var power = E('input', { id: prefix + 'power', name: prefix + 'power', type: 'number', min: '1', max: '30', step: '1', value: r.txpower || '', placeholder: _('Auto'), 'class': 'cbi-input-text wifi7-narrow-input' });
+			var country = E('input', { id: prefix + 'country', name: prefix + 'country', value: r.country || '', maxlength: '2', pattern: '[A-Za-z0-9]{2}', placeholder: _('Auto'), 'class': 'cbi-input-text wifi7-narrow-input' });
 			country.addEventListener('change', function() {
 				channel.value = controls.find(function(c) { return c.id === id; }).original.channel || 'auto';
 				lockControls();
@@ -326,8 +326,8 @@ return view.extend({
 			keys.forEach(function(key) {
 				var entries = groups[key], first = entries[0], node = clientNodes[key];
 				if (!node) {
-					var summary = E('summary', { style: 'cursor:pointer;padding:8px 0' });
-					var detail = E('details', { 'class': 'cbi-section-node', 'data-client': key }, summary);
+					var summary = E('summary', { 'class': 'wifi7-client-summary' });
+					var detail = E('details', { 'class': 'cbi-section-node wifi7-client-details', 'data-client': key }, summary);
 					node = clientNodes[key] = { detail: detail, summary: summary, links: {} };
 					clients.appendChild(detail);
 				}
@@ -354,7 +354,17 @@ return view.extend({
 
 		poll.add(update, 5);
 		update();
-		return E('div', { 'class': 'cbi-map' }, [ E('style', {}, '.wifi7-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:16px}.wifi7-card{border:1px solid var(--cbi-border-color,var(--hairline,currentColor));border-radius:6px;padding:16px;min-width:0}.wifi7-card h4{margin:0 0 12px;font-weight:500}.wifi7-row{display:flex;justify-content:space-between;gap:16px;padding:6px 0}.wifi7-value{font-variant-numeric:tabular-nums;text-align:right}'), E('h2', {}, _('WiFi 7')), nav ].concat(panes));
+		return E('div', { 'class': 'cbi-map wifi7-map' }, [ E('style', {}, `
+			.wifi7-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin-bottom:16px; }
+			.wifi7-card { border:1px solid var(--cbi-border-color, var(--hairline, rgba(128,128,128,0.2))); border-radius:6px; padding:16px; min-width:0; background:var(--cbi-input-bg, transparent); }
+			.wifi7-card h4 { margin:0 0 12px; font-weight:500; }
+			.wifi7-row { display:flex; justify-content:space-between; gap:16px; padding:6px 0; }
+			.wifi7-value { font-variant-numeric:tabular-nums; text-align:right; font-weight:500; }
+			.wifi7-narrow-input { width:96px !important; }
+			.wifi7-client-details { margin-bottom:12px; border:1px solid var(--cbi-border-color, var(--hairline, rgba(128,128,128,0.2))); border-radius:6px; padding:8px 16px; }
+			.wifi7-client-summary { cursor:pointer; padding:6px 0; font-weight:500; user-select:none; outline:none; }
+			.wifi7-client-summary:focus-visible { outline:2px solid var(--cbi-primary-color, #0069d9); border-radius:4px; }
+		`), E('h2', {}, _('WiFi 7')), nav ].concat(panes));
 	},
 	handleSaveApply: null,
 	handleSave: null,
