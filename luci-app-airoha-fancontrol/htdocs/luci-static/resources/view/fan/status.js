@@ -18,6 +18,9 @@ var HISTORY_KEY = 'airoha-fan-history-v1';
 var history = [];
 
 var themeCSS = '\
+:root{--fan-canvas-bg:#fbfcfd;--fan-grid:rgba(80,90,100,.18);--fan-axis:#555}\
+@media(prefers-color-scheme:dark){:root{--fan-canvas-bg:#191919;--fan-grid:rgba(255,255,255,.12);--fan-axis:#a0a0a0}}\
+[data-theme="dark"],.dark-mode,:root[data-dark="true"]{--fan-canvas-bg:#191919;--fan-grid:rgba(255,255,255,.12);--fan-axis:#a0a0a0}\
 .fan-dashboard{--fan-font-ui:system-ui,-apple-system,sans-serif;--fan-font-mono:ui-monospace,monospace;font-family:var(--fan-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit)}\
 .fan-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:14px}\
 .fan-summary-card,.fan-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
@@ -44,32 +47,12 @@ var themeCSS = '\
 @media(max-width:640px){.fan-summary-grid,.fan-temp-grid{grid-template-columns:1fr}.fan-panel{padding:10px}.fan-summary-card{min-height:68px}.fan-chart-canvas{height:100px}}\
 ';
 
-var _darkMode = null;
-
-function isDarkMode() {
-	var els = [document.body, document.querySelector('.main-content'), document.querySelector('#maincontent')];
-	for (var i = 0; i < els.length; i++) {
-		if (!els[i]) continue;
-		var rgb = window.getComputedStyle(els[i]).backgroundColor.match(/\d+/g);
-		if (!rgb || rgb.length < 3) continue;
-		return (parseInt(rgb[0]) * 299 + parseInt(rgb[1]) * 587 + parseInt(rgb[2]) * 114) / 1000 < 128;
-	}
-	return false;
-}
-
 function injectCSS() {
-	var el = document.getElementById('fan-theme-css');
-	if (!el) {
-		el = document.createElement('style');
-		el.id = 'fan-theme-css';
-		document.head.appendChild(el);
-	}
-	var dark = isDarkMode();
-	if (dark === _darkMode) return;
-	_darkMode = dark;
-	el.textContent = themeCSS + (dark
-		? ':root{--fan-canvas-bg:#191919;--fan-grid:rgba(255,255,255,.12);--fan-axis:#a0a0a0}'
-		: ':root{--fan-canvas-bg:#fbfcfd;--fan-grid:rgba(80,90,100,.18);--fan-axis:#555}');
+	if (document.getElementById('fan-theme-css')) return;
+	var el = document.createElement('style');
+	el.id = 'fan-theme-css';
+	el.textContent = themeCSS;
+	document.head.appendChild(el);
 }
 
 function tempColor(temp) {
@@ -158,10 +141,11 @@ function updateGauge(id, temp) {
 function restoreHistory() {
 	try {
 		var saved = JSON.parse(window.localStorage.getItem(HISTORY_KEY) || '[]');
-		var cutoff = Date.now() - HISTORY_WINDOW_MS;
+		var now = Date.now();
+		var cutoff = now - HISTORY_WINDOW_MS;
 		if (!Array.isArray(saved)) return;
 		history = saved.filter(function(s) {
-			return s && typeof s.time === 'number' && s.time >= cutoff;
+			return s && typeof s.time === 'number' && s.time >= cutoff && s.time <= now;
 		});
 	} catch (e) {
 		history = [];
@@ -294,9 +278,9 @@ function chartCard(label, canvasId) {
 function drawAllCharts() {
 	if (!history.length) return;
 	injectCSS();
-	drawChart(document.getElementById('fc-temp'), history, 'temperature', { minMax: 40, step: 20, lineColor: '#f97316', fillColor: 'rgba(249,115,22,.14)', format: function(v) { return v + '\u00b0'; } });
-	drawChart(document.getElementById('fc-pwm'), history, 'pwm', { minMax: 100, step: 50, lineColor: '#0ea5e9', fillColor: 'rgba(14,165,233,.14)', format: function(v) { return String(v); } });
-	drawChart(document.getElementById('fc-rpm'), history, 'rpm', { minMax: 1000, step: 500, lineColor: '#10b981', fillColor: 'rgba(16,185,129,.14)', format: function(v) { return String(v); } });
+	drawChart(document.getElementById('fc-temp'), history, 'temperature', { minMax: 40, step: 20, lineColor: '#f97316', fillColor: 'rgba(249,115,22,.08)', format: function(v) { return v + '\u00b0'; } });
+	drawChart(document.getElementById('fc-pwm'), history, 'pwm', { minMax: 100, step: 50, lineColor: '#0ea5e9', fillColor: 'rgba(14,165,233,.08)', format: function(v) { return String(v); } });
+	drawChart(document.getElementById('fc-rpm'), history, 'rpm', { minMax: 1000, step: 500, lineColor: '#10b981', fillColor: 'rgba(16,185,129,.08)', format: function(v) { return String(v); } });
 }
 
 function temperatureGroup(title, entries) {

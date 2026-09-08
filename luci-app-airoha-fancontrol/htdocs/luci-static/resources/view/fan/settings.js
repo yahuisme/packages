@@ -4,6 +4,9 @@
 'require uci';
 
 var settingsCSS = '\
+:root{--fan-canvas-bg:#fbfcfd;--fan-grid:rgba(80,90,100,.18);--fan-axis:#555}\
+@media(prefers-color-scheme:dark){:root{--fan-canvas-bg:#191919;--fan-grid:rgba(255,255,255,.12);--fan-axis:#a0a0a0}}\
+[data-theme="dark"],.dark-mode,:root[data-dark="true"]{--fan-canvas-bg:#191919;--fan-grid:rgba(255,255,255,.12);--fan-axis:#a0a0a0}\
 .fan-settings{--fan-font-ui:system-ui,-apple-system,sans-serif;--fan-font-mono:ui-monospace,monospace;width:100%;font-family:var(--fan-font-ui)}\
 .fan-curve-wrap{border:1px solid var(--cbi-border-color,#d0d0d0);border-radius:6px;padding:12px;background:var(--fan-canvas-bg,#fbfcfd);margin-top:8px}\
 .fan-curve-canvas{display:block;width:100%;height:300px;background:var(--fan-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px;box-sizing:border-box}\
@@ -15,32 +18,12 @@ var settingsCSS = '\
 @media(max-width:760px){.fan-settings .fan-curve-section .cbi-section-node{grid-template-columns:1fr}}\
 ';
 
-var _darkMode = null;
-
-function isDarkMode() {
-	var els = [document.body, document.querySelector('.main-content'), document.querySelector('#maincontent')];
-	for (var i = 0; i < els.length; i++) {
-		if (!els[i]) continue;
-		var rgb = window.getComputedStyle(els[i]).backgroundColor.match(/\d+/g);
-		if (!rgb || rgb.length < 3) continue;
-		return (parseInt(rgb[0]) * 299 + parseInt(rgb[1]) * 587 + parseInt(rgb[2]) * 114) / 1000 < 128;
-	}
-	return false;
-}
-
 function injectCSS() {
-	var el = document.getElementById('fan-settings-theme-css');
-	if (!el) {
-		el = document.createElement('style');
-		el.id = 'fan-settings-theme-css';
-		document.head.appendChild(el);
-	}
-	var dark = isDarkMode();
-	if (dark === _darkMode) return;
-	_darkMode = dark;
-	el.textContent = settingsCSS + (dark
-		? ':root{--fan-canvas-bg:#191919;--fan-grid:rgba(255,255,255,.12);--fan-axis:#a0a0a0}'
-		: ':root{--fan-canvas-bg:#fbfcfd;--fan-grid:rgba(80,90,100,.18);--fan-axis:#555}');
+	if (document.getElementById('fan-settings-theme-css')) return;
+	var el = document.createElement('style');
+	el.id = 'fan-settings-theme-css';
+	el.textContent = settingsCSS;
+	document.head.appendChild(el);
 }
 
 function validPoints(points) {

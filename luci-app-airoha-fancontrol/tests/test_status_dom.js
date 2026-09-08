@@ -14,9 +14,9 @@ class Observer {
  disconnect() { this.disconnected = true; }
 }
 const context = {
- document, window: {devicePixelRatio: 1}, Number, Date,
+ document, window: {devicePixelRatio: 1, getComputedStyle: () => ({getPropertyValue: () => ''})}, Number, Date,
  _: value => value,
- getComputedStyle: () => ({color:'rgb(230, 230, 230)'}),
+ getComputedStyle: () => ({color:'rgb(230, 230, 230)', getPropertyValue: () => ''}),
  requestAnimationFrame: callback => frames.push(callback),
  ResizeObserver: Observer, MutationObserver: Observer,
  rpc: {declare: () => () => new Promise(resolve => { pending = resolve; })},
