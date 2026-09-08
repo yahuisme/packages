@@ -3409,3 +3409,12 @@ msgstr "指定发送 PING 帧后必须接收响应的超时时间（以秒为单
 
 msgid "If a response to the PING frame is not received within the specified timeout duration, the connection will be closed."
 msgstr "如果在指定的超时时间内未收到对 PING 帧的响应，则连接将被关闭。"
+
+msgid "Connection"
+msgstr "连接"
+
+msgid "Taobao"
+msgstr "淘宝"
+
+msgid "Unavailable"
+msgstr "不可用"

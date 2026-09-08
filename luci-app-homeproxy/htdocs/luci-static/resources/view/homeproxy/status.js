@@ -24,15 +24,101 @@ const css = '				\
 	word-break: break-all;		\
 	margin: 0;			\
 }					\
+.hp-status-grid {			\
+	display: grid;			\
+	grid-template-columns: repeat(4, minmax(0, 1fr));\
+	gap: 10px;			\
+	margin-bottom: 12px;		\
+}					\
+.hp-card {				\
+	background: var(--cbi-section-bg, transparent);\
+	border: 1px solid var(--cbi-border-color, #e0e0e0);\
+	border-radius: 6px;		\
+	padding: 10px 12px;		\
+	box-sizing: border-box;		\
+	display: flex;			\
+	flex-direction: column;		\
+	justify-content: space-between;	\
+	min-height: 74px;		\
+}					\
+.hp-card-header {			\
+	display: flex;			\
+	justify-content: space-between;	\
+	align-items: center;		\
+	margin-bottom: 6px;		\
+}					\
+.hp-card-title {			\
+	font-size: 13px;		\
+	font-weight: 600;		\
+	color: var(--cbi-text-color, inherit);\
+}					\
+.hp-card-link {				\
+	font-size: 11px;		\
+	color: var(--cbi-muted-color, #888);\
+	text-decoration: none;		\
+	overflow: hidden;		\
+	text-overflow: ellipsis;	\
+	white-space: nowrap;		\
+	max-width: 110px;		\
+}					\
+.hp-card-link:hover {			\
+	text-decoration: underline;	\
+	color: var(--cbi-link-color, #0069d9);\
+}					\
+.hp-card-body {				\
+	display: flex;			\
+	align-items: baseline;		\
+	justify-content: space-between;	\
+	gap: 8px;			\
+	margin-top: auto;		\
+}					\
+.hp-card-state {			\
+	font-size: 12px;		\
+	font-weight: 600;		\
+}					\
+.hp-card-latency {			\
+	font-size: 12px;		\
+	font-weight: 600;		\
+	font-family: ui-monospace, monospace;\
+	font-variant-numeric: tabular-nums;\
+	color: var(--cbi-text-color, inherit);\
+}					\
+.hp-badge {				\
+	display: inline-flex;		\
+	align-items: center;		\
+	padding: 2px 7px;		\
+	border-radius: 4px;		\
+	font-size: 11px;		\
+	font-weight: 600;		\
+	border: 1px solid transparent;	\
+}					\
+.hp-badge-success {			\
+	background: rgba(46,164,79,0.12);\
+	color: var(--cbi-success-color, #2ea44f);\
+	border-color: rgba(46,164,79,0.28);\
+}					\
+.hp-badge-danger {			\
+	background: rgba(218,54,51,0.12);\
+	color: var(--cbi-error-color, #da3633);\
+	border-color: rgba(218,54,51,0.28);\
+}					\
+@media (max-width: 1050px) {		\
+	.hp-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }\
+}					\
+@media (max-width: 540px) {		\
+	.hp-status-grid { grid-template-columns: 1fr; }\
+}					\
 ';
 
 const connectionSites = [
 	{ type: 'baidu', name: _('Baidu'), url: 'https://www.baidu.com/' },
 	{ type: 'bilibili', name: _('Bilibili'), url: 'https://www.bilibili.com/' },
 	{ type: 'jd', name: _('JD'), url: 'https://www.jd.com/' },
+	{ type: 'taobao', name: _('Taobao'), url: 'https://www.taobao.com/' },
 	{ type: 'google', name: _('Google'), url: 'https://www.google.com/' },
 	{ type: 'github', name: _('GitHub'), url: 'https://github.com/' },
-	{ type: 'youtube', name: _('YouTube'), url: 'https://www.youtube.com/' }
+	{ type: 'youtube', name: _('YouTube'), url: 'https://www.youtube.com/' },
+	{ type: 'cloudflare', name: _('Cloudflare'), url: 'https://www.cloudflare.com/' }
 ];
 
 const connectionTestTimeout = 10000;
@@ -46,16 +132,25 @@ function getConnectionStatus() {
 	});
 
 	const statusElements = {};
-	const table = E('div', { 'class': 'cbi-section-node' }, connectionSites.map((site) => {
-		const state = E('strong', {}, '-');
-		const latency = E('span', {}, '-');
+	const grid = E('div', { 'class': 'hp-status-grid' }, connectionSites.map((site) => {
+		const state = E('span', { 'class': 'hp-card-state', 'style': 'color:var(--cbi-muted-color,#888);' }, '-');
+		const latency = E('span', { 'class': 'hp-card-latency' }, '-');
 		statusElements[site.type] = { state, latency };
-		return E('div', { 'class': 'cbi-value' }, [
-			E('label', { 'class': 'cbi-value-title' }, site.name),
-			E('div', { 'class': 'cbi-value-field' }, [
-				E('a', { 'href': site.url, 'target': '_blank', 'rel': 'noreferrer noopener',
-					'style': 'overflow-wrap:anywhere' }, site.url),
-				E('div', {}, [ _('Connectivity'), ': ', state, ' · ', _('Latency'), ': ', latency ])
+
+		return E('div', { 'class': 'hp-card' }, [
+			E('div', { 'class': 'hp-card-header' }, [
+				E('span', { 'class': 'hp-card-title' }, site.name),
+				E('a', {
+					'class': 'hp-card-link',
+					'href': site.url,
+					'target': '_blank',
+					'rel': 'noreferrer noopener',
+					'title': site.url
+				}, site.url.replace(/^https?:\/\//, '').replace(/\/$/, ''))
+			]),
+			E('div', { 'class': 'hp-card-body' }, [
+				E('span', {}, [ _('Connection'), ': ', state ]),
+				E('span', {}, [ _('Latency'), ': ', latency ])
 			])
 		]);
 	}));
@@ -70,11 +165,11 @@ function getConnectionStatus() {
 			return;
 
 		if (result?.result) {
-			elements.state.className = 'label-success';
+			elements.state.style.color = 'var(--cbi-success-color, #2ea44f)';
 			dom.content(elements.state, _('Success'));
-			dom.content(elements.latency, _('%s ms').format(result.latency_ms));
+			dom.content(elements.latency, result.latency_ms + ' ms');
 		} else {
-			elements.state.className = 'label-danger';
+			elements.state.style.color = 'var(--cbi-error-color, #da3633)';
 			dom.content(elements.state, result?.timed_out ? _('Timed out') : _('Failed'));
 			dom.content(elements.latency, '-');
 		}
@@ -89,7 +184,7 @@ function getConnectionStatus() {
 		const currentGeneration = ++generation;
 		connectionSites.forEach((site) => {
 			const elements = statusElements[site.type];
-			elements.state.className = '';
+			elements.state.style.color = 'var(--cbi-muted-color, #888)';
 			dom.content(elements.state, _('Testing...'));
 			dom.content(elements.latency, '-');
 		});
@@ -142,8 +237,12 @@ function getConnectionStatus() {
 			_('Connection Status'),
 			testButton
 		]),
-		E('div', { 'class': 'cbi-section' }, [ table ])
+		E('div', { 'class': 'cbi-section' }, [ grid ])
 	]);
+
+	window.requestAnimationFrame(() => {
+		runAllTests();
+	});
 
 	return view;
 }
@@ -185,25 +284,28 @@ function getResources(o) {
 		(result.resources || []).forEach((resource) => {
 			status[resource.type] = resource;
 		});
-		const list = E('div', { 'class': 'cbi-section-node' }, resources.map((resource) => {
+		const list = E('div', { 'class': 'hp-status-grid' }, resources.map((resource) => {
 			const resourceStatus = status[resource.type] || {};
 			const available = resourceStatus.version;
 			const source = resourceStatus.source;
 
-			return E('div', { 'class': 'cbi-value' }, [
-				E('label', { 'class': 'cbi-value-title' }, resource.name),
-				E('div', { 'class': 'cbi-value-field' }, [
-					E('span', { 'class': available ? 'label-success' : 'label-danger' },
-						available || '-'),
-					source ? E('div', { 'style': 'margin-top:4px' }, [
-						E('a', {
-							'href': source,
-							'target': '_blank',
-							'rel': 'noreferrer noopener',
-							'style': 'overflow-wrap:anywhere;font-size:90%'
-						}, source)
-					]) : ''
-				])
+			return E('div', { 'class': 'hp-card' }, [
+				E('div', { 'class': 'hp-card-header' }, [
+					E('span', { 'class': 'hp-card-title' }, resource.name),
+					E('span', {
+						'class': 'hp-badge ' + (available ? 'hp-badge-success' : 'hp-badge-danger')
+					}, available ? ('' + available) : _('Unavailable'))
+				]),
+				source ? E('div', { 'style': 'margin-top:auto;padding-top:6px;' }, [
+					E('a', {
+						'class': 'hp-card-link',
+						'href': source,
+						'target': '_blank',
+						'rel': 'noreferrer noopener',
+						'title': source,
+						'style': 'max-width:100%;display:block;'
+					}, source.replace(/^https?:\/\//, ''))
+				]) : ''
 			]);
 		}));
 

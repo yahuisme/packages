@@ -35,10 +35,17 @@ const CBIGenValue = form.Value.extend({
 });
 
 function renderStatus(isRunning, version) {
-	return E('div', {}, [
-		E('strong', { 'class': isRunning ? 'label-success' : 'label-danger' }, [
-			_('HomeProxy Server') + ' (sing-box v' + (version || '?') + ') ' +
-			(isRunning ? _('RUNNING') : _('NOT RUNNING')) ])
+	let badgeStyle = isRunning
+		? 'display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;background:rgba(46,164,79,0.12);color:var(--cbi-success-color,#2ea44f);border:1px solid rgba(46,164,79,0.28);margin-left:8px;'
+		: 'display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;background:rgba(218,54,51,0.12);color:var(--cbi-error-color,#da3633);border:1px solid rgba(218,54,51,0.28);margin-left:8px;';
+	let dotStyle = 'display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:5px;';
+
+	return E('div', { 'style': 'display:flex;align-items:center;flex-wrap:wrap;font-size:14px;font-weight:600;margin-bottom:8px;' }, [
+		E('span', {}, _('HomeProxy Server') + ' (sing-box v' + (version || '?') + ')'),
+		E('span', { 'style': badgeStyle }, [
+			E('span', { 'style': dotStyle }),
+			isRunning ? _('RUNNING') : _('NOT RUNNING')
+		])
 	]);
 }
 

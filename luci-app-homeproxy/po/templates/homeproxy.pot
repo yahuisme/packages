@@ -3188,3 +3188,12 @@ msgstr ""
 
 msgid "If a response to the PING frame is not received within the specified timeout duration, the connection will be closed."
 msgstr ""
+
+msgid "Connection"
+msgstr ""
+
+msgid "Taobao"
+msgstr ""
+
+msgid "Unavailable"
+msgstr ""
