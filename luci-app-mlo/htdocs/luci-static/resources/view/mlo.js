@@ -228,13 +228,18 @@ function collectSummary(runtime, radios) {
 
 function renderSummaryStatus(runtime, radios) {
 	let summary = collectSummary(runtime, radios);
+	let warningNodes = summary.warnings.map(w => E('div', { 'class': 'mlo-warning-item' }, [
+		E('span', { 'class': 'mlo-warning-bullet' }, '•'),
+		E('span', {}, w)
+	]));
+
 	return E('div', { 'data-mlo-summary-status': '' }, [
 		renderMetaLine(_('Configured radios'), String(radios.length)),
 		renderMetaLine(_('MLO-enabled'), String(summary.mloIfaces)),
 		renderMetaLine(_('Active MLD candidates'), runtime.unknown ? _('unknown') :
 			(runtime.activeMldIfnames.join(', ') || _('none'))),
-		E('p', {}, _('Runtime names and multi-radio configuration are hints, not proof of client MLO links.')),
-		E('ul', {}, summary.warnings.map(w => E('li', {}, w)))
+		E('div', { 'class': 'cbi-value-description mlo-hint' }, _('Runtime names and multi-radio configuration are hints, not proof of client MLO links.')),
+		warningNodes.length ? E('div', { 'class': 'mlo-warnings' }, warningNodes) : null
 	]);
 }
 
@@ -389,8 +394,9 @@ return view.extend({
 		o = s.option(form.DummyValue, '_overview', _('Details'));
 		o.modalonly = false;
 		o.textvalue = function(section_id) {
-			return E('div', {}, [
+			return E('div', { 'class': 'mlo-details-cell' }, [
 				renderSectionOverview(section_id, radiosByName),
+				E('div', { 'class': 'mlo-cell-divider' }),
 				renderRuntimeCell(section_id, runtime)
 			]);
 		};
@@ -567,12 +573,18 @@ return view.extend({
 		return m.render().then(function(nodes) {
 			nodes.classList.add('mlo-map');
 			nodes.appendChild(E('style', {}, `
-				.mlo-value.cbi-value { display:flex; flex-wrap:wrap; gap:8px; padding:4px 0; margin:0; }
-				.mlo-value > .cbi-value-title { flex:0 0 96px; width:96px; text-align:left; padding:0; font-weight:500; }
-				.mlo-value > .cbi-value-field { flex:1; min-width:0; overflow-wrap:anywhere; }
+				.mlo-map .cbi-value.mlo-value { display:flex; flex-wrap:wrap; gap:8px; padding:4px 0; margin:0; }
+				.mlo-map .cbi-value.mlo-value > .cbi-value-title { flex:0 0 96px; width:96px; text-align:left; padding:0; font-weight:500; }
+				.mlo-map .cbi-value.mlo-value > .cbi-value-field { flex:1; min-width:0; overflow-wrap:anywhere; }
 				.mlo-map .ifacebadge { margin:0 8px 8px 0; font-weight:500; }
-				.modal:has([id^="cbid.wireless."]) { min-width:0; width:min(720px,calc(100vw - 32px)); max-width:calc(100vw - 32px); }
-				.modal:has([id^="cbid.wireless."]) .cbi-value-field { min-width:0; }
+				.mlo-map .mlo-hint { margin:8px 0; font-size:90%; opacity:0.85; }
+				.mlo-map .mlo-warnings { margin:6px 0 12px 0; display:flex; flex-direction:column; gap:4px; }
+				.mlo-map .mlo-warning-item { display:flex; align-items:flex-start; gap:6px; font-size:90%; color:var(--cbi-warning-color, #c08400); }
+				.mlo-map .mlo-warning-bullet { flex-shrink:0; font-weight:bold; }
+				.mlo-map .mlo-details-cell { display:flex; flex-direction:column; gap:8px; }
+				.mlo-map .mlo-cell-divider { height:1px; background:var(--cbi-border-color, rgba(128,128,128,0.15)); margin:2px 0; }
+				.modal[data-title] { min-width:0; width:min(720px,calc(100vw - 32px)); max-width:calc(100vw - 32px); }
+				.modal[data-title] .cbi-value-field { min-width:0; }
 			`));
 			nodes.insertBefore(E('div', { 'class': 'cbi-section' }, [
 				E('h3', {}, _('MLO Overview')),
