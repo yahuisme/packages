@@ -8,6 +8,7 @@ PKG_RELEASE:=1
 PKG_LICENSE:=Apache-2.0
 PKG_MAINTAINER:=YYH2913
 
+LUCI_PKGNAME:=luci-app-mlo
 LUCI_TITLE:=LuCI Support for Wi-Fi MLO
 LUCI_DEPENDS:=+luci-base +luci-mod-network
 LUCI_PKGARCH:=all
