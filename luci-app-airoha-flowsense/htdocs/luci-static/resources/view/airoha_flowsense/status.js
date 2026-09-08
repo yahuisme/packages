@@ -16,50 +16,38 @@ var HISTORY_KEY = 'airoha-flowsense-history-v1';
 var history = [];
 
 var themeCSS = '\
+:root{--fs-canvas-bg:#fbfcfd;--fs-grid:rgba(80,90,100,.18);--fs-axis:#555}\
+@media(prefers-color-scheme:dark){:root{--fs-canvas-bg:#191919;--fs-grid:rgba(255,255,255,.12);--fs-axis:#a0a0a0}}\
+[data-theme="dark"],.dark-mode,:root[data-dark="true"]{--fs-canvas-bg:#191919;--fs-grid:rgba(255,255,255,.12);--fs-axis:#a0a0a0}\
 .flowsense-dashboard{--fs-font-ui:system-ui,-apple-system,sans-serif;--fs-font-mono:ui-monospace,monospace;font-family:var(--fs-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit)}\
-.fs-chart-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:14px;margin:14px 0}\
-.fs-chart-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
+.flowsense-dashboard .cbi-tabmenu{margin-bottom:16px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
+.fs-card-neutral{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
+.fs-chart-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:12px 14px;margin:12px 0}\
+.fs-chart-title{font-size:13px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:6px;margin-bottom:10px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
 .fs-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}\
-.fs-chart-card{padding:10px 12px;min-width:0}\
-.fs-chart-canvas{display:block;width:100%;height:110px;margin-top:8px;background:var(--fs-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
+.fs-chart-card{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px;padding:8px 10px;min-width:0}\
+.fs-chart-card .fs-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
+.fs-chart-canvas{display:block;width:100%;height:100px;margin-top:6px;background:var(--fs-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
+.flowsense-dashboard .cbi-section-node{padding:12px 14px;margin-bottom:12px}\
 @media(max-width:760px){.fs-chart-grid{grid-template-columns:1fr}}\
 ';
 
-var _darkMode = null;
-
-function isDarkMode() {
-	var els = [document.body, document.querySelector('.main-content'), document.querySelector('#maincontent')];
-	for (var i = 0; i < els.length; i++) {
-		if (!els[i]) continue;
-		var rgb = window.getComputedStyle(els[i]).backgroundColor.match(/\d+/g);
-		if (!rgb || rgb.length < 3) continue;
-		return (parseInt(rgb[0]) * 299 + parseInt(rgb[1]) * 587 + parseInt(rgb[2]) * 114) / 1000 < 128;
-	}
-	return false;
-}
-
 function injectCSS() {
-	var el = document.getElementById('fs-theme-css');
-	if (!el) {
-		el = document.createElement('style');
-		el.id = 'fs-theme-css';
-		document.head.appendChild(el);
-	}
-	var dark = isDarkMode();
-	if (dark === _darkMode) return;
-	_darkMode = dark;
-	el.textContent = themeCSS + (dark
-		? ':root{--fs-canvas-bg:#191919;--fs-grid:rgba(255,255,255,.12);--fs-axis:#a0a0a0}'
-		: ':root{--fs-canvas-bg:#fbfcfd;--fs-grid:rgba(80,90,100,.18);--fs-axis:#555}');
+	if (document.getElementById('fs-theme-css')) return;
+	var el = document.createElement('style');
+	el.id = 'fs-theme-css';
+	el.textContent = themeCSS;
+	document.head.appendChild(el);
 }
 
 function restoreHistory() {
 	try {
 		var saved = JSON.parse(window.localStorage.getItem(HISTORY_KEY) || '[]');
-		var cutoff = Date.now() - HISTORY_WINDOW_MS;
+		var now = Date.now();
+		var cutoff = now - HISTORY_WINDOW_MS;
 		if (!Array.isArray(saved)) return;
 		history = saved.filter(function(s) {
-			return s && typeof s.time === 'number' && s.time >= cutoff;
+			return s && typeof s.time === 'number' && s.time >= cutoff && s.time <= now;
 		});
 	} catch (e) {
 		history = [];
@@ -103,7 +91,7 @@ function chartScale(hist, key, minMax, step) {
 
 function drawChart(canvas, hist, key, options) {
 	if (!canvas) return;
-	var style = getComputedStyle(canvas);
+	var style = window.getComputedStyle(canvas);
 	var width = Math.max(canvas.clientWidth, 1);
 	var height = Math.max(canvas.clientHeight, 1);
 	var dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -204,8 +192,8 @@ function chartCard(label, canvasId) {
 function drawAllCharts() {
 	if (!history.length) return;
 	injectCSS();
-	drawChart(document.getElementById('fc-bnd'), history, 'bnd', { minMax: 10, step: 10, lineColor: '#10b981', fillColor: 'rgba(16,185,129,.14)', format: function(v) { return String(v); } });
-	drawChart(document.getElementById('fc-unb'), history, 'unb', { minMax: 10, step: 10, lineColor: '#f59e0b', fillColor: 'rgba(245,158,11,.14)', format: function(v) { return String(v); } });
+	drawChart(document.getElementById('fc-bnd'), history, 'bnd', { minMax: 10, step: 10, lineColor: '#10b981', fillColor: 'rgba(16,185,129,.08)', format: function(v) { return String(v); } });
+	drawChart(document.getElementById('fc-unb'), history, 'unb', { minMax: 10, step: 10, lineColor: '#f59e0b', fillColor: 'rgba(245,158,11,.08)', format: function(v) { return String(v); } });
 	
 	// 接口吞吐率：计算增量并转换为 Mbps
 	var interfaces = {};
@@ -253,12 +241,20 @@ function drawAllCharts() {
 			});
 		}
 		
-		drawChart(rxCanvas, ifaceHist, 'rx_mbps', { minMax: 10, step: 10, lineColor: '#0ea5e9', fillColor: 'rgba(14,165,233,.14)', format: function(v) { return v.toFixed(0); } });
-		drawChart(txCanvas, ifaceHist, 'tx_mbps', { minMax: 10, step: 10, lineColor: '#10b981', fillColor: 'rgba(16,185,129,.14)', format: function(v) { return v.toFixed(0); } });
+		drawChart(rxCanvas, ifaceHist, 'rx_mbps', { minMax: 10, step: 10, lineColor: '#0ea5e9', fillColor: 'rgba(14,165,233,.08)', format: formatMbps });
+		drawChart(txCanvas, ifaceHist, 'tx_mbps', { minMax: 10, step: 10, lineColor: '#10b981', fillColor: 'rgba(16,185,129,.08)', format: formatMbps });
 	});
 }
 
 function value(v, suffix) { return v == null ? '—' : v + (suffix || ''); }
+function formatMbps(v) {
+	if (v == null || !isFinite(v)) return '—';
+	if (v === 0) return '0';
+	if (v < 0.1) return v.toFixed(3);
+	if (v < 1) return v.toFixed(2);
+	if (v < 10) return v.toFixed(1);
+	return v.toFixed(0);
+}
 function enabled(v) { return v === true ? _('Enabled') : v === false ? _('Disabled') : _('Unknown'); }
 function metric(label, node) {
 	return E('div', { 'class': 'cbi-value' }, [ E('span', { 'class': 'cbi-value-title' }, label), E('div', { 'class': 'cbi-value-field' }, node) ]);
@@ -344,10 +340,12 @@ return view.extend({
 					var before = previous && previous.ports[port.device], dt = previous ? data.uptime - previous.time : 0;
 					if (before && before.ifindex !== port.ifindex) before = null;
 					var rx = change(port.stats, before && before.stats, 'rx_bytes', dt), tx = change(port.stats, before && before.stats, 'tx_bytes', dt);
-					var card = E('div', { 'class': 'cbi-section-node' }, [
+					var rxRateText = rx == null ? '—' : formatMbps(rx * 8 / dt / 1000000) + ' Mbit/s';
+					var txRateText = tx == null ? '—' : formatMbps(tx * 8 / dt / 1000000) + ' Mbit/s';
+					var card = E('div', { 'class': 'cbi-section-node fs-card-neutral' }, [
 						E('h4', {}, port.device),
 						metric(_('Link / Speed'), (port.carrier == null ? _('Unknown') : port.carrier ? _('Up') : _('Down')) + ' / ' + value(port.speed, ' Mbit/s')),
-						metric(_('RX / TX rate'), (rx == null ? '—' : (rx * 8 / dt / 1000000).toFixed(2)) + ' / ' + (tx == null ? '—' : (tx * 8 / dt / 1000000).toFixed(2)) + ' Mbit/s')
+						metric(_('RX / TX rate'), rxRateText + ' / ' + txRateText)
 					]);
 					['rx_errors','tx_errors','rx_dropped','tx_dropped'].forEach(function(key, i) { 
 						card.appendChild(metric([_('RX errors'),_('TX errors'),_('RX drops'),_('TX drops')][i], value(change(port.stats, before && before.stats, key, dt)))); 
@@ -373,7 +371,7 @@ return view.extend({
 					if (!p.available) { detailMessage.textContent = _('PPE data unavailable'); return; }
 					detailMessage.textContent = _('Shown / Total') + ': ' + p.entries.length + ' / ' + p.total;
 					p.entries.forEach(function(entry) {
-						detail.appendChild(E('details', { 'class': 'cbi-section-node' }, [E('summary', { style: 'cursor:pointer;padding:8px 0' }, entry.index + ' · ' + entry.state + ' · ' + entry.type),
+						detail.appendChild(E('details', { 'class': 'cbi-section-node fs-card-neutral', style: 'margin-bottom:8px' }, [E('summary', { style: 'cursor:pointer;padding:8px 0' }, entry.index + ' · ' + entry.state + ' · ' + entry.type),
 							metric(_('Original Flow'), entry.orig || '—'), metric(_('New Flow'), entry.new_flow || '—')]));
 					});
 				});

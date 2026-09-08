@@ -1,9 +1,18 @@
 const fs=require('fs'),assert=require('assert'),{JSDOM}=require('jsdom');
-const document=new JSDOM('<body></body>').window.document;
+const dom=new JSDOM('<body></body>');
+const document=dom.window.document;
+const window=dom.window;
+window.getComputedStyle = () => ({ getPropertyValue: () => '' });
+dom.window.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: () => () => {}, set: () => true });
+class MockResizeObserver {
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+}
 function E(t,a={},cs=[]){let n=document.createElement(t);Object.entries(a).forEach(([k,v])=>typeof v==='function'?n.addEventListener(k,v):n.setAttribute(k,v));(Array.isArray(cs)?cs:[cs]).forEach(c=>n.append(c));return n;}
 let frame,tick,fail=false,detailCalls=0;
 const data={timestamp:1000,uptime:100,configured_hw:null,configured_sw:true,monitor:{target:'example.com',enabled:true},jitter:{last_ping:12,deviation:0,loss:0,received:10,samples:10},interfaces:[],ppe:{available:false}};
 // Synthetic fixtures: actual page behavior without network or hardware calls.
 const source=fs.readFileSync(require('path').join(__dirname,'../htdocs/luci-static/resources/view/airoha_flowsense/status.js'),'utf8');
-const app=new Function('view','rpc','poll','ui','document','E','_','requestAnimationFrame',source)({extend:x=>x},{declare:s=>()=>{if(fail)return Promise.reject(Error('offline'));if(s.method==='getPpeEntries'){detailCalls++;return Promise.resolve({available:true,total:0,entries:[]})}return Promise.resolve(data)}},{add:f=>tick=f},{},document,E,x=>x,f=>frame=f);
+const app=new Function('view','rpc','poll','ui','document','window','ResizeObserver','E','_','requestAnimationFrame',source)({extend:x=>x},{declare:s=>()=>{if(fail)return Promise.reject(Error('offline'));if(s.method==='getPpeEntries'){detailCalls++;return Promise.resolve({available:true,total:0,entries:[]})}return Promise.resolve(data)}},{add:f=>tick=f},{},document,window,MockResizeObserver,E,x=>x,f=>frame=f);
 (async()=>{document.body.append(app.render());frame();await new Promise(r=>setImmediate(r));assert.equal(detailCalls,0);assert(document.body.textContent.includes('0 ms'));assert(document.body.textContent.includes('Unknown'));assert(tick() instanceof Promise);await tick();document.querySelectorAll('a')[1].click();await new Promise(r=>setImmediate(r));assert.equal(detailCalls,1);[...document.querySelectorAll('button')].find(b=>b.textContent==='Pause').click();await tick();assert.equal(detailCalls,1);fail=true;await tick();assert(!document.body.textContent.includes('12 ms'));assert(document.body.textContent.includes('previous readings cleared'));console.log('DOM PASS: zero deviation, unknown state, Promise polling, on-demand/pause, stale clearing')})().catch(e=>{console.error(e);process.exit(1)});
