@@ -294,7 +294,7 @@ function getResources(o) {
 					E('span', { 'class': 'hp-card-title' }, resource.name),
 					E('span', {
 						'class': 'hp-badge ' + (available ? 'hp-badge-success' : 'hp-badge-danger')
-					}, available ? ('' + available) : _('Unavailable'))
+					}, [ available ? ('' + available) : _('Unavailable') ])
 				]),
 				source ? E('div', { 'style': 'margin-top:auto;padding-top:6px;' }, [
 					E('a', {

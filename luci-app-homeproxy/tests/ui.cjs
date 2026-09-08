@@ -5,7 +5,8 @@ for(const name of ['client','server']) {
  assert(!s.includes('view.innerHTML'),'status must use DOM nodes');
 }
 const s=read('htdocs/luci-static/resources/view/homeproxy/status.js');
-assert(!s.includes('setTimeout(runAllTests'), 'external tests must be opt-in');
+assert(/window\.requestAnimationFrame\(\(\) => \{\s*runAllTests\(\);\s*\}\)/.test(s), 'initial connection test must be scheduled');
+assert(s.includes('if (running)') && s.includes('testButton.disabled = true') && s.includes('testButton.disabled = false'), 'connection test must guard duplicate execution and restore button');
 assert(!s.includes('fs.read_direct'), 'log reads must be bounded at backend');
 const client=read('htdocs/luci-static/resources/view/homeproxy/client.js');
 const secret=client.slice(client.indexOf("'dashboard_secret'"),client.indexOf("'_open_dashboard'"));
