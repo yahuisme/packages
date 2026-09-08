@@ -185,31 +185,27 @@ function getResources(o) {
 		(result.resources || []).forEach((resource) => {
 			status[resource.type] = resource;
 		});
-		const table = E('table', { 'class': 'table' }, [
-			E('tr', { 'class': 'tr table-titles' }, [
-				E('th', { 'class': 'th' }, _('Name')),
-				E('th', { 'class': 'th' }, _('Version')),
-				E('th', { 'class': 'th' }, _('Source'))
-			])
-		]);
-		const rows = resources.map((resource) => {
+		const list = E('div', { 'class': 'cbi-section-node' }, resources.map((resource) => {
 			const resourceStatus = status[resource.type] || {};
 			const available = resourceStatus.version;
 			const source = resourceStatus.source;
 
-			return [
-				resource.name,
-				E('span', { 'class': available ? 'label-success' : 'label-danger' },
-					available || '-'),
-				source ? E('a', {
-					'href': source,
-					'target': '_blank',
-					'rel': 'noreferrer noopener',
-					'style': 'word-break:break-all'
-				}, source) : '-'
-			];
-		});
-		cbi_update_table(table, rows);
+			return E('div', { 'class': 'cbi-value' }, [
+				E('label', { 'class': 'cbi-value-title' }, resource.name),
+				E('div', { 'class': 'cbi-value-field' }, [
+					E('span', { 'class': available ? 'label-success' : 'label-danger' },
+						available || '-'),
+					source ? E('div', { 'style': 'margin-top:4px' }, [
+						E('a', {
+							'href': source,
+							'target': '_blank',
+							'rel': 'noreferrer noopener',
+							'style': 'overflow-wrap:anywhere;font-size:90%'
+						}, source)
+					]) : ''
+				])
+			]);
+		}));
 
 		return E('div', { 'class': 'cbi-map' }, [
 			E('h3', { 'name': 'content', 'style': 'align-items:center;display:flex' }, [
@@ -256,7 +252,7 @@ function getResources(o) {
 					})
 				}, [ _('Update all') ])
 			]),
-			E('div', { 'class': 'cbi-section' }, [ table ])
+			E('div', { 'class': 'cbi-section' }, [ list ])
 		]);
 	});
 }
