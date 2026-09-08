@@ -131,6 +131,27 @@ msgstr ""
 msgid "The required system interface is unavailable."
 msgstr ""
 
+msgid "Bound"
+msgstr ""
+
+msgid "CPU Frequency"
+msgstr ""
+
+msgid "NPU Core"
+msgstr ""
+
+msgid "Flow Offload"
+msgstr ""
+
+msgid "SoC & NPU Details"
+msgstr ""
+
+msgid "Max limit: "
+msgstr ""
+
+msgid "Hardware flow offload"
+msgstr ""
+
 msgid "Unknown"
 msgstr ""
 

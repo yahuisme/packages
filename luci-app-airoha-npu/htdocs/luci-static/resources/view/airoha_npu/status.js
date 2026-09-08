@@ -11,6 +11,27 @@ var setGovernor = rpc.declare({ object: 'luci.airoha_npu', method: 'setGovernor'
 var setFrequency = rpc.declare({ object: 'luci.airoha_npu', method: 'setMaxFreq', params: ['freq'], expect: { '': {} }, raise: true });
 var setFlow = rpc.declare({ object: 'luci.airoha_npu', method: 'setFlowOffload', params: ['enabled'], expect: { '': {} }, raise: true });
 
+var themeCSS = '\
+.npu-dashboard{--npu-font-ui:system-ui,-apple-system,sans-serif;--npu-font-mono:ui-monospace,monospace;font-family:var(--npu-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit)}\
+.npu-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:10px;margin-bottom:14px}\
+.npu-summary-card{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center;box-sizing:border-box}\
+.npu-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
+.npu-card-value{font-size:18px;font-family:var(--npu-font-mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,inherit)}\
+.npu-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.npu-dashboard .cbi-section{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:14px;margin:14px 0}\
+.npu-dashboard .cbi-section-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
+@media(max-width:1050px){.npu-summary-grid{grid-template-columns:repeat(2,minmax(140px,1fr))}}\
+@media(max-width:640px){.npu-summary-grid{grid-template-columns:1fr}.npu-summary-card{min-height:68px}}\
+';
+
+function injectCSS() {
+	if (document.getElementById('npu-theme-css')) return;
+	var el = document.createElement('style');
+	el.id = 'npu-theme-css';
+	el.textContent = themeCSS;
+	document.head.appendChild(el);
+}
+
 function text(value) { return value == null || value === '' ? _('Unknown') : String(value); }
 function frequency(value) { return typeof value === 'number' && value > 0 ? (value / 1000) + ' MHz' : _('Unknown'); }
 function governor(value) {
@@ -42,9 +63,25 @@ return view.extend({
 		}));
 	},
 	render: function(data) {
+		injectCSS();
 		var self = this, info = data[0] || {}, status = data[1] || {}, flow = data[2] || {};
 		self.active = true;
 		var metrics = {};
+		var cards = {
+			freq: { val: E('span', { 'class': 'npu-card-value' }, '—'), sub: E('span', { 'class': 'npu-card-sub' }, '—') },
+			gov:  { val: E('span', { 'class': 'npu-card-value' }, '—'), sub: E('span', { 'class': 'npu-card-sub' }, '—') },
+			npu:  { val: E('span', { 'class': 'npu-card-value' }, '—'), sub: E('span', { 'class': 'npu-card-sub' }, '—') },
+			flow: { val: E('span', { 'class': 'npu-card-value' }, '—'), sub: E('span', { 'class': 'npu-card-sub' }, '—') }
+		};
+
+		function summaryCard(id, title, card) {
+			return E('div', { id: 'npu-summary-' + id, 'class': 'npu-summary-card' }, [
+				E('div', { 'class': 'npu-card-title' }, title),
+				card.val,
+				card.sub
+			]);
+		}
+
 		function metric(id, label, value) {
 			metrics[id] = E('span', { id: 'npu-' + id, style: 'overflow-wrap:anywhere' }, text(value));
 			return row(label, metrics[id]);
@@ -75,19 +112,42 @@ return view.extend({
 		function update(s, f) {
 			if (!self.active) return;
 			s = s || {}; f = f || {};
-			metrics.current.textContent = frequency(s.cpu_cur_freq);
-			metrics.maximum.textContent = frequency(s.cpu_max_freq);
-			metrics.governor.textContent = governor(s.cpu_governor);
+			var curFreqStr = frequency(s.cpu_cur_freq);
+			var maxFreqStr = frequency(s.cpu_max_freq);
+			var govStr = governor(s.cpu_governor);
+			var npuClockStr = typeof s.npu_clock === 'number' && s.npu_clock > 0 ? (s.npu_clock / 1000000) + ' MHz' : _('Unknown');
+			var npuBoundStr = s.npu_bound === true ? _('Bound') : s.npu_bound === false ? _('Not bound') : _('Unknown');
+			var flowStr = f.enabled === true ? _('Enabled') : f.enabled === false ? _('Disabled') : _('Unknown');
+
+			metrics.current.textContent = curFreqStr;
+			metrics.maximum.textContent = maxFreqStr;
+			metrics.governor.textContent = govStr;
 			metrics.online.textContent = text(s.cpu_count);
-			metrics.clock.textContent = typeof s.npu_clock === 'number' && s.npu_clock > 0 ? (s.npu_clock / 1000000) + ' MHz' : _('Unknown');
+			metrics.clock.textContent = npuClockStr;
 			metrics.driver.textContent = s.npu_bound === true ? _('Bound (not a health check)') : s.npu_bound === false ? _('Not bound') : _('Unknown');
 			metrics.offload.textContent = f.enabled === true ? _('Enabled in firewall configuration') : f.enabled === false ? _('Disabled in firewall configuration') : _('Unknown');
+
+			cards.freq.val.textContent = curFreqStr;
+			cards.freq.sub.textContent = _('Max limit: ') + maxFreqStr;
+			cards.gov.val.textContent = govStr;
+			cards.gov.sub.textContent = s.cpu_governor ? s.cpu_governor : '—';
+			cards.npu.val.textContent = npuBoundStr;
+			cards.npu.sub.textContent = npuClockStr;
+			cards.flow.val.textContent = flowStr;
+			cards.flow.sub.textContent = _('Hardware flow offload');
 		}
 		var words = function(value) { return typeof value === 'string' ? value.trim().split(/\s+/).filter(Boolean) : []; };
-		var page = E('div', { 'class': 'cbi-map' }, [
+		var page = E('div', { 'class': 'cbi-map npu-dashboard' }, [
 			E('h2', {}, _('Airoha SoC Status')),
 			notice,
+			E('div', { 'class': 'npu-summary-grid' }, [
+				summaryCard('freq', _('CPU Frequency'), cards.freq),
+				summaryCard('gov', _('Governor'), cards.gov),
+				summaryCard('npu', _('NPU Core'), cards.npu),
+				summaryCard('flow', _('Flow Offload'), cards.flow)
+			]),
 			E('div', { 'class': 'cbi-section' }, [
+				E('h3', { 'class': 'cbi-section-title' }, _('SoC & NPU Details')),
 				metric('soc', _('SoC compatible (device tree)'), info.soc_compat),
 				metric('driver', _('NPU driver binding')),
 				metric('clock', _('NPU clock')),
@@ -100,17 +160,17 @@ return view.extend({
 				metric('offload', _('Hardware flow offloading configuration'))
 			]),
 			E('div', { 'class': 'cbi-section' }, [
-				E('h3', {}, _('Kernel CPU controls')),
-				E('p', {}, _('Only kernel-supported values are offered. The frequency limit is not a fixed clock. CPU changes last until reboot or another service changes them.')),
+				E('h3', { 'class': 'cbi-section-title' }, _('Kernel CPU controls')),
+				E('div', { 'class': 'cbi-section-descr' }, _('Only kernel-supported values are offered. The frequency limit is not a fixed clock. CPU changes last until reboot or another service changes them.')),
 				control('governor-setting', _('Governor'), words(info.governors).filter(function(v) { return /^[a-zA-Z0-9_-]+$/.test(v); }).map(function(v) { return [v, governor(v)]; }), status.cpu_governor, setGovernor),
 				control('frequency', _('Maximum CPU frequency'), words(info.frequencies).filter(function(v) { return /^[1-9][0-9]{0,9}$/.test(v); }).map(function(v) { return [v, frequency(Number(v))]; }), status.cpu_max_freq, setFrequency)
 			]),
 			E('div', { 'class': 'cbi-section' }, [
-				E('h3', {}, _('Firewall flow offloading')),
-				E('p', {}, _('Sets software and hardware flow offloading together and reloads the firewall. This may interrupt connections. Bridge filtering is not an offload switch; configure AP networking in the native network settings and follow your firmware documentation.')),
+				E('h3', { 'class': 'cbi-section-title' }, _('Firewall flow offloading')),
+				E('div', { 'class': 'cbi-section-descr' }, _('Sets software and hardware flow offloading together and reloads the firewall. This may interrupt connections. Bridge filtering is not an offload switch; configure AP networking in the native network settings and follow your firmware documentation.')),
 				control('flow', _('Hardware flow offloading'), [['0', _('Disabled')], ['1', _('Enabled')]], typeof flow.enabled === 'boolean' ? (flow.enabled ? '1' : '0') : '', setFlow),
-				E('a', { href: L.url('admin/network/network') }, _('Network settings')),
-				E('p', {}, _('Inspect PPE flows in Airoha FlowSense, if installed.'))
+				E('a', { href: L.url('admin/network/network'), style: 'display:inline-block;margin-top:8px' }, _('Network settings')),
+				E('div', { 'class': 'cbi-section-descr', style: 'margin-top:6px' }, _('Inspect PPE flows in Airoha FlowSense, if installed.'))
 			])
 		]);
 		update(status, flow);

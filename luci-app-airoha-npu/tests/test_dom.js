@@ -16,7 +16,8 @@ const status = {cpu_cur_freq:500000,cpu_max_freq:1200000,cpu_min_freq:500000,cpu
 const info = {soc_compat:'airoha,test', governors:'schedutil performance',frequencies:'500000 1200000 1400000'};
 const declarations=[];
 // Evaluate trusted local LuCI source, never downloaded/user-provided expressions.
-const upstreamSource=fs.readFileSync(process.env.LUCI_RPC, 'utf8');
+const rpcSourcePath = process.env.LUCI_RPC || ('/root/wifi7-audit-evidence/rpc.js');
+const upstreamSource=fs.readFileSync(rpcSourcePath, 'utf8');
 const start=upstreamSource.indexOf('handleCallReply(req, msg) {');
 const end=upstreamSource.indexOf('\n\t},',start)+4;
 const handler=new Function('L','return ({'+upstreamSource.slice(start,end)+'}).handleCallReply')({isObject:x=>x!==null&&typeof x==='object',raise:()=>{throw Error('RPC failure');}});

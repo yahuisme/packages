@@ -132,6 +132,27 @@ msgstr "请求的值无效或不受内核支持。"
 msgid "The required system interface is unavailable."
 msgstr "所需的系统接口不可用。"
 
+msgid "Bound"
+msgstr "已绑定"
+
+msgid "CPU Frequency"
+msgstr "CPU 频率"
+
+msgid "NPU Core"
+msgstr "NPU 核心"
+
+msgid "Flow Offload"
+msgstr "流量卸载"
+
+msgid "SoC & NPU Details"
+msgstr "SoC 与 NPU 详情"
+
+msgid "Max limit: "
+msgstr "上限限制："
+
+msgid "Hardware flow offload"
+msgstr "硬件流量卸载"
+
 msgid "Unknown"
 msgstr "未知"
 

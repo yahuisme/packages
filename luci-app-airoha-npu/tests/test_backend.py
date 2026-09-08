@@ -11,6 +11,9 @@ import unittest
 PACKAGE = Path(__file__).resolve().parents[1]
 BACKEND = PACKAGE / 'root/usr/libexec/rpcd/luci.airoha_npu'
 
+DEFAULT_UCI = os.environ.get('UCI_BIN') or ('/root/wifi7-audit-evidence/uci-test-source/uci' if Path('/root/wifi7-audit-evidence/uci-test-source/uci').exists() else 'uci')
+DEFAULT_JSONFILTER = os.environ.get('JSONFILTER_BIN') or ('/root/flowsense-audit/jsonfilter' if Path('/root/flowsense-audit/jsonfilter').exists() else 'jsonfilter')
+
 class Backend(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -20,7 +23,8 @@ class Backend(unittest.TestCase):
         self.policy.mkdir(parents=True)
         (self.root / 'var/lock').mkdir(parents=True)
         self.env = dict(os.environ, NPU_ROOT=str(self.root),
-                        NPU_JSONFILTER=os.environ.get('JSONFILTER_BIN', 'jsonfilter'))
+                        NPU_JSONFILTER=DEFAULT_JSONFILTER,
+                        NPU_UCI=DEFAULT_UCI)
         for name, value in {'scaling_available_governors': 'performance powersave schedutil',
                             'scaling_governor': 'schedutil',
                             'scaling_available_frequencies': '500000 1200000 1400000',
@@ -75,7 +79,7 @@ class Backend(unittest.TestCase):
         reload = self.root / 'reload'
         reload.write_text('#!/bin/sh\nexit 0\n')
         reload.chmod(0o755)
-        self.env.update(NPU_UCI=os.environ.get('UCI_BIN', 'uci'), NPU_FIREWALL=str(reload))
+        self.env.update(NPU_UCI=DEFAULT_UCI, NPU_FIREWALL=str(reload))
         self.assertEqual(self.call('getFlowOffload')['enabled'], False)
         self.assertEqual(self.call('setFlowOffload', {'enabled': '1'}).get('result'), 'ok')
         self.assertEqual(self.call('getFlowOffload')['enabled'], True)
