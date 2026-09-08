@@ -373,6 +373,7 @@ return view.extend({
 		let refreshRuntime;
 
 		m = new form.Map('wireless', _('Wi-Fi MLO'));
+		m.description = _('Wi-Fi 7 (802.11be) Multi-Link Operation');
 		m.chain('network');
 
 		s = m.section(form.GridSection, 'wifi-iface', _('Wireless Interfaces'));
@@ -609,7 +610,7 @@ return view.extend({
 				.mlo-map .mlo-header-bar { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
 				.mlo-map .mlo-header-bar > h3 { margin:0; }
 				.mlo-map .mlo-summary-grid { display:grid; grid-template-columns:repeat(3, minmax(180px, 1fr)); gap:12px; margin-bottom:8px; }
-				.mlo-map .mlo-summary-card { background:var(--mlo-bg); border:1px solid var(--mlo-border); border-radius:6px; padding:10px 14px; min-height:76px; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box; }
+				.mlo-map .mlo-summary-card { background:var(--mlo-bg); border:1px solid var(--mlo-border); border-radius:6px; padding:10px 14px; min-height:76px; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box; line-height:1.5; }
 				.mlo-map .mlo-card-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.3px; color:var(--cbi-muted-color, #666); margin-bottom:4px; }
 				.mlo-map .mlo-card-value { font-size:18px; font-weight:600; font-variant-numeric:tabular-nums; color:var(--cbi-text-color, inherit); }
 				.mlo-map .mlo-hint { margin:8px 0; font-size:12px; opacity:0.8; }
@@ -642,7 +643,7 @@ return view.extend({
 					.mlo-map .cbi-value.mlo-value > .cbi-value-title { width:auto; flex:none; }
 				}
 			`));
-			nodes.insertBefore(E('div', { 'class': 'cbi-section' }, [
+			let overview = E('div', { 'class': 'cbi-section' }, [
 				E('div', { 'class': 'mlo-header-bar' }, [
 					E('h3', {}, _('MLO Overview')),
 					E('button', {
@@ -651,7 +652,8 @@ return view.extend({
 					}, _('Refresh Runtime Status'))
 				]),
 				renderSummaryStatus(runtime, radios)
-			]), nodes.firstChild);
+			]);
+			nodes.insertBefore(overview, nodes.firstChild);
 			poll.add(function() { return refreshRuntime(nodes); }, 5);
 			return nodes;
 		});

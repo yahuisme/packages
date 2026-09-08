@@ -110,7 +110,6 @@ msgstr ""
 msgid "Signal"
 msgstr ""
 
-msgid "Some telemetry is unavailable. Unknown values are not zero."
 msgstr ""
 
 msgid "Standard / Bandwidth"

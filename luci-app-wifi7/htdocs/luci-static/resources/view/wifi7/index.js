@@ -312,7 +312,7 @@ return view.extend({
 				var state = telemetry.dfs(parsed.hostapd);
 				var remaining = parsed.hostapd.filter(function(h) { return telemetry.band(h.freq) === '5g' && h.state === 'DFS'; }).map(function(h) { return /^\d+$/.test(h.cac_time_left_seconds || '') ? Number(h.cac_time_left_seconds) : null; });
 				dfs.textContent = state === 'cac' ? _('DFS CAC in progress') + (remaining.length && remaining.every(function(n) { return n !== null; }) ? ' · ' + _('%d seconds remaining').format(Math.max.apply(null, remaining)) : '') : state === 'active' ? _('Operating') : _('Unknown');
-				notice.textContent = anyFailed || !anyKnown ? _('Some telemetry is unavailable. Unknown values are not zero.') : '';
+				notice.textContent = '';
 				clientCache = { rows: rows, empty: anyKnown && !anyFailed ? _('No connected clients') : _('Client data unavailable') };
 				if (activeTab === 2) renderClients();
 			}).catch(function() {

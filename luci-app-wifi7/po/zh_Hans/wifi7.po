@@ -112,8 +112,6 @@ msgstr "保存并应用"
 msgid "Signal"
 msgstr "信号强度"
 
-msgid "Some telemetry is unavailable. Unknown values are not zero."
-msgstr "部分运行数据无法获取，未知数据不代表零。"
 
 msgid "Standard / Bandwidth"
 msgstr "协议 / 频宽"

@@ -235,6 +235,9 @@ msgstr "WPA3-SAE"
 msgid "WPA3-SAE with required Management Frame Protection is recommended for MLO."
 msgstr "建议使用 WPA3-SAE，并将管理帧保护设为“必需”。"
 
+msgid "Wi-Fi 7 (802.11be) Multi-Link Operation"
+msgstr "Wi-Fi 7 (802.11be) 多重连接模式"
+
 msgid "Wi-Fi MLO"
 msgstr "MLO"
 
