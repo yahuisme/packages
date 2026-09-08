@@ -138,7 +138,7 @@ function getConnectionStatus() {
 	}, [ _('Test all') ]);
 
 	const view = E('div', { 'class': 'cbi-map' }, [
-		E('h3', { 'name': 'content', 'style': 'align-items:center;display:flex' }, [
+		E('h3', { 'name': 'content', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;' }, [
 			_('Connection Status'),
 			testButton
 		]),
@@ -208,11 +208,10 @@ function getResources(o) {
 		}));
 
 		return E('div', { 'class': 'cbi-map' }, [
-			E('h3', { 'name': 'content', 'style': 'align-items:center;display:flex' }, [
+			E('h3', { 'name': 'content', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;' }, [
 				_('Resource Management'),
 				E('button', {
 					'class': 'btn cbi-button cbi-button-action',
-					'style': 'margin-left:4px',
 					'click': ui.createHandlerFn(this, () => {
 						return L.resolveDefault(callResUpdate(), {}).then((res) => {
 							let message, severity = 'info';
@@ -353,16 +352,17 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 	return E([
 		E('style', [ css ]),
 		E('div', {'class': 'cbi-map'}, [
-			E('h3', {'name': 'content', 'style': 'align-items: center; display: flex;'}, [
+			E('h3', {'name': 'content', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;'}, [
 				_('%s Log').format(name),
-				log_level_el || '',
-				E('button', {
-					'class': 'btn cbi-button cbi-button-action',
-					'style': 'margin-left: 4px;',
-					'click': ui.createHandlerFn(this, () => {
-						return L.resolveDefault(callLogClean(filename), {});
-					})
-				}, [ _('Clean log') ])
+				E('div', {'style': 'display:flex;align-items:center;gap:6px;'}, [
+					log_level_el || '',
+					E('button', {
+						'class': 'btn cbi-button cbi-button-action',
+						'click': ui.createHandlerFn(this, () => {
+							return L.resolveDefault(callLogClean(filename), {});
+						})
+					}, [ _('Clean log') ])
+				])
 			]),
 			E('div', {'class': 'cbi-section'}, [
 				log_textarea,

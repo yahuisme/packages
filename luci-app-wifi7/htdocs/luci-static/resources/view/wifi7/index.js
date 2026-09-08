@@ -403,6 +403,16 @@ return view.extend({
 			.wifi7-link-box:not(:last-child) { border-bottom:1px dashed var(--cbi-border-color, rgba(128,128,128,0.12)); }
 			.wifi7-link-label { font-size:12px; font-weight:600; color:var(--cbi-muted-color, #888); margin-bottom:4px; }
 			.wifi7-link-box .wifi7-row { max-width:640px; }
+			@media (max-width: 640px) {
+				.wifi7-grid { grid-template-columns:1fr; gap:12px; }
+				.wifi7-card { padding:12px 14px; }
+				.wifi7-settings-card { padding:12px 14px; }
+				.wifi7-system-info { padding:10px 14px; }
+				.wifi7-info-row { flex-direction:column; align-items:flex-start; gap:4px; }
+				.wifi7-info-label { width:auto; flex:none; }
+				.wifi7-save-bar { justify-content:stretch; }
+				.wifi7-save-bar .cbi-button { width:100%; }
+			}
 		`), E('h2', {}, _('WiFi 7')), nav ].concat(panes));
 	},
 	handleSaveApply: null,

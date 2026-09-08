@@ -637,6 +637,10 @@ return view.extend({
 					.mlo-map .mlo-summary-grid { grid-template-columns:1fr; }
 					.mlo-map .mlo-details-cell { grid-template-columns:1fr; gap:8px; }
 				}
+				@media (max-width: 540px) {
+					.mlo-map .cbi-value.mlo-value { flex-direction:column; align-items:flex-start; gap:2px; }
+					.mlo-map .cbi-value.mlo-value > .cbi-value-title { width:auto; flex:none; }
+				}
 			`));
 			nodes.insertBefore(E('div', { 'class': 'cbi-section' }, [
 				E('div', { 'class': 'mlo-header-bar' }, [
