@@ -256,3 +256,21 @@ msgstr ""
 
 msgid "unset"
 msgstr ""
+
+msgid "%d interface(s) total"
+msgstr ""
+
+msgid "Multi-radio ready"
+msgstr ""
+
+msgid "No active MLD link"
+msgstr ""
+
+msgid "No wireless interfaces"
+msgstr ""
+
+msgid "Runtime status unavailable"
+msgstr ""
+
+msgid "Verified kernel MLD"
+msgstr ""

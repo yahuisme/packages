@@ -258,3 +258,21 @@ msgstr "未知"
 
 msgid "unset"
 msgstr "未设置"
+
+msgid "%d interface(s) total"
+msgstr "共 %d 个接口"
+
+msgid "Multi-radio ready"
+msgstr "多射频就绪"
+
+msgid "No active MLD link"
+msgstr "无活动 MLD 链路"
+
+msgid "No wireless interfaces"
+msgstr "无无线接口"
+
+msgid "Runtime status unavailable"
+msgstr "运行时状态不可用"
+
+msgid "Verified kernel MLD"
+msgstr "内核已验证 MLD"

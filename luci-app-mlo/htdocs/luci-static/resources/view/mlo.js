@@ -235,10 +235,11 @@ function collectSummary(runtime, radios) {
 	return summary;
 }
 
-function renderSummaryCard(title, value) {
+function renderSummaryCard(title, value, sub) {
 	return E('div', { 'class': 'mlo-summary-card' }, [
 		E('div', { 'class': 'mlo-card-title' }, [ title ]),
-		E('div', { 'class': 'mlo-card-value' }, [ value ])
+		E('div', { 'class': 'mlo-card-value' }, [ value ]),
+		E('div', { 'class': 'mlo-card-sub' }, [ sub || '—' ])
 	]);
 }
 
@@ -250,12 +251,15 @@ function renderSummaryStatus(runtime, radios) {
 	]));
 
 	let mldValue = runtime.unknown ? _('unknown') : (runtime.activeMldIfnames.join(', ') || _('none'));
+	let mldSub = runtime.unknown ? _('Runtime status unavailable') : (runtime.activeMldIfnames.length ? _('Verified kernel MLD') : _('No active MLD link'));
+	let ifaceSub = summary.totalIfaces ? _('%d interface(s) total').format(summary.totalIfaces) : _('No wireless interfaces');
+	let radioSub = radios.length >= 2 ? _('Multi-radio ready') : _('Needs at least two radios');
 
 	return E('div', { 'data-mlo-summary-status': '' }, [
 		E('div', { 'class': 'mlo-summary-grid' }, [
-			renderSummaryCard(_('Configured radios'), String(radios.length)),
-			renderSummaryCard(_('MLO-enabled'), String(summary.mloIfaces)),
-			renderSummaryCard(_('Verified active MLD interfaces'), mldValue)
+			renderSummaryCard(_('Configured radios'), String(radios.length), radioSub),
+			renderSummaryCard(_('MLO-enabled'), String(summary.mloIfaces), ifaceSub),
+			renderSummaryCard(_('Verified active MLD interfaces'), mldValue, mldSub)
 		]),
 		E('div', { 'class': 'cbi-value-description mlo-hint' }, _('Runtime names and multi-radio configuration are hints, not proof of client MLO links.')),
 		warningNodes.length ? E('div', { 'class': 'mlo-warnings' }, warningNodes) : null
@@ -610,9 +614,10 @@ return view.extend({
 				.mlo-map .mlo-header-bar { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
 				.mlo-map .mlo-header-bar > h3 { margin:0; }
 				.mlo-map .mlo-summary-grid { display:grid; grid-template-columns:repeat(3, minmax(180px, 1fr)); gap:12px; margin-bottom:8px; }
-				.mlo-map .mlo-summary-card { background:var(--mlo-bg); border:1px solid var(--mlo-border); border-radius:6px; padding:10px 14px; min-height:76px; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box; line-height:1.5; }
+				.mlo-map .mlo-summary-card { background:var(--mlo-bg); border:1px solid var(--mlo-border); border-radius:6px; padding:10px 14px; min-height:76px; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box; }
 				.mlo-map .mlo-card-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.3px; color:var(--cbi-muted-color, #666); margin-bottom:4px; }
 				.mlo-map .mlo-card-value { font-size:18px; font-weight:600; font-variant-numeric:tabular-nums; color:var(--cbi-text-color, inherit); }
+				.mlo-map .mlo-card-sub { font-size:12px; color:var(--cbi-muted-color, #888); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 				.mlo-map .mlo-hint { margin:8px 0; font-size:12px; opacity:0.8; }
 				.mlo-map .mlo-warnings { margin:8px 0; display:flex; flex-direction:column; gap:4px; }
 				.mlo-map .mlo-warning-item { display:flex; align-items:flex-start; gap:6px; font-size:12px; color:var(--cbi-warning-color, #c08400); }
@@ -653,7 +658,11 @@ return view.extend({
 				]),
 				renderSummaryStatus(runtime, radios)
 			]);
-			nodes.insertBefore(overview, nodes.firstChild);
+			let descr = nodes.querySelector('.cbi-map-descr');
+			if (descr && descr.nextSibling)
+				nodes.insertBefore(overview, descr.nextSibling);
+			else
+				nodes.appendChild(overview);
 			poll.add(function() { return refreshRuntime(nodes); }, 5);
 			return nodes;
 		});
