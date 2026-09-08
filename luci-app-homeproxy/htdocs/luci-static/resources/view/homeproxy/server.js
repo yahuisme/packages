@@ -41,7 +41,7 @@ function renderStatus(isRunning, version) {
 	let dotStyle = 'display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:5px;';
 
 	return E('div', { 'style': 'display:flex;align-items:center;flex-wrap:wrap;font-size:14px;font-weight:600;margin-bottom:8px;' }, [
-		E('span', {}, _('HomeProxy Server') + ' (sing-box v' + (version || '?') + ')'),
+		E('span', {}, [ _('HomeProxy Server') + ' (sing-box v' + (version || '?') + ')' ]),
 		E('span', { 'style': badgeStyle }, [
 			E('span', { 'style': dotStyle }),
 			isRunning ? _('RUNNING') : _('NOT RUNNING')

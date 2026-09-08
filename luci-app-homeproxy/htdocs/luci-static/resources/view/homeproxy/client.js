@@ -62,7 +62,7 @@ function renderStatus(isRunning, version, currentNode) {
 
 	return E('div', { 'style': 'display:flex;flex-direction:column;gap:4px;margin-bottom:8px;' }, [
 		E('div', { 'style': 'display:flex;align-items:center;flex-wrap:wrap;font-size:14px;font-weight:600;' }, [
-			E('span', {}, _('HomeProxy') + ' (sing-box v' + (version || '?') + ')'),
+			E('span', {}, [ _('HomeProxy') + ' (sing-box v' + (version || '?') + ')' ]),
 			E('span', { 'style': badgeStyle }, [
 				E('span', { 'style': dotStyle }),
 				isRunning ? _('RUNNING') : _('NOT RUNNING')
