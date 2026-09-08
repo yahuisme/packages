@@ -518,32 +518,28 @@ function getNodeLatencyStatusText(row_state) {
 	}
 }
 
-function getNodeLatencyStatusStyle(row_state) {
+function getNodeLatencyStatusClass(row_state) {
 	if (!row_state)
-		return 'color:gray';
+		return '';
 
 	switch (row_state.state) {
 	case NODE_LATENCY_ROW_STATES.TESTING:
-		return 'color:#0a84ff';
+		return 'label label-info';
 	case NODE_LATENCY_ROW_STATES.SUCCESS:
-		return 'color:green';
+		return 'label label-success';
 	case NODE_LATENCY_ROW_STATES.TIMEOUT:
-		return 'color:#ff8c00';
+		return 'label label-warning';
 	case NODE_LATENCY_ROW_STATES.ERROR:
-		return 'color:red';
+		return 'label label-danger';
 	case NODE_LATENCY_ROW_STATES.UNTESTED:
 	default:
-		return 'color:gray';
+		return '';
 	}
-}
-
-function renderNodeLatencyStatus(row_state) {
-	return '<strong style="%s">%s</strong>'.format(getNodeLatencyStatusStyle(row_state), getNodeLatencyStatusText(row_state));
 }
 
 function renderNodeLatencyStatusNode(row_state, attrs) {
 	return E('strong', Object.assign({
-		'style': getNodeLatencyStatusStyle(row_state)
+		'class': getNodeLatencyStatusClass(row_state)
 	}, attrs || {}), [ getNodeLatencyStatusText(row_state) ]);
 }
 
@@ -742,7 +738,7 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 
 		let status_widget = this.map.findElement('id', latency_id);
 		if (status_widget)
-			status_widget.innerHTML = renderNodeLatencyStatus(row_state);
+			status_widget.replaceChildren(renderNodeLatencyStatusNode(row_state));
 
 		let test_widget = this.map.findElement('id', test_id);
 		let test_button = test_widget ? test_widget.querySelector('button') : null;
@@ -1214,27 +1210,35 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 	o.onchange = function(ev, section_id, value) {
 		let desc = this.map.findElement('id', 'cbid.homeproxy.%s.transport'.format(section_id)).nextElementSibling;
 		if (value === 'http')
-			desc.innerHTML = _('TLS is not enforced. If TLS is not configured, plain HTTP 1.1 is used.');
+			dom.content(desc, _('TLS is not enforced. If TLS is not configured, plain HTTP 1.1 is used.'));
 		else if (value === 'quic')
-			desc.innerHTML = _('No additional encryption support: It\'s basically duplicate encryption.');
+			dom.content(desc, _('No additional encryption support: It\'s basically duplicate encryption.'));
 		else
-			desc.innerHTML = _('No TCP transport, plain HTTP is merged into the HTTP transport.');
+			dom.content(desc, _('No TCP transport, plain HTTP is merged into the HTTP transport.'));
 
 		let tls = this.map.findElement('id', 'cbid.homeproxy.%s.tls'.format(section_id)).firstElementChild;
 		if ((value === 'http' && tls.checked) || (value === 'grpc' && !features.with_grpc)) {
-			this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id)).nextElementSibling.innerHTML =
-				_('Specifies the period of time (in seconds) after which a health check will be performed using a ping frame if no frames have been received on the connection.<br/>' +
-					'Please note that a ping response is considered a received frame, so if there is no other traffic on the connection, the health check will be executed every interval.');
+			dom.content(
+				this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id)).nextElementSibling,
+				_('Specifies the period of time (in seconds) after which a health check will be performed using a ping frame if no frames have been received on the connection.') + ' ' +
+				_('Please note that a ping response is considered a received frame, so if there is no other traffic on the connection, the health check will be executed every interval.')
+			);
 
-			this.map.findElement('id', 'cbid.homeproxy.%s.http_ping_timeout'.format(section_id)).nextElementSibling.innerHTML =
-				_('Specifies the timeout duration (in seconds) after sending a PING frame, within which a response must be received.<br/>' +
-					'If a response to the PING frame is not received within the specified timeout duration, the connection will be closed.');
+			dom.content(
+				this.map.findElement('id', 'cbid.homeproxy.%s.http_ping_timeout'.format(section_id)).nextElementSibling,
+				_('Specifies the timeout duration (in seconds) after sending a PING frame, within which a response must be received.') + ' ' +
+				_('If a response to the PING frame is not received within the specified timeout duration, the connection will be closed.')
+			);
 		} else if (value === 'grpc' && features.with_grpc) {
-			this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id)).nextElementSibling.innerHTML =
-				_('If the transport doesn\'t see any activity after a duration of this time (in seconds), it pings the client to check if the connection is still active.');
+			dom.content(
+				this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id)).nextElementSibling,
+				_('If the transport doesn\'t see any activity after a duration of this time (in seconds), it pings the client to check if the connection is still active.')
+			);
 
-			this.map.findElement('id', 'cbid.homeproxy.%s.http_ping_timeout'.format(section_id)).nextElementSibling.innerHTML =
-				_('The timeout (in seconds) that after performing a keepalive check, the client will wait for activity. If no activity is detected, the connection will be closed.');
+			dom.content(
+				this.map.findElement('id', 'cbid.homeproxy.%s.http_ping_timeout'.format(section_id)).nextElementSibling,
+				_('The timeout (in seconds) that after performing a keepalive check, the client will wait for activity. If no activity is detected, the connection will be closed.')
+			);
 		}
 	}
 	o.modalonly = true;

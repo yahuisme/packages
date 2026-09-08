@@ -32,12 +32,12 @@ msgstr "4 或 6。留空不限制。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:791
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1271
-msgid ""
-"<code>%s</code> will be temporarily overwritten to <code>%s</code> after 50 "
-"triggers in 30s if not enabled."
-msgstr ""
-"<code>%s</code> 在未启用的情况下，50 次触发后会在 30 秒内临时覆盖为 "
-"<code>%s</code>。"
+#~ msgid ""
+#~ "<code>%s</code> will be temporarily overwritten to <code>%s</code> after 50 "
+#~ "triggers in 30s if not enabled."
+#~ msgstr ""
+#~ "<code>%s</code> 在未启用的情况下，50 次触发后会在 30 秒内临时覆盖为 "
+#~ "<code>%s</code>。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1518
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1537
@@ -146,9 +146,9 @@ msgid "Allow insecure connection at TLS client."
 msgstr "允许 TLS 客户端侧的不安全连接。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1848
-msgid ""
-"Allow insecure connection by default when adding nodes from subscriptions."
-msgstr "从订阅添加节点时，默认允许不安全连接。"
+#~ msgid ""
+#~ "Allow insecure connection by default when adding nodes from subscriptions."
+#~ msgstr "从订阅添加节点时，默认允许不安全连接。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1304
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:458
@@ -280,9 +280,9 @@ msgid "Bind interface"
 msgstr "绑定接口"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1475
-msgid ""
-"Bind outbound traffic to specific interface. Leave empty to auto detect."
-msgstr "绑定出站流量至指定端口。留空自动检测。"
+#~ msgid ""
+#~ "Bind outbound traffic to specific interface. Leave empty to auto detect."
+#~ msgstr "绑定出站流量至指定端口。留空自动检测。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:633
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1133
@@ -571,10 +571,10 @@ msgid "Disable Chrome QUIC fingerprint imitation"
 msgstr "禁用 Chrome QUIC 指纹模拟"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1036
-msgid ""
-"Disable Chrome QUIC handshake fingerprint imitation for compatibility with "
-"servers using Ed25519 certificates."
-msgstr "禁用 Chrome QUIC 握手指纹模拟，以兼容使用 Ed25519 证书的服务器。"
+#~ msgid ""
+#~ "Disable Chrome QUIC handshake fingerprint imitation for compatibility with "
+#~ "servers using Ed25519 certificates."
+#~ msgstr "禁用 Chrome QUIC 握手指纹模拟，以兼容使用 Ed25519 证书的服务器。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:803
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:927
@@ -623,12 +623,12 @@ msgstr "禁用路径 MTU 发现"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1030
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:297
-msgid ""
-"Disables Path MTU Discovery (RFC 8899). Packets will then be at most 1252 "
-"(IPv4) / 1232 (IPv6) bytes in size."
-msgstr ""
-"禁用路径 MTU 发现（RFC 8899）。数据包的大小最多为 1252（IPv4）/ 1232（IPv6）"
-"字节。"
+#~ msgid ""
+#~ "Disables Path MTU Discovery (RFC 8899). Packets will then be at most 1252 "
+#~ "(IPv4) / 1232 (IPv6) bytes in size."
+#~ msgstr ""
+#~ "禁用路径 MTU 发现（RFC 8899）。数据包的大小最多为 1252（IPv4）/ 1232（IPv6）"
+#~ "字节。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:842
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1312
@@ -718,12 +718,12 @@ msgstr ""
 "客户数据库”。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1526
-msgid ""
-"ECH (Encrypted Client Hello) is a TLS extension that allows a client to "
-"encrypt the first part of its ClientHello message."
-msgstr ""
-"ECH（Encrypted Client Hello）是一个 TLS 扩展，它允许客户端加密其 ClientHello "
-"消息的第一部分。"
+#~ msgid ""
+#~ "ECH (Encrypted Client Hello) is a TLS extension that allows a client to "
+#~ "encrypt the first part of its ClientHello message."
+#~ msgstr ""
+#~ "ECH（Encrypted Client Hello）是一个 TLS 扩展，它允许客户端加密其 ClientHello "
+#~ "消息的第一部分。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1541
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:813
@@ -828,9 +828,9 @@ msgid "Enable tcp fast open for listener."
 msgstr "为监听器启用 TCP 快速打开。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1605
-msgid ""
-"Enable the SUoT protocol, requires server support. Conflict with multiplex."
-msgstr "启用 SUoT 协议，需要服务端支持。与多路复用冲突。"
+#~ msgid ""
+#~ "Enable the SUoT protocol, requires server support. Conflict with multiplex."
+#~ msgstr "启用 SUoT 协议，需要服务端支持。与多路复用冲突。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1042
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1178
@@ -848,10 +848,10 @@ msgid "Evaluate"
 msgstr "预查询"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1166
-msgid ""
-"Evaluate the query with the selected server before matching response "
-"addresses or IP rule sets."
-msgstr "在匹配响应地址或 IP 规则集前，先使用所选服务器查询 DNS 响应。"
+#~ msgid ""
+#~ "Evaluate the query with the selected server before matching response "
+#~ "addresses or IP rule sets."
+#~ msgstr "在匹配响应地址或 IP 规则集前，先使用所选服务器查询 DNS 响应。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1204
 msgid "Evaluation server"
@@ -962,9 +962,9 @@ msgid "Fragment TLS handshake into multiple TLS records."
 msgstr "将 TLS 握手分片为多个 TLS 记录。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:752
-msgid ""
-"Fragment TLS handshakes. Due to poor performance, try <code>%s</code> first."
-msgstr "分片 TLS 握手。由于性能较差，请先尝试 <code>%s</code>。"
+#~ msgid ""
+#~ "Fragment TLS handshakes. Due to poor performance, try <code>%s</code> first."
+#~ msgstr "分片 TLS 握手。由于性能较差，请先尝试 <code>%s</code>。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:758
 msgid "Fragment fallback delay"
@@ -1048,10 +1048,10 @@ msgid "HTTP/3"
 msgstr "HTTP/3"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:308
-msgid ""
-"HTTP/3 server behavior when authentication fails.<br/>A 404 page will be "
-"returned if empty."
-msgstr "身份验证失败时的 HTTP/3 服务器响应。留空时返回 404 页面。"
+#~ msgid ""
+#~ "HTTP/3 server behavior when authentication fails.<br/>A 404 page will be "
+#~ "returned if empty."
+#~ msgstr "身份验证失败时的 HTTP/3 服务器响应。留空时返回 404 页面。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:978
 msgid "HTTPS"
@@ -1124,10 +1124,10 @@ msgid "Host/IP Fields"
 msgstr "主机/IP 字段"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:340
-msgid ""
-"How long the server should wait for the client to send the authentication "
-"command (in seconds)."
-msgstr "服务器等待客户端发送认证命令的时间（单位：秒）。"
+#~ msgid ""
+#~ "How long the server should wait for the client to send the authentication "
+#~ "command (in seconds)."
+#~ msgstr "服务器等待客户端发送认证命令的时间（单位：秒）。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:865
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:162
@@ -1165,9 +1165,9 @@ msgid "IPv4 addresses in this option are forced to use global proxy routing."
 msgstr "该选项中的 IPv4 地址将强制走全局代理。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1502
-msgid ""
-"IPv4 addresses in this option automatically use rule-based proxy routing."
-msgstr "该选项中的 IPv4 地址将自动走规则代理。"
+#~ msgid ""
+#~ "IPv4 addresses in this option automatically use rule-based proxy routing."
+#~ msgstr "该选项中的 IPv4 地址将自动走规则代理。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/homeproxy.js:27
 msgid "IPv4 only"
@@ -1209,29 +1209,29 @@ msgid "Idle timeout"
 msgstr "空闲超时"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:733
-msgid ""
-"If enabled, attempts to connect UDP connection to the destination instead of "
-"listen."
-msgstr "如果启用，尝试主动连接到目标的 UDP 而不是监听。"
+#~ msgid ""
+#~ "If enabled, attempts to connect UDP connection to the destination instead of "
+#~ "listen."
+#~ msgstr "如果启用，尝试主动连接到目标的 UDP 而不是监听。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:727
-msgid ""
-"If enabled, for UDP proxy requests addressed to a domain, the original "
-"packet address will be sent in the response instead of the mapped domain."
-msgstr ""
-"如果启用，对于发送到域名的 UDP 代理请求，响应中将发送原始数据包地址而不是映射"
-"的域名。"
+#~ msgid ""
+#~ "If enabled, for UDP proxy requests addressed to a domain, the original "
+#~ "packet address will be sent in the response instead of the mapped domain."
+#~ msgstr ""
+#~ "如果启用，对于发送到域名的 UDP 代理请求，响应中将发送原始数据包地址而不是映射"
+#~ "的域名。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1249
-msgid ""
-"If enabled, the client transport sends keepalive pings even with no active "
-"connections."
-msgstr "如果启用，客户端传输即使没有活动连接也会发送 keepalive ping。"
+#~ msgid ""
+#~ "If enabled, the client transport sends keepalive pings even with no active "
+#~ "connections."
+#~ msgstr "如果启用，客户端传输即使没有活动连接也会发送 keepalive ping。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:367
-msgid ""
-"If set, the requested domain name will be resolved to IP before routing."
-msgstr "如果设置，请求的域名将在路由前被解析为 IP 地址。"
+#~ msgid ""
+#~ "If set, the requested domain name will be resolved to IP before routing."
+#~ msgstr "如果设置，请求的域名将在路由前被解析为 IP 地址。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1234
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:401
@@ -1243,10 +1243,10 @@ msgstr ""
 "以检查连接是否仍然活动。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1505
-msgid ""
-"If you have the root certificate, use this option instead of allowing "
-"insecure."
-msgstr "如果你拥有根证书，使用此选项而不是允许不安全连接。"
+#~ msgid ""
+#~ "If you have the root certificate, use this option instead of allowing "
+#~ "insecure."
+#~ msgstr "如果你拥有根证书，使用此选项而不是允许不安全连接。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:302
 msgid "Ignore client bandwidth"
@@ -1272,15 +1272,15 @@ msgid "In seconds. Disabled by default."
 msgstr "单位：秒。默认禁用。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:945
-msgid ""
-"In the check, at least the first <code>n</code> idle sessions are kept open."
-msgstr "在检查中，至少保持前 <code>n</code> 个空闲会话处于打开状态。"
+#~ msgid ""
+#~ "In the check, at least the first <code>n</code> idle sessions are kept open."
+#~ msgstr "在检查中，至少保持前 <code>n</code> 个空闲会话处于打开状态。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:938
-msgid ""
-"In the check, close sessions that have been idle for longer than this, in "
-"seconds."
-msgstr "在检查中，关闭空闲时间超过此值的会话（单位：秒）。"
+#~ msgid ""
+#~ "In the check, close sessions that have been idle for longer than this, in "
+#~ "seconds."
+#~ msgstr "在检查中，关闭空闲时间超过此值的会话（单位：秒）。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:304
 msgid "Info"
@@ -1306,10 +1306,10 @@ msgstr "空闲会话检查间隔（单位：秒）。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1158
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:353
-msgid ""
-"Interval for sending heartbeat packets for keeping the connection alive (in "
-"seconds)."
-msgstr "发送心跳包以保持连接存活的时间间隔（单位：秒）。"
+#~ msgid ""
+#~ "Interval for sending heartbeat packets for keeping the connection alive (in "
+#~ "seconds)."
+#~ msgstr "发送心跳包以保持连接存活的时间间隔（单位：秒）。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:129
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:492
@@ -1359,12 +1359,12 @@ msgstr "延迟"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1173
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:368
-msgid ""
-"Legacy protocol support (VMess MD5 Authentication) is provided for "
-"compatibility purposes only, use of alterId > 1 is not recommended."
-msgstr ""
-"提供旧协议支持（VMess MD5 身份验证）仅出于兼容性目的，不建议使用 alterId > "
-"1。"
+#~ msgid ""
+#~ "Legacy protocol support (VMess MD5 Authentication) is provided for "
+#~ "compatibility purposes only, use of alterId > 1 is not recommended."
+#~ msgstr ""
+#~ "提供旧协议支持（VMess MD5 身份验证）仅出于兼容性目的，不建议使用 alterId > "
+#~ "1。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:314
 msgid "Less compatibility and sometimes better performance."
@@ -1379,9 +1379,9 @@ msgid "List mode"
 msgstr "名单模式"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1327
-msgid ""
-"List of IP (v4 or v6) addresses prefixes to be assigned to the interface."
-msgstr "分配给接口的 IP（v4 或 v6）地址前缀列表。"
+#~ msgid ""
+#~ "List of IP (v4 or v6) addresses prefixes to be assigned to the interface."
+#~ msgstr "分配给接口的 IP（v4 或 v6）地址前缀列表。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:161
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:511
@@ -1447,9 +1447,9 @@ msgid "MAC addresses in this option are forced to use global proxy routing."
 msgstr "该选项中的 MAC 地址将强制走全局代理。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1514
-msgid ""
-"MAC addresses in this option automatically use rule-based proxy routing."
-msgstr "该选项中的 MAC 地址将自动走规则代理。"
+#~ msgid ""
+#~ "MAC addresses in this option automatically use rule-based proxy routing."
+#~ msgstr "该选项中的 MAC 地址将自动走规则代理。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1360
 msgid "MTU"
@@ -1476,9 +1476,9 @@ msgid "Match DNS response"
 msgstr "匹配 DNS 响应"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1329
-msgid ""
-"Match IP CIDR with query response. Current rule will be skipped if not match."
-msgstr "使用查询响应匹配 IP CIDR。如果不匹配，则跳过当前规则。"
+#~ msgid ""
+#~ "Match IP CIDR with query response. Current rule will be skipped if not match."
+#~ msgstr "使用查询响应匹配 IP CIDR。如果不匹配，则跳过当前规则。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:859
 msgid "Match IP CIDR."
@@ -1637,9 +1637,9 @@ msgid "Minimum idle sessions"
 msgstr "最小空闲会话数"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1397
-msgid ""
-"Minimum multiplexed streams in a connection before opening a new connection."
-msgstr "在打开新连接之前，连接中的最小多路复用流数量。"
+#~ msgid ""
+#~ "Minimum multiplexed streams in a connection before opening a new connection."
+#~ msgstr "在打开新连接之前，连接中的最小多路复用流数量。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1396
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1405
@@ -1648,9 +1648,9 @@ msgstr "最小流数量"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:75
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1799
-msgid ""
-"Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6)."
-msgstr "分（0-59）、时（0-23）、日（1-31）、月（1-12）、周（0-6）。"
+#~ msgid ""
+#~ "Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6)."
+#~ msgstr "分（0-59）、时（0-23）、日（1-31）、月（1-12）、周（0-6）。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:166
 msgid "Mixed"
@@ -1774,10 +1774,10 @@ msgid "Obfuscate type"
 msgstr "混淆类型"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1484
-msgid ""
-"Only devices in the lists below are processed. All other devices use direct "
-"routing."
-msgstr "开启后仅名单内的设备生效，非名单内设备全部直连。"
+#~ msgid ""
+#~ "Only devices in the lists below are processed. All other devices use direct "
+#~ "routing."
+#~ msgstr "开启后仅名单内的设备生效，非名单内设备全部直连。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1470
 msgid "Only process traffic from specific interfaces. Leave empty for all."
@@ -1972,10 +1972,10 @@ msgid "Protocol parameter. Enable length block encryption."
 msgstr "协议参数。启用长度块加密。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1190
-msgid ""
-"Protocol parameter. Will waste traffic randomly if enabled (enabled by "
-"default in v2ray and cannot be disabled)."
-msgstr "协议参数。如启用会随机浪费流量（在 v2ray 中默认启用并且无法禁用）。"
+#~ msgid ""
+#~ "Protocol parameter. Will waste traffic randomly if enabled (enabled by "
+#~ "default in v2ray and cannot be disabled)."
+#~ msgstr "协议参数。如启用会随机浪费流量（在 v2ray 中默认启用并且无法禁用）。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1573
 msgid "Proxy Domain List"
@@ -2121,10 +2121,10 @@ msgid "Resource Management"
 msgstr "资源管理"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:244
-msgid ""
-"Resources were updated, but HomeProxy failed to reload. Check the log for "
-"details."
-msgstr "资源已更新，但 HomeProxy 重载失败，请查看日志了解详情。"
+#~ msgid ""
+#~ "Resources were updated, but HomeProxy failed to reload. Check the log for "
+#~ "details."
+#~ msgstr "资源已更新，但 HomeProxy 重载失败，请查看日志了解详情。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1176
 msgid "Respond"
@@ -2344,9 +2344,9 @@ msgid "Source port range"
 msgstr "源端口范围"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:766
-msgid ""
-"Specifies DNS server tag to use instead of selecting through DNS routing."
-msgstr "指定使用的 DNS 服务器，而不是通过 DNS 规则选择。"
+#~ msgid ""
+#~ "Specifies DNS server tag to use instead of selecting through DNS routing."
+#~ msgstr "指定使用的 DNS 服务器，而不是通过 DNS 规则选择。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1226
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1278
@@ -2363,12 +2363,12 @@ msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:398
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:433
-msgid ""
-"Specifies the time (in seconds) until idle clients should be closed with a "
-"GOAWAY frame. PING frames are not considered as activity."
-msgstr ""
-"指定闲置客户端应在多长时间（单位：秒）内使用 GOAWAY 帧关闭。PING 帧不被视为活"
-"动。"
+#~ msgid ""
+#~ "Specifies the time (in seconds) until idle clients should be closed with a "
+#~ "GOAWAY frame. PING frames are not considered as activity."
+#~ msgstr ""
+#~ "指定闲置客户端应在多长时间（单位：秒）内使用 GOAWAY 帧关闭。PING 帧不被视为活"
+#~ "动。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1230
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1286
@@ -2382,10 +2382,10 @@ msgstr ""
 "指定的超时时间内没有收到 PING 帧的响应，则连接将关闭。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:270
-msgid ""
-"Specify target ports to be proxied. Multiple ports must be separated by "
-"commas."
-msgstr "指定需要被代理的目标端口。多个端口必须用逗号隔开。"
+#~ msgid ""
+#~ "Specify target ports to be proxied. Multiple ports must be separated by "
+#~ "commas."
+#~ msgstr "指定需要被代理的目标端口。多个端口必须用逗号隔开。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:946
 msgid "Store DNS cache"
@@ -2423,17 +2423,17 @@ msgstr "更新成功。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1685
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1813
-msgid ""
-"Support Hysteria, Shadowsocks, Trojan, v2rayN (VMess), and XTLS (VLESS) "
-"online configuration delivery standard."
-msgstr ""
-"支持 Hysteria、Shadowsocks、Trojan、v2rayN（VMess）和 XTLS（VLESS）在线配置交"
-"付标准。"
+#~ msgid ""
+#~ "Support Hysteria, Shadowsocks, Trojan, v2rayN (VMess), and XTLS (VLESS) "
+#~ "online configuration delivery standard."
+#~ msgstr ""
+#~ "支持 Hysteria、Shadowsocks、Trojan、v2rayN（VMess）和 XTLS（VLESS）在线配置交"
+#~ "付标准。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:190
-msgid ""
-"Support UDP, TCP, DoH, DoQ, DoT. TCP protocol will be used if not specified."
-msgstr "支持 UDP、TCP、DoH、DoQ、DoT。如未指定则使用 TCP 协议。"
+#~ msgid ""
+#~ "Support UDP, TCP, DoH, DoQ, DoT. TCP protocol will be used if not specified."
+#~ msgstr "支持 UDP、TCP、DoH、DoQ、DoT。如未指定则使用 TCP 协议。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:397
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:449
@@ -2521,22 +2521,22 @@ msgid "TUN TCP/UDP"
 msgstr "TUN TCP/UDP"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:293
-msgid ""
-"TUN uses sing-box automatic routing and redirect on Linux; TProxy uses "
-"native TCP/UDP transparent proxying."
-msgstr ""
-"TUN 在 Linux 上使用 sing-box 自动路由与自动重定向；TProxy 使用原生 TCP/UDP 透"
-"明代理。"
+#~ msgid ""
+#~ "TUN uses sing-box automatic routing and redirect on Linux; TProxy uses "
+#~ "native TCP/UDP transparent proxying."
+#~ msgstr ""
+#~ "TUN 在 Linux 上使用 sing-box 自动路由与自动重定向；TProxy 使用原生 TCP/UDP 透"
+#~ "明代理。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1055
 msgid "Tag of an outbound for connecting to the dns server."
 msgstr "用于连接到 DNS 服务器的出站标签。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1016
-msgid ""
-"Tag of another DNS server used to resolve a domain name in the server "
-"address."
-msgstr "用于解析服务器地址中域名的另一个 DNS 服务器标签。"
+#~ msgid ""
+#~ "Tag of another DNS server used to resolve a domain name in the server "
+#~ "address."
+#~ msgstr "用于解析服务器地址中域名的另一个 DNS 服务器标签。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1437
 msgid "Tag of the outbound to download rule set."
@@ -2551,9 +2551,9 @@ msgid "Tag of the target outbound."
 msgstr "目标出站标签。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:303
-msgid ""
-"Tell the client to use the BBR flow control algorithm instead of Hysteria CC."
-msgstr "让客户端使用 BBR 流控算法。"
+#~ msgid ""
+#~ "Tell the client to use the BBR flow control algorithm instead of Hysteria CC."
+#~ msgstr "让客户端使用 BBR 流控算法。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:232
 msgid "Tencent Public DNS (DoH)"
@@ -2631,19 +2631,19 @@ msgid "The address of the dns server."
 msgstr "DNS 服务器的地址。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:657
-msgid ""
-"The alternate port to use for the ACME HTTP challenge; if non-empty, this "
-"port will be used instead of 80 to spin up a listener for the HTTP challenge."
-msgstr ""
-"用于 ACME HTTP 质询的备用端口；如果非空，将使用此端口而不是 80 来启动 HTTP 质"
-"询的监听器。"
+#~ msgid ""
+#~ "The alternate port to use for the ACME HTTP challenge; if non-empty, this "
+#~ "port will be used instead of 80 to spin up a listener for the HTTP challenge."
+#~ msgstr ""
+#~ "用于 ACME HTTP 质询的备用端口；如果非空，将使用此端口而不是 80 来启动 HTTP 质"
+#~ "询的监听器。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:663
-msgid ""
-"The alternate port to use for the ACME TLS-ALPN challenge; the system must "
-"forward 443 to this port for challenge to succeed."
-msgstr ""
-"用于 ACME TLS-ALPN 质询的备用端口；系统必须将 443 转发到此端口以使质询成功。"
+#~ msgid ""
+#~ "The alternate port to use for the ACME TLS-ALPN challenge; the system must "
+#~ "forward 443 to this port for challenge to succeed."
+#~ msgstr ""
+#~ "用于 ACME TLS-ALPN 质询的备用端口；系统必须将 443 转发到此端口以使质询成功。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:612
 msgid ""
@@ -2682,9 +2682,9 @@ msgid "The default timeout for DNS queries, in seconds."
 msgstr "DNS 查询的默认超时时间（秒）。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:229
-msgid ""
-"The dns server for resolving China domains. Support UDP, TCP, DoH, DoQ, DoT."
-msgstr "用于解析国内域名的 DNS 服务器。支持 UDP、TCP、DoH、DoQ、DoT。"
+#~ msgid ""
+#~ "The dns server for resolving China domains. Support UDP, TCP, DoH, DoQ, DoT."
+#~ msgstr "用于解析国内域名的 DNS 服务器。支持 UDP、TCP、DoH、DoQ、DoT。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:461
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1048
@@ -2693,22 +2693,22 @@ msgstr "用于解析 DNS 服务器地址中域名的策略。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1497
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:565
-msgid ""
-"The elliptic curves that will be used in an ECDHE handshake, in preference "
-"order. If empty, the default will be used."
-msgstr "将在 ECDHE 握手中使用的椭圆曲线，按优先顺序排列。留空使用默认值。"
+#~ msgid ""
+#~ "The elliptic curves that will be used in an ECDHE handshake, in preference "
+#~ "order. If empty, the default will be used."
+#~ msgstr "将在 ECDHE 握手中使用的椭圆曲线，按优先顺序排列。留空使用默认值。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:591
-msgid ""
-"The email address to use when creating or selecting an existing ACME server "
-"account."
-msgstr "创建或选择现有 ACME 服务器账户时使用的电子邮件地址。"
+#~ msgid ""
+#~ "The email address to use when creating or selecting an existing ACME server "
+#~ "account."
+#~ msgstr "创建或选择现有 ACME 服务器账户时使用的电子邮件地址。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:759
-msgid ""
-"The fallback value in milliseconds used when TLS segmentation cannot "
-"automatically determine the wait time."
-msgstr "当 TLS 分段无法自动确定等待时间时使用的回退值（单位：毫秒）。"
+#~ msgid ""
+#~ "The fallback value in milliseconds used when TLS segmentation cannot "
+#~ "automatically determine the wait time."
+#~ msgstr "当 TLS 分段无法自动确定等待时间时使用的回退值（单位：毫秒）。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:568
 msgid "The idle timeout in seconds."
@@ -2720,10 +2720,10 @@ msgid "The maximum TLS version that is acceptable."
 msgstr "可接受的最高 TLS 版本。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:289
-msgid ""
-"The maximum number of QUIC concurrent bidirectional streams that a peer is "
-"allowed to open."
-msgstr "允许对等点打开的 QUIC 并发双向流的最大数量。"
+#~ msgid ""
+#~ "The maximum number of QUIC concurrent bidirectional streams that a peer is "
+#~ "allowed to open."
+#~ msgstr "允许对等点打开的 QUIC 并发双向流的最大数量。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:718
 msgid "The maximum time difference between the server and the client."
@@ -2749,10 +2749,10 @@ msgid "The path of the DNS server."
 msgstr "DNS 服务器的路径。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1531
-msgid ""
-"The path to the ECH config, in PEM format. If empty, load from DNS will be "
-"attempted."
-msgstr "PEM 格式的 ECH 配置路径。如果为空，将尝试从 DNS 加载。"
+#~ msgid ""
+#~ "The path to the ECH config, in PEM format. If empty, load from DNS will be "
+#~ "attempted."
+#~ msgstr "PEM 格式的 ECH 配置路径。如果为空，将尝试从 DNS 加载。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1510
 msgid "The path to the server certificate, in PEM format."
@@ -2779,10 +2779,10 @@ msgid "The server public key, in PEM format."
 msgstr "服务端公钥，需要 PEM 格式。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:475
-msgid ""
-"The tag of the upstream outbound.<br/>Other dial fields will be ignored when "
-"enabled."
-msgstr "上游出站的标签。<br/>启用时，其他拨号字段将被忽略。"
+#~ msgid ""
+#~ "The tag of the upstream outbound.<br/>Other dial fields will be ignored when "
+#~ "enabled."
+#~ msgstr "上游出站的标签。<br/>启用时，其他拨号字段将被忽略。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:169
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:545
@@ -2796,29 +2796,29 @@ msgstr "测试容差时间（单位：毫秒）。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1237
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:441
-msgid ""
-"The timeout (in seconds) that after performing a keepalive check, the client "
-"will wait for activity. If no activity is detected, the connection will be "
-"closed."
-msgstr ""
-"经过一段时间（单位：秒）之后，客户端将执行 keepalive 检查并等待活动。如果没有"
-"检测到任何活动，则会关闭连接。"
+#~ msgid ""
+#~ "The timeout (in seconds) that after performing a keepalive check, the client "
+#~ "will wait for activity. If no activity is detected, the connection will be "
+#~ "closed."
+#~ msgstr ""
+#~ "经过一段时间（单位：秒）之后，客户端将执行 keepalive 检查并等待活动。如果没有"
+#~ "检测到任何活动，则会关闭连接。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1475
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1850
-msgid ""
-"This is <strong>DANGEROUS</strong>, your traffic is almost like "
-"<strong>PLAIN TEXT</strong>! Use at your own risk!"
-msgstr ""
-"这是危险行为，您的流量将几乎等同于<strong>明文</strong>！使用风险自负！"
+#~ msgid ""
+#~ "This is <strong>DANGEROUS</strong>, your traffic is almost like "
+#~ "<strong>PLAIN TEXT</strong>! Use at your own risk!"
+#~ msgstr ""
+#~ "这是危险行为，您的流量将几乎等同于<strong>明文</strong>！使用风险自负！"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1147
-msgid ""
-"This is the TUIC port of the UDP over TCP protocol, designed to provide a "
-"QUIC stream based UDP relay mode that TUIC does not provide."
-msgstr ""
-"这是 TUIC 的 UDP over TCP 协议端口，旨在提供 TUIC 原本不支持的基于 QUIC 流的 "
-"UDP 中继模式。"
+#~ msgid ""
+#~ "This is the TUIC port of the UDP over TCP protocol, designed to provide a "
+#~ "QUIC stream based UDP relay mode that TUIC does not provide."
+#~ msgstr ""
+#~ "这是 TUIC 的 UDP over TCP 协议端口，旨在提供 TUIC 原本不支持的基于 QUIC 流的 "
+#~ "UDP 中继模式。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:231
 msgid "ThreatBook Public DNS (DoH)"
@@ -2833,17 +2833,17 @@ msgid "Timeout"
 msgstr "超时"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:739
-msgid ""
-"Timeout for UDP connections.<br/>Setting a larger value than the inbound UDP "
-"timeout will have no effect."
-msgstr "UDP 连接超时时间。<br/>设置大于入站 UDP 超时的值不会生效。"
+#~ msgid ""
+#~ "Timeout for UDP connections.<br/>Setting a larger value than the inbound UDP "
+#~ "timeout will have no effect."
+#~ msgstr "UDP 连接超时时间。<br/>设置大于入站 UDP 超时的值不会生效。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:467
-msgid ""
-"To be compatible with Xray-core, set this to <code>Sec-WebSocket-Protocol</"
-"code>."
-msgstr ""
-"要与 Xray-core 兼容，请将其设置为 <code>Sec-WebSocket-Protocol</code>。"
+#~ msgid ""
+#~ "To be compatible with Xray-core, set this to <code>Sec-WebSocket-Protocol</"
+#~ "code>."
+#~ msgstr ""
+#~ "要与 Xray-core 兼容，请将其设置为 <code>Sec-WebSocket-Protocol</code>。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:302
 msgid "Trace"
@@ -3011,10 +3011,10 @@ msgstr "使用 ACME TLS 证书颁发机构。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1463
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:539
-msgid ""
-"Used to verify the hostname on the returned certificates unless insecure is "
-"given."
-msgstr "用于验证返回证书上的主机名。如允许不安全连接，此配置无效。"
+#~ msgid ""
+#~ "Used to verify the hostname on the returned certificates unless insecure is "
+#~ "given."
+#~ msgstr "用于验证返回证书上的主机名。如允许不安全连接，此配置无效。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1008
 msgid "Used to verify the hostname on the returned certificates."
@@ -3395,3 +3395,17 @@ msgstr "为了与 Xray-core 保持兼容，请将其设置为 <code>Sec-WebSocke
 msgid "Used to verify the hostname on the returned certificates unless insecure is given."
 msgstr "用于验证返回证书上的主机名（除非勾选了允许不安全连接）。"
 
+msgid "Expecting: non-empty value"
+msgstr "不能为空"
+
+msgid "Specifies the period of time (in seconds) after which a health check will be performed using a ping frame if no frames have been received on the connection."
+msgstr "指定在连接上未收到任何帧后执行健康检查的时间（以秒为单位），使用 ping 帧。"
+
+msgid "Please note that a ping response is considered a received frame, so if there is no other traffic on the connection, the health check will be executed every interval."
+msgstr "请注意，ping 响应被视为已接收的帧，因此如果连接上没有其他流量，则每个间隔都会执行健康检查。"
+
+msgid "Specifies the timeout duration (in seconds) after sending a PING frame, within which a response must be received."
+msgstr "指定发送 PING 帧后必须接收响应的超时时间（以秒为单位）。"
+
+msgid "If a response to the PING frame is not received within the specified timeout duration, the connection will be closed."
+msgstr "如果在指定的超时时间内未收到对 PING 帧的响应，则连接将被关闭。"

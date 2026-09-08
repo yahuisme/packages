@@ -55,19 +55,12 @@ const callCurrentNode = rpc.declare({
 });
 
 function renderStatus(isRunning, version, currentNode) {
-	let spanTemp = '<em><span style="color:%s"><strong>%s (sing-box v%s) %s</strong></span></em>';
-	let renderHTML;
-	let statusColor = isRunning ? 'green' : 'red';
-	let nodeColor = '#1e90ff';
-	if (isRunning)
-		renderHTML = spanTemp.format(statusColor, _('HomeProxy'), version, _('RUNNING'));
-	else
-		renderHTML = spanTemp.format(statusColor, _('HomeProxy'), version, _('NOT RUNNING'));
-
-	if (currentNode)
-		renderHTML += '<div><em><span style="color:%s"><strong>%s</strong></span></em></div>'.format(nodeColor, '%h'.format(currentNode));
-
-	return renderHTML;
+	return E('div', {}, [
+		E('strong', { 'class': isRunning ? 'label-success' : 'label-danger' }, [
+			_('HomeProxy') + ' (sing-box v' + (version || '?') + ') ' +
+			(isRunning ? _('RUNNING') : _('NOT RUNNING')) ]),
+		E('div', {}, [ currentNode || '' ])
+	]);
 }
 
 let stubValidator = {
@@ -132,7 +125,7 @@ return view.extend({
 					}
 
 					let view = document.getElementById('service_status');
-					view.innerHTML = renderStatus(isRunning, features.version, current_label);
+					view.replaceChildren(renderStatus(isRunning, features.version, current_label));
 					});
 				});
 
@@ -331,8 +324,12 @@ return view.extend({
 
 		o = s.taboption('dashboard', form.Value, 'dashboard_secret', _('API secret'));
 		o.password = true;
-		o.rmempty = true;
+		o.depends('dashboard_enabled', '1');
+		o.rmempty = false;
 		o.retain = true;
+		o.validate = function(section_id, value) {
+			return (value && value.trim()) ? true : _('Expecting: non-empty value');
+		};
 
 		o = s.taboption('dashboard', form.Button, '_open_dashboard', _('sing-box dashboard'));
 		o.inputtitle = _('Open dashboard');

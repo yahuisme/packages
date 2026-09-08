@@ -202,11 +202,27 @@ TMP_DIR="$(mktemp -d "$RUN_DIR/resources-update.XXXXXX")" || {
 	log "[RESOURCES] Failed to prepare the temporary update directory."
 	finish 1
 }
-DASHBOARD_STAGE="${DASHBOARD_DIR}.new.$$"
-cleanup() {
-	rm -rf "$TMP_DIR" "$DASHBOARD_STAGE"
+# Stage beside the destination so installation uses same-filesystem renames.
+# Never delete the active directory before a replacement is ready.
+install_directory() {
+	local stage="$1" target="$2" backup="${2}.old.$$"
+	[ ! -e "$backup" ] || return 1
+	mv "$target" "$backup" || return 1
+	if mv "$stage" "$target"; then
+		rm -rf "$backup"
+		return 0
+	fi
+	mv "$backup" "$target" || log "[RESOURCES] CRITICAL: restore failed; old files retained at $backup."
+	return 1
 }
-trap cleanup EXIT INT TERM
+
+DASHBOARD_STAGE="${DASHBOARD_DIR}.new.$$"
+RESOURCE_STAGE="${RESOURCES_DIR}.new.$$"
+cleanup() {
+	rm -rf "$TMP_DIR" "$DASHBOARD_STAGE" "$RESOURCE_STAGE"
+}
+trap cleanup EXIT
+trap 'exit 1' INT TERM
 
 if [ "$IP_CURRENT" -eq 0 ]; then
 	IP_READY=1
@@ -251,13 +267,23 @@ if [ "$IP_CURRENT" -eq 0 ]; then
 	fi
 
 	if [ "$IP_READY" -eq 1 ]; then
-		for RESOURCE in $IP_RESOURCES; do
-			cp "$TMP_DIR/$RESOURCE.txt" "$RESOURCES_DIR/$RESOURCE.txt" && \
-				cp "$TMP_DIR/$RESOURCE.ver" "$RESOURCES_DIR/$RESOURCE.ver" || IP_READY=0
-		done
-		cp "$TMP_DIR/$IP_RULESET" "$RESOURCES_DIR/$IP_RULESET" || IP_READY=0
-		chmod 0644 "$RESOURCES_DIR"/china_ip*.txt "$RESOURCES_DIR"/china_ip*.ver \
-			"$RESOURCES_DIR/$IP_RULESET" 2>"/dev/null"
+		if ! sing-box rule-set compile --output "$TMP_DIR/geoip-check.srs" "$TMP_DIR/$IP_RULESET" 2>>"$LOG_PATH"; then
+			IP_READY=0
+		elif ! cp -a "$RESOURCES_DIR" "$RESOURCE_STAGE"; then
+			IP_READY=0
+		else
+			for RESOURCE in $IP_RESOURCES; do
+				cp "$TMP_DIR/$RESOURCE.txt" "$RESOURCE_STAGE/$RESOURCE.txt" && \
+					cp "$TMP_DIR/$RESOURCE.ver" "$RESOURCE_STAGE/$RESOURCE.ver" || IP_READY=0
+			done
+			cp "$TMP_DIR/$IP_RULESET" "$RESOURCE_STAGE/$IP_RULESET" || IP_READY=0
+			chmod 0644 "$RESOURCE_STAGE"/china_ip*.txt "$RESOURCE_STAGE"/china_ip*.ver \
+				"$RESOURCE_STAGE/$IP_RULESET" || IP_READY=0
+			if [ "$IP_READY" -eq 1 ]; then
+				install_directory "$RESOURCE_STAGE" "$RESOURCES_DIR" || IP_READY=0
+			fi
+		fi
+		rm -rf "$RESOURCE_STAGE"
 		if [ "$IP_READY" -eq 1 ]; then
 			for RESOURCE in $IP_RESOURCES; do
 				log "[$RESOURCE] Successfully updated."
@@ -278,9 +304,12 @@ if [ "$GEOSITE_CURRENT" -eq 0 ]; then
 	if ! download "$(versioned_url "$GEOSITE_SOURCE" "$NEW_GEOSITE_VER")" "$TMP_DIR/geosite_cn.srs"; then
 		log "[geosite_cn] Update failed while downloading the domain rule set."
 		mark_failed "geosite_cn"
-	elif ! printf '%s\n' "$NEW_GEOSITE_VER" > "$TMP_DIR/geosite_cn.ver" || \
-	     ! cp "$TMP_DIR/geosite_cn.srs" "$RESOURCES_DIR/geosite_cn.srs" || \
-	     ! cp "$TMP_DIR/geosite_cn.ver" "$RESOURCES_DIR/geosite_cn.ver"; then
+	elif ! sing-box rule-set decompile --output "$TMP_DIR/geosite-check.json" "$TMP_DIR/geosite_cn.srs" 2>>"$LOG_PATH" || \
+	     ! cp -a "$RESOURCES_DIR" "$RESOURCE_STAGE" || \
+	     ! printf '%s\n' "$NEW_GEOSITE_VER" > "$RESOURCE_STAGE/geosite_cn.ver" || \
+	     ! cp "$TMP_DIR/geosite_cn.srs" "$RESOURCE_STAGE/geosite_cn.srs" || \
+	     ! chmod 0644 "$RESOURCE_STAGE/geosite_cn.srs" "$RESOURCE_STAGE/geosite_cn.ver" || \
+	     ! install_directory "$RESOURCE_STAGE" "$RESOURCES_DIR"; then
 		log "[geosite_cn] Update failed while installing the domain rule set."
 		mark_failed "geosite_cn"
 	else
@@ -328,8 +357,7 @@ if [ "$DASHBOARD_CURRENT" -eq 0 ]; then
 		fi
 	fi
 	if [ "$DASHBOARD_READY" -eq 1 ]; then
-		rm -rf "$DASHBOARD_DIR"
-		if mv "$DASHBOARD_STAGE" "$DASHBOARD_DIR"; then
+		if install_directory "$DASHBOARD_STAGE" "$DASHBOARD_DIR"; then
 			log "[dashboard] Successfully updated."
 			DASHBOARD_UPDATED=1
 			mark_updated "dashboard"

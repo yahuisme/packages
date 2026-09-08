@@ -7,7 +7,6 @@
 'use strict';
 'require dom';
 'require form';
-'require fs';
 'require poll';
 'require rpc';
 'require uci';
@@ -25,11 +24,7 @@ const css = '				\
 	word-break: break-all;		\
 	margin: 0;			\
 }					\
-.description {				\
-	background-color: #33ccff;	\
-}';
-
-const hp_dir = '/var/run/homeproxy';
+';
 
 const connectionSites = [
 	{ type: 'baidu', name: _('Baidu'), url: 'https://www.baidu.com/' },
@@ -50,33 +45,20 @@ function getConnectionStatus() {
 		expect: { '': {} }
 	});
 
-	const table = E('table', { 'class': 'table' }, [
-		E('tr', { 'class': 'tr table-titles' }, [
-			E('th', { 'class': 'th' }, _('Website')),
-			E('th', { 'class': 'th' }, _('URL')),
-			E('th', { 'class': 'th' }, _('Connectivity')),
-			E('th', { 'class': 'th' }, _('Latency'))
-		])
-	]);
 	const statusElements = {};
-	const rows = connectionSites.map((site) => {
-		const state = E('strong', { 'style': 'color:gray' }, '-');
+	const table = E('div', { 'class': 'cbi-section-node' }, connectionSites.map((site) => {
+		const state = E('strong', {}, '-');
 		const latency = E('span', {}, '-');
 		statusElements[site.type] = { state, latency };
-
-		return [
-			site.name,
-			E('a', {
-				'href': site.url,
-				'target': '_blank',
-				'rel': 'noreferrer noopener',
-				'style': 'word-break:break-all'
-			}, site.url),
-			state,
-			latency
-		];
-	});
-	cbi_update_table(table, rows);
+		return E('div', { 'class': 'cbi-value' }, [
+			E('label', { 'class': 'cbi-value-title' }, site.name),
+			E('div', { 'class': 'cbi-value-field' }, [
+				E('a', { 'href': site.url, 'target': '_blank', 'rel': 'noreferrer noopener',
+					'style': 'overflow-wrap:anywhere' }, site.url),
+				E('div', {}, [ _('Connectivity'), ': ', state, ' · ', _('Latency'), ': ', latency ])
+			])
+		]);
+	}));
 
 	let running = false;
 	let generation = 0;
@@ -88,11 +70,11 @@ function getConnectionStatus() {
 			return;
 
 		if (result?.result) {
-			elements.state.style.setProperty('color', 'green');
+			elements.state.className = 'label-success';
 			dom.content(elements.state, _('Success'));
 			dom.content(elements.latency, _('%s ms').format(result.latency_ms));
 		} else {
-			elements.state.style.setProperty('color', 'red');
+			elements.state.className = 'label-danger';
 			dom.content(elements.state, result?.timed_out ? _('Timed out') : _('Failed'));
 			dom.content(elements.latency, '-');
 		}
@@ -107,7 +89,7 @@ function getConnectionStatus() {
 		const currentGeneration = ++generation;
 		connectionSites.forEach((site) => {
 			const elements = statusElements[site.type];
-			elements.state.style.setProperty('color', 'gray');
+			elements.state.className = '';
 			dom.content(elements.state, _('Testing...'));
 			dom.content(elements.latency, '-');
 		});
@@ -163,7 +145,6 @@ function getConnectionStatus() {
 		E('div', { 'class': 'cbi-section' }, [ table ])
 	]);
 
-	window.setTimeout(runAllTests, 0);
 	return view;
 }
 
@@ -218,7 +199,7 @@ function getResources(o) {
 
 			return [
 				resource.name,
-				E('span', { 'style': available ? 'color:green' : 'color:red' },
+				E('span', { 'class': available ? 'label-success' : 'label-danger' },
 					available || '-'),
 				source ? E('a', {
 					'href': source,
@@ -328,6 +309,11 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 		});
 	}
 
+	const callLogRead = rpc.declare({
+		object: 'luci.homeproxy', method: 'log_read', params: ['type'],
+		expect: { '': {} }, reject: true
+	});
+
 	const callLogClean = rpc.declare({
 		object: 'luci.homeproxy',
 		method: 'log_clean',
@@ -345,10 +331,12 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 
 	let log;
 	poll.add(L.bind(() => {
-		return fs.read_direct(String.format('%s/%s.log', hp_dir, filename), 'text')
+		return callLogRead(filename)
 		.then((res) => {
+			if (res.error)
+				throw new Error(res.error);
 			log = E('pre', { 'wrap': 'pre' }, [
-				res.trim() || _('Log is empty.')
+				(res.content || '').slice(-131072).trim() || _('Log is empty.')
 			]);
 
 			dom.content(log_textarea, log);

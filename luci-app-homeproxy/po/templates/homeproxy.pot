@@ -3173,3 +3173,18 @@ msgstr ""
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:279
 msgid "valid port value"
 msgstr ""
+
+msgid "Expecting: non-empty value"
+msgstr ""
+
+msgid "Specifies the period of time (in seconds) after which a health check will be performed using a ping frame if no frames have been received on the connection."
+msgstr ""
+
+msgid "Please note that a ping response is considered a received frame, so if there is no other traffic on the connection, the health check will be executed every interval."
+msgstr ""
+
+msgid "Specifies the timeout duration (in seconds) after sending a PING frame, within which a response must be received."
+msgstr ""
+
+msgid "If a response to the PING frame is not received within the specified timeout duration, the connection will be closed."
+msgstr ""

@@ -35,14 +35,11 @@ const CBIGenValue = form.Value.extend({
 });
 
 function renderStatus(isRunning, version) {
-	let spanTemp = '<em><span style="color:%s"><strong>%s (sing-box v%s) %s</strong></span></em>';
-	let renderHTML;
-	if (isRunning)
-		renderHTML = spanTemp.format('green', _('HomeProxy Server'), version, _('RUNNING'));
-	else
-		renderHTML = spanTemp.format('red', _('HomeProxy Server'), version, _('NOT RUNNING'));
-
-	return renderHTML;
+	return E('div', {}, [
+		E('strong', { 'class': isRunning ? 'label-success' : 'label-danger' }, [
+			_('HomeProxy Server') + ' (sing-box v' + (version || '?') + ') ' +
+			(isRunning ? _('RUNNING') : _('NOT RUNNING')) ])
+	]);
 }
 
 function handleGenKey(option) {
@@ -117,7 +114,7 @@ return view.extend({
 			poll.add(() => {
 				return L.resolveDefault(hp.getServiceStatus('sing-box-s')).then((res) => {
 					let view = document.getElementById('service_status');
-					view.innerHTML = renderStatus(res, features.version);
+					view.replaceChildren(renderStatus(res, features.version));
 				});
 			});
 
@@ -174,12 +171,14 @@ return view.extend({
 		o.rmempty = false;
 
 		o = s.option(form.Value, 'address', _('Listen address'));
-		o.placeholder = '::';
+		o.default = '::';
+		o.rmempty = false;
 		o.datatype = 'ipaddr';
 		o.modalonly = true;
 
 		o = s.option(form.Value, 'port', _('Listen port'),
 			_('The port must be unique.'));
+		o.rmempty = false;
 		o.datatype = 'port';
 		o.validate = L.bind(hp.validateUniqueValue, this, data[0], 'server', 'port');
 

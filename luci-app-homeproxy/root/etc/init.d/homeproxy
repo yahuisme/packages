@@ -271,15 +271,22 @@ start_service() {
 		fi
 	fi
 
+	# Fail the complete start before replacing either validated configuration.
+	if { [ "$outbound_node" != "nil" ] && [ "$client_ready" -ne 1 ]; } ||
+	   { [ "$server_enabled" = "1" ] && [ "$server_ready" -ne 1 ]; }; then
+		rm -f "$RUN_DIR/sing-box-c.json.new" "$RUN_DIR/sing-box-s.json.new"
+		return 1
+	fi
+
 	if [ "$client_ready" -eq 1 ]; then
-		mv -f "$RUN_DIR/sing-box-c.json.new" "$RUN_DIR/sing-box-c.json"
+		mv -f "$RUN_DIR/sing-box-c.json.new" "$RUN_DIR/sing-box-c.json" || return 1
 	else
-		rm -f "$RUN_DIR/sing-box-c.json.new" "$RUN_DIR/sing-box-c.json"
+		rm -f "$RUN_DIR/sing-box-c.json.new"
 	fi
 	if [ "$server_ready" -eq 1 ]; then
-		mv -f "$RUN_DIR/sing-box-s.json.new" "$RUN_DIR/sing-box-s.json"
+		mv -f "$RUN_DIR/sing-box-s.json.new" "$RUN_DIR/sing-box-s.json" || return 1
 	else
-		rm -f "$RUN_DIR/sing-box-s.json.new" "$RUN_DIR/sing-box-s.json"
+		rm -f "$RUN_DIR/sing-box-s.json.new"
 	fi
 	if [ "$client_ready" -ne 1 ] && [ "$server_ready" -ne 1 ]; then
 		sync_subscription_cron 0 || log "Error: failed to clear the subscription update schedule."

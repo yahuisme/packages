@@ -230,6 +230,12 @@ export function strToBool(str) {
 	return (str === '1') || null;
 };
 
+export function requirePort(value) {
+	if (!match(value || '', /^[0-9]+$/) || int(value) < 1 || int(value) > 65535)
+		die('Invalid port: expected 1..65535');
+	return int(value);
+};
+
 export function strToInt(str) {
 	return !isEmpty(str) ? (int(str) || null) : null;
 };

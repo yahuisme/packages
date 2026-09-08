@@ -15,7 +15,7 @@ import { cursor } from 'uci';
 import {
 	createNodeLabelRegistry, filterExistingNodes, hasForceProxyRules, isEmpty,
 	normalizeList, parseURL,
-	reserveUniqueLabel, strToBool, strToInt, strToTime,
+	reserveUniqueLabel, requirePort, strToBool, strToInt, strToTime,
 	removeBlankAttrs, renderEndpoint, renderOutbound, validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
 
@@ -182,6 +182,27 @@ const dashboard_enabled = uci.get(uciconfig, ucimain, 'dashboard_enabled') === '
       !isEmpty(readfile(dashboard_path + '/index.html')),
       dashboard_port = strToInt(uci.get(uciconfig, ucimain, 'dashboard_port')),
       dashboard_secret = uci.get(uciconfig, ucimain, 'dashboard_secret');
+function validate_dashboard(enabled, secret) {
+	if (enabled && !trim(secret || ''))
+		die('Dashboard API secret must not be empty');
+}
+validate_dashboard(uci.get(uciconfig, ucimain, 'dashboard_enabled') === '1', dashboard_secret);
+
+const used_ports = {};
+function reserve_port(value, name) {
+	const port = requirePort(value);
+	if (used_ports[port])
+		die(`Port conflict: ${name} and ${used_ports[port]}`);
+	used_ports[port] = name;
+}
+reserve_port(dns_port, 'dns');
+reserve_port(mixed_port, 'mixed');
+reserve_port(uci.get(uciconfig, uciinfra, 'clash_api_port'), 'clash');
+if (tproxy_enabled)
+	reserve_port(tproxy_port, 'tproxy');
+if (uci.get(uciconfig, ucimain, 'dashboard_enabled') === '1')
+	reserve_port(uci.get(uciconfig, ucimain, 'dashboard_port'), 'dashboard');
+
 const force_proxy_rules = hasForceProxyRules(uci, uciconfig, proxy_domain_list);
 const fast_bypass_mainland = routing_mode === 'bypass_mainland_china' && !force_proxy_rules;
 /* UCI config end */

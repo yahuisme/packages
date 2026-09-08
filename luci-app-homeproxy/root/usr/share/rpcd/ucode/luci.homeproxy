@@ -626,6 +626,20 @@ const methods = {
 		}
 	},
 
+	log_read: {
+		args: { type: 'type' },
+		call: function(req) {
+			if (!(req.args?.type in ['homeproxy', 'sing-box-c', 'sing-box-s']))
+				return { error: 'illegal type' };
+			const fd = popen(`/usr/bin/tail -c 131072 ${shellQuote(RUN_DIR + '/' + req.args.type + '.log')} 2>/dev/null`);
+			if (!fd)
+				return { error: 'log unavailable' };
+			const content = fd.read(131072);
+			const status = fd.close();
+			return status === 0 ? { content: content || '' } : { error: 'log unavailable' };
+		}
+	},
+
 	log_clean: {
 		args: { type: 'type' },
 		call: function(req) {
