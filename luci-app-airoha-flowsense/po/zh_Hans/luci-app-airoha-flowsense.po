@@ -9,6 +9,9 @@ msgstr "Airoha 流量传感器"
 msgid "Bound / Unbound flows"
 msgstr "已绑定 / 未绑定流"
 
+msgid "Bound Flows"
+msgstr "已绑定流"
+
 msgid "Configured switches do not prove that individual connections are offloaded."
 msgstr "配置开关不代表每条连接均已进入硬件卸载。"
 
@@ -66,6 +69,9 @@ msgstr "监控概览"
 msgid "PPE Flow Offload"
 msgstr "PPE 硬件流表"
 
+msgid "PPE Flow Trends"
+msgstr "PPE 流量趋势"
+
 msgid "PPE data unavailable"
 msgstr "无法获取 PPE 流表"
 
@@ -80,6 +86,9 @@ msgstr "延迟平均绝对偏差"
 
 msgid "RX / TX rate"
 msgstr "接收 / 发送速率"
+
+msgid "RX Rate (Mbps)"
+msgstr "接收速率 (Mbps)"
 
 msgid "RX drops"
 msgstr "接收丢弃增量"
@@ -105,17 +114,26 @@ msgstr "软件流量卸载"
 msgid "Stopped or stale"
 msgstr "未运行或数据已过期"
 
+msgid "TX Rate (Mbps)"
+msgstr "发送速率 (Mbps)"
+
 msgid "TX drops"
 msgstr "发送丢弃增量"
 
 msgid "TX errors"
 msgstr "发送错误增量"
 
+msgid "Throughput Trends"
+msgstr "吞吐率趋势"
+
 msgid "Unable to apply monitor settings. Check the target and service."
 msgstr "无法应用监测设置，请检查目标地址及服务状态。"
 
 msgid "Unavailable"
 msgstr "无法获取"
+
+msgid "Unbound Flows"
+msgstr "未绑定流"
 
 msgid "Unknown"
 msgstr "未知"

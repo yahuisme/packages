@@ -2,37 +2,14 @@
 
 include $(TOPDIR)/rules.mk
 
-LUCI_TITLE:=LuCI Support for Airoha FlowSense
-LUCI_DESCRIPTION:=PPE flow monitoring, Ethernet counters and optional link quality probes.
-LUCI_DEPENDS:=+luci-base
-LUCI_PKGARCH:=all
-
-PKG_NAME:=luci-app-airoha-flowsense
-PKG_VERSION:=1.1.3
-PKG_RELEASE:=7
 PKG_LICENSE:=Apache-2.0
-PKG_MAINTAINER:=Airoha Maintainer
 
-define Package/luci-app-airoha-flowsense/conffiles
+LUCI_TITLE:=LuCI Airoha FlowSense
+LUCI_PKGNAME:=luci-app-airoha-flowsense
+LUCI_DEPENDS:=+luci-base @TARGET_airoha
+
+define Package/$(LUCI_PKGNAME)/conffiles
 /etc/config/npu-monitor
-endef
-
-define Package/luci-app-airoha-flowsense/postinst
-#!/bin/sh
-[ -n "$${IPKG_INSTROOT}" ] && exit 0
-
-/etc/init.d/npu-jitter enable 2>/dev/null
-/etc/init.d/npu-jitter start 2>/dev/null
-exit 0
-endef
-
-define Package/luci-app-airoha-flowsense/prerm
-#!/bin/sh
-[ -n "$${IPKG_INSTROOT}" ] && exit 0
-
-/etc/init.d/npu-jitter stop 2>/dev/null
-/etc/init.d/npu-jitter disable 2>/dev/null
-exit 0
 endef
 
 include $(TOPDIR)/feeds/luci/luci.mk
