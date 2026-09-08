@@ -1,0 +1,9 @@
+#!/bin/sh
+# Read once on page load, not during periodic station polling.
+[ "$#" -eq 0 ] || exit 2
+dmesg 2>/dev/null | awk '
+    tolower($0) ~ /mt7996.*firmware.*version/ {
+        sub(/^.*mt7996[^:]*:[[:space:]]*/, "")
+        line=substr($0,1,512)
+    }
+    END {if (line) print line}'

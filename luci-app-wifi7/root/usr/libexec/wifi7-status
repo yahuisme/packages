@@ -24,6 +24,4 @@ for socket in /var/run/hostapd/*; do
     case "$iface" in global|''|*[!a-zA-Z0-9_.:-]*) continue;; esac
     probe hostapd "$iface" hostapd_cli -p /var/run/hostapd -i "$iface" status
 done
-printf '@@ firmware 0\n'
-dmesg 2>/dev/null | awk 'tolower($0) ~ /mt7996.*firmware.*version/ {line=$0} END {if (line) print line}'
 exit 0

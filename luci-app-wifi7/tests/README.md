@@ -1,20 +1,29 @@
 # 本地回归测试
 
-测试数据为人工构造的协议夹具，不是实机抓取数据。
+测试使用隔离协议数据，不连接路由器、不修改宿主网络。Node.js 测试需要外部安装的 jsdom 和目标 LuCI 源码。
 
 ```sh
-node tests/telemetry.test.js
-```
-
-页面测试需要 Node.js、外部安装的 `jsdom`，以及目标 LuCI 的原始 `rpc.js`。不把开发依赖安装到固件包中。
-
-```sh
+export NODE_PATH=/path/to/node_modules
 export LUCI_RPC=/path/to/luci/modules/luci-base/htdocs/luci-static/resources/rpc.js
-# jsdom 安装在外部目录时通过 NODE_PATH 指向其 node_modules
+node tests/telemetry.test.js
 node tests/view.test.js
 NATIVE_TEST=1 node tests/view.test.js
 MLO_TEST=1 node tests/view.test.js
 DENIED_TEST=1 node tests/view.test.js
+node tests/regression.test.js
+NATIVE_TEST=1 node tests/regression.test.js
+MLO_TEST=1 node tests/regression.test.js
+READONLY_TEST=1 node tests/regression.test.js
+export LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/resources
+node tests/integration.cjs
+python3 tests/catalog.test.py
+python3 tests/probes.test.py
 ```
 
-覆盖原生 RPC 解包和速率、MLO Link 7 的频率映射、逐天线 RSSI、CAC 状态、占用率刻度、权限错误、当前配置显示、表单标签与非法功率阻止提交。
+覆盖 RPC 解包、MLO 链路、信号未知、计数边界、CAC 与占用率、表单校验、无变更保存、失败重试、国家变更刷新、只读权限及客户端节点保留。
+
+采集测试用临时命令替身验证固定脚本拒绝参数、固件文本长度和周期采集不读取内核日志。翻译测试验证全部 JS 字符串、菜单和权限描述的 PO/POT 一致性。
+
+集成测试加载真实 LuCI `uci.js`、`rpc.js` 和 DOM 实现，仅以隔离 HTTP 数据替代路由器，覆盖 apply/confirm、数字错误码、失败后恢复旧值再提交等路径。预期权限失败用例可能输出 LuCI 的 RPCError 日志，以最终断言及退出码为准。
+
+这些测试不替代固件构建、实机无线应用、客户端协商与真实性能测量。
