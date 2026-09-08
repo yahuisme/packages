@@ -574,7 +574,7 @@ return view.extend({
 		return m.render().then(function(nodes) {
 			nodes.classList.add('mlo-map');
 			nodes.appendChild(E('style', {}, `
-				.mlo-map .cbi-value.mlo-value { display:flex; flex-wrap:wrap; gap:8px; padding:4px 0; margin:0; }
+				.mlo-map .cbi-value.mlo-value { display:grid; grid-template-columns:minmax(7rem, 9rem) minmax(0, 1fr); gap:4px 12px; padding:6px 0; margin:0; align-items:start; }
 				.mlo-map .cbi-value.mlo-value > .cbi-value-title { flex:0 0 96px; width:96px; text-align:left; padding:0; font-weight:500; }
 				.mlo-map .cbi-value.mlo-value > .cbi-value-field { flex:1; min-width:0; overflow-wrap:anywhere; }
 				.mlo-map .ifacebadge { margin:0 8px 8px 0; font-weight:500; }
