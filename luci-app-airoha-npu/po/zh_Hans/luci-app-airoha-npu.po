@@ -57,9 +57,6 @@ msgstr "硬件流量卸载"
 msgid "Hardware flow offloading configuration"
 msgstr "硬件流量卸载配置"
 
-msgid "Inspect PPE flows in Airoha FlowSense, if installed."
-msgstr "如已安装，可在 Airoha FlowSense 中查看 PPE 流表。"
-
 msgid "Kernel CPU controls"
 msgstr "内核 CPU 控制"
 
@@ -74,9 +71,6 @@ msgstr "NPU 时钟"
 
 msgid "NPU driver binding"
 msgstr "NPU 驱动绑定"
-
-msgid "Network settings"
-msgstr "网络设置"
 
 msgid "Not bound"
 msgstr "未绑定"

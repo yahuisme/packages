@@ -311,8 +311,8 @@ return view.extend({
 		}
 
 		var summaryGrid = E('div', { 'class': 'fs-summary-grid' }, [
-			renderSummaryCard('rx', _('Total Download'), summaryCards.rx),
-			renderSummaryCard('tx', _('Total Upload'), summaryCards.tx),
+			renderSummaryCard('rx', _('Total Port Receive Rate'), summaryCards.rx),
+			renderSummaryCard('tx', _('Total Port Transmit Rate'), summaryCards.tx),
 			renderSummaryCard('ppe', _('PPE Flow Engine'), summaryCards.ppe),
 			renderSummaryCard('quality', _('Network Quality'), summaryCards.quality)
 		]);
@@ -380,13 +380,16 @@ return view.extend({
 				var ppe = data.ppe || {};
 				counts.textContent = ppe.available ? ppe.bnd + ' / ' + ppe.unb : _('Unavailable');
 				ip.textContent = ppe.available ? ppe.ipv4 + ' / ' + ppe.ipv6 + ' / ' + ppe.other : '—';
-				if (!dirty) { target.value = data.monitor.target; monitor.checked = data.monitor.enabled === true; }
+				var monitorConfig = data.monitor || {};
+				if (!dirty) { target.value = monitorConfig.target || ''; monitor.checked = monitorConfig.enabled === true; }
+				var probeState = monitorConfig.enabled === false ? _('Probe disabled')
+					: monitorConfig.enabled === true ? _('Probe data unavailable') : _('Unknown');
 				var jitter = data.jitter;
-				ping.textContent = jitter ? value(jitter.last_ping, ' ms') : _('Stopped or stale');
+				ping.textContent = jitter ? value(jitter.last_ping, ' ms') : probeState;
 				deviation.textContent = jitter ? value(jitter.deviation, ' ms') : '—';
 				loss.textContent = jitter ? value(jitter.loss, '%') + ' (' + jitter.received + '/' + jitter.samples + ')' : '—';
 
-				var totalRxBps = 0, totalTxBps = 0, hasTotal = false;
+				var totalRxBps = 0, totalTxBps = 0, validRx = 0, validTx = 0;
 				interfaces.replaceChildren();
 
 				var ifaceOrder = { 'wan': 1, 'lan2': 2, 'lan3': 3, 'lan4': 4, 'lan1': 5 };
@@ -403,16 +406,16 @@ return view.extend({
 					var before = previous && previous.ports[port.device], dt = previous ? data.uptime - previous.time : 0;
 					if (before && before.ifindex !== port.ifindex) before = null;
 					var rx = change(port.stats, before && before.stats, 'rx_bytes', dt), tx = change(port.stats, before && before.stats, 'tx_bytes', dt);
-					if (rx != null && dt > 0) { totalRxBps += rx * 8 / dt; hasTotal = true; }
-					if (tx != null && dt > 0) { totalTxBps += tx * 8 / dt; hasTotal = true; }
+					if (rx != null && dt > 0) { totalRxBps += rx * 8 / dt; validRx++; }
+					if (tx != null && dt > 0) { totalTxBps += tx * 8 / dt; validTx++; }
 					var rxRateText = rx == null ? '—' : formatMbps(rx * 8 / dt / 1000000) + ' Mbit/s';
 					var txRateText = tx == null ? '—' : formatMbps(tx * 8 / dt / 1000000) + ' Mbit/s';
 
-					var isCarrierUp = port.carrier === true;
-					var isCarrierDown = port.carrier === false;
+					var isCarrierUp = port.carrier === 1 || port.carrier === true;
+					var isCarrierDown = port.carrier === 0 || port.carrier === false;
 					var statusBadge = E('span', {
 						'class': 'fs-iface-badge' + (isCarrierUp ? ' fs-badge-up' : isCarrierDown ? ' fs-badge-down' : '')
-					}, port.carrier == null ? _('Unknown') : isCarrierUp ? _('Up') : _('Down'));
+					}, isCarrierUp ? _('Up') : isCarrierDown ? _('Down') : _('Unknown'));
 
 					var card = E('div', { 'class': 'cbi-section-node fs-card-neutral' }, [
 						E('div', { 'class': 'fs-iface-header' }, [
@@ -441,21 +444,21 @@ return view.extend({
 				});
 
 				// 更新 Summary Cards
-				summaryCards.rx.val.textContent = hasTotal ? formatMbps(totalRxBps / 1000000) + ' Mbit/s' : '—';
+				summaryCards.rx.val.textContent = validRx > 0 && validRx === portList.length ? formatMbps(totalRxBps / 1000000) + ' Mbit/s' : '—';
 				summaryCards.rx.sub.textContent = _('All interfaces combined');
 
-				summaryCards.tx.val.textContent = hasTotal ? formatMbps(totalTxBps / 1000000) + ' Mbit/s' : '—';
+				summaryCards.tx.val.textContent = validTx > 0 && validTx === portList.length ? formatMbps(totalTxBps / 1000000) + ' Mbit/s' : '—';
 				summaryCards.tx.sub.textContent = _('All interfaces combined');
 
 				summaryCards.ppe.val.textContent = ppe.available && ppe.bnd != null ? ppe.bnd + ' ' + _('Flows') : _('Unavailable');
 				summaryCards.ppe.sub.textContent = ppe.available
 					? (ppe.unb != null ? _('Unbound') + ': ' + ppe.unb : '—') + (data.configured_hw ? ' · ' + _('HW PPE') : '')
-					: _('PPE engine inactive');
+					: _('PPE data unavailable');
 
 				summaryCards.quality.val.textContent = jitter && jitter.last_ping != null ? value(jitter.last_ping, ' ms') : '—';
 				summaryCards.quality.sub.textContent = jitter
-					? _('Loss') + ': ' + (jitter.loss != null ? jitter.loss + '%' : '0%') + (jitter.deviation != null ? ' · ±' + jitter.deviation + 'ms' : '')
-					: _('Probe inactive');
+					? _('Loss') + ': ' + value(jitter.loss, '%') + (jitter.deviation != null ? ' · ±' + jitter.deviation + 'ms' : '')
+					: probeState;
 
 				appendHistory(data);
 				drawAllCharts();

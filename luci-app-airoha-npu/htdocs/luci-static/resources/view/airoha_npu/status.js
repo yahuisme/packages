@@ -168,9 +168,7 @@ return view.extend({
 			E('div', { 'class': 'cbi-section' }, [
 				E('h3', { 'class': 'cbi-section-title' }, _('Firewall flow offloading')),
 				E('div', { 'class': 'cbi-section-descr' }, _('Sets software and hardware flow offloading together and reloads the firewall. This may interrupt connections. Bridge filtering is not an offload switch; configure AP networking in the native network settings and follow your firmware documentation.')),
-				control('flow', _('Hardware flow offloading'), [['0', _('Disabled')], ['1', _('Enabled')]], typeof flow.enabled === 'boolean' ? (flow.enabled ? '1' : '0') : '', setFlow),
-				E('a', { href: L.url('admin/network/network'), style: 'display:inline-block;margin-top:8px' }, _('Network settings')),
-				E('div', { 'class': 'cbi-section-descr', style: 'margin-top:6px' }, _('Inspect PPE flows in Airoha FlowSense, if installed.'))
+				control('flow', _('Hardware flow offloading'), [['0', _('Disabled')], ['1', _('Enabled')]], typeof flow.enabled === 'boolean' ? (flow.enabled ? '1' : '0') : '', setFlow)
 			])
 		]);
 		update(status, flow);

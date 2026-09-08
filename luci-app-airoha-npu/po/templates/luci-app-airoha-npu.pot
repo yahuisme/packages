@@ -56,9 +56,6 @@ msgstr ""
 msgid "Hardware flow offloading configuration"
 msgstr ""
 
-msgid "Inspect PPE flows in Airoha FlowSense, if installed."
-msgstr ""
-
 msgid "Kernel CPU controls"
 msgstr ""
 
@@ -72,9 +69,6 @@ msgid "NPU clock"
 msgstr ""
 
 msgid "NPU driver binding"
-msgstr ""
-
-msgid "Network settings"
 msgstr ""
 
 msgid "Not bound"

@@ -1,6 +1,6 @@
+#
 msgid ""
-msgstr ""
-"Content-Type: text/plain; charset=UTF-8\n"
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
 msgid "Airoha FlowSense"
 msgstr ""
@@ -8,7 +8,11 @@ msgstr ""
 msgid "Bound / Unbound flows"
 msgstr ""
 
-msgid "Configured switches do not prove that individual connections are offloaded."
+msgid "Bound Flows"
+msgstr ""
+
+msgid ""
+"Configured switches do not prove that individual connections are offloaded."
 msgstr ""
 
 msgid "Data unavailable; previous readings cleared."
@@ -65,6 +69,9 @@ msgstr ""
 msgid "PPE Flow Offload"
 msgstr ""
 
+msgid "PPE Flow Trends"
+msgstr ""
+
 msgid "PPE data unavailable"
 msgstr ""
 
@@ -80,13 +87,18 @@ msgstr ""
 msgid "RX / TX rate"
 msgstr ""
 
+msgid "RX Rate (Mbps)"
+msgstr ""
+
 msgid "RX drops"
 msgstr ""
 
 msgid "RX errors"
 msgstr ""
 
-msgid "Rates use interface counters; hardware-bypassed traffic may not be fully counted. Errors and drops are interval increments."
+msgid ""
+"Rates use interface counters; hardware-bypassed traffic may not be fully "
+"counted. Errors and drops are interval increments."
 msgstr ""
 
 msgid "Resume"
@@ -101,7 +113,7 @@ msgstr ""
 msgid "Software flow offload"
 msgstr ""
 
-msgid "Stopped or stale"
+msgid "TX Rate (Mbps)"
 msgstr ""
 
 msgid "TX drops"
@@ -110,10 +122,16 @@ msgstr ""
 msgid "TX errors"
 msgstr ""
 
+msgid "Throughput Trends"
+msgstr ""
+
 msgid "Unable to apply monitor settings. Check the target and service."
 msgstr ""
 
 msgid "Unavailable"
+msgstr ""
+
+msgid "Unbound Flows"
 msgstr ""
 
 msgid "Unknown"
@@ -128,20 +146,38 @@ msgstr ""
 msgid "Window packet loss"
 msgstr ""
 
-msgid "PPE Flow Trends"
+msgid "Total Port Receive Rate"
 msgstr ""
 
-msgid "Bound Flows"
+msgid "Total Port Transmit Rate"
 msgstr ""
 
-msgid "Unbound Flows"
+msgid "PPE Flow Engine"
 msgstr ""
 
-msgid "Throughput Trends"
+msgid "Network Quality"
 msgstr ""
 
-msgid "RX Rate (Mbps)"
+msgid "All interfaces combined"
 msgstr ""
 
-msgid "TX Rate (Mbps)"
+msgid "Flows"
+msgstr ""
+
+msgid "Unbound"
+msgstr ""
+
+msgid "HW PPE"
+msgstr ""
+
+msgid "Loss"
+msgstr ""
+
+msgid "Probe disabled"
+msgstr ""
+
+msgid "FlowSense telemetry and probe settings"
+msgstr ""
+
+msgid "Probe data unavailable"
 msgstr ""

@@ -1,7 +1,8 @@
+#
 msgid ""
 msgstr ""
-"Content-Type: text/plain; charset=UTF-8\n"
 "Language: zh_Hans\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 
 msgid "Airoha FlowSense"
 msgstr "Airoha 流量传感器"
@@ -12,7 +13,8 @@ msgstr "已绑定 / 未绑定流"
 msgid "Bound Flows"
 msgstr "已绑定流"
 
-msgid "Configured switches do not prove that individual connections are offloaded."
+msgid ""
+"Configured switches do not prove that individual connections are offloaded."
 msgstr "配置开关不代表每条连接均已进入硬件卸载。"
 
 msgid "Data unavailable; previous readings cleared."
@@ -96,7 +98,9 @@ msgstr "接收丢弃增量"
 msgid "RX errors"
 msgstr "接收错误增量"
 
-msgid "Rates use interface counters; hardware-bypassed traffic may not be fully counted. Errors and drops are interval increments."
+msgid ""
+"Rates use interface counters; hardware-bypassed traffic may not be fully "
+"counted. Errors and drops are interval increments."
 msgstr "速率依据接口计数，可能未完整计入硬件旁路流量；错误与丢弃显示本轮增量。"
 
 msgid "Resume"
@@ -110,9 +114,6 @@ msgstr "已显示 / 总条目"
 
 msgid "Software flow offload"
 msgstr "软件流量卸载"
-
-msgid "Stopped or stale"
-msgstr "未运行或数据已过期"
 
 msgid "TX Rate (Mbps)"
 msgstr "发送速率 (Mbps)"
@@ -147,11 +148,11 @@ msgstr "等待数据"
 msgid "Window packet loss"
 msgstr "采样窗口丢包率"
 
-msgid "Total Download"
-msgstr "总下行速率"
+msgid "Total Port Receive Rate"
+msgstr "网口接收总速率"
 
-msgid "Total Upload"
-msgstr "总上行速率"
+msgid "Total Port Transmit Rate"
+msgstr "网口发送总速率"
 
 msgid "PPE Flow Engine"
 msgstr "PPE 流控引擎"
@@ -171,14 +172,14 @@ msgstr "未绑定"
 msgid "HW PPE"
 msgstr "硬件加速"
 
-msgid "PPE engine inactive"
-msgstr "流控引擎未就绪"
-
 msgid "Loss"
 msgstr "丢包"
 
-msgid "Probe inactive"
-msgstr "质量探测未启用"
+msgid "Probe disabled"
+msgstr "探测已禁用"
 
 msgid "FlowSense telemetry and probe settings"
-msgstr "FlowSense telemetry and probe settings"
+msgstr "FlowSense 遥测与探测设置"
+
+msgid "Probe data unavailable"
+msgstr "无法获取探测数据"
