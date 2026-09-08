@@ -35,6 +35,7 @@ get_interfaces() {
         [ -d "$dev/device" ] || [ -d "$dev/dsa" ] || continue
         [ ! -d "$dev/phy80211" ] || continue
         name=${dev##*/}
+        [ "$name" != "eth0" ] || continue
         case "$name" in ''|*[!a-zA-Z0-9_.:-]*) continue;; esac
         [ "$first" -eq 1 ] || printf ','
         first=0

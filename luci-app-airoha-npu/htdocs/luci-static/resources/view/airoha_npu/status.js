@@ -124,7 +124,7 @@ return view.extend({
 			metrics.governor.textContent = govStr;
 			metrics.online.textContent = text(s.cpu_count);
 			metrics.clock.textContent = npuClockStr;
-			metrics.driver.textContent = s.npu_bound === true ? _('Bound (not a health check)') : s.npu_bound === false ? _('Not bound') : _('Unknown');
+			metrics.driver.textContent = s.npu_bound === true ? _('Bound') : s.npu_bound === false ? _('Not bound') : _('Unknown');
 			metrics.offload.textContent = f.enabled === true ? _('Enabled in firewall configuration') : f.enabled === false ? _('Disabled in firewall configuration') : _('Unknown');
 
 			cards.freq.val.textContent = curFreqStr;
@@ -148,14 +148,14 @@ return view.extend({
 			]),
 			E('div', { 'class': 'cbi-section' }, [
 				E('h3', { 'class': 'cbi-section-title' }, _('SoC & NPU Details')),
-				metric('soc', _('SoC compatible (device tree)'), info.soc_compat),
+				metric('soc', _('SoC compatible'), info.soc_compat),
 				metric('driver', _('NPU driver binding')),
 				metric('clock', _('NPU clock')),
-				metric('firmware', _('Firmware file (device tree)'), info.firmware_file),
-				metric('version', _('Firmware file version (not running version)'), info.firmware_file_version),
+				metric('firmware', _('Firmware file'), info.firmware_file),
+				metric('version', _('Firmware file version'), info.firmware_file_version),
 				metric('online', _('Online CPUs')),
-				metric('current', _('CPU current frequency (cpufreq)')),
-				metric('maximum', _('CPU frequency limit (cpufreq)')),
+				metric('current', _('CPU current frequency')),
+				metric('maximum', _('CPU frequency limit')),
 				metric('governor', _('CPU governor')),
 				metric('offload', _('Hardware flow offloading configuration'))
 			]),

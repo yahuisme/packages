@@ -27,12 +27,12 @@ var themeCSS = '\
 .fs-card-value{font-size:18px;font-family:var(--fs-font-mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,inherit)}\
 .fs-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
 .fs-card-neutral{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
-.fs-chart-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:12px 14px;margin:12px 0}\
-.fs-chart-title{font-size:13px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:6px;margin-bottom:10px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
+.fs-chart-panel{background:transparent;border:none;padding:0;margin:12px 0}\
+.fs-chart-title{font-size:12px;font-weight:600;color:var(--cbi-muted-color,#666);text-transform:uppercase;letter-spacing:.2px;padding-bottom:6px;margin-bottom:8px;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,0.15))}\
 .fs-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}\
-.fs-chart-card{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px;padding:8px 10px;min-width:0}\
+.fs-chart-card{background:transparent;border:none;padding:0;min-width:0}\
 .fs-chart-card .fs-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
-.fs-chart-canvas{display:block;width:100%;height:100px;margin-top:6px;background:var(--fs-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
+.fs-chart-canvas{display:block;width:100%;height:100px;margin-top:4px;background:var(--fs-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
 .flowsense-dashboard .cbi-section-node{padding:12px 14px;margin-bottom:12px}\
 .fs-iface-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,0.12))}\
 .fs-iface-title{display:flex;align-items:baseline;gap:8px}\
@@ -231,8 +231,14 @@ function drawAllCharts() {
 		}
 	}
 	
-	// 为每个接口绘制趋势图
-	['wan', 'lan1', 'lan2', 'lan3', 'lan4'].forEach(function(iface) {
+	// 为所有已收集的物理网口绘制趋势图
+	var knownIfaces = {};
+	history.forEach(function(s) {
+		Object.keys(s.interfaces || {}).forEach(function(dev) {
+			if (dev !== 'eth0') knownIfaces[dev] = true;
+		});
+	});
+	Object.keys(knownIfaces).forEach(function(iface) {
 		var rxCanvas = document.getElementById('fc-' + iface + '-rx');
 		var txCanvas = document.getElementById('fc-' + iface + '-tx');
 		if (!rxCanvas || !txCanvas) return;
@@ -382,7 +388,18 @@ return view.extend({
 
 				var totalRxBps = 0, totalTxBps = 0, hasTotal = false;
 				interfaces.replaceChildren();
-				(data.interfaces || []).forEach(function(port) {
+
+				var ifaceOrder = { 'wan': 1, 'lan2': 2, 'lan3': 3, 'lan4': 4, 'lan1': 5 };
+				var portList = (data.interfaces || []).filter(function(p) {
+					return p && p.device && p.device !== 'eth0';
+				}).sort(function(a, b) {
+					var oa = ifaceOrder[a.device] || 100;
+					var ob = ifaceOrder[b.device] || 100;
+					if (oa !== ob) return oa - ob;
+					return (a.device || '').localeCompare(b.device || '');
+				});
+
+				portList.forEach(function(port) {
 					var before = previous && previous.ports[port.device], dt = previous ? data.uptime - previous.time : 0;
 					if (before && before.ifindex !== port.ifindex) before = null;
 					var rx = change(port.stats, before && before.stats, 'rx_bytes', dt), tx = change(port.stats, before && before.stats, 'tx_bytes', dt);

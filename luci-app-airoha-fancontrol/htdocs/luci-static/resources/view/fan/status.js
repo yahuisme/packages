@@ -76,7 +76,7 @@ function presetInfo(preset) {
 		performance: _('Performance'), custom: _('Custom')
 	};
 	return { value: labels[preset] || _('Unknown'),
-		sub: _('Configuration only; hardware curve is not verified.') };
+		sub: _('Active fan curve profile') };
 }
 
 function summaryData(status) {

@@ -609,9 +609,9 @@ return view.extend({
 				.mlo-map .mlo-header-bar { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
 				.mlo-map .mlo-header-bar > h3 { margin:0; }
 				.mlo-map .mlo-summary-grid { display:grid; grid-template-columns:repeat(3, minmax(180px, 1fr)); gap:12px; margin-bottom:8px; }
-				.mlo-map .mlo-summary-card { background:var(--mlo-bg); border:1px solid var(--mlo-border); border-radius:6px; padding:10px 14px; min-height:68px; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box; }
+				.mlo-map .mlo-summary-card { background:var(--mlo-bg); border:1px solid var(--mlo-border); border-radius:6px; padding:10px 14px; min-height:76px; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box; }
 				.mlo-map .mlo-card-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.3px; color:var(--cbi-muted-color, #666); margin-bottom:4px; }
-				.mlo-map .mlo-card-value { font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; color:var(--cbi-text-color, inherit); }
+				.mlo-map .mlo-card-value { font-size:18px; font-weight:600; font-variant-numeric:tabular-nums; color:var(--cbi-text-color, inherit); }
 				.mlo-map .mlo-hint { margin:8px 0; font-size:12px; opacity:0.8; }
 				.mlo-map .mlo-warnings { margin:8px 0; display:flex; flex-direction:column; gap:4px; }
 				.mlo-map .mlo-warning-item { display:flex; align-items:flex-start; gap:6px; font-size:12px; color:var(--cbi-warning-color, #c08400); }

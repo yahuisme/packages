@@ -15,14 +15,11 @@ msgstr "应用"
 msgid "Apply or revert pending firewall changes first."
 msgstr "请先应用或撤销待处理的防火墙更改。"
 
-msgid "Bound (not a health check)"
-msgstr "已绑定（不代表健康检查通过）"
+msgid "CPU current frequency"
+msgstr "CPU 当前频率"
 
-msgid "CPU current frequency (cpufreq)"
-msgstr "CPU 当前频率（cpufreq）"
-
-msgid "CPU frequency limit (cpufreq)"
-msgstr "CPU 频率上限（cpufreq）"
+msgid "CPU frequency limit"
+msgstr "CPU 频率上限"
 
 msgid "CPU governor"
 msgstr "CPU 调速器"
@@ -45,11 +42,11 @@ msgstr "防火墙配置中已启用"
 msgid "Firewall flow offloading"
 msgstr "防火墙流量卸载"
 
-msgid "Firmware file (device tree)"
-msgstr "固件文件（设备树）"
+msgid "Firmware file"
+msgstr "固件文件"
 
-msgid "Firmware file version (not running version)"
-msgstr "固件文件版本（非运行版本）"
+msgid "Firmware file version"
+msgstr "固件文件版本"
 
 msgid "Governor"
 msgstr "调速器"
@@ -111,8 +108,8 @@ msgstr "同时设置软件和硬件流量卸载并重新加载防火墙，可能
 msgid "Settings applied."
 msgstr "设置已应用。"
 
-msgid "SoC compatible (device tree)"
-msgstr "SoC 兼容标识（设备树）"
+msgid "SoC compatible"
+msgstr "SoC 兼容标识"
 
 msgid "Status unavailable or stale. Refresh to retry static information."
 msgstr "状态不可用或已过期。请刷新页面以重试静态信息。"
@@ -159,5 +156,3 @@ msgstr "未知"
 msgid "Userspace"
 msgstr "用户空间"
 
-msgid "Manage Airoha kernel CPU controls and firewall flow offloading"
-msgstr "Manage Airoha kernel CPU controls and firewall flow offloading"

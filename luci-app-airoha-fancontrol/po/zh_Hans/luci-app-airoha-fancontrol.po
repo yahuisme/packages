@@ -41,8 +41,8 @@ msgstr "主板温度"
 msgid "CPU"
 msgstr "CPU 温度"
 
-msgid "Configuration only; hardware curve is not verified."
-msgstr "仅显示配置，未验证硬件曲线。"
+msgid "Active fan curve profile"
+msgstr "生效的风扇曲线配置"
 
 msgid "Configure fan control mode and speed curves."
 msgstr "配置风扇控制模式和速度曲线。"

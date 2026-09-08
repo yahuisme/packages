@@ -14,13 +14,10 @@ msgstr ""
 msgid "Apply or revert pending firewall changes first."
 msgstr ""
 
-msgid "Bound (not a health check)"
+msgid "CPU current frequency"
 msgstr ""
 
-msgid "CPU current frequency (cpufreq)"
-msgstr ""
-
-msgid "CPU frequency limit (cpufreq)"
+msgid "CPU frequency limit"
 msgstr ""
 
 msgid "CPU governor"
@@ -44,10 +41,10 @@ msgstr ""
 msgid "Firewall flow offloading"
 msgstr ""
 
-msgid "Firmware file (device tree)"
+msgid "Firmware file"
 msgstr ""
 
-msgid "Firmware file version (not running version)"
+msgid "Firmware file version"
 msgstr ""
 
 msgid "Governor"
@@ -110,7 +107,7 @@ msgstr ""
 msgid "Settings applied."
 msgstr ""
 
-msgid "SoC compatible (device tree)"
+msgid "SoC compatible"
 msgstr ""
 
 msgid "Status unavailable or stale. Refresh to retry static information."
