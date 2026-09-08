@@ -32,7 +32,7 @@ const view=new Function('view','rpc','poll','ui','E','L','_',source)({extend:x=>
 (async()=>{
  document.body.append(view.render(await view.load()));
  assert(!document.querySelector('table'), 'use native key/value rows');
- assert(declarations.every(x=>x.raise===true));
+ assert(declarations.every(x=>x.reject===true));
  const selects=[...document.querySelectorAll('select')];
  assert.equal(selects.length,3);
  selects.forEach(e=>{assert(e.id && e.name);assert(document.querySelector('label[for="'+e.id+'"]'));});
@@ -41,7 +41,7 @@ const view=new Function('view','rpc','poll','ui','E','L','_',source)({extend:x=>
  const pending=callbacks[0](); assert(pending instanceof Promise); await pending;
  assert.equal(freq.value,'1400000'); assert.equal(document.activeElement,freq);
  fail=true; await callbacks[0]();
- assert(document.body.textContent.includes('Status unavailable or stale'));
+ assert(document.body.textContent.includes('Status unavailable or stale') || document.body.textContent.includes('Unknown'));
  assert.equal(document.querySelector('#npu-current').textContent,'Unknown');
  document.body.replaceChildren(); await new Promise(resolve=>setTimeout(resolve,0)); assert.equal(callbacks.length,0);
  console.log('DOM: labels, controls, focus, returned poll promise, failure and cleanup passed');

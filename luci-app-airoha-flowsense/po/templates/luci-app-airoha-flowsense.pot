@@ -127,3 +127,21 @@ msgstr ""
 
 msgid "Window packet loss"
 msgstr ""
+
+msgid "PPE Flow Trends"
+msgstr ""
+
+msgid "Bound Flows"
+msgstr ""
+
+msgid "Unbound Flows"
+msgstr ""
+
+msgid "Throughput Trends"
+msgstr ""
+
+msgid "RX Rate (Mbps)"
+msgstr ""
+
+msgid "TX Rate (Mbps)"
+msgstr ""

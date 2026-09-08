@@ -158,3 +158,6 @@ msgstr "未知"
 
 msgid "Userspace"
 msgstr "用户空间"
+
+msgid "Manage Airoha kernel CPU controls and firewall flow offloading"
+msgstr "Manage Airoha kernel CPU controls and firewall flow offloading"

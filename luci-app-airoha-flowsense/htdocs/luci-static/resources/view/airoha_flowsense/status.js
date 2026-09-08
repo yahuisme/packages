@@ -18,7 +18,7 @@ var history = [];
 var themeCSS = '\
 :root{--fs-canvas-bg:#fbfcfd;--fs-grid:rgba(80,90,100,.18);--fs-axis:#555}\
 @media(prefers-color-scheme:dark){:root{--fs-canvas-bg:#191919;--fs-grid:rgba(255,255,255,.12);--fs-axis:#a0a0a0}}\
-[data-theme="dark"],.dark-mode,:root[data-dark="true"]{--fs-canvas-bg:#191919;--fs-grid:rgba(255,255,255,.12);--fs-axis:#a0a0a0}\
+[data-theme="dark"],[data-dark="true"],[data-darkmode="true"],.dark-mode,:root[data-dark="true"]{--fs-canvas-bg:#191919;--fs-grid:rgba(255,255,255,.12);--fs-axis:#a0a0a0}\
 .flowsense-dashboard{--fs-font-ui:system-ui,-apple-system,sans-serif;--fs-font-mono:ui-monospace,monospace;font-family:var(--fs-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit)}\
 .flowsense-dashboard .cbi-tabmenu{margin-bottom:16px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
 .fs-card-neutral{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\

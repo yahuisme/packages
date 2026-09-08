@@ -20,7 +20,7 @@ var history = [];
 var themeCSS = '\
 :root{--fan-canvas-bg:#fbfcfd;--fan-grid:rgba(80,90,100,.18);--fan-axis:#555}\
 @media(prefers-color-scheme:dark){:root{--fan-canvas-bg:#191919;--fan-grid:rgba(255,255,255,.12);--fan-axis:#a0a0a0}}\
-[data-theme="dark"],.dark-mode,:root[data-dark="true"]{--fan-canvas-bg:#191919;--fan-grid:rgba(255,255,255,.12);--fan-axis:#a0a0a0}\
+[data-theme="dark"],[data-dark="true"],[data-darkmode="true"],.dark-mode,:root[data-dark="true"]{--fan-canvas-bg:#191919;--fan-grid:rgba(255,255,255,.12);--fan-axis:#a0a0a0}\
 .fan-dashboard{--fan-font-ui:system-ui,-apple-system,sans-serif;--fan-font-mono:ui-monospace,monospace;font-family:var(--fan-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit)}\
 .fan-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:14px}\
 .fan-summary-card,.fan-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\

@@ -581,11 +581,11 @@ return view.extend({
 				.mlo-map .mlo-hint { margin:8px 0; font-size:90%; opacity:0.85; }
 				.mlo-map .mlo-warnings { margin:6px 0 12px 0; display:flex; flex-direction:column; gap:4px; }
 				.mlo-map .mlo-warning-item { display:flex; align-items:flex-start; gap:6px; font-size:90%; color:var(--cbi-warning-color, #c08400); }
-				.mlo-map .mlo-warning-bullet { flex-shrink:0; font-weight:bold; }
+				.mlo-map .mlo-warning-bullet { flex-shrink:0; font-weight:600; }
 				.mlo-map .mlo-details-cell { display:flex; flex-direction:column; gap:8px; }
 				.mlo-map .mlo-cell-divider { height:1px; background:var(--cbi-border-color, rgba(128,128,128,0.15)); margin:2px 0; }
-				.modal[data-title] { min-width:0; width:min(720px,calc(100vw - 32px)); max-width:calc(100vw - 32px); }
-				.modal[data-title] .cbi-value-field { min-width:0; }
+				.modal.cbi-modal{min-width:0;width:min(720px,calc(100vw - 32px));max-width:calc(100vw - 32px)}\
+				.modal.cbi-modal .cbi-value-field{min-width:0}\
 			`));
 			nodes.insertBefore(E('div', { 'class': 'cbi-section' }, [
 				E('h3', {}, _('MLO Overview')),

@@ -146,3 +146,6 @@ msgstr "等待数据"
 
 msgid "Window packet loss"
 msgstr "采样窗口丢包率"
+
+msgid "FlowSense telemetry and probe settings"
+msgstr "FlowSense telemetry and probe settings"

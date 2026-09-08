@@ -52,39 +52,32 @@ jobs:
           IP_VER_URL=$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/Loyalsoldier/surge-rules/releases/latest" 2>/dev/null || true)
           IP_VER="${IP_VER_URL##*/}"
 
-          if curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 \
-            "https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/cncidr.txt" -o "$TMP_DIR/cncidr.txt"; then
-            awk -F, -v v4="$TMP_DIR/china_ip4.txt" -v v6="$TMP_DIR/china_ip6.txt" '
-              $1 == "IP-CIDR" { print $2 > v4 }
-              $1 == "IP-CIDR6" { print $2 > v6 }
-            ' "$TMP_DIR/cncidr.txt"
-
-            awk '
-              BEGIN { print "{\"version\":5,\"rules\":[{\"ip_cidr\":["; first = 1 }
-              NF { printf "%s\"%s\"", first ? "" : ",", $0; first = 0 }
-              END { print "]}]}" }
-            ' "$TMP_DIR/china_ip4.txt" "$TMP_DIR/china_ip6.txt" > "$TMP_DIR/geoip_cn.json"
-
-            cp -f "$TMP_DIR/china_ip4.txt" "$TMP_DIR/china_ip6.txt" "$TMP_DIR/geoip_cn.json" "$RES_DIR/"
-            if [ -n "$IP_VER" ] && [ "$IP_VER" != "latest" ]; then
-              echo "$IP_VER" > "$RES_DIR/china_ip4.ver"
-              echo "$IP_VER" > "$RES_DIR/china_ip6.ver"
-            fi
-            echo "HomeProxy China IP resources updated."
+          curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 \
+            "https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/cncidr.txt" -o "$TMP_DIR/cncidr.txt"
+          awk -F, -v v4="$TMP_DIR/china_ip4.txt" -v v6="$TMP_DIR/china_ip6.txt" '$1 == "IP-CIDR" { print $2 > v4 } $1 == "IP-CIDR6" { print $2 > v6 }' "$TMP_DIR/cncidr.txt"
+          [ -s "$TMP_DIR/china_ip4.txt" ] && [ -s "$TMP_DIR/china_ip6.txt" ] || exit 1
+          python3 -c 'import ipaddress,sys; [ipaddress.ip_network(x.strip(),strict=False) for p in sys.argv[1:] for x in open(p) if x.strip()]' "$TMP_DIR/china_ip4.txt" "$TMP_DIR/china_ip6.txt"
+          awk 'BEGIN { print "{\"version\":5,\"rules\":[{\"ip_cidr\":["; first=1 } NF { printf "%s\"%s\"", first ? "" : ",", $0; first=0 } END { print "]}]}" }' "$TMP_DIR/china_ip4.txt" "$TMP_DIR/china_ip6.txt" > "$TMP_DIR/geoip_cn.json"
+          python3 -m json.tool "$TMP_DIR/geoip_cn.json" >/dev/null
+          cp -f "$TMP_DIR/china_ip4.txt" "$TMP_DIR/china_ip6.txt" "$TMP_DIR/geoip_cn.json" "$RES_DIR"
+          if [ -n "$IP_VER" ] && [ "$IP_VER" != "latest" ]; then
+            echo "$IP_VER" > "$RES_DIR/china_ip4.ver"
+            echo "$IP_VER" > "$RES_DIR/china_ip6.ver"
           fi
+          echo "HomeProxy China IP resources updated."
 
           # 2. Update geosite_cn.srs
           GEOSITE_VER_URL=$(curl -fsSL -o /dev/null -w '%{url_effective}' "https://github.com/SagerNet/sing-geosite/releases/latest" 2>/dev/null || true)
           GEOSITE_VER="${GEOSITE_VER_URL##*/}"
 
-          if curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 \
-            "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-cn.srs" -o "$TMP_DIR/geosite_cn.srs"; then
-            cp -f "$TMP_DIR/geosite_cn.srs" "$RES_DIR/"
-            if [ -n "$GEOSITE_VER" ] && [ "$GEOSITE_VER" != "latest" ]; then
-              echo "$GEOSITE_VER" > "$RES_DIR/geosite_cn.ver"
-            fi
-            echo "HomeProxy geosite_cn.srs updated."
+          curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 \
+            "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-cn.srs" -o "$TMP_DIR/geosite_cn.srs"
+          [ "$(wc -c < "$TMP_DIR/geosite_cn.srs")" -gt 32 ] || exit 1
+          cp -f "$TMP_DIR/geosite_cn.srs" "$RES_DIR/"
+          if [ -n "$GEOSITE_VER" ] && [ "$GEOSITE_VER" != "latest" ]; then
+            echo "$GEOSITE_VER" > "$RES_DIR/geosite_cn.ver"
           fi
+          echo "HomeProxy geosite_cn.srs updated."
 
       - name: Commit and Push
         run: |
