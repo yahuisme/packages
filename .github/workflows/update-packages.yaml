@@ -20,21 +20,24 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          LATEST_TAG=$(gh api repos/SagerNet/sing-box/releases/latest --jq .tag_name 2>/dev/null || true)
-          if [ -n "$LATEST_TAG" ] && [ "$LATEST_TAG" != "null" ]; then
-            VERSION="${LATEST_TAG#v}"
-            CURRENT_VERSION=$(sed -n 's/^PKG_UPSTREAM_VERSION:=//p' sing-box/Makefile)
+          set -eu
+          set -o pipefail
+          LATEST_TAG=$(gh api repos/SagerNet/sing-box/releases/latest --jq .tag_name)
+          case "$LATEST_TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) VERSION="${LATEST_TAG#v}" ;;
+            *) echo "Invalid sing-box release tag: $LATEST_TAG" >&2; exit 1 ;;
+          esac
+          CURRENT_VERSION=$(sed -n 's/^PKG_UPSTREAM_VERSION:=//p' sing-box/Makefile)
 
-            if [ "$VERSION" != "$CURRENT_VERSION" ]; then
-              HASH=$(curl -fsSL "https://codeload.github.com/SagerNet/sing-box/tar.gz/v${VERSION}" | sha256sum | awk '{print $1}')
-              if [ -n "$HASH" ]; then
-                sed -i "s/^PKG_UPSTREAM_VERSION:=.*/PKG_UPSTREAM_VERSION:=${VERSION}/" sing-box/Makefile
-                sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${VERSION}/" sing-box/Makefile
-                sed -i "s/^PKG_HASH:=.*/PKG_HASH:=${HASH}/" sing-box/Makefile
-                sed -i "s/^PKG_RELEASE:=.*/PKG_RELEASE:=1/" sing-box/Makefile
-                echo "sing-box updated to ${VERSION}"
-              fi
-            fi
+          if [ "$VERSION" != "$CURRENT_VERSION" ]; then
+            HASH=$(curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 \
+              "https://codeload.github.com/SagerNet/sing-box/tar.gz/v${VERSION}" | sha256sum | awk '{print $1}')
+            test "${#HASH}" -eq 64
+            sed -i "s/^PKG_UPSTREAM_VERSION:=.*/PKG_UPSTREAM_VERSION:=${VERSION}/" sing-box/Makefile
+            sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${VERSION}/" sing-box/Makefile
+            sed -i "s/^PKG_HASH:=.*/PKG_HASH:=${HASH}/" sing-box/Makefile
+            sed -i "s/^PKG_RELEASE:=.*/PKG_RELEASE:=1/" sing-box/Makefile
+            echo "sing-box updated to ${VERSION}"
           fi
 
       - name: Update HomeProxy Resources

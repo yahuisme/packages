@@ -3,7 +3,7 @@
 import pathlib, subprocess, tempfile
 root=pathlib.Path(__file__).resolve().parents[1]
 s=(root/'root/etc/init.d/homeproxy').read_text()
-a=s.index('\tif [ "$client_ready" -eq 1 ]; then\n\t\tmv -f')
+a=s.index('\tif [ "$client_ready" -eq 1 ]; then')
 b=s.index('\n\tcase "$client_ready:$routing_mode"',a)
 block=s[a:b]
 with tempfile.TemporaryDirectory() as tmp:

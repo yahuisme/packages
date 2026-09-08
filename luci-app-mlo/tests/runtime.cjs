@@ -11,8 +11,8 @@ const f=Function('rpc','L','uci','_',source.slice(0,source.indexOf('return view.
 let r=f.flattenWirelessStatus({radio0:{up:false,interfaces:[{section:'mlo0',ifname:'ap-mld0',config:{device:['radio0','radio1']}}]}});
 assert.deepEqual(r.activeMldIfnames,[]);assert(f.collectSummary(r,[{},{}]).warnings.some(w=>w.includes('no active runtime')));
 r=f.flattenWirelessStatus({radio0:{up:'true',interfaces:[{section:'mlo0',ifname:'ap-mld0'}]}});assert.equal(r.sections.mlo0.up,false);
-r=f.flattenWirelessStatus({radio0:{up:true,interfaces:[{section:'mlo0',ifname:'custom0',config:{device:['radio0','radio1']}}]}});assert.deepEqual(r.activeMldIfnames,['custom0']);assert(!f.collectSummary(r,[{},{}]).warnings.some(w=>w.includes('no active runtime')));
-r=f.flattenWirelessStatus({radio0:{up:true,interfaces:[{section:'mlo0',ifname:'custom0',config:{mlo:'1'}}]}});assert.deepEqual(r.activeMldIfnames,['custom0']);
+r=f.flattenWirelessStatus({radio0:{up:true,interfaces:[{section:'mlo0',ifname:'custom0',config:{device:['radio0','radio1']}}]}});assert.deepEqual(r.activeMldIfnames,[]);assert(f.collectSummary(r,[{},{}]).warnings.some(w=>w.includes('no active runtime')));
+r=f.flattenWirelessStatus({radio0:{up:true,interfaces:[{section:'mlo0',ifname:'custom0',mld:true}]}});assert.deepEqual(r.activeMldIfnames,['custom0']);
 assert(!f.collectSummary({unknown:true,sections:{},activeMldIfnames:[]},[{},{}]).warnings.some(w=>w.includes('no active runtime')));
 console.log('PASS strict runtime up and consistent custom MLD names');
 if(process.argv.includes('--state-only'))return;

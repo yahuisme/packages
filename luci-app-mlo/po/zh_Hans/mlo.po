@@ -25,8 +25,8 @@ msgstr "接入点"
 msgid "Active"
 msgstr "运行中"
 
-msgid "Active MLD candidates"
-msgstr "运行中的 MLD 候选接口"
+msgid "Verified active MLD interfaces"
+msgstr "已验证的活动 MLD 接口"
 
 msgid "Add MLO"
 msgstr "添加 MLO"
@@ -100,8 +100,8 @@ msgstr "来自 <code>/etc/config/network</code> 的逻辑网络名，例如 <cod
 msgid "MAC address"
 msgstr "MAC 地址"
 
-msgid "MLD candidate"
-msgstr "MLD 候选接口"
+msgid "Verified MLD"
+msgstr "已验证 MLD"
 
 msgid "MLO"
 msgstr "MLO"

@@ -4,6 +4,7 @@ import os,pathlib,subprocess,tempfile
 root=pathlib.Path(__file__).resolve().parents[1]
 s=(root/'root/etc/homeproxy/scripts/update_subscriptions.sh').read_text()
 assert 'BACKUP_DIR' in s, 'subscription failure needs a persistent config/runtime backup'
+assert 'rm -f "$RUN_DIR/$file"' in s, 'rollback must remove runtime files created during a failed update'
 with tempfile.TemporaryDirectory() as tmp:
  p=pathlib.Path(tmp); (p/'run').mkdir(); (p/'bin').mkdir(); (p/'config').write_text('OLD')
  (p/'run/sing-box-c.json').write_text('OLDJSON')

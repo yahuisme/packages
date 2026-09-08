@@ -230,8 +230,10 @@ if [ "$IP_CURRENT" -eq 0 ]; then
 		log "[china_ip] Update failed while downloading the source list."
 		IP_READY=0
 	elif ! awk -F, -v ipv4="$TMP_DIR/china_ip4.txt" -v ipv6="$TMP_DIR/china_ip6.txt" '
-		$1 == "IP-CIDR" { print $2 > ipv4 }
-		$1 == "IP-CIDR6" { print $2 > ipv6 }
+		$1 == "IP-CIDR" && $2 ~ /^[0-9]+(\.[0-9]+){3}\/[0-9]+$/ { print $2 > ipv4; next }
+		$1 == "IP-CIDR6" && $2 ~ /^[0-9A-Fa-f:]+\/[0-9]+$/ { print $2 > ipv6; next }
+		$1 == "IP-CIDR" || $1 == "IP-CIDR6" { invalid = 1 }
+		END { exit invalid }
 	' "$TMP_DIR/cncidr.txt"; then
 		log "[china_ip] Update failed while processing the source list."
 		IP_READY=0

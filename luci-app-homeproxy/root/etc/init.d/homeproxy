@@ -279,15 +279,33 @@ start_service() {
 	fi
 
 	if [ "$client_ready" -eq 1 ]; then
-		mv -f "$RUN_DIR/sing-box-c.json.new" "$RUN_DIR/sing-box-c.json" || return 1
+		[ ! -f "$RUN_DIR/sing-box-c.json" ] || cp -p "$RUN_DIR/sing-box-c.json" "$RUN_DIR/sing-box-c.json.old" || return 1
+		mv -f "$RUN_DIR/sing-box-c.json.new" "$RUN_DIR/sing-box-c.json" || { rm -f "$RUN_DIR/sing-box-c.json.old"; return 1; }
 	else
 		rm -f "$RUN_DIR/sing-box-c.json.new"
 	fi
 	if [ "$server_ready" -eq 1 ]; then
-		mv -f "$RUN_DIR/sing-box-s.json.new" "$RUN_DIR/sing-box-s.json" || return 1
+		if [ -f "$RUN_DIR/sing-box-s.json" ] && ! cp -p "$RUN_DIR/sing-box-s.json" "$RUN_DIR/sing-box-s.json.old"; then
+			if [ -f "$RUN_DIR/sing-box-c.json.old" ]; then
+				mv -f "$RUN_DIR/sing-box-c.json.old" "$RUN_DIR/sing-box-c.json"
+			else
+				rm -f "$RUN_DIR/sing-box-c.json"
+			fi
+			return 1
+		fi
+		if ! mv -f "$RUN_DIR/sing-box-s.json.new" "$RUN_DIR/sing-box-s.json"; then
+			if [ -f "$RUN_DIR/sing-box-c.json.old" ]; then
+				mv -f "$RUN_DIR/sing-box-c.json.old" "$RUN_DIR/sing-box-c.json"
+			else
+				rm -f "$RUN_DIR/sing-box-c.json"
+			fi
+			rm -f "$RUN_DIR/sing-box-s.json.old"
+			return 1
+		fi
 	else
 		rm -f "$RUN_DIR/sing-box-s.json.new"
 	fi
+	rm -f "$RUN_DIR/sing-box-c.json.old" "$RUN_DIR/sing-box-s.json.old"
 	if [ "$client_ready" -ne 1 ] && [ "$server_ready" -ne 1 ]; then
 		sync_subscription_cron 0 || log "Error: failed to clear the subscription update schedule."
 		return 1

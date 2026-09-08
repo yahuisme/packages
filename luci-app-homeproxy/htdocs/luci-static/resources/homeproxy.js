@@ -343,13 +343,14 @@ return baseclass.extend({
 		const callWriteCertificate = rpc.declare({
 			object: 'luci.homeproxy',
 			method: 'certificate_write',
-			params: ['filename'],
+			params: ['filename', 'temp'],
 			expect: { '': {} }
 		});
 
-		return ui.uploadFile('/tmp/homeproxy_certificate.tmp', ev.target)
+		const temp = '/tmp/homeproxy_certificate-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+		return ui.uploadFile(temp, ev.target)
 		.then(L.bind((_btn, res) => {
-			return L.resolveDefault(callWriteCertificate(filename), {}).then((ret) => {
+			return L.resolveDefault(callWriteCertificate(filename, temp), {}).then((ret) => {
 				if (ret.result === true)
 					ui.addNotification(null, E('p', _('Your %s was successfully uploaded. Size: %sB.').format(type, res.size)));
 				else

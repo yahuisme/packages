@@ -23,7 +23,7 @@ msgstr ""
 msgid "Active"
 msgstr ""
 
-msgid "Active MLD candidates"
+msgid "Verified active MLD interfaces"
 msgstr ""
 
 msgid "Add MLO"
@@ -98,7 +98,7 @@ msgstr ""
 msgid "MAC address"
 msgstr ""
 
-msgid "MLD candidate"
+msgid "Verified MLD"
 msgstr ""
 
 msgid "MLO"

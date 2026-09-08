@@ -16,7 +16,7 @@
 		"write": {
 			"file": {
 				"/etc/homeproxy/scripts/update_subscriptions.sh": [ "exec" ],
-				"/tmp/homeproxy_certificate.tmp": [ "write" ]
+				"/tmp/homeproxy_certificate-*": [ "write" ]
 			},
 			"ubus": {
 				"luci.homeproxy": [

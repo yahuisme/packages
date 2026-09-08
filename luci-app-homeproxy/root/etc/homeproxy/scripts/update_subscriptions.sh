@@ -45,7 +45,11 @@ if [ "$status" -ne 0 ]; then
 	   mv -f "$CONFIG_PATH.restore.$$" "$CONFIG_PATH"; then
 		for mode in c s; do
 			file="sing-box-$mode.json"
-			[ ! -f "$BACKUP_DIR/$file" ] || cp -p "$BACKUP_DIR/$file" "$RUN_DIR/$file"
+			if [ -f "$BACKUP_DIR/$file" ]; then
+				cp -p "$BACKUP_DIR/$file" "$RUN_DIR/$file"
+			else
+				rm -f "$RUN_DIR/$file"
+			fi
 		done
 		if [ "$WAS_RUNNING" -eq 1 ]; then
 			/etc/init.d/homeproxy restart >>"$LOG_PATH" 2>&1 ||

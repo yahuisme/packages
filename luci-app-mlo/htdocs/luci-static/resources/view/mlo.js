@@ -74,13 +74,13 @@ function radioMap(radios) {
 }
 
 function renderBadge(label) {
-	return E('span', { 'class': 'ifacebadge' }, label);
+	return E('span', { 'class': 'ifacebadge' }, [ String(label ?? '') ]);
 }
 
 function renderMetaLine(label, value) {
 	return E('div', { 'class': 'cbi-value mlo-value' }, [
-		E('div', { 'class': 'cbi-value-title' }, label),
-		E('div', { 'class': 'cbi-value-field' }, value)
+		E('div', { 'class': 'cbi-value-title' }, [ String(label ?? '') ]),
+		E('div', { 'class': 'cbi-value-field' }, typeof value === 'string' ? [ value ] : value)
 	]);
 }
 
@@ -139,9 +139,10 @@ function flattenWirelessStatus(status) {
 				info.radios.push(radioName);
 
 			info.up = info.up || (radio.up === true && iface.up !== false);
-			info.mldDetected = info.mldDetected || ifaceCfg.mlo == '1' ||
-				(iface.ifname && iface.ifname.indexOf('-mld') > -1) ||
-				uniqueValues(ifaceCfg.device).length > 1;
+			/* Only runtime-reported MLD data proves an active MLD. */
+			info.mldDetected = info.mldDetected || iface.mld === true ||
+				(Array.isArray(iface.mld_links) && iface.mld_links.length > 1) ||
+				(Array.isArray(iface.links) && iface.links.length > 1);
 
 			runtime.sections[sid] = info;
 
@@ -236,7 +237,7 @@ function renderSummaryStatus(runtime, radios) {
 	return E('div', { 'data-mlo-summary-status': '' }, [
 		renderMetaLine(_('Configured radios'), String(radios.length)),
 		renderMetaLine(_('MLO-enabled'), String(summary.mloIfaces)),
-		renderMetaLine(_('Active MLD candidates'), runtime.unknown ? _('unknown') :
+		renderMetaLine(_('Verified active MLD interfaces'), runtime.unknown ? _('unknown') :
 			(runtime.activeMldIfnames.join(', ') || _('none'))),
 		E('div', { 'class': 'cbi-value-description mlo-hint' }, _('Runtime names and multi-radio configuration are hints, not proof of client MLO links.')),
 		warningNodes.length ? E('div', { 'class': 'mlo-warnings' }, warningNodes) : null
@@ -314,7 +315,7 @@ function renderRuntimeCell(section_id, runtime) {
 	}, [
 		E('div', { 'style': 'margin-bottom:.2em;' }, compactChildren([
 			renderBadge(state.up ? _('Active') : _('Down')),
-			state.mldDetected ? renderBadge(_('MLD candidate')) : null
+			state.mldDetected ? renderBadge(_('Verified MLD')) : null
 		])),
 		renderMetaLine(_('ifname'), state.ifnames.length ? state.ifnames.join(', ') : E('em', _('unknown'))),
 		renderMetaLine(_('Runtime radios'), state.radios.join(', ')),

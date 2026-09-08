@@ -82,10 +82,12 @@ const methods = {
 	},
 
 	certificate_write: {
-		args: { filename: 'filename' },
+		args: { filename: 'filename', temp: 'temp' },
 		call: function(req) {
 			const writeCertificate = (filename, kind) => {
-				const tmpcert = '/tmp/homeproxy_certificate.tmp';
+				const tmpcert = req.args?.temp;
+				if (type(tmpcert) !== 'string' || !match(tmpcert, /^\/tmp\/homeproxy_certificate-[A-Za-z0-9_-]+$/))
+					return { result: false, error: 'illegal temporary file' };
 				const filestat = lstat(tmpcert);
 
 				if (!filestat || filestat.type !== 'file' || filestat.size <= 0) {
