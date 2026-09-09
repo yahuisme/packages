@@ -14,6 +14,7 @@ read_integer() {
 read_temp() {
     local value
     value=$(read_integer "$1") || { printf '%s\n' null; return; }
+    [ "$value" -ge -128000 ] && [ "$value" -le 150000 ] || { printf '%s\n' null; return; }
     printf '%s\n' "$((value / 1000))"
 }
 

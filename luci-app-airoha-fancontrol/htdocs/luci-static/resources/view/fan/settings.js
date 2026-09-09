@@ -4,13 +4,11 @@
 'require uci';
 
 var settingsCSS = '\
-:root{--fan-canvas-bg:#fbfcfd;--fan-grid:rgba(80,90,100,.14);--fan-axis:#64748b}\
-@media(prefers-color-scheme:dark){:root{--fan-canvas-bg:#161616;--fan-grid:rgba(255,255,255,.08);--fan-axis:#94a3b8}}\
-[data-theme="dark"],[data-dark="true"],[data-darkmode="true"],.dark-mode,:root[data-dark="true"]{--fan-canvas-bg:#161616;--fan-grid:rgba(255,255,255,.08);--fan-axis:#94a3b8}\
+:root{--fan-grid:rgba(80,90,100,.14);--fan-axis:#64748b}\
 .fan-settings{--fan-font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--fan-font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;width:100%;font-family:var(--fan-font-ui);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\
 .fan-settings select,.fan-settings .cbi-input-select{max-width:320px}\
 .fan-curve-wrap{padding:0;margin-top:8px}\
-.fan-curve-canvas{display:block;width:100%;height:300px;background:var(--fan-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
+.fan-curve-canvas{display:block;width:100%;height:300px;background:var(--cbi-section-bg,var(--background-color,#fbfcfd));border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
 .fan-settings .fan-control-section [data-name="manual_pwm"] input{width:96px!important;min-width:96px;max-width:96px;text-align:center;font-family:var(--fan-font-mono);font-variant-numeric:tabular-nums;font-weight:600}\
 .fan-settings .fan-curve-section .cbi-section-node{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}\
 .fan-settings .fan-curve-section .cbi-value{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--cbi-border-color,#f0f0f0)}\
@@ -304,9 +302,10 @@ return view.extend({
 			node.classList.add('fan-settings');
 			var intro = node.querySelector('.cbi-map-descr');
 			if (intro) intro.classList.add('fan-settings-intro');
-			var sections = node.querySelectorAll('.cbi-section');
-			if (sections[0]) sections[0].classList.add('fan-control-section');
-			if (sections[1]) sections[1].classList.add('fan-curve-section');
+			var controlSection = node.querySelector('#cbi-fan-settings');
+			var curveSection = node.querySelector('#cbi-fan-custom');
+			if (controlSection) controlSection.classList.add('fan-control-section');
+			if (curveSection) curveSection.classList.add('fan-curve-section');
 			requestAnimationFrame(function() {
 				if (!node.isConnected) return;
 				var presetSelect = node.querySelector('[data-name="curve_preset"] select');

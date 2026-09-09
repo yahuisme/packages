@@ -14,6 +14,12 @@ msgstr ""
 msgid "2.4 GHz Radio"
 msgstr "2.4 GHz 无线"
 
+msgid "10G LAN"
+msgstr "10G LAN 温度"
+
+msgid "10G WAN"
+msgstr "10G WAN 温度"
+
 msgid "5 GHz Radio"
 msgstr "5 GHz 无线"
 

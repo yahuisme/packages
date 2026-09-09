@@ -18,9 +18,7 @@ var HISTORY_KEY = 'airoha-fan-history-v1';
 var history = [];
 
 var themeCSS = '\
-:root{--fan-canvas-bg:#fbfcfd;--fan-grid:rgba(80,90,100,.14);--fan-axis:#64748b;--fan-track-bg:rgba(128,128,128,.14)}\
-@media(prefers-color-scheme:dark){:root{--fan-canvas-bg:#161616;--fan-grid:rgba(255,255,255,.08);--fan-axis:#94a3b8;--fan-track-bg:rgba(255,255,255,.10)}}\
-[data-theme="dark"],[data-dark="true"],[data-darkmode="true"],.dark-mode,:root[data-dark="true"]{--fan-canvas-bg:#161616;--fan-grid:rgba(255,255,255,.08);--fan-axis:#94a3b8;--fan-track-bg:rgba(255,255,255,.10)}\
+:root{--fan-grid:rgba(80,90,100,.14);--fan-axis:#64748b;--fan-track-bg:rgba(128,128,128,.14)}\
 .fan-dashboard{--fan-font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--fan-font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;font-family:var(--fan-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\
 .fan-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:14px}\
 .fan-summary-card,.fan-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
@@ -32,7 +30,7 @@ var themeCSS = '\
 .fan-panel-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
 .fan-chart-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}\
 .fan-chart-card{padding:10px 12px;min-width:0}\
-.fan-chart-canvas{display:block;width:100%;height:110px;margin-top:8px;background:var(--fan-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
+.fan-chart-canvas{display:block;width:100%;height:110px;margin-top:8px;background:var(--cbi-section-bg,var(--background-color,#fbfcfd));border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
 .fan-temp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}\
 .fan-temp-group{min-width:0}\
 .fan-temp-group-title{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--cbi-muted-color,#666);margin:0 0 8px}\
@@ -63,6 +61,10 @@ function tempColor(temp) {
 	return '#ef4444';
 }
 
+function displayTemp(temp) {
+	return typeof temp === 'number' && Number.isFinite(temp) && temp >= -128 && temp <= 150 ? temp : null;
+}
+
 function modeInfo(uciMode) {
 	if (uciMode !== 'manual' && uciMode !== 'auto') return { value: _('Unknown'), sub: _('Read failed') };
 	return uciMode === 'manual'
@@ -86,7 +88,7 @@ function summaryData(status) {
 	var preset = presetInfo(status.uci_preset);
 	return [
 		{ id: 'fan-summary-rpm', title: _('Fan Speed'), value: (status.fan_rpm != null ? status.fan_rpm : '—') + ' RPM', sub: (status.fan_percentage != null ? status.fan_percentage : '—') + '% ' + _('PWM output') },
-		{ id: 'fan-summary-pwm', title: 'PWM', value: (status.fan_pwm != null ? status.fan_pwm : '—') + ' / 255', sub: (status.fan_percentage != null ? status.fan_percentage : '—') + '%' },
+		{ id: 'fan-summary-pwm', title: _('PWM'), value: (status.fan_pwm != null ? status.fan_pwm : '—') + ' / 255', sub: (status.fan_percentage != null ? status.fan_percentage : '—') + '%' },
 		{ id: 'fan-summary-mode', title: _('Control Mode'), value: mode.value, sub: mode.sub },
 		{ id: 'fan-summary-preset', title: _('Configured Curve'), value: preset.value, sub: preset.sub }
 	];
@@ -114,6 +116,7 @@ function updateSummary(status) {
 }
 
 function createTempGauge(label, temp, id) {
+	temp = displayTemp(temp);
 	var color = tempColor(temp);
 	var percentage = (temp == null ? 0 : Math.min(100, Math.max(3, temp)));
 	return E('div', { 'id': id, 'class': 'fan-temp-card', 'style': '--fan-temp-accent:' + color }, [
@@ -130,6 +133,7 @@ function createTempGauge(label, temp, id) {
 function updateGauge(id, temp) {
 	var card = document.getElementById(id);
 	if (!card) return;
+	temp = displayTemp(temp);
 	var color = tempColor(temp);
 	var value = card.querySelector('.fan-temp-value');
 	var fill = card.querySelector('.fan-temp-fill');
@@ -316,8 +320,8 @@ return view.extend({
 					temperatureGroup(_('System'), [
 						createTempGauge(_('CPU'), status.temp_cpu, 'temp-cpu'),
 						createTempGauge(_('Board'), status.temp_board, 'temp-board'),
-						createTempGauge('10G WAN', status.temp_phy2, 'temp-phy2'),
-						createTempGauge('10G LAN', status.temp_phy1, 'temp-phy1')
+						createTempGauge(_('10G WAN'), status.temp_phy2, 'temp-phy2'),
+						createTempGauge(_('10G LAN'), status.temp_phy1, 'temp-phy1')
 					]),
 					temperatureGroup(_('WiFi'), [
 						createTempGauge(_('2.4 GHz Radio'), status.wifi_24g, 'temp-wifi24g'),
@@ -349,7 +353,7 @@ return view.extend({
 				drawAllCharts();
 				updateSummary({});
 				['temp-cpu', 'temp-board', 'temp-phy1', 'temp-phy2', 'temp-wifi24g', 'temp-wifi5g', 'temp-wifi6g'].forEach(function(id) { updateGauge(id, null); });
-				var cards = document.querySelectorAll('.fan-card-sub');
+				var cards = viewEl.querySelectorAll('.fan-card-sub');
 				for (var i = 0; i < cards.length; i++) cards[i].textContent = _('Read failed');
 			});
 		}, this);
