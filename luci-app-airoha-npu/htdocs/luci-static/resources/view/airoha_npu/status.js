@@ -9,11 +9,11 @@ var getFlow = rpc.declare({ object: 'luci.airoha_npu', method: 'getFlowOffload',
 
 var themeCSS = '\
 .npu-dashboard{font-size:13px;line-height:1.5}\
-.npu-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:8px;margin:12px 0}\
+.npu-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px;margin:12px 0}\
 .npu-summary-card,.npu-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#ddd);border-radius:6px;box-sizing:border-box}\
 .npu-summary-card{min-height:72px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center}.npu-card-title,.npu-detail-group-title{font-size:11px;font-weight:500;color:var(--cbi-muted-color,#666);text-transform:uppercase;letter-spacing:.04em}.npu-card-value{display:block;margin-top:3px;font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}.npu-card-sub{font-size:12px;color:var(--cbi-muted-color,#888)}\
-.npu-dashboard .npu-frequency-chart{margin:16px 0;min-width:0}.npu-dashboard .npu-chart-header{display:flex;justify-content:space-between;gap:8px}.npu-dashboard .npu-frequency-chart svg{display:block;width:100%;height:200px;color:inherit}.npu-dashboard .npu-chart-caption{font-size:12px;text-align:center}.npu-dashboard .npu-chart-axis{stroke:currentColor;opacity:.3}.npu-dashboard .npu-chart-line{fill:none;stroke:currentColor;stroke-width:1.5}.npu-dashboard .npu-chart-point{fill:currentColor}\
-.npu-panel{padding:12px;margin:12px 0}.npu-panel-title{font-size:15px;font-weight:600;padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid var(--cbi-border-color,#ddd)}.npu-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}.npu-detail-group-title{margin:10px 0 2px}.npu-detail-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,.12))}.npu-detail-label{color:var(--cbi-muted-color,#666)}.npu-detail-value{text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
+.npu-dashboard .npu-frequency-chart{margin:16px 0;min-width:0}.npu-dashboard .npu-chart-header{display:flex;justify-content:space-between;gap:8px;font-size:14px;font-weight:500}.npu-dashboard .npu-frequency-chart svg{display:block;width:100%;height:200px;color:inherit}.npu-dashboard .npu-chart-caption{font-size:12px;text-align:center}.npu-dashboard .npu-chart-grid{stroke:currentColor;stroke-width:1;opacity:.12}.npu-dashboard .npu-chart-line{fill:none;stroke:#22a06b;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}.npu-dashboard .npu-chart-point{fill:#22a06b}.npu-dashboard .npu-chart-area{fill:#22a06b;fill-opacity:.10;stroke:none}\
+.npu-panel{padding:12px;margin:12px 0}.npu-panel-title{font-size:14px;font-weight:500;padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid var(--cbi-border-color,#ddd)}.npu-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}.npu-detail-group-title{margin:10px 0 2px}.npu-detail-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,.12))}.npu-detail-label{color:var(--cbi-muted-color,#666)}.npu-detail-value{text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
 @media(max-width:760px){.npu-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.npu-detail-grid{grid-template-columns:1fr}}@media(max-width:480px){.npu-summary-grid{grid-template-columns:1fr}.npu-summary-card{min-height:64px}.npu-panel{padding:10px}}\
 ';
 
@@ -70,7 +70,7 @@ return view.extend({
 			]);
 		}
 
-		var samples = [], lastRequest = Date.now(), ceiling = 1000;
+		var samples = [], lastRequest = Date.now(), lastFlowRequest = Date.now(), ceiling = 1000;
 		var chartValue = E('span', { id: 'npu-chart-value' }, '—');
 		function svgNode(tag, attrs, text) {
 			var node = document.createElementNS('http://www.w3.org/2000/svg', tag);
@@ -82,31 +82,48 @@ return view.extend({
 		function drawChart() {
 			var now = Date.now();
 			samples = samples.filter(function(p) { return p.time >= now - 120000; });
-			var width = Math.max(280, chart.clientWidth || 600), left = 48, right = width - 16;
+			var width = chart.clientWidth || 600, left = 48, right = width - 16;
 			var top = 24, bottom = 168;
-			var max = Math.ceil(Math.max(ceiling, 100, ...samples.map(function(p) { return p.value || 0; })) / 100) * 100;
+			var peak = Math.max(ceiling, 100, ...samples.map(function(p) { return p.value || 0; }));
+			var step = Math.ceil(peak / 6 / 100) * 100, max = Math.ceil(peak / step) * step;
 			chart.setAttribute('viewBox', '0 0 ' + width + ' 200');
 			while (chart.firstChild) chart.removeChild(chart.firstChild);
-			chart.appendChild(svgNode('text', { x: left, y: 14, fill: 'currentColor', 'font-size': 11 }, 'MHz'));
-			[0, max / 2, max].forEach(function(value) {
+			chart.appendChild(svgNode('text', { x: left, y: 14, fill: 'currentColor', 'font-size': 12 }, 'MHz'));
+			for (var value = 0; value <= max; value += step) {
 				var y = bottom - value / max * (bottom - top);
-				chart.appendChild(svgNode('line', { x1: left, x2: right, y1: y, y2: y, 'class': 'npu-chart-axis' }));
-				chart.appendChild(svgNode('text', { x: left - 8, y: y + 4, 'text-anchor': 'end', fill: 'currentColor', 'font-size': 11 }, value));
-			});
-			chart.appendChild(svgNode('line', { x1: left, x2: left, y1: top, y2: bottom, 'class': 'npu-chart-axis' }));
-			[-120, -60, 0].forEach(function(seconds) {
-				chart.appendChild(svgNode('text', { x: left + (seconds + 120) / 120 * (right - left), y: 190, 'text-anchor': 'middle', fill: 'currentColor', 'font-size': 11 }, seconds + ' s'));
-			});
-			var path = '', previous = null;
-			samples.forEach(function(p) {
-				if (p.value == null) { previous = null; return; }
+				chart.appendChild(svgNode('line', { x1: left, x2: right, y1: y, y2: y, 'class': 'npu-chart-grid' }));
+				chart.appendChild(svgNode('text', { x: left - 8, y: y + 4, 'text-anchor': 'end', fill: 'currentColor', 'font-size': 12 }, value));
+			}
+			var timeStep = width < 480 ? 30 : width < 800 ? 20 : 15;
+			for (var seconds = -120; seconds <= 0; seconds += timeStep) {
+				var x = left + (seconds + 120) / 120 * (right - left);
+				chart.appendChild(svgNode('line', { x1: x, x2: x, y1: top, y2: bottom, 'class': 'npu-chart-grid' }));
+				chart.appendChild(svgNode('text', { x: x, y: 190, 'text-anchor': 'middle', fill: 'currentColor', 'font-size': 12 }, seconds + ' s'));
+			}
+			var path = '', area = '', areaStart = null, areaEnd = null, previous = null;
+			function closeArea() {
+				if (areaStart != null) area += ' L ' + areaEnd + ' ' + bottom + ' L ' + areaStart + ' ' + bottom + ' Z ';
+				areaStart = null;
+			}
+			samples.forEach(function(p, i) {
+				if (p.value == null) { closeArea(); previous = null; return; }
 				var x = left + (p.time - (now - 120000)) / 120000 * (right - left);
 				var y = bottom - p.value / max * (bottom - top);
-				path += (previous && p.time - previous.time < 7500 ? ' L ' : ' M ') + x + ' ' + y;
-				chart.appendChild(svgNode('circle', { cx: x, cy: y, r: 2, 'class': 'npu-chart-point', 'data-time': p.time, 'data-mhz': p.value }));
+				var connected = previous && p.time - previous.time < 4500;
+				var next = samples[i + 1];
+				// Hold the previous observed value only between healthy readings.
+				// The display hold below never appends synthetic samples.
+				var segment = connected ? ' H ' + x + ' V ' + y : ' M ' + x + ' ' + y;
+				if (!connected) { closeArea(); areaStart = x; }
+				path += segment; area += segment; areaEnd = x;
+				var isolated = !connected && !(next && next.value != null && next.time - p.time < 4500);
+				chart.appendChild(svgNode('circle', { cx: x, cy: y, r: isolated ? 2 : 1, 'class': 'npu-chart-point', 'data-time': p.time, 'data-mhz': p.value }));
 				previous = p;
 			});
-			chart.appendChild(svgNode('path', { d: path, 'class': 'npu-chart-line' }));
+			if (previous && now - previous.time <= 3000) { path += ' H ' + right; area += ' H ' + right; areaEnd = right; }
+			closeArea();
+			chart.insertBefore(svgNode('path', { d: area, 'class': 'npu-chart-area' }), chart.firstChild);
+			chart.appendChild(svgNode('path', { d: path, 'class': 'npu-chart-line', 'vector-effect': 'non-scaling-stroke' }));
 		}
 		function sample(s) {
 			var value = s && s.cpu_cur_freq;
@@ -145,7 +162,7 @@ return view.extend({
 			var flowDetailStr = f.enabled === true ? _('Enabled in firewall') : f.enabled === false ? _('Disabled in firewall') : _('Unknown');
 
 			cards.freq.val.textContent = curFreqStr;
-			cards.freq.sub.textContent = _('Max limit: ') + maxFreqStr;
+			cards.freq.sub.textContent = _('Max limit:') + ' ' + maxFreqStr;
 			cards.gov.val.textContent = govStr;
 			cards.gov.sub.textContent = s.cpu_governor ? s.cpu_governor : '—';
 			cards.npu.val.textContent = npuBoundStr;
@@ -209,17 +226,23 @@ return view.extend({
 		self.pollFn = function() {
 			if (!self.active || !page.isConnected) return Promise.resolve();
 			drawChart();
-			if (self.refreshing || Date.now() - lastRequest < 5000) return Promise.resolve();
+			if (self.refreshing || Date.now() - lastRequest < 3000) return Promise.resolve();
 			lastRequest = Date.now();
 			self.refreshing = true;
 			// Settle both transports before releasing the guard; a fast rejection
 			// must not overlap a still pending flow/status request on the next tick.
-			return Promise.all([getStatus(), getFlow()].map(function(p) {
+			var refreshFlow = Date.now() - lastFlowRequest >= 6000;
+			if (refreshFlow) lastFlowRequest = Date.now();
+			var statusRequest = getStatus().catch(function() { return null; }).then(function(s) {
+				if (self.active && page.isConnected) { update(s, flow); sample(s); }
+				return s;
+			});
+			return Promise.all([statusRequest, refreshFlow ? getFlow() : Promise.resolve(flow)].map(function(p) {
 				return p.catch(function() { return null; });
 			})).then(function(values) {
 				if (!self.active || !page.isConnected) return;
-				update(values[0], values[1]);
-				sample(values[0]);
+				flow = values[1];
+				update(values[0], flow);
 			}).finally(function() { self.refreshing = false; });
 		};
 		// Age the window even if a transport stalls; no synthetic samples.
@@ -234,7 +257,9 @@ return view.extend({
 		});
 		self.observer.observe(document.body, { childList: true, subtree: true });
 
-		poll.add(self.pollFn, 5);
+		// Check the 3s CPU deadline each second; refresh firewall state at 6s.
+		// A slightly early tick must not skip a whole sampling slot.
+		poll.add(self.pollFn, 1);
 		return page;
 	},
 

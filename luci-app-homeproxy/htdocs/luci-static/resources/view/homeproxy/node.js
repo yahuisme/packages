@@ -1999,6 +1999,59 @@ return view.extend({
 		/* Subscriptions settings end */
 
 		return m.render().then((el) => {
+			el.classList.add('homeproxy-nodes');
+			el.prepend(E('style', [ `
+.homeproxy-nodes .cbi-value[data-name="_node"],
+.homeproxy-nodes .cbi-value[data-name^="_sub_"] {
+	padding: 0;
+	border: 0;
+	box-shadow: none;
+}
+.homeproxy-nodes .cbi-tblsection {
+	overflow-x: auto;
+	border: 0;
+	box-shadow: none;
+	padding: 0;
+}
+.homeproxy-nodes .cbi-section-table {
+	min-width: 720px;
+}
+.homeproxy-nodes .cbi-section-table th,
+.homeproxy-nodes .cbi-section-table td:not(.cbi-section-table-titles) {
+	white-space: nowrap;
+}
+.homeproxy-nodes .cbi-section-table .cbi-section-table-titles,
+.homeproxy-nodes .cbi-section-table .cbi-section-table-descr {
+	font-weight: 500;
+}
+.homeproxy-nodes .cbi-section-table .cbi-section-table-titles:first-child {
+	max-width: 240px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+@media (max-width: 600px) {
+	.homeproxy-nodes .cbi-section-table { min-width: 0; }
+}
+.homeproxy-nodes .cbi-dynlist {
+	min-width: 0;
+	max-width: 100%;
+}
+.homeproxy-nodes .cbi-section-create {
+	padding: 8px;
+}
+.homeproxy-nodes .cbi-tabmenu li a {
+	max-width: min(24em, 60vw);
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+` ]));
+			el.querySelectorAll('.cbi-tabmenu li a').forEach((tab) => {
+				tab.title = tab.textContent;
+			});
+			el.querySelectorAll('.cbi-section-table-titles:first-child').forEach((cell) => {
+				cell.title = cell.textContent;
+			});
 			let bulk_testing = false;
 			let tabmenu_observer = null;
 			let bulk_button = E('button', {

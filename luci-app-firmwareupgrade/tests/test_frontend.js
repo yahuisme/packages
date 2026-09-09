@@ -15,7 +15,14 @@ const app=Function('rpc','view','ui','poll','E','_','L',source)(rpc,{extend:x=>x
  const root=document.querySelector('.fwup-dashboard'), notice=root.querySelector('[style="display:none"]'), latest=document.querySelector('#fwup-latest'), detail=document.querySelector('#fwup-detail').parentNode;
  const button=[...root.querySelectorAll('button')].find(x=>x.textContent==='Check update');
  await app.check(notice,latest,detail,{currentTarget:button});
- const upgrade=[...root.querySelectorAll('button')].find(x=>x.textContent==='Upgrade firmware'); upgrade.click();
+ const upgrade=[...root.querySelectorAll('button')].find(x=>x.textContent==='Upgrade firmware');
+ assert(detail.classList.contains('fwup-release'), 'release shares the operation alignment instead of a nested panel');
+ const css=root.querySelector('style').textContent;
+ assert(css.includes('flex-wrap:wrap;margin:16px 0'));
+ assert(css.includes('height:32px;min-height:32px;margin:0'));
+ assert(css.includes('.fwup-modal .fwup-progress{'), 'body-mounted modal progress must not depend on dashboard ancestry');
+ assert(css.includes('max-width:min(560px,calc(100vw - 32px))'), 'modal fits tablet and phone');
+ upgrade.click();
  // Changing a later discovery must not change the image already confirmed.
  checked={success:true,candidate_id:'b'.repeat(32),tag_name:'v2'};
  await app.check(notice,latest,detail,{currentTarget:button});

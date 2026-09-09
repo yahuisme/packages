@@ -434,7 +434,9 @@ return view.extend({
 			.wifi7-info-value { flex:1; min-width:0; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
 			.wifi7-info-value .cbi-button,.wifi7-save-bar .cbi-button { height:32px; padding:0 16px; margin:0; }
 			.wifi7-narrow-input { width:104px !important; height:32px; font-variant-numeric:tabular-nums; }
-			.wifi7-settings-card { padding:16px; margin-bottom:16px; }
+			.wifi7-notice:empty { display:none; }
+			.wifi7-map > div > .cbi-button { height:32px; padding:0 16px; }
+			.wifi7-settings-card { padding:16px; margin-bottom:16px; border:0; border-radius:0; }
 			.wifi7-settings-card h4 { margin:0 0 8px; font-size:15px; font-weight:500; }
 			.wifi7-settings-card .cbi-value { display:flex; align-items:center; padding:8px 0; }
 			.wifi7-settings-card .cbi-value-title { width:160px; flex:0 0 160px; margin:0; font-size:13px; font-weight:500; color:var(--cbi-muted-color,#666); }

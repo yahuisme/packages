@@ -13,11 +13,11 @@ var callFanStatus = rpc.declare({
 var statusCSS = '\
 .fan-dashboard{font-size:13px;line-height:1.5}\
 .fan-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:8px;margin-bottom:12px}\
-.fan-summary-card,.fan-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
+.fan-summary-card,.fan-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:6px;box-sizing:border-box}\
 .fan-summary-card{min-height:72px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center}\
-.fan-card-title,.fan-group-title{font-size:11px;font-weight:500;color:var(--cbi-muted-color,#666);letter-spacing:.04em;text-transform:uppercase}\
-.fan-card-title{margin-bottom:3px}.fan-card-value{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}.fan-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
-.fan-panel{padding:12px;margin:12px 0}.fan-panel-title{font-size:15px;font-weight:600;padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
+.fan-card-title,.fan-group-title{font-size:11px;font-weight:500;color:var(--cbi-muted-color,var(--text-muted,#666));letter-spacing:.04em;text-transform:uppercase}\
+.fan-card-title{margin-bottom:3px}.fan-card-value{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}.fan-card-sub{font-size:12px;color:var(--cbi-muted-color,var(--text-muted,#888));white-space:normal;overflow-wrap:anywhere}\
+.fan-panel{padding:12px;margin:12px 0}.fan-panel-title{font-size:15px;font-weight:600;padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0))}\
 .fan-temp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}.fan-group-title{margin:10px 0 2px}.fan-temp-card{padding:8px 0;border-bottom:1px solid var(--cbi-border-color,#f0f0f0)}\
 .fan-temp-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.fan-temp-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fan-temp-value{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--fan-temp-accent)}\
 .fan-temp-track{height:6px;margin-top:6px;border-radius:3px;overflow:hidden;background:var(--cbi-input-bg,#eee)}.fan-temp-fill{height:100%;border-radius:inherit;background:var(--fan-temp-accent);transition:width .3s,background .3s}\
@@ -35,7 +35,7 @@ function validTemp(value) {
 }
 
 function tempColor(value) {
-	if (!validTemp(value)) return 'var(--cbi-muted-color,#888)';
+	if (!validTemp(value)) return 'var(--cbi-muted-color,var(--text-muted,#888))';
 	if (value < 50) return '#10b981';
 	if (value <= 65) return '#f59e0b';
 	if (value <= 75) return '#f97316';

@@ -16,11 +16,36 @@ function validPoints(points) {
 }
 
 function curvePreview() {
-	return '<div class="fan-curve-preview"><svg viewBox="0 0 400 160" role="img" aria-label="' + _('Curve preview') + '">' +
-		'<line x1="32" y1="12" x2="32" y2="132" stroke="currentColor" stroke-opacity=".35"/>' +
-		'<line x1="32" y1="132" x2="388" y2="132" stroke="currentColor" stroke-opacity=".35"/>' +
-		'<polyline class="fan-curve-line" points="" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+	return '<div class="fan-curve-preview"><svg role="img" aria-label="' + _('Curve preview') + '">' +
+		'<g class="fan-curve-axes"></g>' +
+		'<polyline class="fan-curve-line" points="" fill="none" stroke="#3b82f6" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>' +
 		'<g class="fan-curve-dots"></g></svg><span class="fan-curve-message"></span></div>';
+}
+
+function curveAxes(svg) {
+	// Use CSS-pixel coordinates: resizing must not magnify text or markers.
+	var width = svg.clientWidth || 320, left = 40, right = width - 24;
+	var top = 28, bottom = 188, axes = svg.querySelector('.fan-curve-axes');
+	function element(tag, attrs, text) {
+		var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+		Object.keys(attrs).forEach(function(key) { el.setAttribute(key, attrs[key]); });
+		if (text != null) el.textContent = text;
+		axes.appendChild(el);
+	}
+	function x(temp) { return left + temp * (right - left) / 100; }
+	function y(pwm) { return bottom - pwm * (bottom - top) / 255; }
+	axes.textContent = '';
+	[0, 20, 40, 60, 80, 100].forEach(function(temp) {
+		element('line', { x1: x(temp), y1: top, x2: x(temp), y2: bottom });
+		element('text', { x: x(temp), y: bottom + 20, 'text-anchor': 'middle', 'class': 'fan-curve-x-tick' }, temp);
+	});
+	[0, 64, 128, 192, 255].forEach(function(pwm) {
+		element('line', { x1: left, y1: y(pwm), x2: right, y2: y(pwm) });
+		element('text', { x: left - 8, y: y(pwm) + 4, 'text-anchor': 'end', 'class': 'fan-curve-y-tick' }, pwm);
+	});
+	element('text', { x: left, y: 16 }, 'PWM');
+	element('text', { x: right, y: 232, 'text-anchor': 'end' }, '°C');
+	return { x: x, y: y };
 }
 
 function updateCurvePreview(node) {
@@ -34,19 +59,20 @@ function updateCurvePreview(node) {
 	var dots = node.querySelector('.fan-curve-dots');
 	var message = node.querySelector('.fan-curve-message');
 	if (!line || !dots || !message) return;
+	var axes = curveAxes(line.ownerSVGElement);
 	if (!validPoints(points)) {
 		line.setAttribute('points', ''); dots.textContent = '';
 		message.textContent = _('Complete valid curve points to preview.'); return;
 	}
 	line.setAttribute('points', points.map(function(point) {
-		return (32 + +point.temp * 3.56) + ',' + (132 - +point.pwm * 120 / 255);
+		return axes.x(+point.temp) + ',' + axes.y(+point.pwm);
 	}).join(' '));
 	dots.textContent = '';
 	points.forEach(function(point) {
 		var dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-		dot.setAttribute('cx', 32 + +point.temp * 3.56);
-		dot.setAttribute('cy', 132 - +point.pwm * 120 / 255);
-		dot.setAttribute('r', '3.5'); dots.appendChild(dot);
+		dot.setAttribute('cx', axes.x(+point.temp));
+		dot.setAttribute('cy', axes.y(+point.pwm));
+		dot.setAttribute('r', '2.5'); dots.appendChild(dot);
 	});
 	message.textContent = '';
 }
@@ -55,9 +81,9 @@ var previewCSS = '\
 .fan-settings .cbi-section-node{box-sizing:border-box}\
 .fan-settings [data-name^="point"]{box-sizing:border-box}\
 .fan-settings .fan-curve-preview{max-width:none;margin:0;color:var(--cbi-text-color,currentColor)}\
-.fan-settings .fan-curve-preview svg{display:block;width:100%;height:auto;border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px;background:var(--cbi-section-bg,transparent)}\
-.fan-settings .fan-curve-line{color:var(--cbi-link-color,#0ea5e9)}.fan-settings .fan-curve-dots{fill:var(--cbi-link-color,#0ea5e9)}\
-.fan-settings .fan-curve-message{display:block;margin-top:8px;color:var(--cbi-muted-color,#888);font-size:12px}\
+.fan-settings .fan-curve-preview svg{display:block;width:100%;height:244px;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:4px;background:var(--cbi-section-bg,transparent);box-sizing:border-box}\
+.fan-settings .fan-curve-dots{fill:#3b82f6}.fan-settings .fan-curve-axes text{font-size:12px;font-weight:400;fill:currentColor}.fan-settings .fan-curve-axes line{stroke:currentColor;stroke-opacity:.1;stroke-width:1;vector-effect:non-scaling-stroke}\
+.fan-settings .fan-curve-message{display:block;margin-top:8px;color:var(--cbi-muted-color,var(--text-muted,#888));font-size:12px}\
 .fan-settings .cbi-section:has(>[data-section-id="custom"]){container-type:inline-size}\
 .fan-settings .cbi-section-node[data-section-id="custom"]>.cbi-value{min-width:0}\
 .fan-settings .cbi-section-node[data-section-id="custom"]>.cbi-value:not([data-name="_curve_preview"]){display:grid;grid-template-columns:minmax(0,1fr) minmax(80px,120px);gap:8px;align-items:center}\
@@ -166,6 +192,16 @@ return view.extend({
 			node.addEventListener('input', refresh);
 			node.addEventListener('change', refresh);
 			refresh();
+			if (typeof ResizeObserver !== 'undefined') {
+				var mounted = node.isConnected;
+				var resize = new ResizeObserver(refresh);
+				resize.observe(node.querySelector('.fan-curve-preview svg'));
+				var lifecycle = new MutationObserver(function() {
+					if (node.isConnected) mounted = true;
+					else if (mounted) { resize.disconnect(); lifecycle.disconnect(); }
+				});
+				lifecycle.observe(document.body, { childList: true, subtree: true });
+			}
 			return node;
 		});
 	}

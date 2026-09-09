@@ -29,6 +29,10 @@ function count(name){return calls.filter(n=>n===name).length;}
  await settle();await settle();const root=w.document.querySelector('.flowsense-dashboard');assert(root);assert(polls.has(5));
  assert.equal(count('getOverview'),1,'load data reused without duplicate RPC');assert.equal(count('getPpeEntries'),0);
  assert(root.textContent.includes('12 ms'));assert.equal(root.querySelector('#flowsense-target').labels.length,1);assert.equal(root.querySelector('#flowsense-enabled').labels.length,1);
+ const port=root.querySelector('.flowsense-port');
+ assert.equal(port.querySelectorAll('.cbi-value,.cbi-value-title,.cbi-value-field').length,0,'port telemetry must not inherit Aurora form-row margins and right-aligned labels');
+ assert.deepEqual([...port.querySelectorAll('dt')].map(n=>n.textContent),['Speed','RX / TX rate','RX / TX errors']);
+ assert.deepEqual([...port.querySelectorAll('dd')].map(n=>n.textContent),['2500 Mbit/s','— / —','7 / 9']);
  const overview=polls.get(5),ppePoll=polls.get(30),details=root.querySelector('details');
  await ppePoll();assert.equal(count('getPpeEntries'),0,'closed detail must not scan PPE');
  waitPpe=deferred();details.open=true;await settle();const p1=ppePoll(),p2=ppePoll();assert.equal(count('getPpeEntries'),1,'toggle and poll share PPE request');

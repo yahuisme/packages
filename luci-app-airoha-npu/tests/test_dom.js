@@ -11,15 +11,21 @@ w.eval(read('luci').replace('window.LuCI = LuCI;', 'window.LuCI = LuCI; window._
 const mods = w.__classes, L = w.L = Object.create(w.LuCI.prototype);
 Object.assign(w.__env, { resource: '/luci-static/resources', sessionid: 'fixture', pollinterval: 5 });
 L.require = n => Promise.resolve(mods[n]); w._ = s => s; w.E = mods.dom.create.bind(mods.dom);
+if (process.env.NPU_ZH) {
+ const add = w.document.addEventListener.bind(w.document);
+ w.document.addEventListener = (type, ...args) => { if (type !== 'DOMContentLoaded') add(type, ...args); };
+ w.eval(read('cbi')); w.document.addEventListener = add; require('./l10n')(w);
+}
 let now = 0, timers = new Map(), next = 0;
 w.Date.now = () => now;
 w.setInterval = fn => { timers.set(++next, fn); return next; };
 w.clearInterval = id => timers.delete(id);
 let fail = false, flowFail = false, held = false, release, calls = 0;
+const methodCalls = [];
 let value = 500000;
 const status = () => ({ cpu_cur_freq: value, cpu_max_freq: 1200000, cpu_count: 2, cpu_governor: 'schedutil', npu_bound: true });
 mods.request.post = async (url, req) => {
- const method = req.params[2]; calls++;
+ const method = req.params[2]; calls++; methodCalls.push({ method, time: now });
  if (held && method === 'getFlowOffload') await new Promise(r => { release = r; });
  const failure = (method === 'getStatus' && fail) || (method === 'getFlowOffload' && flowFail);
  const payload = method === 'getStatus' ? status() : method === 'getInfo' ? { soc_compat: 'airoha,test' } : { enabled: true };
@@ -37,37 +43,85 @@ const app = new C();
 const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
 const points = () => [...w.document.querySelectorAll('.npu-chart-point')];
 const segments = () => (w.document.querySelector('.npu-chart-line').getAttribute('d').match(/M/g) || []).length;
-async function tick(ms = 5000) {
+async function tick(ms = 3000) {
  now += ms;
  for (const fn of [...timers.values()]) fn();
  await app.pollFn(); await flush();
 }
 (async () => {
  try {
-  const node = app.render(await app.load()); w.document.getElementById('view').append(node); await flush();
+  if (process.env.NPU_ZH) assert.equal(w._('Max limit:'), '上限:');
+  let node = app.render(await app.load()); w.document.getElementById('view').append(node); await flush();
   assert.equal(points().length, 1, 'only initial real reading');
   assert.equal(points()[0].getAttribute('data-mhz'), '500');
-  assert.equal(mods.poll.queue.length, 1); assert.equal(mods.poll.queue[0].i, 5);
+  assert.equal(mods.poll.queue.length, 1);
+  // Drive the actual LuCI scheduler: a tick arriving 1 ms early must not
+  // postpone the next real sample by another five seconds.
+  mods.poll.tick = 0;
+  const start = now;
+  for (let i = 0; i <= 7; i++) {
+   now = start + (i ? i * 1000 - 1 : 0);
+   mods.poll.step(); await flush();
+  }
+  assert.equal(points().length, 3, 'scheduler jitter retains normal sample cadence');
+  assert.equal(segments(), 1, 'healthy jittered samples stay connected');
+  assert.equal(methodCalls.filter(c => c.method === 'getStatus').length, 3);
+  assert.equal(methodCalls.filter(c => c.method === 'getFlowOffload').length, 2, 'flow is not accelerated to CPU cadence');
+  now = 0;
+  const reset = app.render(await app.load()); node.replaceWith(reset); await flush();
+  // Keep the remaining lifecycle assertions attached to the current root.
+  node = reset;
+  const svg = node.querySelector('svg');
+  for (const width of [240, 360, 600, 960]) {
+   Object.defineProperty(svg, 'clientWidth', { configurable: true, value: width });
+   for (const fn of timers.values()) fn();
+   assert.equal(svg.viewBox.baseVal ? svg.viewBox.baseVal.width : +svg.getAttribute('viewBox').split(' ')[2], width);
+   const labels = [...svg.querySelectorAll('text')];
+   assert.deepEqual(labels.filter(n => /^\d+$/.test(n.textContent)).map(n => n.textContent), ['0', '200', '400', '600', '800', '1000', '1200']);
+   const times = labels.filter(n => / s$/.test(n.textContent));
+   assert.equal(times.length, width < 480 ? 5 : width < 800 ? 7 : 9, 'responsive time ticks');
+   assert.equal(svg.querySelectorAll('.npu-chart-grid').length, 7 + times.length);
+  }
+  const lineStyle = w.getComputedStyle(node.querySelector('.npu-chart-line'));
+  assert.equal(lineStyle.stroke, '#22a06b');
+  assert.equal(lineStyle.strokeWidth, '1.5');
+  assert.equal(node.querySelector('.npu-chart-line').getAttribute('vector-effect'), 'non-scaling-stroke');
+  assert(+w.getComputedStyle(node.querySelector('.npu-chart-grid')).opacity <= 0.15, 'subtle grid');
+  assert.equal(points()[0].getAttribute('r'), '2', 'isolated real sample stays visible');
   const before = calls; await app.pollFn(); assert.equal(calls, before, 'no immediate duplicate');
-  await tick(4999); assert.equal(points().length, 1); await tick(1); assert.equal(points().length, 2);
+  await tick(2999); assert.equal(points().length, 1); await tick(1); assert.equal(points().length, 2);
   value = 800000; await tick(); assert.equal(points().at(-1).getAttribute('data-mhz'), '800'); assert.equal(segments(), 1);
-  fail = true; await tick(); assert.equal(points().length, 3); assert.equal(w.document.querySelector('#npu-current').textContent, 'Unknown');
+  assert.match(node.querySelector('.npu-chart-line').getAttribute('d'), / H .* V /, 'normal readings use previous-value steps');
+  assert(points().every(p => p.getAttribute('r') === '1'), 'connected samples are restrained');
+  const actualSamples = points().map(p => [p.dataset.time, p.dataset.mhz]);
+  now += 1000; for (const fn of timers.values()) fn();
+  assert.deepEqual(points().map(p => [p.dataset.time, p.dataset.mhz]), actualSamples, 'redraw never fabricates samples');
+  assert.match(node.querySelector('.npu-chart-line').getAttribute('d'), / H 944$/, 'brief latest-value hold');
+  now += 3001; for (const fn of timers.values()) fn();
+  assert(!/ H 944$/.test(node.querySelector('.npu-chart-line').getAttribute('d')), 'hold expires after 3s');
+  now -= 4001;
+  fail = true; await tick(); assert.equal(points().length, 3); assert.equal(w.document.querySelector('#npu-current').textContent, w._('Unknown'));
+  assert(!/ H 944$/.test(node.querySelector('.npu-chart-line').getAttribute('d')), 'RPC failure stops display hold');
   fail = false; await tick(); assert.equal(segments(), 2, 'failure breaks path');
-  flowFail = true; await tick(); assert.equal(points().at(-1).getAttribute('data-time'), String(now), 'flow failure does not discard CPU reading'); flowFail = false;
-  value = Infinity; await tick(); assert.equal(w.document.querySelector('#npu-chart-value').textContent, 'Unknown'); value = 600000; await tick(); assert.equal(segments(), 3);
+  assert.equal((node.querySelector('.npu-chart-area').getAttribute('d').match(/Z/g) || []).length, 2, 'area closes separately across null');
+  flowFail = true; await tick(); await tick(); assert.equal(points().at(-1).getAttribute('data-time'), String(now), 'flow failure does not discard CPU reading'); assert.equal(node.querySelector('#npu-offload').textContent, w._('Unknown')); flowFail = false;
+  value = Infinity; await tick(); assert.equal(w.document.querySelector('#npu-chart-value').textContent, w._('Unknown')); value = 600000; await tick(); assert.equal(segments(), 3);
   await tick(15000); assert.equal(segments(), 4, 'missed intervals break path');
-  for (let i = 0; i < 25; i++) await tick();
-  assert.equal(points().length, 25); assert(points().every(p => +p.getAttribute('data-time') >= now - 120000));
+  assert.equal((node.querySelector('.npu-chart-area').getAttribute('d').match(/Z/g) || []).length, 4, 'area respects missing intervals');
+  for (let i = 0; i < 41; i++) { value = [600000, 800000, 1000000, 800000][Math.floor(i / 6) % 4]; await tick(); }
+  assert.equal(points().length, 41); assert(points().every(p => +p.getAttribute('data-time') >= now - 120000));
   if (process.env.NPU_DOM_EXPORT) fs.writeFileSync(process.env.NPU_DOM_EXPORT, w.document.documentElement.outerHTML);
-  held = true; fail = true; now += 5000; const pending = app.pollFn(); await flush(); const inFlight = calls;
+  held = true; fail = true; now += 6000; const pending = app.pollFn(); await flush(); const inFlight = calls;
   await tick(); assert.equal(calls, inFlight, 'rejected status cannot overlap pending flow');
   now += 121000; for (const fn of [...timers.values()]) fn(); assert.equal(points().length, 0, 'stalled RPC still expires history');
+  assert.equal(node.querySelector('.npu-chart-area').getAttribute('d'), '', 'outage expires filled history');
+  assert.equal(node.querySelector('#npu-summary-freq .npu-card-value').textContent, w._('Unknown'));
   node.remove(); await flush(); assert.equal(mods.poll.queue.length, 0); assert.equal(timers.size, 0);
   const old = node.innerHTML; release(); await pending; assert.equal(node.innerHTML, old, 'detached reply ignored');
   await app.pollFn(); assert.equal(calls, inFlight);
   held = false; fail = false;
   const again = app.render(await app.load()); w.document.body.append(again); await flush();
   w.dispatchEvent(new w.Event('pagehide')); assert.equal(mods.poll.queue.length, 0); assert.equal(timers.size, 0);
-  console.log('PASS real LuCI DOM/RPC/poll: 5s sampling, 120s expiry, missing/invalid data gaps, stalled transport no overlap, detach/pagehide cleanup');
+  console.log('PASS real LuCI DOM/RPC/poll: 3s sampling, 120s expiry, missing/invalid data gaps, stalled transport no overlap, detach/pagehide cleanup');
  } finally { w.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

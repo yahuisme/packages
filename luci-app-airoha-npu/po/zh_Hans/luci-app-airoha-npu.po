@@ -97,8 +97,8 @@ msgstr "内核 CPU 控制"
 msgid "Manage hardware PPE and software flow offloading."
 msgstr "管理硬件 PPE 与软件流量卸载。"
 
-msgid "Max limit: "
-msgstr "上限: "
+msgid "Max limit:"
+msgstr "上限:"
 
 msgid "Maximum CPU frequency"
 msgstr "最高运行频率"

@@ -20,7 +20,7 @@ not RPC arguments. Firewall reload is a temporary executable; real services,
 network sysctls and hardware registers are never touched. /dev/null and
 /dev/full simulate readback/write failures. A copied helper simulates kernel
 clamping. DOM fixtures use real upstream LuCI DOM, RPC and poll with jsdom.
-The status test uses a simulated clock to check 5-second sampling, the rolling
+The status test uses a simulated clock to check 3-second CPU / 6-second firewall sampling, the rolling
 120-second window, failure/invalid-reading gaps, expiry during stalled requests,
 no overlapping RPCs, and root-removal/pagehide cleanup. It never falls back to
 mock DOM nodes. `NPU_DOM_EXPORT=/tmp/npu.dom.html` optionally exports the rendered

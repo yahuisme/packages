@@ -18,11 +18,18 @@ var css = `
 .flowsense-dashboard .flowsense-sub{color:var(--cbi-muted-color,#888)}
 .flowsense-dashboard .flowsense-status{font-size:inherit;color:inherit}
 .flowsense-dashboard .flowsense-section{margin:16px 0}.flowsense-dashboard .flowsense-section .cbi-value{padding:8px 0}
-.flowsense-dashboard .flowsense-port{display:grid;grid-template-columns:minmax(80px,.7fr) repeat(3,minmax(120px,1fr));gap:16px;align-items:center;margin:0;padding:12px 0;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}
-.flowsense-dashboard .flowsense-port:last-child{border-bottom:0}.flowsense-dashboard .flowsense-port-title{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:500}.flowsense-dashboard .flowsense-port .cbi-value{padding:0;min-width:0;display:block}.flowsense-dashboard .flowsense-port .cbi-value-title{width:auto;min-width:0;display:block;float:none;overflow-wrap:anywhere}.flowsense-dashboard .flowsense-port .cbi-value-field{margin:0;min-width:0;overflow-wrap:anywhere}.flowsense-dashboard .flowsense-details{margin-top:16px}.flowsense-dashboard .flowsense-details summary{cursor:pointer;min-height:32px}
+.flowsense-dashboard .flowsense-ports{container-type:inline-size}
+.flowsense-dashboard .flowsense-port{display:grid;grid-template-columns:minmax(0,.7fr) repeat(3,minmax(0,1fr));gap:16px;align-items:start;margin:0;padding:16px 0;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}
+.flowsense-dashboard .flowsense-port:last-child{border-bottom:0}.flowsense-dashboard .flowsense-port-title{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-weight:400;min-width:0;overflow-wrap:anywhere}
+.flowsense-dashboard .flowsense-port-metric{display:grid;gap:8px;min-width:0;margin:0;padding:0}
+.flowsense-dashboard .flowsense-port-metric dt,.flowsense-dashboard .flowsense-port-metric dd{margin:0;padding:0;min-width:0;font-weight:400;text-align:start;overflow-wrap:anywhere}
+.flowsense-dashboard .flowsense-port-metric dd{font-variant-numeric:tabular-nums}
+.flowsense-dashboard .flowsense-details{margin-top:16px}.flowsense-dashboard .flowsense-details summary{cursor:pointer;min-height:32px}
+@container(max-width:800px){.flowsense-dashboard .flowsense-port{grid-template-columns:repeat(3,minmax(0,1fr))}.flowsense-dashboard .flowsense-port-title{grid-column:1 / -1}}
+@container(max-width:480px){.flowsense-dashboard .flowsense-port{grid-template-columns:minmax(0,1fr);gap:8px}.flowsense-dashboard .flowsense-port-metric{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:16px}}
 .flowsense-dashboard .cbi-input-text,.flowsense-dashboard .cbi-button{min-height:32px;box-sizing:border-box}
-@media(max-width:899px){.flowsense-dashboard .flowsense-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.flowsense-dashboard .flowsense-port{grid-template-columns:1fr 1fr;gap:8px 16px}.flowsense-dashboard .flowsense-port-title{grid-column:1 / -1}}
-@media(max-width:520px){.flowsense-dashboard .flowsense-summary{grid-template-columns:1fr}.flowsense-dashboard .flowsense-port{grid-template-columns:1fr}.flowsense-dashboard .flowsense-port-title{grid-column:auto}}
+@media(max-width:899px){.flowsense-dashboard .flowsense-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.flowsense-dashboard .flowsense-summary{grid-template-columns:1fr}}
 `;
 
 
@@ -34,6 +41,7 @@ function rate(bytes, previous, seconds) {
 }
 function formatRate(value) { return value == null ? '—' : (value < 1 ? value.toFixed(2) : value.toFixed(value < 10 ? 1 : 0)) + ' Mbit/s'; }
 function metric(label, value) { return E('div', { 'class': 'cbi-value' }, [E(value && value.id ? 'label' : 'span', { 'class': 'cbi-value-title', 'for': value && value.id || null }, label), E('div', { 'class': 'cbi-value-field' }, value)]); }
+function portMetric(label, value) { return E('dl', { 'class': 'flowsense-port-metric' }, [E('dt', {}, [label]), E('dd', {}, [value])]); }
 function statusBadge(carrier) {
 	var up = carrier === 1 || carrier === true, down = carrier === 0 || carrier === false;
 	return E('span', { 'class': 'flowsense-status' + (up ? ' flowsense-up' : down ? ' flowsense-down' : '') }, up ? _('Up') : down ? _('Down') : _('Unknown'));
@@ -58,7 +66,7 @@ return view.extend({
 		var root = E('div', { 'class': 'cbi-map flowsense-dashboard' }, [E('style', {}, css)]);
 		var message = E('div', { 'class': 'cbi-map-descr' }, _('Waiting for data'));
 		var summary = E('div', { 'class': 'flowsense-summary' });
-		var interfaces = E('div');
+		var interfaces = E('div', { 'class': 'flowsense-ports' });
 		var quality = E('div', { 'class': 'flowsense-section cbi-section' });
 		var ppe = E('div', { 'class': 'flowsense-section cbi-section' });
 		var target = E('input', { id: 'flowsense-target', 'class': 'cbi-input-text', maxlength: 253, placeholder: '223.5.5.5' });
@@ -104,7 +112,7 @@ return view.extend({
 				ports.forEach(function(port) {
 					var old = previous && previous.ports[port.device], rx = rate(port.stats.rx_bytes, old && old.rx_bytes, seconds), tx = rate(port.stats.tx_bytes, old && old.tx_bytes, seconds);
 					if (rx != null) { totalRx += rx; rxOk++; } if (tx != null) { totalTx += tx; txOk++; }
-					interfaces.appendChild(E('div', { 'class': 'flowsense-port' }, [E('div', { 'class': 'flowsense-port-title' }, [E('span', { 'class': 'flowsense-port-name' }, port.device), statusBadge(port.carrier)]), metric(_('Speed'), number(port.speed, 0, 1000000) == null ? '—' : port.speed + ' Mbit/s'), metric(_('RX / TX rate'), formatRate(rx) + ' / ' + formatRate(tx)), metric(_('RX / TX errors'), (number(port.stats.rx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : port.stats.rx_errors) + ' / ' + (number(port.stats.tx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : port.stats.tx_errors))]));
+					interfaces.appendChild(E('div', { 'class': 'flowsense-port' }, [E('div', { 'class': 'flowsense-port-title' }, [E('span', { 'class': 'flowsense-port-name' }, port.device), statusBadge(port.carrier)]), portMetric(_('Speed'), number(port.speed, 0, 1000000) == null ? '—' : port.speed + ' Mbit/s'), portMetric(_('RX / TX rate'), formatRate(rx) + ' / ' + formatRate(tx)), portMetric(_('RX / TX errors'), (number(port.stats.rx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : port.stats.rx_errors) + ' / ' + (number(port.stats.tx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : port.stats.tx_errors))]));
 				});
 				summary.replaceChildren(card(_('Total Port Receive Rate'), rxOk === ports.length && ports.length ? formatRate(totalRx) : '—', rxOk + ' / ' + ports.length), card(_('Total Port Transmit Rate'), txOk === ports.length && ports.length ? formatRate(totalTx) : '—', txOk + ' / ' + ports.length), card(_('PPE Flow Engine'), data.configured_hw === true ? _('Enabled') : data.configured_hw === false ? _('Disabled') : _('Unknown'), _('Hardware flow offload')), card(_('Network Quality'), jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : '—', jitter && number(jitter.loss, 0, 100) != null ? _('Loss') + ': ' + jitter.loss + '%' : _('Probe data unavailable')));
 				quality.replaceChildren(E('h3', { 'class': 'cbi-section-title' }, _('Link Quality')), metric(_('Latest RTT'), jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : _('Probe data unavailable')), metric(_('RTT mean absolute deviation'), jitter && number(jitter.deviation, 0, 60000) != null ? jitter.deviation + ' ms' : '—'), metric(_('Window packet loss'), jitter && number(jitter.loss, 0, 100) != null ? jitter.loss + '%' : '—'), metric(_('Hardware flow offload'), data.configured_hw === true ? _('Enabled') : data.configured_hw === false ? _('Disabled') : _('Unknown')), metric(_('Software flow offload'), data.configured_sw === true ? _('Enabled') : data.configured_sw === false ? _('Disabled') : _('Unknown')));

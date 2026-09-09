@@ -97,7 +97,7 @@ msgstr ""
 msgid "Manage hardware PPE and software flow offloading."
 msgstr ""
 
-msgid "Max limit: "
+msgid "Max limit:"
 msgstr ""
 
 msgid "Maximum CPU frequency"

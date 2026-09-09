@@ -225,7 +225,15 @@ return baseclass.extend({
 				ui.addNotification(null, E('p', {}, [ _('This mode or encryption is not supported by this editor.'), ' ', wirelessLink() ]));
 				return Promise.resolve();
 			}
-			return form.GridSection.prototype.renderMoreOptionsModal.call(this, sectionId, event);
+			return form.GridSection.prototype.renderMoreOptionsModal.call(this, sectionId, event).then(function(result) {
+				let modal = document.querySelector('body.modal-overlay-active > #modal_overlay > .modal.cbi-modal');
+				if (modal) {
+					modal.classList.add('wifi7-mlo-modal');
+					if (!modal.querySelector('[data-wifi7-modal-style]'))
+						modal.appendChild(E('style', { 'data-wifi7-modal-style': '' }, '#modal_overlay > .wifi7-mlo-modal{max-width:calc(100vw - 32px)}.wifi7-mlo-modal input:not([type="checkbox"]),.wifi7-mlo-modal select,.wifi7-mlo-modal .cbi-button{height:32px}.wifi7-mlo-modal .cbi-button{padding-top:0;padding-bottom:0}'));
+				}
+				return result;
+			});
 		};
 		section.renderRowActions = function(sectionId) {
 			return this.map.readonly || !editableSection(sectionId)
