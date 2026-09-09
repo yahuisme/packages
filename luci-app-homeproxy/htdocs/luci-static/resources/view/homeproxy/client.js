@@ -56,8 +56,8 @@ const callCurrentNode = rpc.declare({
 
 function renderStatus(isRunning, version, currentNode) {
 	let badgeStyle = isRunning
-		? 'display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;background:rgba(46,164,79,0.12);color:var(--cbi-success-color,#2ea44f);border:1px solid rgba(46,164,79,0.28);margin-left:8px;'
-		: 'display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;background:rgba(218,54,51,0.12);color:var(--cbi-error-color,#da3633);border:1px solid rgba(218,54,51,0.28);margin-left:8px;';
+		? 'display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;background:rgba(16,185,129,0.10);color:var(--cbi-success-color,#10b981);border:1px solid rgba(16,185,129,0.30);margin-left:8px;'
+		: 'display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;background:rgba(239,68,68,0.10);color:var(--cbi-error-color,#ef4444);border:1px solid rgba(239,68,68,0.30);margin-left:8px;';
 	let dotStyle = 'display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:5px;';
 
 	return E('div', { 'style': 'display:flex;flex-direction:column;gap:4px;margin-bottom:8px;' }, [

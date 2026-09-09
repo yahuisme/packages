@@ -15,12 +15,23 @@
 
 /* Thanks to luci-app-aria2 */
 const css = '				\
+:root {					\
+	--hp-font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;\
+	--hp-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;\
+}					\
 #log_textarea {				\
-	padding: 10px;			\
+	padding: 12px;			\
+	border: 1px solid var(--cbi-border-color, #e0e0e0);\
+	border-radius: 6px;		\
+	background: var(--cbi-section-bg, transparent);\
+	box-sizing: border-box;		\
 	text-align: left;		\
 }					\
 #log_textarea pre {			\
-	padding: .5rem;			\
+	font-family: var(--hp-font-mono);\
+	font-size: 12px;		\
+	line-height: 1.5;		\
+	padding: 0;			\
 	word-break: break-all;		\
 	margin: 0;			\
 }					\
@@ -34,12 +45,14 @@ const css = '				\
 	background: var(--cbi-section-bg, transparent);\
 	border: 1px solid var(--cbi-border-color, #e0e0e0);\
 	border-radius: 6px;		\
-	padding: 10px 12px;		\
+	padding: 10px 14px;		\
 	box-sizing: border-box;		\
 	display: flex;			\
 	flex-direction: column;		\
 	justify-content: space-between;	\
-	min-height: 74px;		\
+	min-height: 76px;		\
+	-webkit-font-smoothing: antialiased;\
+	text-rendering: optimizeLegibility;\
 }					\
 .hp-card-header {			\
 	display: flex;			\
@@ -49,17 +62,19 @@ const css = '				\
 }					\
 .hp-card-title {			\
 	font-size: 13px;		\
-	font-weight: 600;		\
+	font-weight: 500;		\
 	color: var(--cbi-text-color, inherit);\
 }					\
 .hp-card-link {				\
 	font-size: 11px;		\
+	font-family: var(--hp-font-mono);\
+	font-variant-numeric: tabular-nums;\
 	color: var(--cbi-muted-color, #888);\
 	text-decoration: none;		\
 	overflow: hidden;		\
 	text-overflow: ellipsis;	\
 	white-space: nowrap;		\
-	max-width: 110px;		\
+	max-width: 120px;		\
 }					\
 .hp-card-link:hover {			\
 	text-decoration: underline;	\
@@ -79,28 +94,38 @@ const css = '				\
 .hp-card-latency {			\
 	font-size: 12px;		\
 	font-weight: 600;		\
-	font-family: ui-monospace, monospace;\
+	font-family: var(--hp-font-mono);\
 	font-variant-numeric: tabular-nums;\
 	color: var(--cbi-text-color, inherit);\
 }					\
 .hp-badge {				\
 	display: inline-flex;		\
 	align-items: center;		\
-	padding: 2px 7px;		\
+	padding: 2px 8px;		\
 	border-radius: 4px;		\
 	font-size: 11px;		\
 	font-weight: 600;		\
+	font-family: var(--hp-font-mono);\
+	font-variant-numeric: tabular-nums;\
 	border: 1px solid transparent;	\
+	line-height: 1.4;		\
 }					\
 .hp-badge-success {			\
-	background: rgba(46,164,79,0.12);\
-	color: var(--cbi-success-color, #2ea44f);\
-	border-color: rgba(46,164,79,0.28);\
+	background: rgba(16,185,129,0.10);\
+	color: var(--cbi-success-color, #10b981);\
+	border-color: rgba(16,185,129,0.30);\
 }					\
 .hp-badge-danger {			\
-	background: rgba(218,54,51,0.12);\
-	color: var(--cbi-error-color, #da3633);\
-	border-color: rgba(218,54,51,0.28);\
+	background: rgba(239,68,68,0.10);\
+	color: var(--cbi-error-color, #ef4444);\
+	border-color: rgba(239,68,68,0.30);\
+}					\
+.cbi-button-action {			\
+	height: 32px;			\
+	padding: 0 16px;		\
+	border-radius: 4px;		\
+	font-size: 12px;		\
+	font-weight: 500;		\
 }					\
 @media (max-width: 1050px) {		\
 	.hp-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }\
@@ -165,11 +190,11 @@ function getConnectionStatus() {
 			return;
 
 		if (result?.result) {
-			elements.state.style.color = 'var(--cbi-success-color, #2ea44f)';
+			elements.state.style.color = 'var(--cbi-success-color, #10b981)';
 			dom.content(elements.state, _('Success'));
 			dom.content(elements.latency, result.latency_ms + ' ms');
 		} else {
-			elements.state.style.color = 'var(--cbi-error-color, #da3633)';
+			elements.state.style.color = 'var(--cbi-error-color, #ef4444)';
 			dom.content(elements.state, result?.timed_out ? _('Timed out') : _('Failed'));
 			dom.content(elements.latency, '-');
 		}
