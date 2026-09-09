@@ -14,20 +14,39 @@
 'require ui';
 'require view';
 
-/* Thanks to luci-app-aria2 */
-const css = '				\
-#log_textarea {				\
-	padding: 10px;			\
-	text-align: left;		\
-}					\
-#log_textarea pre {			\
-	padding: .5rem;			\
-	word-break: break-all;		\
-	margin: 0;			\
-}					\
-.description {				\
-	background-color: #33ccff;	\
-}';
+const css = `
+.homeproxy-status h3 {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	font-weight: 600;
+}
+.homeproxy-status h3 .cbi-button,
+.homeproxy-status h3 select {
+	box-sizing: border-box;
+	height: 32px;
+	min-height: 32px;
+	margin: 0;
+	font-weight: 400;
+}
+.homeproxy-status h3 select { width: auto; }
+.homeproxy-status .homeproxy-log {
+	box-sizing: border-box;
+	height: 256px;
+	overflow: auto;
+	padding: 8px;
+	text-align: left;
+}
+.homeproxy-status .homeproxy-log pre {
+	padding: 0;
+	margin: 0;
+	border: 0;
+	background: none;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+`;
 
 const hp_dir = '/var/run/homeproxy';
 
@@ -60,7 +79,7 @@ function getConnectionStatus() {
 	]);
 	const statusElements = {};
 	const rows = connectionSites.map((site) => {
-		const state = E('strong', { 'style': 'color:gray' }, '-');
+		const state = E('span', {}, '-');
 		const latency = E('span', {}, '-');
 		statusElements[site.type] = { state, latency };
 
@@ -88,11 +107,9 @@ function getConnectionStatus() {
 			return;
 
 		if (result?.result) {
-			elements.state.style.setProperty('color', 'green');
 			dom.content(elements.state, _('Success'));
-			dom.content(elements.latency, _('%s ms').format(result.latency_ms));
+			dom.content(elements.latency, [ _('%s ms').format(result.latency_ms) ]);
 		} else {
-			elements.state.style.setProperty('color', 'red');
 			dom.content(elements.state, result?.timed_out ? _('Timed out') : _('Failed'));
 			dom.content(elements.latency, '-');
 		}
@@ -107,7 +124,6 @@ function getConnectionStatus() {
 		const currentGeneration = ++generation;
 		connectionSites.forEach((site) => {
 			const elements = statusElements[site.type];
-			elements.state.style.setProperty('color', 'gray');
 			dom.content(elements.state, _('Testing...'));
 			dom.content(elements.latency, '-');
 		});
@@ -151,12 +167,11 @@ function getConnectionStatus() {
 
 	testButton = E('button', {
 		'class': 'btn cbi-button cbi-button-action',
-		'style': 'margin-left:4px',
 		'click': ui.createHandlerFn(this, runAllTests)
 	}, [ _('Test all') ]);
 
 	const view = E('div', { 'class': 'cbi-map' }, [
-		E('h3', { 'name': 'content', 'style': 'align-items:center;display:flex' }, [
+		E('h3', { 'name': 'content' }, [
 			_('Connection Status'),
 			testButton
 		]),
@@ -210,28 +225,27 @@ function getResources(o) {
 		const rows = resources.map((resource) => {
 			const resourceStatus = status[resource.type] || {};
 			const available = resourceStatus.version;
-			const source = resourceStatus.source;
+			const source = /^https?:\/\//i.test(resourceStatus.source || '') ? resourceStatus.source : null;
 
 			return [
 				resource.name,
-				E('span', { 'style': available ? 'color:green' : 'color:red' },
-					available || '-'),
+				E('span', {},
+					[ available || '-' ]),
 				source ? E('a', {
 					'href': source,
 					'target': '_blank',
 					'rel': 'noreferrer noopener',
 					'style': 'word-break:break-all'
-				}, source) : '-'
+				}, [ source ]) : '-'
 			];
 		});
 		cbi_update_table(table, rows);
 
 		return E('div', { 'class': 'cbi-map' }, [
-			E('h3', { 'name': 'content', 'style': 'align-items:center;display:flex' }, [
+			E('h3', { 'name': 'content' }, [
 				_('Resource Management'),
 				E('button', {
 					'class': 'btn cbi-button cbi-button-action',
-					'style': 'margin-left:4px',
 					'click': ui.createHandlerFn(this, () => {
 						return L.resolveDefault(callResUpdate(), {}).then((res) => {
 							let message, severity = 'info';
@@ -307,7 +321,7 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 		log_level_el = E('select', {
 			'id': o.cbid(section_id),
 			'class': 'cbi-input-select',
-			'style': 'margin-left: 4px; width: 6em;',
+			'aria-label': _('%s Log').format(name),
 			'change': ui.createHandlerFn(this, (ev) => {
 				uci.set('homeproxy', section, 'log_level', ev.target.value);
 				return o.map.save(null, true).then(() => {
@@ -331,7 +345,7 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 		expect: { '': {} }
 	});
 
-	const log_textarea = E('div', { 'id': 'log_textarea' },
+	const log_textarea = E('div', { 'class': 'homeproxy-log', 'tabindex': '0', 'role': 'region', 'aria-label': _('%s Log').format(name) },
 		E('img', {
 			'src': L.resource('icons/loading.svg'),
 			'alt': _('Loading'),
@@ -363,14 +377,12 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 	}));
 
 	return E([
-		E('style', [ css ]),
 		E('div', {'class': 'cbi-map'}, [
-			E('h3', {'name': 'content', 'style': 'align-items: center; display: flex;'}, [
+			E('h3', {'name': 'content'}, [
 				_('%s Log').format(name),
 				log_level_el || '',
 				E('button', {
 					'class': 'btn cbi-button cbi-button-action',
-					'style': 'margin-left: 4px;',
 					'click': ui.createHandlerFn(this, () => {
 						return L.resolveDefault(callLogClean(filename), {});
 					})
@@ -413,7 +425,9 @@ return view.extend({
 		o = s.option(form.DummyValue, '_sing-box-s_logview');
 		o.render = L.bind(getRuntimeLog, this, o, _('sing-box Server'));
 
-		return m.render();
+		return m.render().then((node) => E('div', { 'class': 'homeproxy-status' }, [
+			E('style', [ css ]), node
+		]));
 	},
 
 	handleSaveApply: null,

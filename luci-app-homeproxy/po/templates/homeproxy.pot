@@ -2363,3 +2363,7 @@ msgstr ""
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:417
 msgid "valid port value"
 msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js
+msgid "valid email address"
+msgstr ""

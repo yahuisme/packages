@@ -515,12 +515,12 @@ function getNodeLatencyStatusStyle(row_state) {
 }
 
 function renderNodeLatencyStatus(row_state) {
-	return '<strong style="%s">%s</strong>'.format(getNodeLatencyStatusStyle(row_state), getNodeLatencyStatusText(row_state));
+	return '<strong style="%s;font-weight:500">%h</strong>'.format(getNodeLatencyStatusStyle(row_state), getNodeLatencyStatusText(row_state));
 }
 
 function renderNodeLatencyStatusNode(row_state, attrs) {
 	return E('strong', Object.assign({
-		'style': getNodeLatencyStatusStyle(row_state)
+		'style': getNodeLatencyStatusStyle(row_state) + ';font-weight:500'
 	}, attrs || {}), [ getNodeLatencyStatusText(row_state) ]);
 }
 
@@ -1713,15 +1713,15 @@ return view.extend({
 								if (imported_node === 0)
 									ui.addNotification(null, E('p', _('No valid share link found.')));
 								else
-									ui.addNotification(null, E('p', _('Successfully imported %s nodes of total %s.').format(
-										imported_node, input_links.length)));
+									ui.addNotification(null, E('p', [ _('Successfully imported %s nodes of total %s.').format(
+										imported_node, input_links.length) ]));
 
 								return uci.save()
 									.then(L.bind(this.map.load, this.map))
 									.then(L.bind(this.map.reset, this.map))
 									.then(L.ui.hideModal)
 									.catch((err) => {
-									ui.addNotification(null, E('p', _('Unknown error: %s.').format(err)), 'error');
+									ui.addNotification(null, E('p', [ _('Unknown error: %s.').format(err) ]), 'error');
 									});
 							} else {
 								return ui.hideModal();
@@ -1764,7 +1764,7 @@ return view.extend({
 
 		/* Subscription nodes start */
 		for (const info of subinfo) {
-			s.tab('sub_' + info.hash, _('Sub (%s)').format(info.title));
+			s.tab('sub_' + info.hash, _('Sub (%s)').format('%h'.format(info.title)));
 			o = s.taboption('sub_' + info.hash, form.SectionValue, '_sub_' + info.hash, form.GridSection, 'node');
 			ss = renderNodeSettings(o.subsection, data, features, main_node, node_latency_row_state);
 			ss.filter = function(section_id) {
@@ -1866,14 +1866,14 @@ return view.extend({
 		o.onclick = function() {
 			return fs.exec('/etc/homeproxy/scripts/update_subscriptions.sh').then((res) => {
 				if (res.code !== 0) {
-					ui.addNotification(null, E('p', _('An error occurred during updating subscriptions: %s.').format(
-						res.stderr || _('exit code %d').format(res.code))));
+					ui.addNotification(null, E('p', [ _('An error occurred during updating subscriptions: %s.').format(
+						res.stderr || _('exit code %d').format(res.code)) ]));
 					return this.map.reset();
 				}
 
 				return location.reload();
 			}).catch((err) => {
-				ui.addNotification(null, E('p', _('An error occurred during updating subscriptions: %s.').format(err)));
+				ui.addNotification(null, E('p', [ _('An error occurred during updating subscriptions: %s.').format(err) ]));
 				return this.map.reset();
 			});
 		}

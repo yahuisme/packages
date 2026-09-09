@@ -832,16 +832,17 @@ const methods = {
 						update_result[pair[1]] = pair[2];
 				}
 			}
+			if (update_result.status !== `${status}`)
+				update_result = {};
 			const core_updated = update_result.core_updated === '1';
 			const dashboard_updated = update_result.dashboard_updated === '1';
-			let apply_failed = false;
-			if ((core_updated || dashboard_updated) && system('/etc/init.d/homeproxy running >/dev/null 2>&1') === 0)
-				apply_failed = system('/etc/init.d/homeproxy reload >/dev/null 2>&1') !== 0;
+			const apply_failed = update_result.apply_failed === '1';
 			return {
 				status,
 				core_updated,
 				dashboard_updated,
 				apply_failed,
+				rollback_failed: update_result.rollback_failed === '1',
 				updated: update_result.updated || null,
 				failed: update_result.failed || null
 			};

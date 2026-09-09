@@ -339,9 +339,9 @@ return baseclass.extend({
 		.then(L.bind((_btn, res) => {
 			return L.resolveDefault(callWriteCertificate(filename), {}).then((ret) => {
 				if (ret.result === true)
-					ui.addNotification(null, E('p', _('Your %s was successfully uploaded. Size: %sB.').format(type, res.size)));
+					ui.addNotification(null, E('p', [ _('Your %s was successfully uploaded. Size: %sB.').format(type, res.size) ]));
 				else
-					ui.addNotification(null, E('p', _('Failed to upload %s, error: %s.').format(type, ret.error)));
+					ui.addNotification(null, E('p', [ _('Failed to upload %s, error: %s.').format(type, ret.error) ]));
 			});
 		}, this, ev.target))
 		.catch((e) => { ui.addNotification(null, E('p', e.message)) });

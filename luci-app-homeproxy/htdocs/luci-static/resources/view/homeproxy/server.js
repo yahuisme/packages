@@ -35,12 +35,8 @@ const CBIGenValue = form.Value.extend({
 });
 
 function renderStatus(isRunning, version) {
-	let spanTemp = '<em><span style="color:%s"><strong>%s (sing-box v%s) %s</strong></span></em>';
-	let renderHTML;
-	if (isRunning)
-		renderHTML = spanTemp.format('green', _('HomeProxy Server'), version, _('RUNNING'));
-	else
-		renderHTML = spanTemp.format('red', _('HomeProxy Server'), version, _('NOT RUNNING'));
+	let renderHTML = '<span style="font-weight:500;overflow-wrap:anywhere">%h (sing-box v%h) %h</span>'.format(
+		_('HomeProxy Server'), version, isRunning ? _('RUNNING') : _('NOT RUNNING'));
 
 	return renderHTML;
 }
@@ -66,7 +62,7 @@ function handleGenKey(option) {
 					widget(k).value = v ?? '';
 				});
 			else
-				ui.addNotification(null, E('p', _('Failed to generate %s, error: %s.').format(type, res.error)));
+				ui.addNotification(null, E('p', [ _('Failed to generate %s, error: %s.').format(type, res.error) ]));
 		});
 	} else {
 		let password, required_method;
@@ -609,9 +605,9 @@ return view.extend({
 			o.validate = function(section_id, value) {
 				if (section_id) {
 					if (!value)
-						return _('Expecting: %s').format('non-empty value');
+						return _('Expecting: %s').format(_('non-empty value'));
 					else if (!value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/))
-						return _('Expecting: %s').format('valid email address');
+						return _('Expecting: %s').format(_('valid email address'));
 				}
 
 				return true;

@@ -40,9 +40,10 @@ clear_firewall() {
 
 clear_dnsmasq() {
 	if [ -e "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" ] || [ -d "$DNSMASQ_DIR" ]; then
-		rm -rf "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" "$DNSMASQ_DIR"
-		/etc/init.d/dnsmasq restart >"/dev/null" 2>&1
+		rm -rf "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" "$DNSMASQ_DIR" || return 1
+		/etc/init.d/dnsmasq restart >"/dev/null" 2>&1 || return 1
 	fi
+	return 0
 }
 
 validate_cron_number() {
@@ -192,9 +193,10 @@ start_service() {
 		log "Error: failed to initialize runtime ports."
 		return 1
 	fi
+	local client_prepared=1
 	if ! ucode -S "$HP_DIR/scripts/cleanup_urltest.uc" >>"$LOG_PATH" 2>&1; then
 		log "Error: failed to clean unavailable URLTest nodes."
-		return 1
+		client_prepared=0
 	fi
 	config_load "$CONF"
 
@@ -219,6 +221,11 @@ start_service() {
 	fi
 
 	if [ "$outbound_node" = "nil" ] && [ "$server_enabled" = "0" ]; then
+		if [ "${HP_RELOAD:-0}" -eq 1 ]; then
+			HP_NETWORK_CHANGED=1
+			stop_service
+			return $?
+		fi
 		sync_subscription_cron 0 || log "Error: failed to clear the subscription update schedule."
 		return 1
 	fi
@@ -226,7 +233,7 @@ start_service() {
 	rm -f "$RUN_DIR/sing-box-c.json.new" "$RUN_DIR/sing-box-s.json.new"
 
 	# Generate and validate every enabled instance before changing system state.
-	if [ "$outbound_node" != "nil" ]; then
+	if [ "$outbound_node" != "nil" ] && [ "$client_prepared" -eq 1 ]; then
 		if ! ucode -S "$HP_DIR/scripts/generate_client.uc" 2>>"$LOG_PATH" || \
 		   [ ! -s "$RUN_DIR/sing-box-c.json.new" ]; then
 			log "Error: failed to generate client configuration."
@@ -252,13 +259,22 @@ start_service() {
 		fi
 	fi
 
+	# A reload is all-or-nothing; never replace a running instance with an
+	# empty procd definition just because its new configuration is invalid.
+	if [ "${HP_RELOAD:-0}" -eq 1 ] && {
+		{ [ "$outbound_node" != "nil" ] && [ "$client_ready" -ne 1 ]; } ||
+		{ [ "$server_enabled" -eq 1 ] && [ "$server_ready" -ne 1 ]; }
+	}; then
+		return 1
+	fi
+
 	if [ "$client_ready" -eq 1 ]; then
-		mv -f "$RUN_DIR/sing-box-c.json.new" "$RUN_DIR/sing-box-c.json"
+		mv -f "$RUN_DIR/sing-box-c.json.new" "$RUN_DIR/sing-box-c.json" || return 1
 	else
 		rm -f "$RUN_DIR/sing-box-c.json.new" "$RUN_DIR/sing-box-c.json"
 	fi
 	if [ "$server_ready" -eq 1 ]; then
-		mv -f "$RUN_DIR/sing-box-s.json.new" "$RUN_DIR/sing-box-s.json"
+		mv -f "$RUN_DIR/sing-box-s.json.new" "$RUN_DIR/sing-box-s.json" || return 1
 	else
 		rm -f "$RUN_DIR/sing-box-s.json.new" "$RUN_DIR/sing-box-s.json"
 	fi
@@ -277,9 +293,11 @@ start_service() {
 
 	# Prepare firewall before sing-box inserts native TUN auto-redirect rules.
 	local firewall_ready=1
+	HP_NETWORK_CHANGED=1
 	if ! HOMEPROXY_SERVER_READY="$server_ready" \
 		ucode "$HP_DIR/scripts/firewall_pre.uc" 2>>"$LOG_PATH"; then
 		log "Error: failed to prepare firewall includes."
+		[ "${HP_RELOAD:-0}" -ne 1 ] || return 1
 		clear_firewall
 		firewall_ready=0
 		client_ready=0
@@ -287,6 +305,7 @@ start_service() {
 	fi
 	if [ "$firewall_ready" -eq 1 ] && ! fw4 reload >"/dev/null" 2>&1; then
 		log "Error: failed to apply client firewall rules."
+		[ "${HP_RELOAD:-0}" -ne 1 ] || return 1
 		clear_firewall
 		firewall_ready=0
 		client_ready=0
@@ -307,12 +326,17 @@ start_service() {
 			dns_ready=0
 		fi
 		if [ "$dns_ready" -eq 0 ]; then
+			[ "${HP_RELOAD:-0}" -ne 1 ] || return 1
 			clear_dnsmasq
 			clear_firewall
 			firewall_ready=0
 			client_ready=0
 			rm -f "$RUN_DIR/sing-box-c.json"
 		fi
+	else
+		clear_dnsmasq || {
+			[ "${HP_RELOAD:-0}" -ne 1 ] || return 1
+		}
 	fi
 
 	sync_subscription_cron "$client_ready" ||
@@ -324,6 +348,14 @@ start_service() {
 
 		procd_set_param command "$PROG"
 		procd_append_param command run --config "$RUN_DIR/sing-box-c.json"
+		procd_set_param file "$RUN_DIR/sing-box-c.json"
+		# Directory replacement invalidates sing-box watchers and old jail mounts.
+		# Let procd compare resource contents and restart the client if changed.
+		[ "$routing_mode" != "bypass_mainland_china" ] ||
+			procd_append_param file "$HP_DIR/resources/geoip_cn.srs" "$HP_DIR/resources/geosite_cn.srs"
+		# Dashboard updates replace the directory even when JSON is unchanged.
+		[ "$dashboard_ready" -ne 1 ] ||
+			procd_append_param file "$DASHBOARD_DIR/dashboard.ver"
 
 		# QUIC-GO GSO is broken on kernel 6.6 currently
 		uname -r | grep -Eq "^6\.6" && procd_set_param env "QUIC_GO_DISABLE_GSO"="true"
@@ -371,6 +403,7 @@ start_service() {
 
 		procd_set_param command "$PROG"
 		procd_append_param command run --config "$RUN_DIR/sing-box-s.json"
+		procd_set_param file "$RUN_DIR/sing-box-s.json"
 
 		# QUIC-GO GSO is broken on kernel 6.6 currently
 		uname -r | grep -Eq "^6\.6" && procd_set_param env "QUIC_GO_DISABLE_GSO"="true"
@@ -428,16 +461,16 @@ start_service() {
 }
 
 stop_service() {
-	local client_was_running=0 server_was_running=0
+	local client_was_running=0 server_was_running=0 status=0
 	[ ! -s "$RUN_DIR/sing-box-c.json" ] || client_was_running=1
 	[ ! -s "$RUN_DIR/sing-box-s.json" ] || server_was_running=1
 
 	config_load "$CONF"
 	sync_subscription_cron 0 || log "Error: failed to clear the subscription update schedule."
-	clear_firewall
+	clear_firewall || status=1
 
 	# Remove DNS hijack
-	clear_dnsmasq
+	clear_dnsmasq || status=1
 
 	rm -f "$RUN_DIR/sing-box-c.json" "$RUN_DIR/sing-box-c.json.new" \
 		"$RUN_DIR/sing-box-s.json" "$RUN_DIR/sing-box-s.json.new"
@@ -450,13 +483,79 @@ stop_service() {
 		rm -f "$RUN_DIR/sing-box-s.log"
 		log "sing-box server stopped."
 	fi
+	return "$status"
+}
+
+# Upstream wrappers finish with JSON cleanup/namespace restoration, masking
+# ubus failures. Capture the actual transport status without replacing procd's
+# JSON construction; the subshell keeps this adapter local to this submission.
+homeproxy_close_service() (
+	HP_PROCD_STATUS=1
+	ubus() {
+		command ubus "$@"
+		HP_PROCD_STATUS=$?
+		return "$HP_PROCD_STATUS"
+	}
+	procd_close_service
+	return "$HP_PROCD_STATUS"
+)
+
+# Never copy into a surviving directory or consume the only recovery copy.
+homeproxy_restore() {
+	local source="$1" target="$2"
+	rm -rf "$target" || return 1
+	[ ! -e "$target" ] && [ ! -L "$target" ] || return 1
+	[ -e "$source" ] || [ -L "$source" ] || return 0
+	cp -a "$source" "$target"
 }
 
 reload_service() {
 	log "Reloading service..."
 
-	stop
-	start
+	local backup file status=0 HP_RELOAD=1 HP_NETWORK_CHANGED=0
+	mkdir -p "$RUN_DIR" || return 1
+	backup="$(mktemp -d "$RUN_DIR/.reload.XXXXXX")" || return 1
+	for file in sing-box-c.json sing-box-s.json fw4_input.nft; do
+		if [ -e "$RUN_DIR/$file" ]; then
+			cp -p "$RUN_DIR/$file" "$backup/$file" || status=1
+		fi
+	done
+	if [ -d "$DNSMASQ_DIR" ]; then
+		cp -a "$DNSMASQ_DIR" "$backup/dnsmasq.d" || status=1
+	fi
+	if [ -e "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" ]; then
+		cp -p "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" "$backup/dnsmasq.conf" || status=1
+	fi
+	if [ "$status" -ne 0 ]; then
+		rm -rf "$backup"
+		return 1
+	fi
+
+	# rc.common's start() submits even when start_service() fails. Submit
+	# explicitly only after setup succeeds; procd retains unchanged instances.
+	procd_open_service "$CONF" "$initscript"
+	if start_service && homeproxy_close_service; then
+		rm -rf "$backup"
+		return 0
+	fi
+
+	for file in sing-box-c.json sing-box-s.json fw4_input.nft; do
+		homeproxy_restore "$backup/$file" "$RUN_DIR/$file" || status=1
+	done
+	rm -f "$RUN_DIR/sing-box-c.json.new" "$RUN_DIR/sing-box-s.json.new"
+	if [ "$HP_NETWORK_CHANGED" -eq 1 ]; then
+		homeproxy_restore "$backup/dnsmasq.d" "$DNSMASQ_DIR" || status=1
+		homeproxy_restore "$backup/dnsmasq.conf" "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" || status=1
+		fw4 reload >"/dev/null" 2>&1 || status=1
+		/etc/init.d/dnsmasq restart >"/dev/null" 2>&1 || status=1
+	fi
+	if [ "$status" -ne 0 ]; then
+		log "Error: reload failed and runtime restoration was incomplete; backup retained at $backup."
+	else
+		log "Error: reload failed; previous runtime configuration retained."
+		rm -rf "$backup"
+	fi
+	return 1
 }
 
 service_triggers() {

@@ -112,17 +112,10 @@ const callCurrentNode = rpc.declare({
 });
 
 function renderStatus(isRunning, version, currentNode) {
-	let spanTemp = '<em><span style="color:%s"><strong>%s (sing-box v%s) %s</strong></span></em>';
-	let renderHTML;
-	let statusColor = isRunning ? 'green' : 'red';
-	let nodeColor = '#1e90ff';
-	if (isRunning)
-		renderHTML = spanTemp.format(statusColor, _('HomeProxy'), version, _('RUNNING'));
-	else
-		renderHTML = spanTemp.format(statusColor, _('HomeProxy'), version, _('NOT RUNNING'));
-
+	let renderHTML = '<span style="font-weight:500;overflow-wrap:anywhere">%h (sing-box v%h) %h</span>'.format(
+		_('HomeProxy'), version, isRunning ? _('RUNNING') : _('NOT RUNNING'));
 	if (currentNode)
-		renderHTML += '<div><em><span style="color:%s"><strong>%s</strong></span></em></div>'.format(nodeColor, '%h'.format(currentNode));
+		renderHTML += '<div style="margin-top:8px;overflow-wrap:anywhere">%h</div>'.format(currentNode);
 
 	return renderHTML;
 }
