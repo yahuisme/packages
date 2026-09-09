@@ -28,10 +28,11 @@ jobs:
           set -eu
           set -o pipefail
           LATEST_TAG=$(gh api repos/SagerNet/sing-box/releases/latest --jq .tag_name)
-          case "$LATEST_TAG" in
-            v[0-9]*.[0-9]*.[0-9]*) VERSION="${LATEST_TAG#v}" ;;
-            *) echo "Invalid sing-box release tag: $LATEST_TAG" >&2; exit 1 ;;
-          esac
+          if [[ ! "$LATEST_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid sing-box release tag: $LATEST_TAG" >&2
+            exit 1
+          fi
+          VERSION="${LATEST_TAG#v}"
           CURRENT_VERSION=$(sed -n 's/^PKG_UPSTREAM_VERSION:=//p' sing-box/Makefile)
 
           if [ "$VERSION" != "$CURRENT_VERSION" ]; then
@@ -59,36 +60,35 @@ jobs:
           TMP_DIR=$(mktemp -d)
           trap 'rm -rf "$TMP_DIR"' EXIT
 
-          # 1. Update China IP rule set (geoip_cn.srs)
-          GEOIP_VER=$(gh api repos/SagerNet/sing-geoip/releases/latest --jq .tag_name 2>/dev/null || echo "")
+          # Use the packaged core's real SRS decoder; never start the daemon.
+          SB_VERSION=$(sed -n 's/^PKG_UPSTREAM_VERSION:=//p' sing-box/Makefile)
+          gh release download "v$SB_VERSION" --repo SagerNet/sing-box \
+            --pattern "sing-box-$SB_VERSION-linux-amd64.tar.gz" --dir "$TMP_DIR"
+          tar -xzf "$TMP_DIR/sing-box-$SB_VERSION-linux-amd64.tar.gz" -C "$TMP_DIR"
+          SING_BOX="$TMP_DIR/sing-box-$SB_VERSION-linux-amd64/sing-box"
 
-          curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 \
-            "https://cdn.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/geoip-cn.srs" -o "$TMP_DIR/geoip_cn.srs"
-          [ "$(head -c 3 "$TMP_DIR/geoip_cn.srs")" = "SRS" ] || exit 1
-          cp -f "$TMP_DIR/geoip_cn.srs" "$RES_DIR/"
-          if [ -n "$GEOIP_VER" ] && [ "$GEOIP_VER" != "latest" ]; then
-            echo "$GEOIP_VER" > "$RES_DIR/geoip_cn.ver"
-          fi
-
-          # 2. Update geosite_cn.srs
-          GEOSITE_VER=$(gh api repos/SagerNet/sing-geosite/releases/latest --jq .tag_name 2>/dev/null || echo "")
-
-          curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 \
-            "https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-cn.srs" -o "$TMP_DIR/geosite_cn.srs"
-          [ "$(wc -c < "$TMP_DIR/geosite_cn.srs")" -gt 32 ] || exit 1
-          cp -f "$TMP_DIR/geosite_cn.srs" "$RES_DIR/"
-          if [ -n "$GEOSITE_VER" ] && [ "$GEOSITE_VER" != "latest" ]; then
-            echo "$GEOSITE_VER" > "$RES_DIR/geosite_cn.ver"
-          fi
+          # Match runtime: resolve rule-set to a commit, then fetch that commit.
+          # Stage and decode BOTH resources before touching the package files.
+          for KIND in geoip geosite; do
+            VERSION=$(gh api "repos/SagerNet/sing-$KIND/commits/rule-set" \
+              -H 'Accept: application/vnd.github.sha')
+            [ "${#VERSION}" -eq 40 ] || exit 1
+            case "$VERSION" in *[!0-9a-f]*) exit 1 ;; esac
+            curl -fsSL --retry 3 --connect-timeout 10 --max-time 60 \
+              "https://raw.githubusercontent.com/SagerNet/sing-$KIND/$VERSION/$KIND-cn.srs" \
+              -o "$TMP_DIR/${KIND}_cn.srs"
+            BLOB=$(gh api "repos/SagerNet/sing-$KIND/contents/$KIND-cn.srs?ref=$VERSION" --jq .sha)
+            [[ "$BLOB" =~ ^[0-9a-f]{40}$ ]] || exit 1
+            [ "$(git hash-object --no-filters "$TMP_DIR/${KIND}_cn.srs")" = "$BLOB" ] || exit 1
+            "$SING_BOX" rule-set match -f binary "$TMP_DIR/${KIND}_cn.srs" 192.0.2.1 >/dev/null
+            printf '%s\n' "$VERSION" > "$TMP_DIR/${KIND}_cn.ver"
+          done
+          cp "$TMP_DIR/geoip_cn.srs" "$TMP_DIR/geoip_cn.ver" \
+             "$TMP_DIR/geosite_cn.srs" "$TMP_DIR/geosite_cn.ver" "$RES_DIR/"
 
           if ! git diff --quiet "$RES_DIR"; then
             git add "$RES_DIR"
-            RES_LABEL="${GEOIP_VER:-${GEOSITE_VER:-}}"
-            if [ -n "$RES_LABEL" ]; then
-              git commit -m "chore: update resources to ${RES_LABEL}"
-            else
-              git commit -m "chore: update resources"
-            fi
+            git commit -m "chore: update HomeProxy rule-set snapshots"
             echo "HomeProxy resources updated."
           fi
 
