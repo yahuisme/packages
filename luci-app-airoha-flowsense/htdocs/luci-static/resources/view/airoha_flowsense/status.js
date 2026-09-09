@@ -16,34 +16,46 @@ var HISTORY_KEY = 'airoha-flowsense-history-v1';
 var history = [];
 
 var themeCSS = '\
-:root{--fs-canvas-bg:#fbfcfd;--fs-grid:rgba(80,90,100,.18);--fs-axis:#555}\
-@media(prefers-color-scheme:dark){:root{--fs-canvas-bg:#191919;--fs-grid:rgba(255,255,255,.12);--fs-axis:#a0a0a0}}\
-[data-theme="dark"],[data-dark="true"],[data-darkmode="true"],.dark-mode,:root[data-dark="true"]{--fs-canvas-bg:#191919;--fs-grid:rgba(255,255,255,.12);--fs-axis:#a0a0a0}\
-.flowsense-dashboard{--fs-font-ui:system-ui,-apple-system,sans-serif;--fs-font-mono:ui-monospace,monospace;font-family:var(--fs-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit)}\
+:root{--fs-canvas-bg:#fbfcfd;--fs-grid:rgba(80,90,100,.14);--fs-axis:#64748b}\
+@media(prefers-color-scheme:dark){:root{--fs-canvas-bg:#161616;--fs-grid:rgba(255,255,255,.08);--fs-axis:#94a3b8}}\
+[data-theme="dark"],[data-dark="true"],[data-darkmode="true"],.dark-mode,:root[data-dark="true"]{--fs-canvas-bg:#161616;--fs-grid:rgba(255,255,255,.08);--fs-axis:#94a3b8}\
+.flowsense-dashboard{--fs-font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--fs-font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;font-family:var(--fs-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\
 .flowsense-dashboard .cbi-tabmenu{margin-bottom:16px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
-.fs-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:10px;margin-bottom:14px}\
-.fs-summary-card{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center;box-sizing:border-box}\
-.fs-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
+.fs-notice{font-size:12px;color:var(--cbi-muted-color,#888);margin:-4px 0 14px;min-height:18px;font-variant-numeric:tabular-nums}\
+.fs-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:14px}\
+.fs-summary-card,.fs-card-neutral,.fs-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
+.fs-summary-card{padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center}\
+.fs-card-title{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
 .fs-card-value{font-size:18px;font-family:var(--fs-font-mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,inherit)}\
 .fs-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
-.fs-card-neutral{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
-.fs-chart-panel{background:transparent;border:none;padding:0;margin:12px 0}\
-.fs-chart-title{font-size:12px;font-weight:600;color:var(--cbi-muted-color,#666);text-transform:uppercase;letter-spacing:.2px;padding-bottom:6px;margin-bottom:8px;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,0.15))}\
+.fs-panel{padding:14px;margin:14px 0}\
+.fs-panel-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
+.fs-chart-panel{background:transparent;border:none;padding:0;margin:10px 0 0}\
+.fs-chart-title{font-size:11px;font-weight:500;color:var(--cbi-muted-color,#666);text-transform:uppercase;letter-spacing:.5px;padding-bottom:6px;margin-bottom:8px;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,0.12))}\
 .fs-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}\
 .fs-chart-card{background:transparent;border:none;padding:0;min-width:0}\
-.fs-chart-card .fs-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
 .fs-chart-canvas{display:block;width:100%;height:100px;margin-top:4px;background:var(--fs-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
+.flowsense-dashboard .cbi-section{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:14px;margin:14px 0}\
+.flowsense-dashboard .cbi-section-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:8px;margin:0 0 12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
+.flowsense-dashboard .cbi-section-descr{font-size:12px;color:var(--cbi-muted-color,#888);margin-bottom:12px}\
 .flowsense-dashboard .cbi-section-node{padding:12px 14px;margin-bottom:12px}\
+.flowsense-dashboard .cbi-value{display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,.08))}\
+.flowsense-dashboard .cbi-value:last-child{border-bottom:none}\
+.flowsense-dashboard .cbi-value-title{width:220px;flex:0 0 220px;margin:0;font-size:13px;font-weight:500;color:var(--cbi-muted-color,#666)}\
+.flowsense-dashboard .cbi-value-field{flex:1;display:flex;align-items:center;gap:8px;min-width:0;margin:0}\
+.flowsense-dashboard .cbi-value-field span{font-family:var(--fs-font-mono);font-variant-numeric:tabular-nums}\
+.flowsense-dashboard .cbi-input-text{height:32px;border-radius:4px;font-family:var(--fs-font-mono);font-variant-numeric:tabular-nums}\
+.flowsense-dashboard .cbi-button{height:32px;padding:0 16px;border-radius:4px;font-size:12px;font-weight:500;margin:0}\
 .fs-iface-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,0.12))}\
 .fs-iface-title{display:flex;align-items:baseline;gap:8px}\
 .fs-iface-name{font-size:14px;font-weight:600;color:var(--cbi-text-color,inherit);font-family:var(--fs-font-mono)}\
-.fs-iface-badge{display:inline-flex;align-items:center;padding:1px 6px;font-size:11px;font-weight:500;border-radius:4px;border:1px solid var(--cbi-border-color,#e0e0e0);color:var(--cbi-muted-color,#666)}\
-.fs-badge-up{border-color:var(--cbi-success-color,#2ea44f);color:var(--cbi-success-color,#2ea44f);background:rgba(46,164,79,0.08)}\
-.fs-badge-up::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:currentColor;margin-right:4px}\
-.fs-badge-down{border-color:var(--cbi-border-color,rgba(128,128,128,0.2));color:var(--cbi-muted-color,#888);opacity:0.75}\
-@media(max-width:1050px){.fs-summary-grid{grid-template-columns:repeat(2,minmax(140px,1fr))}}\
+.fs-iface-badge{display:inline-flex;align-items:center;padding:2px 8px;font-size:11px;font-weight:600;border-radius:4px;border:1px solid var(--cbi-border-color,#e0e0e0);color:var(--cbi-muted-color,#666)}\
+.fs-badge-up{border-color:var(--cbi-success-color,#10b981);color:var(--cbi-success-color,#10b981);background:rgba(16,185,129,0.10)}\
+.fs-badge-up::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:5px}\
+.fs-badge-down{border-color:var(--cbi-border-color,rgba(128,128,128,0.2));color:var(--cbi-muted-color,#888);background:rgba(128,128,128,0.08);opacity:0.8}\
+@media(max-width:1050px){.fs-summary-grid{grid-template-columns:repeat(2,minmax(150px,1fr))}}\
 @media(max-width:760px){.fs-chart-grid{grid-template-columns:1fr}}\
-@media(max-width:640px){.fs-summary-grid{grid-template-columns:1fr}.fs-summary-card{min-height:68px}}\
+@media(max-width:640px){.fs-summary-grid{grid-template-columns:1fr}.fs-summary-card{min-height:68px}.flowsense-dashboard .cbi-value{flex-direction:column;align-items:flex-start;gap:4px;padding:8px 0}.flowsense-dashboard .cbi-value-title{width:auto;flex:none}.flowsense-dashboard .cbi-value-field{width:100%;flex-wrap:wrap}}\
 ';
 
 function injectCSS() {
@@ -142,7 +154,7 @@ function drawChart(canvas, hist, key, options) {
 	ctx.stroke();
 
 	ctx.fillStyle = axisColor;
-	ctx.font = '10px system-ui, sans-serif';
+	ctx.font = '10px var(--fs-font-mono, ui-monospace, monospace)';
 	ctx.textAlign = 'right';
 	ctx.textBaseline = 'top';
 	ctx.fillText(options.format(maximum), pad.left - 4, pad.top - 1);
@@ -198,7 +210,7 @@ function drawChart(canvas, hist, key, options) {
 
 function chartCard(label, canvasId) {
 	return E('div', { 'class': 'fs-chart-card' }, [
-		E('div', { 'class': 'cbi-value-title', style: 'font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px' }, label),
+		E('div', { 'class': 'fs-card-title' }, label),
 		E('canvas', { 'id': canvasId, 'class': 'fs-chart-canvas' })
 	]);
 }
@@ -290,7 +302,7 @@ return view.extend({
 		injectCSS();
 		restoreHistory();
 		var active = 0, paused = false, previous = null, dirty = false;
-		var message = E('div', { 'class': 'cbi-section-descr' }, _('Waiting for data'));
+		var message = E('div', { 'class': 'fs-notice' }, _('Waiting for data'));
 		var hw = E('span'), sw = E('span'), counts = E('span'), ip = E('span');
 		var ping = E('span'), deviation = E('span'), loss = E('span');
 		var interfaces = E('div');
@@ -334,20 +346,20 @@ return view.extend({
 		
 		var first = E('div', {}, [
 			summaryGrid,
-			E('div', { 'class': 'fs-chart-panel' }, [
-				E('div', { 'class': 'fs-chart-title' }, _('PPE Flow Trends')),
+			E('div', { 'class': 'fs-panel' }, [
+				E('div', { 'class': 'fs-panel-title' }, _('PPE Flow Trends')),
 				E('div', { 'class': 'fs-chart-grid' }, [
 					chartCard(_('Bound Flows'), 'fc-bnd'),
 					chartCard(_('Unbound Flows'), 'fc-unb')
 				])
 			]),
 			E('div', { 'class': 'cbi-section' }, [
-				E('h3', {}, _('Ethernet links')),
-				E('div', { 'class': 'cbi-section-descr' }, _('Rates use interface counters; hardware-bypassed traffic may not be fully counted. Errors and drops are interval increments.')),
+				E('h3', { 'class': 'cbi-section-title' }, _('Ethernet links')),
+				E('div', { 'class': 'cbi-section-descr' }, _('Real-time interface throughput rates and interval error increments.')),
 				interfaces
 			]),
 			E('div', { 'class': 'cbi-section' }, [
-				E('h3', {}, _('Link quality')),
+				E('h3', { 'class': 'cbi-section-title' }, _('Link quality')),
 				metric(_('Latest RTT'), ping),
 				metric(_('RTT mean absolute deviation'), deviation),
 				metric(_('Window packet loss'), loss),
@@ -356,7 +368,7 @@ return view.extend({
 				metric(_('IPv4 / IPv6 / Other'), ip),
 				E('div', { 'class': 'cbi-value' }, [E('label', { 'class': 'cbi-value-title', 'for': 'fs-target' }, _('IPv4 address or hostname')), E('div', { 'class': 'cbi-value-field' }, target)]),
 				E('div', { 'class': 'cbi-value' }, [E('label', { 'class': 'cbi-value-title', 'for': 'fs-monitor' }, _('Enable periodic probes')), E('div', { 'class': 'cbi-value-field' }, monitor)]),
-				button
+				E('div', { 'class': 'cbi-value' }, [E('div', { 'class': 'cbi-value-title' }), E('div', { 'class': 'cbi-value-field' }, button)])
 			])
 		]);
 		var detail = E('div'), detailMessage = E('div', { 'class': 'cbi-section-descr' });

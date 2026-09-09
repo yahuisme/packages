@@ -96,9 +96,7 @@ msgstr ""
 msgid "RX errors"
 msgstr ""
 
-msgid ""
-"Rates use interface counters; hardware-bypassed traffic may not be fully "
-"counted. Errors and drops are interval increments."
+msgid "Real-time interface throughput rates and interval error increments."
 msgstr ""
 
 msgid "Resume"

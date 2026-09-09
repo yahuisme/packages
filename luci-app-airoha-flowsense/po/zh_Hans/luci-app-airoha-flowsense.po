@@ -98,10 +98,8 @@ msgstr "接收丢弃增量"
 msgid "RX errors"
 msgstr "接收错误增量"
 
-msgid ""
-"Rates use interface counters; hardware-bypassed traffic may not be fully "
-"counted. Errors and drops are interval increments."
-msgstr "速率依据接口计数，可能未完整计入硬件旁路流量；错误与丢弃显示本轮增量。"
+msgid "Real-time interface throughput rates and interval error increments."
+msgstr "呈现物理接口实时吞吐速率与区间错误丢弃增量。"
 
 msgid "Resume"
 msgstr "继续"
