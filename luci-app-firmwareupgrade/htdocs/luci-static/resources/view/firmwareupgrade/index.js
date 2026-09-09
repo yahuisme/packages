@@ -77,7 +77,7 @@ return view.extend({
 	},
 	progress: function() {
 		var value = E('i', { style: 'width:0%' }); var text = E('p', {}, _('Preparing upgrade…')); var box = E('div', {}, [ text, E('div', { class: 'fwup-progress' }, value) ]); ui.showModal(_('Upgrading firmware'), [ box ]);
-		var refresh = function() { if (!box.isConnected) { poll.remove(refresh); return Promise.resolve(); } return callStatus().then(function(s) { s = s || {}; text.textContent = s.message || _('Preparing upgrade…'); value.style.width = validPercent(s.percent) ? s.percent + '%' : '0%'; if (s.stage === 'error') poll.remove(refresh); }); };
+		var refresh = function() { if (!box.isConnected) { poll.remove(refresh); return Promise.resolve(); } return callStatus().then(function(s) { s = s || {}; text.textContent = s.message || _('Preparing upgrade…'); value.style.width = validPercent(s.percent) ? s.percent + '%' : '0%'; if (s.stage === 'error' || s.stage === 'complete') poll.remove(refresh); }).catch(function() { if (box.isConnected) text.textContent = _('Failed to check for updates.'); }); };
 		poll.add(refresh, 1); refresh();
 	},
 	save: function(notice, ev) {

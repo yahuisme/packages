@@ -26,6 +26,7 @@ function injectCSS() {
 }
 
 function text(value) { return value == null || value === '' ? _('Unknown') : String(value); }
+function nodeText(value) { return [text(value)]; }
 function frequency(value) { return typeof value === 'number' && value > 0 ? (value / 1000) + ' MHz' : _('Unknown'); }
 function governor(value) {
 	var labels = {
@@ -80,15 +81,15 @@ return view.extend({
 		var gaugeFill = E('div', { id: 'npu-gauge-fill', 'class': 'npu-gauge-fill', 'style': 'width:0%' });
 
 		var detailNodes = {
-			soc: E('span', { id: 'npu-soc', 'class': 'npu-detail-value' }, text(info.soc_compat)),
-			online: E('span', { id: 'npu-online', 'class': 'npu-detail-value' }, text(status.cpu_count)),
+			soc: E('span', { id: 'npu-soc', 'class': 'npu-detail-value' }, nodeText(info.soc_compat)),
+			online: E('span', { id: 'npu-online', 'class': 'npu-detail-value' }, nodeText(status.cpu_count)),
 			current: E('span', { id: 'npu-current', 'class': 'npu-detail-value' }, frequency(status.cpu_cur_freq)),
 			maximum: E('span', { id: 'npu-maximum', 'class': 'npu-detail-value' }, frequency(status.cpu_max_freq)),
 			governor: E('span', { id: 'npu-governor', 'class': 'npu-detail-value' }, governor(status.cpu_governor)),
 			driver: E('span', { id: 'npu-driver', 'class': 'npu-detail-value' }, '—'),
 			clock: E('span', { id: 'npu-clock', 'class': 'npu-detail-value' }, '—'),
-			version: E('span', { id: 'npu-version', 'class': 'npu-detail-value' }, text(info.firmware_file_version)),
-			firmware: E('span', { id: 'npu-firmware', 'class': 'npu-detail-value' }, text(info.firmware_file)),
+			version: E('span', { id: 'npu-version', 'class': 'npu-detail-value' }, nodeText(info.firmware_file_version)),
+			firmware: E('span', { id: 'npu-firmware', 'class': 'npu-detail-value' }, nodeText(info.firmware_file)),
 			offload: E('span', { id: 'npu-offload', 'class': 'npu-detail-value' }, '—')
 		};
 

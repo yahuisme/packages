@@ -12,13 +12,7 @@ code=$?
 logs() {
     printf '\n=== %s (up to 100 matching lines) ===\n' "$1"
     shift
-    data=$("$@" 2>/dev/null)
-    code=$?
-    if [ "$code" -ne 0 ]; then
-        printf 'Log collection failed: %s\n' "$code"
-        return
-    fi
-    printf '%s\n' "$data" | awk '
+    "$@" 2>/dev/null | awk '
         tolower($0) ~ /password|passphrase|psk|pmk|ptk|gtk|secret|key[ =:]/ {next}
         tolower($0) ~ /mt76|mt7996|80211|hostapd|wpa_supplicant|radar|netifd.*wireless/ {
             a[n%100]=substr($0,1,512); n++
