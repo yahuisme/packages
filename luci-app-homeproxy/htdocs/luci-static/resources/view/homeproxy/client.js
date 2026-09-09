@@ -29,14 +29,7 @@ const callReadDomainList = rpc.declare({
 const callWriteDomainLists = rpc.declare({
 	object: 'luci.homeproxy',
 	method: 'domainlist_write',
-	params: ['lists', 'routing_mode'],
-	expect: { '': {} }
-});
-
-const callRemoveDomainList = rpc.declare({
-	object: 'luci.homeproxy',
-	method: 'domainlist_remove',
-	params: ['id'],
+	params: ['lists', 'routing_mode', 'group_states'],
 	expect: { '': {} }
 });
 
@@ -111,13 +104,30 @@ const callCurrentNode = rpc.declare({
 	expect: { '': {} }
 });
 
-function renderStatus(isRunning, version, currentNode) {
-	let renderHTML = '<span style="font-weight:500;overflow-wrap:anywhere">%h (sing-box v%h) %h</span>'.format(
-		_('HomeProxy'), version, isRunning ? _('RUNNING') : _('NOT RUNNING'));
-	if (currentNode)
-		renderHTML += '<div style="margin-top:8px;overflow-wrap:anywhere">%h</div>'.format(currentNode);
+const callTailscaleStatus = rpc.declare({
+	object: 'luci.homeproxy',
+	method: 'tailscale_status',
+	expect: { '': {} }
+});
 
-	return renderHTML;
+function renderTailscaleStatus(status) {
+	if (status?.state === 'Running')
+		return E('span', { 'class': 'label success' }, _('Connected'));
+	if (status?.state === 'disabled')
+		return E('span', {}, _('Save and apply to enable Tailscale.'));
+	if (status?.auth_url) {
+		try {
+			const url = new URL(status.auth_url);
+			if (['http:', 'https:'].includes(url.protocol) && url.hostname && !url.username && !url.password)
+				return E('a', { 'class': 'cbi-button cbi-button-action', href: url.href,
+					target: '_blank', rel: 'noopener noreferrer' }, _('Log in to Tailscale'));
+		} catch (e) {}
+	}
+	if (status?.state === 'NeedsMachineAuth')
+		return E('span', {}, _('Approve this device in the Tailscale admin console.'));
+	if (status?.state === 'NeedsLogin' || status?.state === 'NoState')
+		return E('span', {}, _('Waiting for the login link. Check the control server connection if it does not appear.'));
+	return E('span', {}, _('Tailscale status is unavailable. Save and apply, then check that the client is running.'));
 }
 
 let stubValidator = {
@@ -196,6 +206,8 @@ return view.extend({
 			if (routingMode === 'bypass_mainland_china')
 				groups.push({ id: 'proxy', label: _('Proxy List') });
 			uci.sections('homeproxy', 'domain_route', (section) => {
+				if (section.enabled === '0')
+					return;
 				groups.push({
 					id: section['.name'],
 					label: section.label || section['.name']
@@ -232,7 +244,11 @@ return view.extend({
 					return null;
 
 				const lists = Object.assign({}, pendingDomainLists);
-				return callWriteDomainLists(lists, routingMode).then((result) => {
+				const groupStates = {};
+				uci.sections('homeproxy', 'domain_route', (section) => {
+					groupStates[section['.name']] = section.enabled === '0' ? '0' : '1';
+				});
+				return callWriteDomainLists(lists, routingMode, groupStates).then((result) => {
 					if (!result.result)
 						throw new Error(result.error || _('Failed to save domain lists.'));
 					pendingDomainLists = Object.create(null);
@@ -244,7 +260,7 @@ return view.extend({
 		s.render = function () {
 			poll.add(function () {
 				return Promise.all([
-					L.resolveDefault(hp.getServiceStatus('sing-box-c'), false),
+					hp.getServiceStatus('sing-box-c'),
 					L.resolveDefault(callCurrentNode(), null)
 				]).then((res) => {
 					let isRunning = res[0],
@@ -258,7 +274,8 @@ return view.extend({
 						current_label = _('URLTest: %s').format(nodeName);
 					}
 					let view = document.getElementById('service_status');
-					view.innerHTML = renderStatus(isRunning, features.version, current_label);
+					if (view)
+						view.replaceChildren(hp.renderServiceStatus(isRunning, _('HomeProxy'), features.version, current_label));
 				});
 			});
 
@@ -654,7 +671,12 @@ return view.extend({
 			return this.renderMoreOptionsModal(section_id);
 		};
 
-		let dro = domainRoutes.option(form.Value, 'label', _('Name'));
+		let dro = domainRoutes.option(form.Flag, 'enabled', _('Enable'));
+		dro.default = dro.enabled;
+		dro.rmempty = false;
+		dro.editable = true;
+
+		dro = domainRoutes.option(form.Value, 'label', _('Name'));
 		dro.rmempty = false;
 
 		dro = domainRoutes.option(form.ListValue, 'node', _('Node'));
@@ -714,11 +736,23 @@ return view.extend({
 		so.rmempty = false;
 
 		so = ss.option(form.Value, 'auth_key', _('Authentication key'),
-			_('Used only when creating the node. Leave empty and open the login URL from the client log.'));
+			_('Used only when creating the node. Leave empty to sign in using the login button below.'));
 		so.password = true;
 		so.rmempty = true;
 		so.retain = true;
 		so.depends('enabled', '1');
+
+		so = ss.option(form.DummyValue, '_tailscale_status', _('Login status'));
+		so.depends('enabled', '1');
+		so.renderWidget = function() {
+			const container = E('div', {}, _('Collecting data...'));
+			const refresh = () => L.resolveDefault(callTailscaleStatus(), {}).then((status) => {
+				dom.content(container, renderTailscaleStatus(status));
+			});
+			poll.add(refresh, 5);
+			refresh();
+			return container;
+		};
 
 		so = ss.option(form.Value, 'control_url', _('Control server'),
 			_('Coordination server URL. Leave empty to use the official Tailscale service.'));
@@ -777,11 +811,11 @@ return view.extend({
 
 		so = ss.option(form.DynamicList, 'advertise_routes', _('Advertised routes'),
 			_('LAN subnets advertised as reachable through this router. Routes must also be approved by the coordination server.'));
-		so.datatype = 'cidr';
 		so.rmempty = true;
 		so.retain = true;
 		so.depends('enabled', '1');
 		so.validate = function(_section_id, value) {
+			/* Validate here: LuCI's CIDR datatype replaces value with the prefix length. */
 			if (value && !stubValidator.apply('cidr', value))
 				return _('Expecting: %s').format(_('valid network in CIDR notation'));
 			if (value === '0.0.0.0/0' || value === '::/0')

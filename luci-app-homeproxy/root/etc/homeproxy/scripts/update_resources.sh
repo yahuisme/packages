@@ -55,6 +55,17 @@ fetch_sha() {
 	case "$sha" in *[!0-9a-f]*) return 1 ;; esac
 	printf '%s\n' "$sha"
 }
+fetch_version() {
+	# Keep the display date and immutable commit in one atomically staged file.
+	download "$1" "$TMP_DIR/commit-metadata" || return 1
+	ucode -l fs -e '
+		let m = json(fs.readfile(ARGV[0]));
+		let sha = m?.sha, date = m?.commit?.committer?.date;
+		if (type(sha) != "string" || !match(sha, /^[0-9a-f]{40}$/) ||
+		    type(date) != "string" || !match(date, /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$/)) exit(1);
+		print(substr(date, 0, 10), " ", sha, "\n");
+	' "$TMP_DIR/commit-metadata"
+}
 validate_rule_set() {
 	[ -x "$SING_BOX" ] && "$SING_BOX" rule-set match -f binary "$1" 192.0.2.1 >/dev/null 2>&1
 }
@@ -101,15 +112,18 @@ for kind in geoip geosite; do
 	geosite) source="$GEOSITE_SOURCE"; version_url="$GEOSITE_VERSION_URL"; digest_url="$GEOSITE_DIGEST_URL" ;;
 	esac
 	resource="${kind}_cn"
-	if ! version="$(fetch_sha "$version_url")" ||
-	   ! blob="$(fetch_sha "$digest_url?ref=$version")"; then
+	if ! version="$(fetch_version "$version_url")"; then
+		mark_failed "$resource"; continue
+	fi
+	commit="${version##* }"
+	if ! blob="$(fetch_sha "$digest_url?ref=$commit")"; then
 		mark_failed "$resource"; continue
 	fi
 	if [ "$(cat "$RESOURCES_DIR/$resource.ver" 2>/dev/null)" = "$version" ] &&
 	   verify_blob "$RESOURCES_DIR/$resource.srs" "$blob" && validate_rule_set "$RESOURCES_DIR/$resource.srs"; then
 		continue
 	fi
-	if ! download "$source/$version/$kind-cn.srs" "$TMP_DIR/$resource.srs" ||
+	if ! download "$source/$commit/$kind-cn.srs" "$TMP_DIR/$resource.srs" ||
 	   ! verify_blob "$TMP_DIR/$resource.srs" "$blob" ||
 	   ! validate_rule_set "$TMP_DIR/$resource.srs"; then
 		mark_failed "$resource"; continue
@@ -126,10 +140,11 @@ for kind in geoip geosite; do
 	mark_updated "$resource"
 done
 
-if ! version="$(fetch_sha "$DASHBOARD_VERSION_URL")"; then
+if ! version="$(fetch_version "$DASHBOARD_VERSION_URL")"; then
 	mark_failed dashboard
 elif [ "$(cat "$DASHBOARD_DIR/dashboard.ver" 2>/dev/null)" != "$version" ] || [ ! -s "$DASHBOARD_DIR/index.html" ]; then
-	if download "$DASHBOARD_SOURCE/$version" "$TMP_DIR/dashboard.zip" &&
+	commit="${version##* }"
+	if download "$DASHBOARD_SOURCE/$commit" "$TMP_DIR/dashboard.zip" &&
 	   mkdir "$TMP_DIR/dashboard" && unzip -q "$TMP_DIR/dashboard.zip" -d "$TMP_DIR/dashboard"; then
 		for index in "$TMP_DIR/dashboard/index.html" "$TMP_DIR"/dashboard/*/index.html; do
 			[ -s "$index" ] || continue

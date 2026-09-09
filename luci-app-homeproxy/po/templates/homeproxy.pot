@@ -346,7 +346,7 @@ msgid "Connection Status"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:57
-msgid "Connectivity"
+msgid "Connection"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:730
@@ -1250,6 +1250,9 @@ msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:122
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:43
+msgid "Status unavailable"
+msgstr ""
+
 msgid "NOT RUNNING"
 msgstr ""
 
@@ -2366,4 +2369,94 @@ msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js
 msgid "valid email address"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:134
+msgid "Approve this device in the Tailscale admin console."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:122
+msgid "Connected"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/status.js:42
+msgid "Connectivity"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:1584
+msgid ""
+"DNS server used only to obtain ECH records. Supports https:// and udp:// "
+"URLs."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:1578
+msgid ""
+"Domain used to query ECH records. The TLS server name is used when empty."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:1583
+msgid "ECH DNS server"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:1577
+msgid "ECH query domain"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:86
+#: htdocs/luci-static/resources/view/homeproxy/node.js:1593
+#: htdocs/luci-static/resources/view/homeproxy/node.js:1595
+msgid "Invalid ECH DNS query settings."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:90
+msgid "Invalid ECH configuration."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:130
+msgid "Log in to Tailscale"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:767
+msgid "Login status"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:974
+msgid "Maximum hop interval"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:975
+msgid ""
+"Maximum port hopping interval in seconds. The actual interval is randomly "
+"chosen between the hop interval (30 seconds by default) and this value. "
+"Leave empty to use a fixed interval."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:984
+msgid "Must be greater than or equal to the hop interval."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:124
+msgid "Save and apply to enable Tailscale."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:137
+msgid ""
+"Tailscale status is unavailable. Save and apply, then check that the client "
+"is running."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:455
+msgid "Unsupported transport: %s."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:761
+msgid ""
+"Used only when creating the node. Leave empty to sign in using the login "
+"button below."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:136
+msgid ""
+"Waiting for the login link. Check the control server connection if it does "
+"not appear."
 msgstr ""

@@ -354,8 +354,8 @@ msgid "Connection Status"
 msgstr "连接状态"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:57
-msgid "Connectivity"
-msgstr "通断"
+msgid "Connection"
+msgstr "连接"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:730
 msgid "Control server"
@@ -1276,6 +1276,9 @@ msgstr "多路复用协议。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:122
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:43
+msgid "Status unavailable"
+msgstr "状态不可用"
+
 msgid "NOT RUNNING"
 msgstr "未运行"
 
@@ -2414,3 +2417,93 @@ msgstr "有效端口值"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js
 msgid "valid email address"
 msgstr "有效的电子邮件地址"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:134
+msgid "Approve this device in the Tailscale admin console."
+msgstr "请在 Tailscale 管理控制台批准此设备。"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:122
+msgid "Connected"
+msgstr "已连接"
+
+#: htdocs/luci-static/resources/view/homeproxy/status.js:42
+msgid "Connectivity"
+msgstr "通断"
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:1584
+msgid ""
+"DNS server used only to obtain ECH records. Supports https:// and udp:// "
+"URLs."
+msgstr "仅用于获取 ECH 记录的 DNS 服务器，支持 https:// 和 udp:// URL。"
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:1578
+msgid ""
+"Domain used to query ECH records. The TLS server name is used when empty."
+msgstr "用于查询 ECH 记录的域名，留空时使用 TLS 服务器名称。"
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:1583
+msgid "ECH DNS server"
+msgstr "ECH DNS 服务器"
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:1577
+msgid "ECH query domain"
+msgstr "ECH 查询域名"
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:86
+#: htdocs/luci-static/resources/view/homeproxy/node.js:1593
+#: htdocs/luci-static/resources/view/homeproxy/node.js:1595
+msgid "Invalid ECH DNS query settings."
+msgstr "ECH DNS 查询设置无效。"
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:90
+msgid "Invalid ECH configuration."
+msgstr "ECH 配置无效。"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:130
+msgid "Log in to Tailscale"
+msgstr "登录 Tailscale"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:767
+msgid "Login status"
+msgstr "登录状态"
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:974
+msgid "Maximum hop interval"
+msgstr "最大端口跳跃间隔"
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:975
+msgid ""
+"Maximum port hopping interval in seconds. The actual interval is randomly "
+"chosen between the hop interval (30 seconds by default) and this value. "
+"Leave empty to use a fixed interval."
+msgstr "最大端口跳跃间隔，单位为秒。实际间隔在端口跳跃间隔（默认为 30 秒）与此值之间随机选择。留空使用固定间隔。"
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:984
+msgid "Must be greater than or equal to the hop interval."
+msgstr "必须大于或等于端口跳跃间隔。"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:124
+msgid "Save and apply to enable Tailscale."
+msgstr "保存并应用后启用 Tailscale。"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:137
+msgid ""
+"Tailscale status is unavailable. Save and apply, then check that the client "
+"is running."
+msgstr "无法获取 Tailscale 状态。请保存并应用，并确认客户端正在运行。"
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js:455
+msgid "Unsupported transport: %s."
+msgstr "不支持的传输方式：%s。"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:761
+msgid ""
+"Used only when creating the node. Leave empty to sign in using the login "
+"button below."
+msgstr "仅在创建设备时使用。留空后可通过下方登录按钮完成登录。"
+
+#: htdocs/luci-static/resources/view/homeproxy/client.js:136
+msgid ""
+"Waiting for the login link. Check the control server connection if it does "
+"not appear."
+msgstr "正在等待登录链接。若一直未显示，请检查与控制服务器的连接。"

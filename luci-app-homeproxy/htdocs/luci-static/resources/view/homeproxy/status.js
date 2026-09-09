@@ -31,6 +31,7 @@ const css = `
 	font-weight: 400;
 }
 .homeproxy-status h3 select { width: auto; }
+.homeproxy-status .hp-connection-success { color: #16803c; }
 .homeproxy-status .homeproxy-log {
 	box-sizing: border-box;
 	height: 256px;
@@ -73,7 +74,7 @@ function getConnectionStatus() {
 		E('tr', { 'class': 'tr table-titles' }, [
 			E('th', { 'class': 'th' }, _('Website')),
 			E('th', { 'class': 'th' }, _('URL')),
-			E('th', { 'class': 'th' }, _('Connectivity')),
+			E('th', { 'class': 'th' }, _('Connection')),
 			E('th', { 'class': 'th' }, _('Latency'))
 		])
 	]);
@@ -106,9 +107,10 @@ function getConnectionStatus() {
 		if (!elements)
 			return;
 
-		if (result?.result) {
+		elements.state.classList.toggle('hp-connection-success', result?.result === true);
+		if (result?.result === true) {
 			dom.content(elements.state, _('Success'));
-			dom.content(elements.latency, [ _('%s ms').format(result.latency_ms) ]);
+			dom.content(elements.latency, [ typeof result.latency_ms === 'number' && Number.isFinite(result.latency_ms) && result.latency_ms >= 0 ? result.latency_ms + ' ms' : '-' ]);
 		} else {
 			dom.content(elements.state, result?.timed_out ? _('Timed out') : _('Failed'));
 			dom.content(elements.latency, '-');
@@ -124,6 +126,7 @@ function getConnectionStatus() {
 		const currentGeneration = ++generation;
 		connectionSites.forEach((site) => {
 			const elements = statusElements[site.type];
+			elements.state.classList.remove('hp-connection-success');
 			dom.content(elements.state, _('Testing...'));
 			dom.content(elements.latency, '-');
 		});
@@ -178,7 +181,6 @@ function getConnectionStatus() {
 		E('div', { 'class': 'cbi-section' }, [ table ])
 	]);
 
-	window.setTimeout(runAllTests, 0);
 	return view;
 }
 
@@ -224,7 +226,7 @@ function getResources(o) {
 		]);
 		const rows = resources.map((resource) => {
 			const resourceStatus = status[resource.type] || {};
-			const available = resourceStatus.version;
+			const available = /^\d{4}-\d{2}-\d{2}$/.test(resourceStatus.version || '') ? resourceStatus.version : null;
 			const source = /^https?:\/\//i.test(resourceStatus.source || '') ? resourceStatus.source : null;
 
 			return [
@@ -345,34 +347,40 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 		expect: { '': {} }
 	});
 
-	const log_textarea = E('div', { 'class': 'homeproxy-log', 'tabindex': '0', 'role': 'region', 'aria-label': _('%s Log').format(name) },
-		E('img', {
-			'src': L.resource('icons/loading.svg'),
-			'alt': _('Loading'),
-			'style': 'vertical-align:middle'
-		}, _('Collecting data...'))
-	);
+	const log_textarea = E('textarea', {
+		'id': filename + '-log',
+		'class': 'cbi-input-textarea homeproxy-log',
+		'aria-label': _('%s Log').format(name),
+		'readonly': true,
+		'wrap': 'off',
+		'spellcheck': 'false',
+		'rows': 20,
+		'style': 'width:100%; font-family:monospace; white-space:pre; overflow:auto;'
+	}, [ _('Collecting data...') ]);
 
-	let log;
+	function updateLog(content) {
+		if (log_textarea.value === content)
+			return;
+		const focused = document.activeElement === log_textarea;
+		const start = log_textarea.selectionStart, end = log_textarea.selectionEnd;
+		const direction = log_textarea.selectionDirection;
+		const top = log_textarea.scrollTop, left = log_textarea.scrollLeft;
+		log_textarea.value = content;
+		if (focused)
+			log_textarea.setSelectionRange(start, end, direction);
+		log_textarea.scrollTop = top;
+		log_textarea.scrollLeft = left;
+	}
+
 	poll.add(L.bind(() => {
 		return fs.read_direct(String.format('%s/%s.log', hp_dir, filename), 'text')
 		.then((res) => {
-			log = E('pre', { 'wrap': 'pre' }, [
-				res.trim() || _('Log is empty.')
-			]);
-
-			dom.content(log_textarea, log);
+			updateLog(res || _('Log is empty.'));
 		}).catch((err) => {
 			if (err.toString().includes('NotFoundError'))
-				log = E('pre', { 'wrap': 'pre' }, [
-					_('Log file does not exist.')
-				]);
+				updateLog(_('Log file does not exist.'));
 			else
-				log = E('pre', { 'wrap': 'pre' }, [
-					_('Unknown error: %s.').format(err)
-				]);
-
-			dom.content(log_textarea, log);
+				updateLog(_('Unknown error: %s.').format(err));
 		});
 	}));
 

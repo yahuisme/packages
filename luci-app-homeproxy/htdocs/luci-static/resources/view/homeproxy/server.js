@@ -34,13 +34,6 @@ const CBIGenValue = form.Value.extend({
 	}
 });
 
-function renderStatus(isRunning, version) {
-	let renderHTML = '<span style="font-weight:500;overflow-wrap:anywhere">%h (sing-box v%h) %h</span>'.format(
-		_('HomeProxy Server'), version, isRunning ? _('RUNNING') : _('NOT RUNNING'));
-
-	return renderHTML;
-}
-
 function handleGenKey(option) {
 	let section_id = this.section.section;
 	let type = this.section.getOption('type')?.formvalue(section_id);
@@ -111,9 +104,10 @@ return view.extend({
 		s = m.section(form.TypedSection);
 		s.render = function() {
 			poll.add(() => {
-				return L.resolveDefault(hp.getServiceStatus('sing-box-s')).then((res) => {
+				return hp.getServiceStatus('sing-box-s').then((res) => {
 					let view = document.getElementById('service_status');
-					view.innerHTML = renderStatus(res, features.version);
+					if (view)
+						view.replaceChildren(hp.renderServiceStatus(res, _('HomeProxy Server'), features.version));
 				});
 			});
 

@@ -16,7 +16,7 @@ const callServiceList = rpc.declare({
 	object: 'service',
 	method: 'list',
 	params: ['name'],
-	expect: { '': {} }
+	reject: true
 });
 
 return baseclass.extend({
@@ -94,13 +94,42 @@ return baseclass.extend({
 	}),
 
 	getServiceStatus(instance) {
-		return L.resolveDefault(callServiceList('homeproxy'), {}).then((res) => {
-			try {
-				return res.homeproxy.instances[instance].running === true;
-			} catch (e) {
+		return callServiceList('homeproxy').then((res) => {
+			if (!res || typeof res !== 'object' || Array.isArray(res))
+				return null;
+			if (!Object.prototype.hasOwnProperty.call(res, 'homeproxy'))
+				return Object.keys(res).length === 0 ? false : null;
+			const instances = res.homeproxy?.instances;
+			if (!instances || typeof instances !== 'object' || Array.isArray(instances))
+				return null;
+			if (!Object.prototype.hasOwnProperty.call(instances, instance))
 				return false;
-			}
-		});
+			const running = instances[instance]?.running;
+			return typeof running === 'boolean' ? running : null;
+		}, () => null);
+	},
+
+	renderServiceStatus(isRunning, name, version, currentNode) {
+		const state = isRunning === true ? 'running' : isRunning === false ? 'stopped' : 'unknown';
+		return E('span', { class: 'hp-service-status' }, [
+			E('style', [
+				'.hp-service-status{font-weight:500;overflow-wrap:anywhere}' +
+				'.hp-service-status .hp-service-state{display:inline-flex;align-items:center;gap:8px;margin-inline-start:8px}' +
+				'.hp-service-status .hp-service-state.running{color:#16803c}' +
+				'.hp-service-status .hp-service-state.stopped{color:#dc2626}' +
+				'.hp-service-status .hp-service-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}' +
+				'.hp-service-status .running .hp-service-dot,.hp-service-status .stopped .hp-service-dot{animation:hp-service-pulse 2.4s ease-in-out infinite}' +
+				'.hp-service-status .hp-service-node{display:block;margin-top:8px}' +
+				'@keyframes hp-service-pulse{50%{opacity:.55}}' +
+				'@media(prefers-reduced-motion:reduce){.hp-service-status .hp-service-dot{animation:none}}'
+			]),
+			name + ' (sing-box v' + (version || '-') + ')',
+			E('span', { class: 'hp-service-state ' + state, role: 'status' }, [
+				E('span', { class: 'hp-service-dot', 'aria-hidden': 'true' }),
+				isRunning === true ? _('RUNNING') : isRunning === false ? _('NOT RUNNING') : _('Status unavailable')
+			]),
+			currentNode ? E('span', { class: 'hp-service-node' }, [ currentNode ]) : ''
+		]);
 	},
 
 	reconcileUrltestNodes(uciconfig) {
