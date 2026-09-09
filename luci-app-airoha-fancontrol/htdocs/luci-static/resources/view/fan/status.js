@@ -55,10 +55,6 @@ function modeInfo(mode) {
 	return { value: _('Unknown'), sub: _('Read failed') };
 }
 
-function validNumber(value, min, max) {
-	return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
-}
-
 function presetInfo(preset) {
 	var labels = { quiet: _('Quiet'), balanced: _('Balanced'), performance: _('Performance'), custom: _('Custom') };
 	return labels[preset] ? { value: labels[preset], sub: _('Active fan curve profile') } : { value: _('Unknown'), sub: _('Read failed') };

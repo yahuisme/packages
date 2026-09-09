@@ -2,161 +2,159 @@ msgid ""
 msgstr ""
 "Content-Type: text/plain; charset=UTF-8
 "
-"Language: zh_Hans
-"
 
 msgid "10G LAN"
-msgstr "10G LAN 温度"
+msgstr ""
 
 msgid "10G WAN"
-msgstr "10G WAN 温度"
+msgstr ""
 
 msgid "2.4 GHz Radio"
-msgstr "2.4 GHz 无线"
+msgstr ""
 
 msgid "5 GHz Radio"
-msgstr "5 GHz 无线"
+msgstr ""
 
 msgid "6 GHz Radio"
-msgstr "6 GHz 无线"
+msgstr ""
 
 msgid "Active fan curve profile"
-msgstr "当前生效曲线"
+msgstr ""
 
 msgid "Automatic"
-msgstr "自动"
+msgstr ""
 
 msgid "Automatic (Follow Curve)"
-msgstr "自动（跟随曲线）"
+msgstr ""
 
 msgid "Balanced"
-msgstr "平衡"
+msgstr ""
 
 msgid "Balanced - Balanced cooling"
-msgstr "平衡 - 均衡控温"
+msgstr ""
 
 msgid "Board"
-msgstr "主板"
+msgstr ""
 
 msgid "CPU"
-msgstr "CPU 温度"
+msgstr ""
 
 msgid "Complete valid curve points to preview."
-msgstr "请完善有效的曲线参数以显示预览。"
+msgstr ""
 
 msgid "Configure fan control mode and speed curves."
-msgstr "配置风扇控制模式和速度曲线。"
+msgstr ""
 
 msgid "Configured Curve"
-msgstr "配置曲线"
+msgstr ""
 
 msgid "Configured mode differs from hardware"
-msgstr "配置模式与硬件状态不一致"
+msgstr ""
 
 msgid "Control Mode"
-msgstr "风扇控制模式"
+msgstr ""
 
 msgid "Curve Preview"
-msgstr "曲线预览"
+msgstr ""
 
 msgid "Curve preview"
-msgstr "曲线预览"
+msgstr ""
 
 msgid "Custom"
-msgstr "自定义"
+msgstr ""
 
 msgid "Custom - User defined"
-msgstr "自定义 - 自定曲线"
+msgstr ""
 
 msgid "Custom Curve"
-msgstr "自定义曲线"
+msgstr ""
 
 msgid "Enter an integer from 0 to 255 without leading zeros."
-msgstr "请输入 0–255 的整数，不要使用前导零。"
+msgstr ""
 
 msgid "Fan Control"
-msgstr "Airoha 风扇控制"
+msgstr ""
 
 msgid "Fan Curve Preset"
-msgstr "风扇曲线预设"
+msgstr ""
 
 msgid "Fan Speed"
-msgstr "风扇转速"
+msgstr ""
 
 msgid "Fixed PWM output"
-msgstr "固定 PWM 输出"
+msgstr ""
 
 msgid "Following fan curve"
-msgstr "按风扇曲线自动调速"
+msgstr ""
 
 msgid "Grant access to Airoha fan control"
-msgstr "授予 Airoha 风扇控制权限"
+msgstr ""
 
 msgid "Manual"
-msgstr "手动"
+msgstr ""
 
 msgid "Manual (Fixed Speed)"
-msgstr "手动（固定速度）"
+msgstr ""
 
 msgid "Manual Fan Speed (PWM)"
-msgstr "手动风扇速度（PWM）"
+msgstr ""
 
 msgid "Mode"
-msgstr "模式"
+msgstr ""
 
 msgid "PWM"
-msgstr "PWM"
+msgstr ""
 
 msgid "PWM output"
-msgstr "PWM 输出"
+msgstr ""
 
 msgid "Performance"
-msgstr "性能"
+msgstr ""
 
 msgid "Performance - Maximum cooling"
-msgstr "性能 - 强劲散热"
+msgstr ""
 
 msgid "Point %d PWM (0-255)"
-msgstr "第 %d 点 PWM（0-255）"
+msgstr ""
 
 msgid "Point %d Temperature (°C)"
-msgstr "第 %d 点温度（°C）"
+msgstr ""
 
 msgid "Quiet"
-msgstr "静音"
+msgstr ""
 
 msgid "Quiet - Low noise priority"
-msgstr "静音 - 低噪优先"
+msgstr ""
 
 msgid "Read failed"
-msgstr "读取失败"
+msgstr ""
 
 msgid "Set a fixed PWM value from 0 to 255."
-msgstr "设置固定 PWM 输出（0–255）。"
+msgstr ""
 
 msgid "Settings"
-msgstr "设置"
+msgstr ""
 
 msgid "Status"
-msgstr "状态"
+msgstr ""
 
 msgid "System"
-msgstr "系统"
+msgstr ""
 
 msgid "Temperatures"
-msgstr "温度"
+msgstr ""
 
 msgid "Temperatures must increase (0-100), PWM must not decrease (0-255), and point 5 is fixed at 255."
-msgstr "温度须为 0–100 的递增整数，PWM 须为 0–255 的非递减整数，第五点固定为 255。"
+msgstr ""
 
 msgid "Temperatures must increase, PWM must not decrease, and the last point is fixed at full speed."
-msgstr "温度须依次递增，PWM 须非递减，且第 5 点固定为全速（255）。"
+msgstr ""
 
 msgid "Unknown"
-msgstr "未知"
+msgstr ""
 
 msgid "View fan speed and system temperatures."
-msgstr "查看风扇转速与系统温度。"
+msgstr ""
 
 msgid "WiFi"
-msgstr "无线"
+msgstr ""

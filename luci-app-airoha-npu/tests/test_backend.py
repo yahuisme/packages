@@ -48,7 +48,7 @@ except Exception:
     sys.exit(1)
 '''
 
-UCI_SCRIPT = '''#!/usr/bin/env python3
+UCI_SCRIPT = r'''#!/usr/bin/env python3
 import sys
 from pathlib import Path
 import re
