@@ -15,11 +15,18 @@ var css = '\
 .fwup-dashboard .fwup-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}\
 .fwup-dashboard .fwup-card,.fwup-dashboard .fwup-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
 .fwup-dashboard .fwup-card{min-height:72px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center}.fwup-dashboard .fwup-label{font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--cbi-muted-color,#666);margin-bottom:3px}.fwup-dashboard .fwup-value{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fwup-dashboard .fwup-sub{font-size:12px;color:var(--cbi-muted-color,#888);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
-.fwup-dashboard .fwup-panel{padding:12px;margin:12px 0}.fwup-dashboard .fwup-panel-title{font-size:15px;font-weight:600;padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}.fwup-dashboard .fwup-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--cbi-border-color,#f0f0f0)}.fwup-dashboard .fwup-row:last-child{border-bottom:0}.fwup-dashboard .fwup-key{flex:0 0 176px;color:var(--cbi-muted-color,#666);font-weight:500}.fwup-dashboard .fwup-data{min-width:0;overflow-wrap:anywhere}.fwup-dashboard .fwup-input{width:min(100%,380px);height:32px;box-sizing:border-box}.fwup-dashboard .fwup-actions{display:flex;gap:8px;align-items:center;justify-content:flex-start;flex-wrap:wrap;margin:16px 0}.fwup-dashboard .fwup-actions>.cbi-button{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;height:32px;min-height:32px;margin:0;padding:0 12px}.fwup-dashboard .fwup-release{display:flow-root}.fwup-dashboard .fwup-release>.fwup-notes{margin:0}.fwup-dashboard .fwup-notes{max-height:200px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-family:monospace;font-size:12px;color:var(--cbi-muted-color,#666)}.modal.fwup-modal{box-sizing:border-box;width:560px;min-width:0;max-width:min(560px,calc(100vw - 32px))}.fwup-modal .fwup-progress{height:6px;border-radius:3px;overflow:hidden;background:var(--cbi-input-bg,#eee)}.fwup-modal .fwup-progress>i{display:block;height:100%;background:var(--cbi-link-color,#0ea5e9);transition:width .25s}\
+.fwup-dashboard .fwup-panel{padding:12px;margin:12px 0}.fwup-dashboard .fwup-panel-title{font-size:15px;font-weight:600;padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}.fwup-dashboard .fwup-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--cbi-border-color,#f0f0f0)}.fwup-dashboard .fwup-row:last-child{border-bottom:0}.fwup-dashboard .fwup-key{flex:0 0 176px;color:var(--cbi-muted-color,#666);font-weight:500}.fwup-dashboard .fwup-data{min-width:0;overflow-wrap:anywhere}.fwup-dashboard .fwup-input{width:min(100%,380px);height:32px;box-sizing:border-box}.fwup-dashboard .fwup-actions{display:flex;gap:8px;align-items:center;justify-content:flex-start;flex-wrap:wrap;margin:16px 0}.fwup-dashboard .fwup-actions>.cbi-button{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;height:32px;min-height:32px;margin:0;padding:0 12px}.fwup-dashboard .fwup-release{display:flow-root}.modal.fwup-modal{box-sizing:border-box;width:560px;min-width:0;max-width:min(560px,calc(100vw - 32px))}.fwup-modal .fwup-progress{height:6px;border-radius:3px;overflow:hidden;background:var(--cbi-input-bg,#eee)}.fwup-modal .fwup-progress>i{display:block;height:100%;background:var(--cbi-link-color,#0ea5e9);transition:width .25s}\
 @media(max-width:760px){.fwup-dashboard .fwup-summary{grid-template-columns:1fr}.fwup-dashboard .fwup-panel{padding:10px}.fwup-dashboard .fwup-row{align-items:flex-start;flex-direction:column;gap:6px}.fwup-dashboard .fwup-key{flex:none}.fwup-dashboard .fwup-input{width:100%}}\
 ';
 
 function bytes(n) { n = Number(n); if (!Number.isFinite(n) || n < 0) return '—'; return n < 1048576 ? (n / 1024).toFixed(1) + ' KiB' : (n / 1048576).toFixed(1) + ' MiB'; }
+function publishedTime(value) {
+	var date = typeof value === 'string' && value.trim() ? new Date(value) : null;
+	if (!date || !Number.isFinite(date.getTime())) return '—';
+	var parts = {};
+	new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(date).forEach(function(part) { parts[part.type] = part.value; });
+	return parts.year + '-' + parts.month + '-' + parts.day + ' ' + parts.hour + ':' + parts.minute + ':' + parts.second;
+}
 function validPercent(n) { return typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 100; }
 function message(node, kind, text) { node.className = kind ? 'cbi-section-' + kind : ''; node.textContent = text || ''; node.style.display = text ? '' : 'none'; }
 function field(label, id, value, type, placeholder) { return E('div', { class: 'fwup-row' }, [ E('label', { class: 'fwup-key', for: id }, label), E('input', { id: id, class: 'cbi-input-text fwup-input', type: type || 'text', value: value || '', placeholder: placeholder || '' }) ]); }
@@ -32,11 +39,11 @@ return view.extend({
 		var root = E('div', { class: 'cbi-map fwup-dashboard' }, [ E('style', {}, css) ]);
 		var notice = E('div', { style: 'display:none' });
 		var latest = E('div', { class: 'fwup-value', id: 'fwup-latest' }, _('Not checked'));
-		var detail = E('div', { class: 'fwup-release', style: 'display:none' }, [ E('div', { class: 'fwup-panel-title' }, _('Release details')), E('div', { id: 'fwup-detail' }), E('pre', { class: 'fwup-notes', id: 'fwup-notes' }) ]);
+		var detail = E('div', { class: 'fwup-release', style: 'display:none' }, [ E('div', { class: 'fwup-panel-title' }, _('Release details')), E('div', { id: 'fwup-detail' }) ]);
 		root.appendChild(E('div', { class: 'cbi-map-descr' }, _('Check a verified GitHub Release image before upgrading.')));
 		root.appendChild(E('div', { class: 'fwup-summary' }, [
 			E('div', { class: 'fwup-card' }, [ E('div', { class: 'fwup-label' }, _('Current firmware')), E('div', { class: 'fwup-value' }, this.info.local_version || '—'), E('div', { class: 'fwup-sub' }, [ this.info.distribution || 'OpenWrt', this.info.variant ? ' · ' + this.info.variant : '' ]) ]),
-			E('div', { class: 'fwup-card' }, [ E('div', { class: 'fwup-label' }, _('Latest release')), latest, E('div', { class: 'fwup-sub', id: 'fwup-release-date' }, _('Not checked')) ])
+			E('div', { class: 'fwup-card' }, [ E('div', { class: 'fwup-label' }, _('Latest release')), latest, E('div', { class: 'fwup-sub', id: 'fwup-release-date', title: 'Asia/Shanghai (UTC+08:00)' }, _('Not checked')) ])
 		]));
 		root.appendChild(E('div', { class: 'fwup-panel' }, [
 			E('div', { class: 'fwup-panel-title' }, _('Firmware upgrade')),
@@ -54,17 +61,17 @@ return view.extend({
 		return root;
 	},
 	check: function(notice, latest, detail, ev) {
-		var button = ev.currentTarget; button.disabled = true; button.textContent = _('Checking…'); message(notice); latest.textContent = _('Not checked'); detail.style.display = 'none'; document.getElementById('fwup-detail').textContent = ''; document.getElementById('fwup-notes').textContent = ''; document.getElementById('fwup-release-date').textContent = '';
+		var button = ev.currentTarget; button.disabled = true; button.textContent = _('Checking…'); message(notice); latest.textContent = _('Not checked'); detail.style.display = 'none'; document.getElementById('fwup-detail').textContent = ''; document.getElementById('fwup-release-date').textContent = '';
 		return callCheck().then(L.bind(function(result) {
 			button.disabled = false; button.textContent = _('Check update');
-			if (!result || !result.success || !/^[a-f0-9]{32}$/.test(result.candidate_id || '')) { latest.textContent = _('Not checked'); detail.style.display = 'none'; document.getElementById('fwup-detail').textContent = ''; document.getElementById('fwup-notes').textContent = ''; message(notice, 'error', result && result.error || _('Failed to check for updates.')); return; }
-			latest.textContent = result.tag_name || '—'; document.getElementById('fwup-release-date').textContent = result.published_at || '';
+			if (!result || !result.success || !/^[a-f0-9]{32}$/.test(result.candidate_id || '')) { latest.textContent = _('Not checked'); detail.style.display = 'none'; document.getElementById('fwup-detail').textContent = ''; message(notice, 'error', result && result.error || _('Failed to check for updates.')); return; }
+			latest.textContent = result.tag_name || '—'; document.getElementById('fwup-release-date').textContent = publishedTime(result.published_at);
 			var details = document.getElementById('fwup-detail'); details.textContent = '';
 			[ [_('Image'), result.asset_name], [_('Size'), bytes(result.asset_size)], [_('SHA256'), result.sha256] ].forEach(function(row) { details.appendChild(E('div', { class: 'fwup-row' }, [ E('div', { class: 'fwup-key' }, row[0]), E('div', { class: 'fwup-data' }, row[1] || '—') ])); });
 			var keep = E('input', { type: 'checkbox', checked: document.getElementById('fwup-keep').checked });
 			details.appendChild(E('div', { class: 'fwup-row' }, [ E('label', { class: 'fwup-key' }, _('Keep settings')), keep ]));
 			details.appendChild(E('div', { class: 'fwup-actions' }, [ E('button', { class: 'cbi-button cbi-button-negative', click: ui.createHandlerFn(this, 'confirm', keep, notice, result.candidate_id) }, _('Upgrade firmware')) ]));
-			document.getElementById('fwup-notes').textContent = result.body || ''; detail.style.display = '';
+			detail.style.display = '';
 			message(notice, 'info', _('Release verified. Review the image before upgrading.'));
 		}, this)).catch(function(error) { button.disabled = false; button.textContent = _('Check update'); message(notice, 'error', _('Failed to check for updates.') + (error && error.message ? ' ' + error.message : '')); });
 	},

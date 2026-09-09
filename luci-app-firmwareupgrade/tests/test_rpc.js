@@ -50,6 +50,26 @@ const settle = () => new Promise(r => setImmediate(r));
  await click(); assert.equal(root.querySelector('#fwup-latest').textContent, 'v1');
  assert.equal(requests.at(-1).options.timeout, 20000, 'real RPC default is 20 seconds');
  assert.equal(requests.at(-1).req.params[2], 'checkUpdate');
+ for (const [published_at, expected] of [
+  ['2026-09-09T18:00:55Z', '2026-09-10 02:00:55'],
+  ['2026-09-09T16:00:00Z', '2026-09-10 00:00:00'],
+  ['2026-12-31T23:59:59Z', '2027-01-01 07:59:59'],
+  ['2026-09-10T02:00:55+08:00', '2026-09-10 02:00:55'],
+  ['invalid', '—'], ['', '—'], [null, '—'], [undefined, '—']
+ ]) {
+  reply = [0, { success: true, candidate_id: 'a'.repeat(32), tag_name: 'v1', published_at }];
+  await click();
+  assert.equal(root.querySelector('#fwup-release-date').textContent, expected);
+ }
+ assert.equal(root.querySelector('#fwup-release-date').title, 'Asia/Shanghai (UTC+08:00)');
+ reply = [0, { success: true, candidate_id: 'a'.repeat(32), tag_name: 'v1', body: 'RELEASE_BODY_MUST_NOT_RENDER', asset_name: 'sysupgrade.itb', asset_size: 1048576, sha256: 'c'.repeat(64) }];
+ await click();
+ assert.equal(root.querySelector('#fwup-notes'), null);
+ assert.ok(!root.textContent.includes('RELEASE_BODY_MUST_NOT_RENDER'));
+ assert.ok(root.textContent.includes('Release details'));
+ for (const text of ['sysupgrade.itb', '1.0 MiB', 'c'.repeat(64), 'Keep settings', 'Upgrade firmware']) assert.ok(root.querySelector('#fwup-detail').textContent.includes(text));
+ assert.equal(root.querySelector('#fwup-detail input[type="checkbox"]').checked, root.querySelector('#fwup-keep').checked, 'preserve the current retention choice');
+ assert.ok(!requests.some(r => r.req.params[2] === 'startUpgrade'), 'checking never starts an upgrade');
  // The view uses E buttons, not form.Button; also verify the real form signature.
  const map = new mods.form.JSONMap({ test: {} });
  const section = map.section(mods.form.NamedSection, 'test');
