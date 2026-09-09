@@ -1,0 +1,96 @@
+#!/bin/sh
+# Copyright (C) 2026 yahuisme
+# Firmware upgrade worker: download -> sha256 verify -> sysupgrade -T -> sysupgrade
+
+DOWNLOAD_URL="$1"
+ASSET_NAME="$2"
+EXPECTED_SHA256="$3"
+SHA256SUMS_URL="$4"
+KEEP_CONFIG="$5"
+TOTAL_SIZE="${6:-0}"
+
+STATUS_FILE="/var/run/firmwareupgrade.status"
+PID_FILE="/var/run/firmwareupgrade.pid"
+TMP_DIR="/tmp/firmwareupgrade"
+TARGET_FILE="${TMP_DIR}/${ASSET_NAME}"
+
+set_status() {
+	printf '{"stage":"%s","percent":%s,"message":"%s"}\n' "$1" "$2" "$3" > "$STATUS_FILE"
+}
+
+cleanup() {
+	rm -f "$PID_FILE"
+}
+trap cleanup EXIT INT TERM
+
+mkdir -p "$TMP_DIR"
+rm -f "${TMP_DIR}/*"
+
+set_status "downloading" 5 "正在连接服务器下载固件..."
+
+# Download firmware
+curl -L -f -o "$TARGET_FILE" "$DOWNLOAD_URL" >/dev/null 2>&1 &
+CURL_PID=$!
+
+while kill -0 "$CURL_PID" 2>/dev/null; do
+	if [ -f "$TARGET_FILE" ] && [ "$TOTAL_SIZE" -gt 0 ]; then
+		CUR_SIZE=$(ls -ln "$TARGET_FILE" 2>/dev/null | awk '{print $5}')
+		if [ -n "$CUR_SIZE" ] && [ "$CUR_SIZE" -gt 0 ]; then
+			PCT=$(( CUR_SIZE * 75 / TOTAL_SIZE + 5 ))
+			[ "$PCT" -gt 80 ] && PCT=80
+			set_status "downloading" "$PCT" "正在下载固件..."
+		fi
+	else
+		set_status "downloading" 40 "正在下载固件..."
+	fi
+	sleep 1
+done
+
+wait "$CURL_PID"
+CURL_STATUS=$?
+
+if [ "$CURL_STATUS" -ne 0 ] || [ ! -s "$TARGET_FILE" ]; then
+	set_status "error" 0 "固件下载失败，请检查网络连接或加速镜像设置"
+	exit 1
+fi
+
+set_status "verifying" 85 "下载完成，正在校验固件哈希完整性..."
+
+ACTUAL_SHA256=$(sha256sum "$TARGET_FILE" | awk '{print $1}')
+
+if [ -n "$EXPECTED_SHA256" ]; then
+	if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+		set_status "error" 0 "SHA256 校验失败 (文件可能损坏或传输不完整)"
+		rm -f "$TARGET_FILE"
+		exit 1
+	fi
+elif [ -n "$SHA256SUMS_URL" ]; then
+	SUMS_FILE="${TMP_DIR}/sha256sums"
+	if curl -s -L -f -o "$SUMS_FILE" "$SHA256SUMS_URL"; then
+		EXPECTED_FROM_FILE=$(awk -v name="$ASSET_NAME" 'tolower($0) ~ tolower(name) {print $1; exit}' "$SUMS_FILE")
+		if [ -n "$EXPECTED_FROM_FILE" ] && [ "$ACTUAL_SHA256" != "$EXPECTED_FROM_FILE" ]; then
+			set_status "error" 0 "sha256sums 比对不一致，固件可能损坏"
+			rm -f "$TARGET_FILE"
+			exit 1
+		fi
+	fi
+fi
+
+set_status "testing" 92 "哈希校验通过，正在执行镜像兼容性预检..."
+
+# Dry-run compatibility check with sysupgrade
+if ! sysupgrade -T "$TARGET_FILE" >/dev/null 2>&1; then
+	set_status "error" 0 "固件预检未通过，镜像格式与当前设备不兼容"
+	rm -f "$TARGET_FILE"
+	exit 1
+fi
+
+set_status "flashing" 100 "预检通过，正在刷写固件并重启路由器..."
+sleep 1
+
+# Execute sysupgrade
+if [ "$KEEP_CONFIG" = "1" ]; then
+	sysupgrade "$TARGET_FILE"
+else
+	sysupgrade -n "$TARGET_FILE"
+fi

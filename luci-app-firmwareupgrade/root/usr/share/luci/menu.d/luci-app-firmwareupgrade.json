@@ -1,0 +1,13 @@
+{
+	"admin/system/firmwareupgrade": {
+		"title": "Firmware Upgrade",
+		"order": 71,
+		"action": {
+			"type": "view",
+			"path": "firmwareupgrade/index"
+		},
+		"depends": {
+			"acl": [ "luci-app-firmwareupgrade" ]
+		}
+	}
+}

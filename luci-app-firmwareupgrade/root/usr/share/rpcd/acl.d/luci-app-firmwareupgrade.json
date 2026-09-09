@@ -1,0 +1,17 @@
+{
+	"luci-app-firmwareupgrade": {
+		"description": "Grant access to firmware upgrade procedures and checks",
+		"read": {
+			"ubus": {
+				"luci.firmwareupgrade": [ "getSystemInfo", "checkUpdate", "getStatus" ]
+			},
+			"uci": [ "firmwareupgrade" ]
+		},
+		"write": {
+			"ubus": {
+				"luci.firmwareupgrade": [ "startUpgrade", "cancelUpgrade", "saveSettings" ]
+			},
+			"uci": [ "firmwareupgrade" ]
+		}
+	}
+}

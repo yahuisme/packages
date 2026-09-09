@@ -1,0 +1,181 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: luci-app-firmwareupgrade
+"
+"MIME-Version: 1.0
+"
+"Content-Type: text/plain; charset=UTF-8
+"
+"Content-Transfer-Encoding: 8bit
+"
+
+msgid "Firmware Upgrade"
+msgstr ""
+
+msgid "Grant access to firmware upgrade procedures and checks"
+msgstr ""
+
+msgid "Check and securely flash the latest firmware builds from GitHub Release."
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "Current Firmware"
+msgstr ""
+
+msgid "Unknown"
+msgstr ""
+
+msgid "Latest Available Release"
+msgstr ""
+
+msgid "Not Checked"
+msgstr ""
+
+msgid "Click check button below to detect new version"
+msgstr ""
+
+msgid "Upgrade Control"
+msgstr ""
+
+msgid "Check Update"
+msgstr ""
+
+msgid "Checking..."
+msgstr ""
+
+msgid "Failed to check for updates."
+msgstr ""
+
+msgid "Release Date: "
+msgstr ""
+
+msgid "Target Image"
+msgstr ""
+
+msgid "Image Size"
+msgstr ""
+
+msgid "SHA256 Checksum"
+msgstr ""
+
+msgid "Provided by sha256sums"
+msgstr ""
+
+msgid "Upgrade Mode"
+msgstr ""
+
+msgid "Keep current settings (uncheck for clean install)"
+msgstr ""
+
+msgid "Upgrade Firmware Now"
+msgstr ""
+
+msgid "Release Notes"
+msgstr ""
+
+msgid "Successfully retrieved latest release. Please verify before flashing."
+msgstr ""
+
+msgid "Request error: "
+msgstr ""
+
+msgid "Confirm Firmware Upgrade"
+msgstr ""
+
+msgid "Please verify the following upgrade parameters:"
+msgstr ""
+
+msgid "Device Model: "
+msgstr ""
+
+msgid "Target Version: "
+msgstr ""
+
+msgid "Firmware File: "
+msgstr ""
+
+msgid "Keep Settings: "
+msgstr ""
+
+msgid "Yes"
+msgstr ""
+
+msgid "No (Clean Install)"
+msgstr ""
+
+msgid "Warning: Do not power off or reboot the device during flashing!"
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Confirm & Start Upgrade"
+msgstr ""
+
+msgid "Failed to launch upgrade process."
+msgstr ""
+
+msgid "Upgrading System Firmware"
+msgstr ""
+
+msgid "Initializing upgrade..."
+msgstr ""
+
+msgid "Processing securely in the background, please wait..."
+msgstr ""
+
+msgid "Upgrade encountered an error and was aborted."
+msgstr ""
+
+msgid "Firmware flashing complete. Router is rebooting..."
+msgstr ""
+
+msgid "Waiting for system to come online, remaining: "
+msgstr ""
+
+msgid "seconds"
+msgstr ""
+
+msgid "Repository & Network Settings"
+msgstr ""
+
+msgid "GitHub Repository"
+msgstr ""
+
+msgid "Target GitHub release repository (owner/repo)"
+msgstr ""
+
+msgid "Download Mirror / Proxy"
+msgstr ""
+
+msgid "Leave empty for direct GitHub connection"
+msgstr ""
+
+msgid "GitHub Access Token"
+msgstr ""
+
+msgid "Optional, for private repositories or avoiding rate limits"
+msgstr ""
+
+msgid "Default Upgrade Mode"
+msgstr ""
+
+msgid "Keep settings by default (uncheck for clean install)"
+msgstr ""
+
+msgid "Save Settings"
+msgstr ""
+
+msgid "Saving..."
+msgstr ""
+
+msgid "Settings saved successfully."
+msgstr ""
+
+msgid "Failed to save settings."
+msgstr ""
+
+msgid "Error saving settings: "
+msgstr ""

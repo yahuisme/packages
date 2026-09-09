@@ -1,0 +1,14 @@
+#!/bin/sh
+
+uci -q get firmwareupgrade.main >/dev/null || {
+	uci -q batch <<-EOF >/dev/null
+		set firmwareupgrade.main=settings
+		set firmwareupgrade.main.repository=''
+		set firmwareupgrade.main.proxy=''
+		set firmwareupgrade.main.token=''
+		set firmwareupgrade.main.keep_config='0'
+		commit firmwareupgrade
+	EOF
+}
+
+exit 0
