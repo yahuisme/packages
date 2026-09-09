@@ -155,7 +155,7 @@ apply_settings
   self.assertNotEqual(r.returncode,0); self.assertFalse(missing.exists())
  def test_frontend_and_package_contracts(self):
   js=(ROOT/'htdocs/luci-static/resources/view/fan/settings.js').read_text()
-  self.assertIn('o.readonly = (i === 5)',js)
+  self.assertIn('option.readonly = (i === 5)',js)
   self.assertIn('validateCurve',js)
   mk=(ROOT/'Makefile').read_text()
   self.assertIn('PKG_LICENSE:=GPL-2.0-or-later',mk)

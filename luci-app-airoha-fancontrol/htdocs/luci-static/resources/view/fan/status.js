@@ -10,85 +10,68 @@ var callFanStatus = rpc.declare({
 	raise: true
 });
 
-var HISTORY_WINDOW_MS = 2 * 60 * 1000;
-var TIME_GRID_INTERVAL_MS = 10 * 1000;
-var TIME_LABEL_INTERVAL_MS = 30 * 1000;
-var VALUE_GRID_DIVISIONS = 4;
-var HISTORY_KEY = 'airoha-fan-history-v1';
-var history = [];
-
-var themeCSS = '\
-:root{--fan-grid:rgba(80,90,100,.14);--fan-axis:#64748b;--fan-track-bg:rgba(128,128,128,.14)}\
-.fan-dashboard{--fan-font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--fan-font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;font-family:var(--fan-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\
-.fan-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:14px}\
+var statusCSS = '\
+.fan-dashboard{font-size:13px;line-height:1.5}\
+.fan-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:8px;margin-bottom:12px}\
 .fan-summary-card,.fan-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
-.fan-summary-card{padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center}\
-.fan-card-title{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
-.fan-card-value{font-size:18px;font-family:var(--fan-font-mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,inherit)}\
-.fan-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
-.fan-panel{padding:14px;margin:14px 0}\
-.fan-panel-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
-.fan-chart-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}\
-.fan-chart-card{padding:10px 12px;min-width:0}\
-.fan-chart-canvas{display:block;width:100%;height:110px;margin-top:8px;background:var(--cbi-section-bg,var(--background-color,#fbfcfd));border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
-.fan-temp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}\
-.fan-temp-group{min-width:0}\
-.fan-temp-group-title{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--cbi-muted-color,#666);margin:0 0 8px}\
-.fan-temp-list{display:grid;gap:6px}\
-.fan-temp-card{padding:8px 10px;min-width:0}\
-.fan-temp-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px}\
-.fan-temp-label{font-size:12px;color:var(--cbi-text-color,inherit);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
-.fan-temp-value{font-family:var(--fan-font-mono);font-variant-numeric:tabular-nums;font-size:14px;font-weight:600;color:var(--fan-temp-accent);white-space:nowrap}\
-.fan-temp-track{height:14px!important;min-height:14px;border-radius:999px;overflow:hidden;background:var(--fan-track-bg,rgba(128,128,128,.14))}\
-.fan-temp-fill{height:100%;border-radius:inherit;background:var(--fan-temp-accent);transition:width .3s,background .3s}\
-@media(max-width:1050px){.fan-summary-grid{grid-template-columns:repeat(2,minmax(160px,1fr))}.fan-chart-grid{grid-template-columns:1fr}}\
-@media(max-width:640px){.fan-summary-grid,.fan-temp-grid{grid-template-columns:1fr}.fan-panel{padding:10px}.fan-summary-card{min-height:68px}.fan-chart-canvas{height:100px}}\
+.fan-summary-card{min-height:72px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center}\
+.fan-card-title,.fan-group-title{font-size:11px;font-weight:500;color:var(--cbi-muted-color,#666);letter-spacing:.04em;text-transform:uppercase}\
+.fan-card-title{margin-bottom:3px}.fan-card-value{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}.fan-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
+.fan-panel{padding:12px;margin:12px 0}.fan-panel-title{font-size:15px;font-weight:600;padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
+.fan-temp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}.fan-group-title{margin:10px 0 2px}.fan-temp-card{padding:8px 0;border-bottom:1px solid var(--cbi-border-color,#f0f0f0)}\
+.fan-temp-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.fan-temp-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fan-temp-value{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--fan-temp-accent)}\
+.fan-temp-track{height:6px;margin-top:6px;border-radius:3px;overflow:hidden;background:var(--cbi-input-bg,#eee)}.fan-temp-fill{height:100%;border-radius:inherit;background:var(--fan-temp-accent);transition:width .3s,background .3s}\
+@media(max-width:760px){.fan-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.fan-temp-grid{grid-template-columns:1fr}}\
+@media(max-width:480px){.fan-summary-grid{grid-template-columns:1fr}.fan-panel{padding:10px}}\
 ';
 
 function injectCSS() {
-	if (document.getElementById('fan-theme-css')) return;
-	var el = document.createElement('style');
-	el.id = 'fan-theme-css';
-	el.textContent = themeCSS;
-	document.head.appendChild(el);
+	if (document.getElementById('fan-status-css')) return;
+	var style = document.createElement('style');
+	style.id = 'fan-status-css';
+	style.textContent = statusCSS;
+	document.head.appendChild(style);
 }
 
-function tempColor(temp) {
-	if (typeof temp !== 'number' || !Number.isFinite(temp) || temp < -128 || temp > 150) return 'inherit';
-	if (temp < 50) return '#10b981';
-	if (temp <= 65) return '#f59e0b';
-	if (temp <= 75) return '#f97316';
+function validNumber(value, min, max) {
+	return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
+}
+
+function validTemp(value) {
+	return validNumber(value, -128, 150);
+}
+
+function tempColor(value) {
+	if (!validTemp(value)) return 'var(--cbi-muted-color,#888)';
+	if (value < 50) return '#10b981';
+	if (value <= 65) return '#f59e0b';
+	if (value <= 75) return '#f97316';
 	return '#ef4444';
 }
 
-function displayTemp(temp) {
-	return typeof temp === 'number' && Number.isFinite(temp) && temp >= -128 && temp <= 150 ? temp : null;
+function modeInfo(mode) {
+	if (mode === 'manual') return { value: _('Manual'), sub: _('Fixed PWM output') };
+	if (mode === 'auto') return { value: _('Automatic'), sub: _('Following fan curve') };
+	return { value: _('Unknown'), sub: _('Read failed') };
 }
 
-function modeInfo(uciMode) {
-	if (uciMode !== 'manual' && uciMode !== 'auto') return { value: _('Unknown'), sub: _('Read failed') };
-	return uciMode === 'manual'
-		? { value: _('Manual'), sub: _('Fixed PWM output') }
-		: { value: _('Automatic'), sub: _('Following fan curve') };
+function validNumber(value, min, max) {
+	return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
 }
 
 function presetInfo(preset) {
-	var labels = {
-		quiet: _('Quiet'), balanced: _('Balanced'),
-		performance: _('Performance'), custom: _('Custom')
-	};
-	return { value: labels[preset] || _('Unknown'),
-		sub: _('Active fan curve profile') };
+	var labels = { quiet: _('Quiet'), balanced: _('Balanced'), performance: _('Performance'), custom: _('Custom') };
+	return labels[preset] ? { value: labels[preset], sub: _('Active fan curve profile') } : { value: _('Unknown'), sub: _('Read failed') };
 }
 
 function summaryData(status) {
-	var actualMode = status.fan_mode === 1 ? 'manual' : status.fan_mode === 2 ? 'auto' : 'unknown';
-	var mode = modeInfo(actualMode);
-	if (actualMode !== 'unknown' && actualMode !== status.uci_mode) mode.sub = _('Configured mode differs from hardware');
+	var actual = status.fan_mode === 1 ? 'manual' : status.fan_mode === 2 ? 'auto' : 'unknown';
+	var mode = modeInfo(actual);
+	if (actual !== 'unknown' && actual !== status.uci_mode) mode.sub = _('Configured mode differs from hardware');
 	var preset = presetInfo(status.uci_preset);
 	return [
-		{ id: 'fan-summary-rpm', title: _('Fan Speed'), value: (status.fan_rpm != null ? status.fan_rpm : '—') + ' RPM', sub: (status.fan_percentage != null ? status.fan_percentage : '—') + '% ' + _('PWM output') },
-		{ id: 'fan-summary-pwm', title: _('PWM'), value: (status.fan_pwm != null ? status.fan_pwm : '—') + ' / 255', sub: (status.fan_percentage != null ? status.fan_percentage : '—') + '%' },
+		{ id: 'fan-summary-rpm', title: _('Fan Speed'), value: validNumber(status.fan_rpm, 0, 1350000) ? status.fan_rpm + ' RPM' : '—', sub: validNumber(status.fan_percentage, 0, 100) ? status.fan_percentage + '% ' + _('PWM output') : '—' },
+		{ id: 'fan-summary-pwm', title: _('PWM'), value: validNumber(status.fan_pwm, 0, 255) ? status.fan_pwm + ' / 255' : '—', sub: validNumber(status.fan_percentage, 0, 100) ? status.fan_percentage + '%' : '—' },
 		{ id: 'fan-summary-mode', title: _('Control Mode'), value: mode.value, sub: mode.sub },
 		{ id: 'fan-summary-preset', title: _('Configured Curve'), value: preset.value, sub: preset.sub }
 	];
@@ -104,226 +87,68 @@ function renderSummary(status) {
 	}));
 }
 
-function updateSummary(status) {
-	summaryData(status).forEach(function(card) {
-		var el = document.getElementById(card.id);
-		if (!el) return;
-		var value = el.querySelector('.fan-card-value');
-		var sub = el.querySelector('.fan-card-sub');
-		if (value) value.textContent = card.value;
-		if (sub) sub.textContent = card.sub;
-	});
-}
-
-function createTempGauge(label, temp, id) {
-	temp = displayTemp(temp);
-	var color = tempColor(temp);
-	var percentage = (temp == null ? 0 : Math.min(100, Math.max(3, temp)));
-	return E('div', { 'id': id, 'class': 'fan-temp-card', 'style': '--fan-temp-accent:' + color }, [
+function createTempGauge(label, value, id) {
+	var temp = validTemp(value) ? value : null;
+	return E('div', { 'id': id, 'class': 'fan-temp-card', 'style': '--fan-temp-accent:' + tempColor(temp) }, [
 		E('div', { 'class': 'fan-temp-row' }, [
 			E('span', { 'class': 'fan-temp-label' }, label),
-			E('span', { 'class': 'fan-temp-value' }, (temp != null ? temp + '\u00b0C' : '—'))
+			E('span', { 'class': 'fan-temp-value' }, temp == null ? '—' : temp + '\u00b0C')
 		]),
-		E('div', { 'class': 'fan-temp-track' }, [
-			E('div', { 'class': 'fan-temp-fill', 'style': 'width:' + percentage + '%' })
-		])
+		E('div', { 'class': 'fan-temp-track' }, E('div', { 'class': 'fan-temp-fill', 'style': 'width:' + (temp == null ? 0 : Math.min(100, Math.max(3, temp))) + '%' }))
 	]);
 }
 
-function updateGauge(id, temp) {
-	var card = document.getElementById(id);
+function updateTempGauge(root, id, value) {
+	var card = root.querySelector('#' + id);
 	if (!card) return;
-	temp = displayTemp(temp);
-	var color = tempColor(temp);
-	var value = card.querySelector('.fan-temp-value');
+	var temp = validTemp(value) ? value : null;
+	card.style.setProperty('--fan-temp-accent', tempColor(temp));
+	var valueEl = card.querySelector('.fan-temp-value');
 	var fill = card.querySelector('.fan-temp-fill');
-	card.style.setProperty('--fan-temp-accent', color);
-	if (value) value.textContent = (temp != null ? temp + '\u00b0C' : '—');
+	if (valueEl) valueEl.textContent = temp == null ? '—' : temp + '\u00b0C';
 	if (fill) fill.style.width = (temp == null ? 0 : Math.min(100, Math.max(3, temp))) + '%';
 }
 
-function restoreHistory() {
-	try {
-		var saved = JSON.parse(window.localStorage.getItem(HISTORY_KEY) || '[]');
-		var now = Date.now();
-		var cutoff = now - HISTORY_WINDOW_MS;
-		if (!Array.isArray(saved)) return;
-		history = saved.filter(function(s) {
-			return s && typeof s.time === 'number' && s.time >= cutoff && s.time <= now;
-		});
-	} catch (e) {
-		history = [];
-	}
-}
-
-function persistHistory() {
-	try {
-		window.localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-	} catch (e) {}
-}
-
-function appendHistory(status) {
-	var now = Date.now();
-	function value(key, min, max) {
-		var v = status[key];
-		return typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : null;
-	}
-	history.push({ time: now, temperature: value('temp_board', -128, 150),
-		pwm: value('fan_pwm', 0, 255), rpm: value('fan_rpm', 0, 1350000) });
-	while (history.length && history[0].time < now - HISTORY_WINDOW_MS) history.shift();
-	persistHistory();
-}
-
-function chartScale(hist, key, minMax, step) {
-	var maximum = minMax;
-	for (var i = 0; i < hist.length; i++) if (hist[i][key] != null) maximum = Math.max(maximum, hist[i][key]);
-	return Math.ceil(maximum / step) * step;
-}
-
-function drawChart(canvas, hist, key, options) {
-	if (!canvas) return;
-	var style = getComputedStyle(canvas);
-	var width = Math.max(canvas.clientWidth, 1);
-	var height = Math.max(canvas.clientHeight, 1);
-	var dpr = Math.min(window.devicePixelRatio || 1, 2);
-	var ctx = canvas.getContext('2d');
-	var pad = { left: 31, right: 6, top: 7, bottom: 16 };
-	var plotW = Math.max(width - pad.left - pad.right, 1);
-	var plotH = Math.max(height - pad.top - pad.bottom, 1);
-	var plotB = pad.top + plotH;
-	var now = Date.now();
-	hist = hist.filter(function(sample) { return sample.time >= now - HISTORY_WINDOW_MS && sample.time <= now; });
-	var start = now - HISTORY_WINDOW_MS;
-	var maximum = chartScale(hist, key, options.minMax, options.step);
-	var minimum = 0;
-	var gridColor = style.getPropertyValue('--fan-grid').trim() || 'rgba(127,127,127,.24)';
-	var axisColor = style.getPropertyValue('--fan-axis').trim() || style.color || '#666';
-
-	canvas.width = Math.round(width * dpr);
-	canvas.height = Math.round(height * dpr);
-	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-	ctx.clearRect(0, 0, width, height);
-	ctx.strokeStyle = gridColor;
-	ctx.lineWidth = 1;
-	ctx.beginPath();
-	for (var e = 0; e <= HISTORY_WINDOW_MS; e += TIME_GRID_INTERVAL_MS) {
-		var gx = pad.left + plotW * e / HISTORY_WINDOW_MS;
-		ctx.moveTo(gx, pad.top);
-		ctx.lineTo(gx, plotB);
-	}
-	for (var d = 0; d <= VALUE_GRID_DIVISIONS; d++) {
-		var gy = pad.top + plotH * d / VALUE_GRID_DIVISIONS;
-		ctx.moveTo(pad.left, gy);
-		ctx.lineTo(pad.left + plotW, gy);
-	}
-	ctx.stroke();
-
-	ctx.fillStyle = axisColor;
-	ctx.font = '10px var(--fan-font-mono, ui-monospace, monospace)';
-	ctx.textAlign = 'right';
-	ctx.textBaseline = 'top';
-	ctx.fillText(options.format(maximum), pad.left - 4, pad.top - 1);
-	ctx.textBaseline = 'middle';
-	ctx.fillText(options.format(maximum / 2), pad.left - 4, pad.top + plotH / 2);
-	ctx.textBaseline = 'bottom';
-	ctx.fillText(options.format(minimum), pad.left - 4, plotB + 1);
-	for (var t = 0; t <= HISTORY_WINDOW_MS; t += TIME_LABEL_INTERVAL_MS) {
-		var lx = pad.left + plotW * t / HISTORY_WINDOW_MS;
-		var remaining = (HISTORY_WINDOW_MS - t) / 1000;
-		ctx.textAlign = t === 0 ? 'left' : t === HISTORY_WINDOW_MS ? 'right' : 'center';
-		ctx.fillText(remaining ? '-' + remaining + 's' : '0', lx, height);
-	}
-
-	if (!hist.length) return;
-	ctx.beginPath();
-	ctx.moveTo(pad.left, plotB);
-	for (var i = 0; i < hist.length; i++) {
-		var sample = hist[i];
-		var val = sample[key];
-		if (val == null || !Number.isFinite(val)) {
-			if (i > 0) ctx.lineTo(pad.left + (sample.time - start) / HISTORY_WINDOW_MS * plotW, plotB);
-		} else {
-			var x = pad.left + (sample.time - start) / HISTORY_WINDOW_MS * plotW;
-			var y = plotB - (val - minimum) / (maximum - minimum) * plotH;
-			ctx.lineTo(x, y);
-		}
-	}
-	ctx.lineTo(pad.left + (hist[hist.length - 1].time - start) / HISTORY_WINDOW_MS * plotW, plotB);
-	ctx.closePath();
-	ctx.fillStyle = options.fillColor;
-	ctx.fill();
-
-	ctx.beginPath();
-	var previous = null;
-	for (var j = 0; j < hist.length; j++) {
-		var s = hist[j];
-		if (s[key] == null || !Number.isFinite(s[key])) {
-			previous = null;
-			continue;
-		}
-		var px = pad.left + (s.time - start) / HISTORY_WINDOW_MS * plotW;
-		var py = plotB - (s[key] - minimum) / (maximum - minimum) * plotH;
-		if (!previous || s.time - previous.time > 10000) ctx.moveTo(px, py);
-		else ctx.lineTo(px, py);
-		previous = s;
-	}
-	ctx.strokeStyle = options.lineColor;
-	ctx.lineWidth = 1.7;
-	ctx.stroke();
-}
-
-function chartCard(label, canvasId) {
-	return E('div', { 'class': 'fan-chart-card' }, [
-		E('div', { 'class': 'fan-card-title' }, label),
-		E('canvas', { 'id': canvasId, 'class': 'fan-chart-canvas' })
-	]);
-}
-
-function drawAllCharts() {
-	if (!history.length) return;
-	injectCSS();
-	drawChart(document.getElementById('fc-temp'), history, 'temperature', { minMax: 40, step: 20, lineColor: '#f97316', fillColor: 'rgba(249,115,22,.08)', format: function(v) { return v + '\u00b0'; } });
-	drawChart(document.getElementById('fc-pwm'), history, 'pwm', { minMax: 100, step: 50, lineColor: '#0ea5e9', fillColor: 'rgba(14,165,233,.08)', format: function(v) { return String(v); } });
-	drawChart(document.getElementById('fc-rpm'), history, 'rpm', { minMax: 1000, step: 500, lineColor: '#10b981', fillColor: 'rgba(16,185,129,.08)', format: function(v) { return String(v); } });
-}
-
-function temperatureGroup(title, entries) {
-	return E('div', { 'class': 'fan-temp-group' }, [
-		E('div', { 'class': 'fan-temp-group-title' }, title),
-		E('div', { 'class': 'fan-temp-list' }, entries)
-	]);
+function updateView(viewEl, status) {
+	status = status || {};
+	summaryData(status).forEach(function(card) {
+		var root = viewEl.querySelector('#' + card.id);
+		if (!root) return;
+		var value = root.querySelector('.fan-card-value');
+		var sub = root.querySelector('.fan-card-sub');
+		if (value) value.textContent = card.value;
+		if (sub) sub.textContent = card.sub;
+	});
+		var values = {
+			cpu: status.temp_cpu, board: status.temp_board, phy1: status.temp_phy1, phy2: status.temp_phy2,
+			wifi24g: status.wifi_24g, wifi5g: status.wifi_5g, wifi6g: status.wifi_6g
+		};
+		Object.keys(values).forEach(function(name) { updateTempGauge(viewEl, 'temp-' + name, values[name]); });
 }
 
 return view.extend({
 	load: function() {
-		return Promise.resolve([]);
+		return callFanStatus().catch(function() { return {}; });
 	},
 
 	render: function(data) {
 		injectCSS();
-		restoreHistory();
 		var status = data || {};
 		var viewEl = E('div', { 'class': 'cbi-map fan-dashboard' }, [
-			E('div', { 'class': 'cbi-map-descr' }, _('View real-time fan speed and system temperatures.')),
+			E('div', { 'class': 'cbi-map-descr' }, _('View fan speed and system temperatures.')),
 			renderSummary(status),
-			E('div', { 'class': 'fan-panel' }, [
-				E('div', { 'class': 'fan-panel-title' }, _('Real-time Trends')),
-				E('div', { 'class': 'fan-chart-grid' }, [
-					chartCard(_('Board Temperature'), 'fc-temp'),
-					chartCard(_('Fan PWM'), 'fc-pwm'),
-					chartCard(_('Fan Speed'), 'fc-rpm')
-				])
-			]),
 			E('div', { 'class': 'fan-panel' }, [
 				E('div', { 'class': 'fan-panel-title' }, _('Temperatures')),
 				E('div', { 'class': 'fan-temp-grid' }, [
-					temperatureGroup(_('System'), [
+					E('div', { 'class': 'fan-temp-group' }, [
+						E('div', { 'class': 'fan-group-title' }, _('System')),
 						createTempGauge(_('CPU'), status.temp_cpu, 'temp-cpu'),
 						createTempGauge(_('Board'), status.temp_board, 'temp-board'),
 						createTempGauge(_('10G WAN'), status.temp_phy2, 'temp-phy2'),
 						createTempGauge(_('10G LAN'), status.temp_phy1, 'temp-phy1')
 					]),
-					temperatureGroup(_('WiFi'), [
+					E('div', { 'class': 'fan-temp-group' }, [
+						E('div', { 'class': 'fan-group-title' }, _('WiFi')),
 						createTempGauge(_('2.4 GHz Radio'), status.wifi_24g, 'temp-wifi24g'),
 						createTempGauge(_('5 GHz Radio'), status.wifi_5g, 'temp-wifi5g'),
 						createTempGauge(_('6 GHz Radio'), status.wifi_6g, 'temp-wifi6g')
@@ -332,46 +157,29 @@ return view.extend({
 			])
 		]);
 
-		var fetchData = L.bind(function() {
-			if (!viewEl.isConnected) return Promise.resolve();
-			return callFanStatus().then(L.bind(function(current) {
+		var refresh = function() {
+			if (!viewEl.isConnected) {
+				poll.remove(refresh);
+				return Promise.resolve();
+			}
+			return callFanStatus().then(function(current) {
+				if (viewEl.isConnected) updateView(viewEl, current);
+			}).catch(function() {
 				if (!viewEl.isConnected) return;
-				current = current || {};
-				updateSummary(current);
-				updateGauge('temp-cpu', current.temp_cpu);
-				updateGauge('temp-board', current.temp_board);
-				updateGauge('temp-phy1', current.temp_phy1);
-				updateGauge('temp-phy2', current.temp_phy2);
-				updateGauge('temp-wifi24g', current.wifi_24g);
-				updateGauge('temp-wifi5g', current.wifi_5g);
-				updateGauge('temp-wifi6g', current.wifi_6g);
-				appendHistory(current);
-				drawAllCharts();
-			}, this)).catch(function() {
-				if (!viewEl.isConnected) return;
-				appendHistory({});
-				drawAllCharts();
-				updateSummary({});
-				['temp-cpu', 'temp-board', 'temp-phy1', 'temp-phy2', 'temp-wifi24g', 'temp-wifi5g', 'temp-wifi6g'].forEach(function(id) { updateGauge(id, null); });
-				var cards = viewEl.querySelectorAll('.fan-card-sub');
-				for (var i = 0; i < cards.length; i++) cards[i].textContent = _('Read failed');
+				updateView(viewEl, {});
+				viewEl.querySelectorAll('.fan-card-sub').forEach(function(el) { el.textContent = _('Read failed'); });
 			});
-		}, this);
-
+		};
+		poll.add(refresh, 5);
 		requestAnimationFrame(function() {
 			if (!viewEl.isConnected) return;
-			var resize = new ResizeObserver(drawAllCharts);
-			resize.observe(viewEl);
 			var removal = new MutationObserver(function() {
 				if (viewEl.isConnected) return;
-				poll.remove(fetchData);
-				resize.disconnect();
+				poll.remove(refresh);
 				removal.disconnect();
 			});
 			removal.observe(document.body, { childList: true, subtree: true });
-			drawAllCharts();
-			fetchData();
-			poll.add(fetchData, 5);
+			refresh();
 		});
 		return viewEl;
 	},
