@@ -19,4 +19,11 @@ assert 'CAP_SYS_PTRACE' not in caps
 assert "params: ['filename', 'temp']" in client
 assert 'sing-box-c.json.old' in init and 'sing-box-s.json.old' in init
 assert 'END { exit invalid }' in resources
+assert 'install -d -m 0750 -o root -g sing-box "$RUN_DIR"' in init
+assert 'chown -R sing-box:sing-box "$RUN_DIR"' not in init
+firewall = (root / 'root/etc/homeproxy/scripts/firewall_pre.uc').read_text()
+assert "const FIREWALL_PROTOCOLS = [ 'tcp', 'udp' ];" in firewall
+assert 'validPort(server.port)' in firewall
+assert '(?:' not in firewall
+assert 'invalid server firewall configuration' in firewall
 print('PASS maintenance regression contracts')

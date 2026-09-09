@@ -15,6 +15,8 @@
 'require homeproxy as hp';
 'require tools.widgets as widgets';
 
+let nodeLatencySections = Object.create(null);
+
 const callNodeLatencyTest = rpc.declare({
 	object: 'luci.homeproxy',
 	method: 'node_latency_test',
@@ -708,13 +710,6 @@ function createNodeLatencyRowStateModel() {
 
 function renderNodeSettings(section, data, features, main_node, routing_mode, node_latency_row_state) {
 	let s = section, o;
-	if (typeof globalThis !== 'undefined') {
-		globalThis.__hpNodeLatencySections = globalThis.__hpNodeLatencySections || {};
-		globalThis.__hpNodeLatencyTrigger = function(section_id) {
-			let target = globalThis.__hpNodeLatencySections?.[section_id];
-			return target ? target.handleNodeLatencyTest(section_id) : false;
-		};
-	}
 	s.rowcolors = true;
 	s.sortable = true;
 	s.nodescriptions = true;
@@ -835,12 +830,12 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 		let outputEl = E('output', { 'for': this.cbid(section_id) });
 		let row_state = s.getNodeLatencyRowState(section_id);
 
-		if (typeof globalThis !== 'undefined' && globalThis.__hpNodeLatencySections)
-			globalThis.__hpNodeLatencySections[section_id] = s;
+		if (!nodeLatencySections[section_id])
+			nodeLatencySections[section_id] = s;
 
 		outputEl.appendChild(E('button', {
 			'class': 'cbi-button cbi-button-action',
-			'onclick': 'return globalThis.__hpNodeLatencyTrigger(%s);'.format(JSON.stringify(section_id)),
+			'click': ui.createHandlerFn(s, () => s.handleNodeLatencyTest(section_id)),
 			'disabled': (row_state.state === NODE_LATENCY_ROW_STATES.TESTING) ? true : null
 		}, [ getNodeLatencyActionTitle(row_state) ]));
 
@@ -1631,6 +1626,7 @@ return view.extend({
 	},
 
 	render(data) {
+		nodeLatencySections = Object.create(null);
 		let m, s, o, ss, so;
 		let main_node = uci.get(data[0], 'config', 'main_node');
 		let routing_mode = uci.get(data[0], 'config', 'routing_mode');
@@ -1944,7 +1940,7 @@ return view.extend({
 					let section_ids = getActiveSubscriptionLatencySectionIds(el);
 					if (!section_ids.length)
 						return false;
-					let target = globalThis.__hpNodeLatencySections?.[section_ids[0]];
+			let target = nodeLatencySections[section_ids[0]];
 					if (!target)
 						return false;
 

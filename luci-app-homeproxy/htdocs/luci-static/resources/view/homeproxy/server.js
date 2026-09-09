@@ -5,6 +5,7 @@
  */
 
 'use strict';
+'require dom';
 'require form';
 'require poll';
 'require rpc';
@@ -118,16 +119,17 @@ return view.extend({
 
 		s = m.section(form.TypedSection);
 		s.render = function() {
-			poll.add(() => {
-				return L.resolveDefault(hp.getServiceStatus('sing-box-s')).then((res) => {
-					let view = document.getElementById('service_status');
-					view.replaceChildren(renderStatus(res, features.version));
+			const statusView = E('p', { id: 'service_status' }, _('Collecting data...'));
+			const updateStatus = () => {
+				return L.resolveDefault(hp.getServiceStatus('sing-box-s'), false).then((res) => {
+					if (!statusView.isConnected)
+						return;
+					statusView.replaceChildren(renderStatus(res, features.version));
 				});
-			});
+			};
+			poll.add(updateStatus);
 
-			return E('div', { class: 'cbi-section', id: 'status_bar' }, [
-					E('p', { id: 'service_status' }, _('Collecting data...'))
-			]);
+			return E('div', { class: 'cbi-section', id: 'status_bar' }, [ statusView ]);
 		}
 
 		s = m.section(form.NamedSection, 'server', 'homeproxy', _('Global Settings'));
@@ -390,21 +392,26 @@ return view.extend({
 		o.depends('type', 'vless');
 		o.depends('type', 'vmess');
 		o.onchange = function(ev, section_id, value) {
-			let desc = this.map.findElement('id', 'cbid.homeproxy.%s.transport'.format(section_id)).nextElementSibling;
-			if (value === 'http')
-				desc.innerHTML = _('TLS is not enforced. If TLS is not configured, plain HTTP 1.1 is used.');
-			else if (value === 'quic')
-				desc.innerHTML = _('No additional encryption support: It\'s basically duplicate encryption.');
-			else
-				desc.innerHTML = _('No TCP transport, plain HTTP is merged into the HTTP transport.');
+			let transport = this.map.findElement('id', 'cbid.homeproxy.%s.transport'.format(section_id));
+			let desc = transport ? transport.nextElementSibling : null;
+			if (desc) {
+				if (value === 'http')
+					dom.content(desc, _('TLS is not enforced. If TLS is not configured, plain HTTP 1.1 is used.'));
+				else if (value === 'quic')
+					dom.content(desc, _('No additional encryption support: It\'s basically duplicate encryption.'));
+				else
+					dom.content(desc, _('No TCP transport, plain HTTP is merged into the HTTP transport.'));
+			}
 
-			let tls_element = this.map.findElement('id', 'cbid.homeproxy.%s.tls'.format(section_id)).firstElementChild;
-			if ((value === 'http' && tls_element.checked) || (value === 'grpc' && !features.with_grpc))
-				this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id)).nextElementSibling.innerHTML =
-					_('Specifies the time (in seconds) until idle clients should be closed with a GOAWAY frame. PING frames are not considered as activity.');
-			else if (value === 'grpc' && features.with_grpc)
-				this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id)).nextElementSibling.innerHTML =
-					_('If the transport doesn\'t see any activity after a duration of this time (in seconds), it pings the client to check if the connection is still active.');
+			let tls = this.map.findElement('id', 'cbid.homeproxy.%s.tls'.format(section_id));
+			let idle = this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id));
+			let idleDesc = idle ? idle.nextElementSibling : null;
+			if (idleDesc) {
+				if ((value === 'http' && tls?.firstElementChild?.checked) || (value === 'grpc' && !features.with_grpc))
+					dom.content(idleDesc, _('Specifies the time (in seconds) until idle clients should be closed with a GOAWAY frame. PING frames are not considered as activity.'));
+				else if (value === 'grpc' && features.with_grpc)
+					dom.content(idleDesc, _('If the transport doesn\'t see any activity after a duration of this time (in seconds), it pings the client to check if the connection is still active.'));
+			}
 		}
 		o.modalonly = true;
 

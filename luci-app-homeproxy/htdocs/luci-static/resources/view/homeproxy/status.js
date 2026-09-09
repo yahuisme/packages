@@ -15,11 +15,11 @@
 
 /* Thanks to luci-app-aria2 */
 const css = '				\
-:root {					\
+.homeproxy-status {					\
 	--hp-font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;\
 	--hp-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;\
 }					\
-#log_textarea {				\
+.homeproxy-status #log_textarea {				\
 	padding: 12px;			\
 	border: 1px solid var(--cbi-border-color, #e0e0e0);\
 	border-radius: 6px;		\
@@ -27,21 +27,22 @@ const css = '				\
 	box-sizing: border-box;		\
 	text-align: left;		\
 }					\
-#log_textarea pre {			\
+.homeproxy-status #log_textarea pre {			\
 	font-family: var(--hp-font-mono);\
 	font-size: 12px;		\
 	line-height: 1.5;		\
 	padding: 0;			\
-	word-break: break-all;		\
+	word-wrap: break-word;		\
+	overflow-wrap: anywhere;		\
 	margin: 0;			\
 }					\
-.hp-status-grid {			\
+.homeproxy-status .hp-status-grid {			\
 	display: grid;			\
 	grid-template-columns: repeat(4, minmax(0, 1fr));\
 	gap: 10px;			\
 	margin-bottom: 12px;		\
 }					\
-.hp-card {				\
+.homeproxy-status .hp-card {				\
 	background: var(--cbi-section-bg, transparent);\
 	border: 1px solid var(--cbi-border-color, #e0e0e0);\
 	border-radius: 6px;		\
@@ -54,18 +55,18 @@ const css = '				\
 	-webkit-font-smoothing: antialiased;\
 	text-rendering: optimizeLegibility;\
 }					\
-.hp-card-header {			\
+.homeproxy-status .hp-card-header {			\
 	display: flex;			\
 	justify-content: space-between;	\
 	align-items: center;		\
 	margin-bottom: 6px;		\
 }					\
-.hp-card-title {			\
+.homeproxy-status .hp-card-title {			\
 	font-size: 13px;		\
 	font-weight: 500;		\
 	color: var(--cbi-text-color, inherit);\
 }					\
-.hp-card-link {				\
+.homeproxy-status .hp-card-link {				\
 	font-size: 11px;		\
 	font-family: var(--hp-font-mono);\
 	font-variant-numeric: tabular-nums;\
@@ -76,29 +77,29 @@ const css = '				\
 	white-space: nowrap;		\
 	max-width: 120px;		\
 }					\
-.hp-card-link:hover {			\
+.homeproxy-status .hp-card-link:hover {			\
 	text-decoration: underline;	\
 	color: var(--cbi-link-color, #0069d9);\
 }					\
-.hp-card-body {				\
+.homeproxy-status .hp-card-body {				\
 	display: flex;			\
 	align-items: baseline;		\
 	justify-content: space-between;	\
 	gap: 8px;			\
 	margin-top: auto;		\
 }					\
-.hp-card-state {			\
+.homeproxy-status .hp-card-state {			\
 	font-size: 12px;		\
 	font-weight: 600;		\
 }					\
-.hp-card-latency {			\
+.homeproxy-status .hp-card-latency {			\
 	font-size: 12px;		\
 	font-weight: 600;		\
 	font-family: var(--hp-font-mono);\
 	font-variant-numeric: tabular-nums;\
 	color: var(--cbi-text-color, inherit);\
 }					\
-.hp-badge {				\
+.homeproxy-status .hp-badge {				\
 	display: inline-flex;		\
 	align-items: center;		\
 	padding: 2px 8px;		\
@@ -110,17 +111,17 @@ const css = '				\
 	border: 1px solid transparent;	\
 	line-height: 1.4;		\
 }					\
-.hp-badge-success {			\
+.homeproxy-status .hp-badge-success {			\
 	background: rgba(16,185,129,0.10);\
 	color: var(--cbi-success-color, #10b981);\
 	border-color: rgba(16,185,129,0.30);\
 }					\
-.hp-badge-danger {			\
+.homeproxy-status .hp-badge-danger {			\
 	background: rgba(239,68,68,0.10);\
 	color: var(--cbi-error-color, #ef4444);\
 	border-color: rgba(239,68,68,0.30);\
 }					\
-.cbi-button-action {			\
+.homeproxy-status .cbi-button-action {			\
 	height: 32px;			\
 	padding: 0 16px;		\
 	border-radius: 4px;		\
@@ -128,10 +129,10 @@ const css = '				\
 	font-weight: 500;		\
 }					\
 @media (max-width: 1050px) {		\
-	.hp-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }\
+	.homeproxy-status .hp-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }\
 }					\
 @media (max-width: 540px) {		\
-	.hp-status-grid { grid-template-columns: 1fr; }\
+	.homeproxy-status .hp-status-grid { grid-template-columns: 1fr; }\
 }					\
 ';
 
@@ -257,7 +258,7 @@ function getConnectionStatus() {
 		'click': ui.createHandlerFn(this, runAllTests)
 	}, [ _('Test all') ]);
 
-	const view = E('div', { 'class': 'cbi-map' }, [
+	const view = E('div', { 'class': 'cbi-map homeproxy-status' }, [
 		E('h3', { 'name': 'content', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;' }, [
 			_('Connection Status'),
 			testButton
@@ -334,7 +335,7 @@ function getResources(o) {
 			]);
 		}));
 
-		return E('div', { 'class': 'cbi-map' }, [
+		return E('div', { 'class': 'cbi-map homeproxy-status' }, [
 			E('h3', { 'name': 'content', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;' }, [
 				_('Resource Management'),
 				E('button', {
@@ -478,7 +479,7 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 
 	return E([
 		E('style', [ css ]),
-		E('div', {'class': 'cbi-map'}, [
+		E('div', {'class': 'cbi-map homeproxy-status'}, [
 			E('h3', {'name': 'content', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;'}, [
 				_('%s Log').format(name),
 				E('div', {'style': 'display:flex;align-items:center;gap:6px;'}, [
@@ -486,8 +487,15 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 					E('button', {
 						'class': 'btn cbi-button cbi-button-action',
 						'click': ui.createHandlerFn(this, () => {
-							return L.resolveDefault(callLogClean(filename), {});
-						})
+						return L.resolveDefault(callLogClean(filename), {}).then((res) => {
+							if (res.result === false)
+								throw new Error(res.error || _('Failed to clean log.'));
+							dom.content(log_textarea, E('pre', { 'wrap': 'pre' }, [ _('Log is empty.') ]));
+							ui.addNotification(null, E('p', _('Log cleaned.')), 'info');
+						}).catch((err) => {
+							ui.addNotification(null, E('p', _('Failed to clean log: %s.').format(err.message || err)), 'error');
+						});
+					})
 					}, [ _('Clean log') ])
 				])
 			]),

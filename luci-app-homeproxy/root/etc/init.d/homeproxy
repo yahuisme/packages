@@ -199,7 +199,10 @@ sync_subscription_cron() {
 }
 
 start_service() {
-	mkdir -p "$RUN_DIR" || return 1
+	install -d -m 0750 -o root -g sing-box "$RUN_DIR" || return 1
+	find "$RUN_DIR" -xdev -type l -delete
+	find "$RUN_DIR" -maxdepth 1 -type f -exec chown root:root {} +
+	find "$RUN_DIR" -maxdepth 1 -type f -exec chmod 0644 {} +
 	if ! /usr/libexec/homeproxy-runtime-init; then
 		log "Error: failed to initialize runtime ports."
 		return 1
@@ -536,14 +539,17 @@ start_service() {
 		;;
 	esac
 
-	[ "$client_ready" -ne 1 ] || : > "$RUN_DIR/sing-box-c.log"
+	[ "$client_ready" -ne 1 ] || {
+		: > "$RUN_DIR/sing-box-c.log"
+		chown sing-box:sing-box "$RUN_DIR/sing-box-c.log"
+		chmod 0640 "$RUN_DIR/sing-box-c.log"
+	}
 	if [ "$server_ready" -eq 1 ]; then
 		: > "$RUN_DIR/sing-box-s.log"
+		chown sing-box:sing-box "$RUN_DIR/sing-box-s.log"
+		chmod 0640 "$RUN_DIR/sing-box-s.log"
 		mkdir -p "$HP_DIR/certs"
 	fi
-
-	# Update permissions for ujail
-	chown -R sing-box:sing-box "$RUN_DIR"
 
 	local sing_box_version
 	sing_box_version="$(sing-box version -n)"

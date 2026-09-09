@@ -5,6 +5,7 @@
  */
 
 'use strict';
+'require dom';
 'require form';
 'require network';
 'require poll';
@@ -117,11 +118,14 @@ return view.extend({
 
 		s = m.section(form.TypedSection);
 		s.render = function () {
-			poll.add(function () {
+			const statusView = E('p', { id: 'service_status' }, _('Collecting data...'));
+			const updateStatus = () => {
 				return Promise.all([
 					L.resolveDefault(hp.getServiceStatus('sing-box-c'), false),
 					L.resolveDefault(callCurrentNode(), null)
 				]).then((res) => {
+					if (!statusView.isConnected)
+						return;
 					let isRunning = res[0],
 					    current = res[1],
 					    current_label = null;
@@ -129,18 +133,15 @@ return view.extend({
 					if (current?.mode === 'urltest') {
 						let active = current.active || {};
 						let nodeName = (active?.id && active.id !== 'urltest') ? (proxy_nodes[active.id] || active.label || active.id) : _('Invalid node');
-
 						current_label = _('URLTest: %s').format(nodeName);
 					}
 
-					let view = document.getElementById('service_status');
-					view.replaceChildren(renderStatus(isRunning, features.version, current_label));
-					});
+					statusView.replaceChildren(renderStatus(isRunning, features.version, current_label));
 				});
+			};
+			poll.add(updateStatus);
 
-			return E('div', { class: 'cbi-section', id: 'status_bar' }, [
-				E('p', { id: 'service_status' }, _('Collecting data...'))
-			]);
+			return E('div', { class: 'cbi-section', id: 'status_bar' }, [ statusView ]);
 		}
 
 		s = m.section(form.NamedSection, 'config', 'homeproxy');
@@ -309,11 +310,11 @@ return view.extend({
 		o.onchange = function(ev, section_id, value) {
 			let desc = ev.target.nextElementSibling;
 			if (value === 'mixed')
-				desc.innerHTML = _('Mixed <code>System</code> TCP stack and <code>gVisor</code> UDP stack.')
+				dom.content(desc, _('Mixed <code>System</code> TCP stack and <code>gVisor</code> UDP stack.'))
 			else if (value === 'gvisor')
-				desc.innerHTML = _('Based on Google/gVisor.');
+				dom.content(desc, _('Based on Google/gVisor.'));
 			else if (value === 'system')
-				desc.innerHTML = _('Less compatibility and sometimes better performance.');
+				dom.content(desc, _('Less compatibility and sometimes better performance.'));
 		}
 
 		o = s.taboption('routing', form.Flag, 'ipv6_support', _('IPv6 support'));

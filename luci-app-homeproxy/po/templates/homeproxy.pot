@@ -3197,3 +3197,12 @@ msgstr ""
 
 msgid "Unavailable"
 msgstr ""
+
+msgid "Failed to clean log."
+msgstr ""
+
+msgid "Failed to clean log: %s."
+msgstr ""
+
+msgid "Log cleaned."
+msgstr ""

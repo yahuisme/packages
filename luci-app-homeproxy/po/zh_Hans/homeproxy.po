@@ -3418,3 +3418,12 @@ msgstr "淘宝"
 
 msgid "Unavailable"
 msgstr "不可用"
+
+msgid "Failed to clean log."
+msgstr "清理日志失败。"
+
+msgid "Failed to clean log: %s."
+msgstr "清理日志失败：%s。"
+
+msgid "Log cleaned."
+msgstr "日志已清理。"

@@ -1,6 +1,6 @@
 const fs=require('fs'),assert=require('assert'),path=require('path');
 const {JSDOM}=require(process.env.JSDOM_PATH||'jsdom');
-const base=process.env.LUCI_RESOURCES||process.env.LUCI_RESOURCE_DIR||'/usr/share/luci/menu.d/';
+const base=(process.env.LUCI_RESOURCES||process.env.LUCI_RESOURCE_DIR||'/www/luci-static/resources/').replace(/\/?$/, '/');
 const j=new JSDOM('<div id="view"></div>',{runScripts:'outside-only',url:'http://localhost/'}),w=j.window;
 w._=s=>s; w.eval(fs.readFileSync(base+'cbi.js','utf8'));
 w.eval(fs.readFileSync(base+'luci.js','utf8').replace('window.LuCI = LuCI;','window.LuCI = LuCI; window.__classes=classes;'));
