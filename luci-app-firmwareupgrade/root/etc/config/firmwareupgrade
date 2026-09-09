@@ -1,6 +1,5 @@
 
 config settings 'main'
 	option repository ''
-	option proxy ''
 	option token ''
 	option keep_config '0'

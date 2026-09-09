@@ -1,403 +1,127 @@
 #!/bin/sh
 # Copyright (C) 2026 yahuisme
-# Lightweight & robust backend for luci-app-firmwareupgrade
-# Pure POSIX shell + jsonfilter (Zero Python dependency)
+# Firmware release discovery and controlled upgrade launcher.
 
-STATUS_FILE="/var/run/firmwareupgrade.status"
-PID_FILE="/var/run/firmwareupgrade.pid"
-WORKER_SCRIPT="/usr/libexec/firmwareupgrade-worker"
+STATUS_FILE='/var/run/firmwareupgrade.status'
+PID_FILE='/var/run/firmwareupgrade.pid'
+CANDIDATE_FILE='/var/run/firmwareupgrade.candidate'
+LOCK_DIR='/var/run/firmwareupgrade.lock'
+WORKER_SCRIPT='/usr/libexec/firmwareupgrade-worker'
 
 quote() {
-	printf '%s' "$1" | awk 'BEGIN { for(j=1;j<32;j++) esc[sprintf("%c",j)]=sprintf("\\u%04x",j); printf "\"" } { if (NR>1) printf "\\n"; for(i=1;i<=length;i++) { c=substr($0,i,1); if(c=="\"" || c=="\\") printf "\\%s",c; else if(c=="\t") printf "\\t"; else if(c=="\r") printf "\\r"; else if(c in esc) printf "%s",esc[c]; else printf "%s",c } } END { printf "\"" }'
+	printf '%s' "$1" | awk 'BEGIN { for (j = 1; j < 32; j++) esc[sprintf("%c", j)] = sprintf("\\u%04x", j); printf "\"" } { if (NR > 1) printf "\\n"; for (i = 1; i <= length; i++) { c = substr($0, i, 1); if (c == "\"" || c == "\\") printf "\\%s", c; else if (c == "\t") printf "\\t"; else if (c == "\r") printf "\\r"; else if (c in esc) printf "%s", esc[c]; else printf "%s", c } } END { printf "\"" }'
 }
 
-get_board_name() {
-	[ -f /tmp/sysinfo/board_name ] && cat /tmp/sysinfo/board_name 2>/dev/null && return
-	[ -f /proc/device-tree/compatible ] && tr '\0' '\n' < /proc/device-tree/compatible | head -n1 && return
-	uname -m
+valid_uint() { case "$1" in ''|*[!0-9]*|0[0-9]*|??????????*) return 1;; esac; return 0; }
+valid_sha256() { [ "${#1}" -eq 64 ] && case "$1" in *[!0123456789abcdefABCDEF]*) return 1;; esac; }
+valid_repo() { case "$1" in [A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*) [ "${#1}" -le 200 ];; *) return 1;; esac; }
+valid_token() { [ -z "$1" ] || case "$1" in *[!A-Za-z0-9_=-]*) return 1;; esac; [ "${#1}" -le 512 ]; }
+validate_settings() {
+	valid_repo "$1" && valid_token "$2" && { [ "$3" = 0 ] || [ "$3" = 1 ]; }
 }
 
-get_model_name() {
-	[ -f /tmp/sysinfo/model ] && cat /tmp/sysinfo/model 2>/dev/null && return
-	uname -m
-}
+valid_asset_name() { case "$1" in ''|.|..|*/*|*\\*|*[!A-Za-z0-9._-]*) return 1;; esac; }
+valid_url() { case "$1" in https://github.com/*|https://objects.githubusercontent.com/*|https://release-assets.githubusercontent.com/*) return 0;; esac; return 1; }
+
+get_board_name() { [ -r /tmp/sysinfo/board_name ] && { read -r board < /tmp/sysinfo/board_name; printf '%s\n' "$board"; return; }; uname -m; }
+get_model_name() { [ -r /tmp/sysinfo/model ] && { read -r model < /tmp/sysinfo/model; printf '%s\n' "$model"; return; }; uname -m; }
+get_version() { [ -r /etc/openwrt_version ] && cat /etc/openwrt_version || uname -r; }
+get_distribution() { [ -r /etc/openwrt_release ] && grep -qi immortalwrt /etc/openwrt_release && printf ImmortalWrt || printf OpenWrt; }
 
 detect_variant() {
-	local board="$1"
-	local ver=""
-	[ -f /etc/openwrt_version ] && ver=$(cat /etc/openwrt_version 2>/dev/null)
-	[ -z "$ver" ] && [ -f /etc/openwrt_release ] && ver=$(grep "DISTRIB_RELEASE=" /etc/openwrt_release 2>/dev/null | cut -d"'" -f2)
-
-	case "$board" in
-		*w1700k*)
-			case "$ver" in
-				*ubi2-oc*) echo "ubi2-oc" ;;
-				*) echo "ubi2" ;;
-			esac
-			;;
-		*mx4200*)
-			case "$board" in
-				*v2*) echo "v2" ;;
-				*) echo "v1" ;;
-			esac
-			;;
-		*)
-			echo ""
-			;;
+	case "$1" in
+		*w1700k*) grep -q 'ubi2-oc' /etc/openwrt_version 2>/dev/null && printf ubi2-oc || printf ubi2;;
+		*mx4200*v2*) printf v2;; *mx4200*) printf v1;; *) printf '';;
 	esac
 }
 
-detect_default_repo() {
-	local board="$1"
-	local distrib="OpenWrt"
-	[ -f /etc/openwrt_release ] && grep -qi "immortalwrt" /etc/openwrt_release && distrib="ImmortalWrt"
-
-	case "$board" in
-		*w1700k*)
-			if [ "$distrib" = "ImmortalWrt" ]; then
-				echo "yahuisme/w1700k-immortalwrt"
-			else
-				echo "yahuisme/w1700k-openwrt"
-			fi
-			;;
-		*mx4200*)
-			echo "yahuisme/mx4200-immortalwrt"
-			;;
-		*)
-			echo ""
-			;;
+default_repo() {
+	case "$1" in
+		*w1700k*) [ "$(get_distribution)" = ImmortalWrt ] && printf yahuisme/w1700k-immortalwrt || printf yahuisme/w1700k-openwrt;;
+		*mx4200*) printf yahuisme/mx4200-immortalwrt;; *) printf '';;
 	esac
 }
 
-get_local_version() {
-	if [ -f /etc/openwrt_version ]; then
-		cat /etc/openwrt_version 2>/dev/null
-	elif [ -f /etc/openwrt_release ]; then
-		local rev desc
-		rev=$(grep "DISTRIB_REVISION=" /etc/openwrt_release 2>/dev/null | cut -d"'" -f2)
-		desc=$(grep "DISTRIB_DESCRIPTION=" /etc/openwrt_release 2>/dev/null | cut -d"'" -f2)
-		[ -n "$desc" ] && echo "$desc" || echo "$rev"
-	else
-		uname -r
-	fi
-}
-
-action_system_info() {
-	local board model variant def_repo repo proxy keep_config lver dist
-	board=$(get_board_name)
-	model=$(get_model_name)
-	variant=$(detect_variant "$board")
-	def_repo=$(detect_default_repo "$board")
-	repo=$(uci -q get firmwareupgrade.main.repository)
-	[ -z "$repo" ] && repo="$def_repo"
-	proxy=$(uci -q get firmwareupgrade.main.proxy)
-	keep_config=$(uci -q get firmwareupgrade.main.keep_config)
-	[ -z "$keep_config" ] && keep_config="0"
-	lver=$(get_local_version)
-	dist="OpenWrt"
-	[ -f /etc/openwrt_release ] && grep -qi "immortalwrt" /etc/openwrt_release && dist="ImmortalWrt"
-
-	printf '{"board":'; quote "$board"
-	printf ',"model":'; quote "$model"
-	printf ',"variant":'; quote "$variant"
-	printf ',"distribution":'; quote "$dist"
-	printf ',"local_version":'; quote "$lver"
-	printf ',"repository":'; quote "$repo"
-	printf ',"default_repository":'; quote "$def_repo"
-	printf ',"proxy":'; quote "$proxy"
-	printf ',"keep_config":"%s"}\n' "$keep_config"
+system_info() {
+	board=$(get_board_name); repo=$(uci -q get firmwareupgrade.main.repository); def_repo=$(default_repo "$board")
+	[ -n "$repo" ] || repo="$def_repo"
+	printf '{"board":'; quote "$board"; printf ',"model":'; quote "$(get_model_name)"; printf ',"variant":'; quote "$(detect_variant "$board")"
+	printf ',"distribution":'; quote "$(get_distribution)"; printf ',"local_version":'; quote "$(get_version)"; printf ',"repository":'; quote "$repo"; printf ',"default_repository":'; quote "$def_repo"
+	printf ',"keep_config":"%s"}\n' "$(uci -q get firmwareupgrade.main.keep_config || printf 0)"
 }
 
 match_asset() {
-	local assets_json="$1"
-	local board="$2"
-	local variant="$3"
-
-	# Use awk to filter and match candidates without python
-	awk -v b="$board" -v v="$variant" '
-	function tolower_str(s) { return tolower(s) }
-	BEGIN {
-		lb = tolower(b);
-		lv = tolower(v);
-		best_idx = -1;
-		best_score = -999;
-		idx = 0;
-	}
-	{
-		# Input line format: INDEX\tNAME\tSIZE\tDIGEST\tURL
-		split($0, f, "\t");
-		idx = f[1];
-		name = f[2];
-		size = f[3];
-		digest = f[4];
-		url = f[5];
-		lname = tolower(name);
-
-		if (index(lname, "sysupgrade") == 0) next;
-		if (index(lname, "factory") > 0 || index(lname, "initramfs") > 0 || index(lname, "kernel") > 0 || index(lname, "rootfs") > 0) next;
-
-		score = 0;
-		if (index(lb, "w1700k") > 0) {
-			if (index(lname, "w1700k") > 0) score += 50;
-		} else if (index(lb, "mx4200") > 0) {
-			if (index(lname, "mx4200") > 0) score += 50;
-		}
-
-		if (lv == "ubi2-oc") {
-			if (index(lname, "ubi2-oc") > 0 || index(lname, "ubi2_oc") > 0 || index(lname, "-oc") > 0) score += 40;
-			else score -= 30;
-		} else if (lv == "ubi2") {
-			if (index(lname, "ubi2-oc") > 0 || index(lname, "ubi2_oc") > 0 || index(lname, "-oc") > 0) score -= 50;
-			else if (index(lname, "ubi2") > 0 || index(lname, "ubi") > 0) score += 40;
-		} else if (lv == "v1") {
-			if (index(lname, "v2") > 0 || index(lname, "mx4200v2") > 0) score -= 50;
-			else if (index(lname, "v1") > 0 || index(lname, "mx4200v1") > 0) score += 40;
-		} else if (lv == "v2") {
-			if (index(lname, "v2") > 0 || index(lname, "mx4200v2") > 0) score += 40;
-			else if (index(lname, "v1") > 0 || index(lname, "mx4200v1") > 0) score -= 50;
-		}
-
-		if (score > best_score) {
-			best_score = score;
-			best_idx = idx;
-			best_name = name;
-			best_size = size;
-			best_digest = digest;
-			best_url = url;
-		}
-	}
-	END {
-		if (best_score > 0) {
-			printf "%s\t%s\t%s\t%s\n", best_name, best_size, best_digest, best_url;
-		}
-	}
-	' "$assets_json"
+	awk -F '\t' -v board="$2" -v variant="$3" '
+	BEGIN { b=tolower(board); v=tolower(variant) }
+	$2 ~ /^[A-Za-z0-9._-]+$/ && tolower($2) ~ /sysupgrade/ && tolower($2) !~ /(factory|initramfs|kernel|rootfs)/ {
+	 n=tolower($2); score=0
+	 if (index(b,"w1700k")) { if (!index(n,"w1700k")) next; score=50 }
+	 else if (index(b,"mx4200")) { if (!index(n,"mx4200")) next; score=50 } else next
+	 if (v=="ubi2-oc") { if (n ~ /(ubi2-oc|ubi2_oc|-oc)/) score+=40; else next }
+	 else if (v=="ubi2") { if (n ~ /(ubi2-oc|ubi2_oc|-oc)/) next; if (n ~ /ubi/) score+=40; else next }
+	 else if (v=="v1") { if (n ~ /v2/) next; if (n ~ /(mx4200v1|-v1)/) score+=40; else next }
+	 else if (v=="v2") { if (n ~ /(mx4200v2|-v2)/) score+=40; else next }
+	 else next
+	 if (score > best) { best=score; line=$0 }
+	} END { if (best) print line }' "$1"
 }
 
-action_check_update() {
-	local board variant repo proxy token api_url auth_header tmp_json
-	board=$(get_board_name)
-	variant=$(detect_variant "$board")
-	repo=$(uci -q get firmwareupgrade.main.repository)
-	[ -z "$repo" ] && repo=$(detect_default_repo "$board")
-
-	if [ -z "$repo" ]; then
-		printf '{"success":false,"error":"未配置目标 GitHub 仓库 (如: owner/repo)"}\n'
-		return
-	fi
-
-	proxy=$(uci -q get firmwareupgrade.main.proxy)
-	token=$(uci -q get firmwareupgrade.main.token)
-
-	tmp_json=$(mktemp /tmp/fw_release.XXXXXX)
-	api_url="https://api.github.com/repos/${repo}/releases/latest"
-
-	auth_header=""
-	[ -n "$token" ] && auth_header="Authorization: Bearer $token"
-
-	if [ -n "$auth_header" ]; then
-		curl -s -f -m 15 -H "$auth_header" -H "User-Agent: OpenWrt-FirmwareUpgrade" -H "Accept: application/vnd.github+json" "$api_url" > "$tmp_json" 2>/dev/null
-	else
-		curl -s -f -m 15 -H "User-Agent: OpenWrt-FirmwareUpgrade" -H "Accept: application/vnd.github+json" "$api_url" > "$tmp_json" 2>/dev/null
-	fi
-
-	if [ ! -s "$tmp_json" ]; then
-		rm -f "$tmp_json"
-		printf '{"success":false,"error":"无法连接 GitHub API 或未找到最新 Release"}\n'
-		return
-	fi
-
-	# Extract metadata with jsonfilter
-	local tag_name published_at body
-	tag_name=$(jsonfilter -i "$tmp_json" -e '@.tag_name' 2>/dev/null)
-	published_at=$(jsonfilter -i "$tmp_json" -e '@.published_at' 2>/dev/null)
-	body=$(jsonfilter -i "$tmp_json" -e '@.body' 2>/dev/null)
-
-	if [ -z "$tag_name" ]; then
-		rm -f "$tmp_json"
-		printf '{"success":false,"error":"Release 数据解析失败"}\n'
-		return
-	fi
-
-	# Parse assets list to tab-separated file: idx\tname\tsize\tdigest\turl
-	local assets_tsv=$(mktemp /tmp/fw_assets.XXXXXX)
-	jsonfilter -i "$tmp_json" -e '@.assets[*]' | awk '
-	BEGIN { RS="}\n"; FS="\n"; }
-	{
-		name=""; size=0; digest=""; url="";
-		for (i=1; i<=NF; i++) {
-			if ($i ~ /"name":/) { gsub(/.*"name":\s*"|"\,?.*/, "", $i); name=$i; }
-			else if ($i ~ /"size":/) { gsub(/.*"size":\s*|\,?.*/, "", $i); size=$i; }
-			else if ($i ~ /"digest":/) { gsub(/.*"digest":\s*"|"\,?.*/, "", $i); digest=$i; }
-			else if ($i ~ /"browser_download_url":/) { gsub(/.*"browser_download_url":\s*"|"\,?.*/, "", $i); url=$i; }
-		}
-		if (name != "") printf "%d\t%s\t%s\t%s\t%s\n", NR, name, size, digest, url;
-	}
-	' > "$assets_tsv" 2>/dev/null
-
-	# Fallback asset table extraction if RS split differs
-	if [ ! -s "$assets_tsv" ]; then
-		awk '
-		BEGIN { in_assets=0; name=""; size=0; digest=""; url=""; idx=0; }
-		/"assets":\s*\[/ { in_assets=1; next; }
-		in_assets && /\{/ { name=""; size=0; digest=""; url=""; }
-		in_assets && /"name":/ { gsub(/.*"name":\s*"|",?.*/, ""); name=$0; }
-		in_assets && /"size":/ { gsub(/.*"size":\s*|,?.*/, ""); size=$0; }
-		in_assets && /"digest":/ { gsub(/.*"digest":\s*"|",?.*/, ""); digest=$0; }
-		in_assets && /"browser_download_url":/ { gsub(/.*"browser_download_url":\s*"|",?.*/, ""); url=$0; }
-		in_assets && /\}/ {
-			if (name != "") { idx++; printf "%d\t%s\t%s\t%s\t%s\n", idx, name, size, digest, url; }
-		}
-		in_assets && /\]/ { in_assets=0; }
-		' "$tmp_json" > "$assets_tsv"
-	fi
-
-	# Find sha256sums url
-	local sha256sums_url
-	sha256sums_url=$(awk -F'\t' '{lname=tolower($2); if (lname ~ /(sha256sums|sha256sum\.txt|\.sha256)$/) {print $5; exit}}' "$assets_tsv")
-	if [ -n "$proxy" ] && [ -n "$sha256sums_url" ]; then
-		case "$sha256sums_url" in
-			${proxy}*) ;;
-			*) sha256sums_url="${proxy%/}/${sha256sums_url}" ;;
-		esac
-	fi
-
-	# Match best sysupgrade asset
-	local match_res
-	match_res=$(match_asset "$assets_tsv" "$board" "$variant")
-	rm -f "$assets_tsv" "$tmp_json"
-
-	if [ -z "$match_res" ]; then
-		printf '{"success":false,"error":"在最新 Release (%s) 中未找到匹配当前设备 (%s %s) 的固件"}\n' "$tag_name" "$board" "$variant"
-		return
-	fi
-
-	local asset_name asset_size asset_digest asset_url sha256
-	asset_name=$(echo "$match_res" | cut -f1)
-	asset_size=$(echo "$match_res" | cut -f2)
-	asset_digest=$(echo "$match_res" | cut -f3)
-	asset_url=$(echo "$match_res" | cut -f4)
-
-	sha256=""
-	case "$asset_digest" in
-		sha256:*) sha256="${asset_digest#sha256:}" ;;
-	esac
-
-	if [ -n "$proxy" ]; then
-		case "$asset_url" in
-			${proxy}*) ;;
-			*) asset_url="${proxy%/}/${asset_url}" ;;
-		esac
-	fi
-
-	printf '{"success":true'
-	printf ',"tag_name":'; quote "$tag_name"
-	printf ',"published_at":'; quote "$published_at"
-	printf ',"body":'; quote "$body"
-	printf ',"asset_name":'; quote "$asset_name"
-	printf ',"asset_size":%s' "${asset_size:-0}"
-	printf ',"download_url":'; quote "$asset_url"
-	printf ',"sha256":'; quote "$sha256"
-	printf ',"sha256sums_url":'; quote "$sha256sums_url"
-	printf ',"repository":'; quote "$repo"
-	printf '}\n'
+release_check() {
+	board=$(get_board_name); variant=$(detect_variant "$board"); repo=$(uci -q get firmwareupgrade.main.repository); [ -n "$repo" ] || repo=$(default_repo "$board")
+	valid_repo "$repo" || { printf '{"success":false,"error":"未配置有效的 GitHub 仓库"}\n'; return; }
+	token=$(uci -q get firmwareupgrade.main.token); valid_token "$token" || { printf '{"success":false,"error":"仓库设置无效"}\n'; return; }
+	tmp=$(mktemp /tmp/firmwareupgrade-release.XXXXXX) || return
+	assets=$(mktemp /tmp/firmwareupgrade-assets.XXXXXX) || { rm -f "$tmp"; return; }
+	api="https://api.github.com/repos/$repo/releases/latest"
+	if [ -n "$token" ]; then curl --fail --silent --show-error --max-time 15 -H "Authorization: Bearer $token" -H 'Accept: application/vnd.github+json' -H 'User-Agent: OpenWrt-FirmwareUpgrade' "$api" > "$tmp"; else curl --fail --silent --show-error --max-time 15 -H 'Accept: application/vnd.github+json' -H 'User-Agent: OpenWrt-FirmwareUpgrade' "$api" > "$tmp"; fi
+	[ -s "$tmp" ] || { rm -f "$tmp" "$assets"; printf '{"success":false,"error":"无法获取最新 Release"}\n'; return; }
+	tag=$(jsonfilter -i "$tmp" -e '@.tag_name'); published=$(jsonfilter -i "$tmp" -e '@.published_at'); body=$(jsonfilter -i "$tmp" -e '@.body'); [ -n "$tag" ] || { rm -f "$tmp" "$assets"; printf '{"success":false,"error":"Release 数据解析失败"}\n'; return; }
+	jsonfilter -i "$tmp" -e '@.assets[*]' | while IFS= read -r asset; do
+		name=$(printf '%s' "$asset" | jsonfilter -e '@.name'); size=$(printf '%s' "$asset" | jsonfilter -e '@.size'); digest=$(printf '%s' "$asset" | jsonfilter -e '@.digest'); url=$(printf '%s' "$asset" | jsonfilter -e '@.browser_download_url')
+		valid_asset_name "$name" && valid_uint "$size" && valid_sha256 "${digest#sha256:}" && printf '%s	%s	%s	%s\n' "$name" "$size" "$digest" "$url"
+	done > "$assets"
+	rm -f "$tmp"
+	match=$(match_asset "$assets" "$board" "$variant"); rm -f "$assets"; [ -n "$match" ] || { printf '{"success":false,"error":"未找到可验证的匹配固件"}\n'; return; }
+	IFS="$(printf '	')" read -r name size digest url <<EOF
+$match
+EOF
+	sha=${digest#sha256:}; valid_sha256 "$sha" || { printf '{"success":false,"error":"固件缺少可信 SHA256"}\n'; return; }
+	candidate=$(mktemp /var/run/firmwareupgrade.candidate.XXXXXX) || return
+	printf '%s\n%s\n%s\n%s\n' "$url" "$name" "$sha" "$size" > "$candidate" && chmod 600 "$candidate" && mv -f "$candidate" "$CANDIDATE_FILE" || { rm -f "$candidate"; printf '{"success":false,"error":"无法保存待升级固件信息"}\n'; return; }
+	printf '{"success":true,"tag_name":'; quote "$tag"; printf ',"published_at":'; quote "$published"; printf ',"body":'; quote "$body"; printf ',"asset_name":'; quote "$name"; printf ',"asset_size":%s,"sha256":' "$size"; quote "$sha"; printf '}\n'
 }
 
-action_get_status() {
-	if [ -f "$STATUS_FILE" ]; then
-		cat "$STATUS_FILE"
-	else
-		printf '{"stage":"idle","percent":0,"message":""}\n'
-	fi
-}
-
-action_start_upgrade() {
-	local input keep_config download_url asset_name sha256 sha256sums_url asset_size
-	input=$(cat)
-
-	if [ -f "$PID_FILE" ]; then
-		local pid
-		pid=$(cat "$PID_FILE" 2>/dev/null)
-		if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-			printf '{"success":false,"error":"已有升级任务正在运行中"}\n'
-			return
-		fi
-	fi
-
-	download_url=$(jsonfilter -s "$input" -e '@.download_url' 2>/dev/null)
-	asset_name=$(jsonfilter -s "$input" -e '@.asset_name' 2>/dev/null)
-	sha256=$(jsonfilter -s "$input" -e '@.sha256' 2>/dev/null)
-	sha256sums_url=$(jsonfilter -s "$input" -e '@.sha256sums_url' 2>/dev/null)
-	keep_config=$(jsonfilter -s "$input" -e '@.keep_config' 2>/dev/null)
-	asset_size=$(jsonfilter -s "$input" -e '@.asset_size' 2>/dev/null)
-	[ -z "$keep_config" ] && keep_config="0"
-	[ -z "$asset_size" ] && asset_size="0"
-
-	if [ -z "$download_url" ] || [ -z "$asset_name" ]; then
-		printf '{"success":false,"error":"缺少必要下载参数"}\n'
+start_upgrade() {
+	if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+		printf '{"success":false,"error":"已有升级任务正在启动"}\n'
 		return
 	fi
-
-	"$WORKER_SCRIPT" "$download_url" "$asset_name" "$sha256" "$sha256sums_url" "$keep_config" "$asset_size" >/dev/null 2>&1 &
-	echo "$!" > "$PID_FILE"
-
-	printf '{"success":true,"message":"升级任务已在后台启动"}\n'
-}
-
-action_cancel_upgrade() {
-	if [ -f "$PID_FILE" ]; then
-		local pid
-		pid=$(cat "$PID_FILE" 2>/dev/null)
-		if [ -n "$pid" ]; then
-			kill "$pid" 2>/dev/null
-			killall -9 curl wget 2>/dev/null
-		fi
-		rm -f "$PID_FILE"
-	fi
-	printf '{"stage":"idle","percent":0,"message":"升级已取消"}\n' > "$STATUS_FILE"
+	trap 'rmdir "$LOCK_DIR" 2>/dev/null' EXIT
+	input=$(cat); keep=$(jsonfilter -s "$input" -e '@.keep_config'); [ "$keep" = 0 ] || [ "$keep" = 1 ] || { printf '{"success":false,"error":"Invalid upgrade mode"}\n'; return; }
+	[ -f "$PID_FILE" ] && read -r pid < "$PID_FILE" && kill -0 "$pid" 2>/dev/null && { printf '{"success":false,"error":"已有升级任务正在运行"}\n'; return; }
+	[ -r "$CANDIDATE_FILE" ] || { printf '{"success":false,"error":"Invalid upgrade request: 请重新检查更新"}\n'; return; }
+	{ IFS= read -r url; IFS= read -r name; IFS= read -r sha; IFS= read -r size; } < "$CANDIDATE_FILE"
+	valid_url "$url" && valid_asset_name "$name" && valid_sha256 "$sha" && valid_uint "$size" && [ "$size" -gt 0 ] || { rm -f "$CANDIDATE_FILE"; printf '{"success":false,"error":"Invalid upgrade request: 待升级信息无效"}\n'; return; }
+	rm -f "$CANDIDATE_FILE"
+	"$WORKER_SCRIPT" "$url" "$name" "$sha" "$keep" "$size" >/dev/null 2>&1 & echo "$!" > "$PID_FILE"
 	printf '{"success":true}\n'
 }
 
-action_save_settings() {
-	local input repo proxy token keep_config
-	input=$(cat)
-
-	repo=$(jsonfilter -s "$input" -e '@.repository' 2>/dev/null | tr -d ' \t\r\n')
-	proxy=$(jsonfilter -s "$input" -e '@.proxy' 2>/dev/null | tr -d ' \t\r\n')
-	token=$(jsonfilter -s "$input" -e '@.token' 2>/dev/null | tr -d ' \t\r\n')
-	keep_config=$(jsonfilter -s "$input" -e '@.keep_config' 2>/dev/null | tr -d ' \t\r\n')
-	[ -z "$keep_config" ] && keep_config="0"
-
-	uci -q batch <<-EOF >/dev/null
-		set firmwareupgrade.main.repository="$repo"
-		set firmwareupgrade.main.proxy="$proxy"
-		set firmwareupgrade.main.token="$token"
-		set firmwareupgrade.main.keep_config="$keep_config"
-		commit firmwareupgrade
-	EOF
-
+save_settings() {
+	input=$(cat); repo=$(jsonfilter -s "$input" -e '@.repository'); token=$(jsonfilter -s "$input" -e '@.token'); keep=$(jsonfilter -s "$input" -e '@.keep_config')
+	[ -n "$token" ] || token=$(uci -q get firmwareupgrade.main.token)
+	validate_settings "$repo" "$token" "$keep" || { printf '{"success":false,"error":"Invalid settings"}\n'; return; }
+	uci -q set firmwareupgrade.main.repository="$repo" && uci -q set firmwareupgrade.main.token="$token" && uci -q set firmwareupgrade.main.keep_config="$keep" && uci -q commit firmwareupgrade || { printf '{"success":false,"error":"Failed to save settings"}\n'; return; }
+	[ "$(uci -q get firmwareupgrade.main.repository)" = "$repo" ] && [ "$(uci -q get firmwareupgrade.main.token)" = "$token" ] && [ "$(uci -q get firmwareupgrade.main.keep_config)" = "$keep" ] || { printf '{"success":false,"error":"Settings verification failed"}\n'; return; }
 	printf '{"success":true}\n'
 }
+
+status() { [ -r "$STATUS_FILE" ] && cat "$STATUS_FILE" || printf '{"stage":"idle","percent":0,"message":""}\n'; }
 
 case "$1" in
-	list)
-		printf '{"getSystemInfo":{},"checkUpdate":{},"getStatus":{},"startUpgrade":{"download_url":"str","asset_name":"str","sha256":"str","sha256sums_url":"str","keep_config":"str","asset_size":"str"},"cancelUpgrade":{},"saveSettings":{"repository":"str","proxy":"str","token":"str","keep_config":"str"}}\n'
-		;;
-	call)
-		case "$2" in
-			getSystemInfo) action_system_info ;;
-			checkUpdate) action_check_update ;;
-			getStatus) action_get_status ;;
-			startUpgrade) action_start_upgrade ;;
-			cancelUpgrade) action_cancel_upgrade ;;
-			saveSettings) action_save_settings ;;
-			*) printf '{"error":"unsupported"}\n' ;;
-		esac
-		;;
-	test_match)
-		match_asset "$2" "$3" "$4"
-		;;
-	*)
-		printf '{"error":"invalid_command"}\n'
-		;;
+	list) printf '{"getSystemInfo":{},"checkUpdate":{},"getStatus":{},"startUpgrade":{"keep_config":"str"},"saveSettings":{"repository":"str","token":"str","keep_config":"str"}}\n';;
+	call) case "$2" in getSystemInfo) system_info;; checkUpdate) release_check;; getStatus) status;; startUpgrade) start_upgrade;; saveSettings) save_settings;; *) printf '{"error":"unsupported"}\n';; esac;;
+	test_match) match_asset "$2" "$3" "$4";;
+	test_start) start_upgrade;;
+	*) printf '{"error":"invalid_command"}\n';;
 esac

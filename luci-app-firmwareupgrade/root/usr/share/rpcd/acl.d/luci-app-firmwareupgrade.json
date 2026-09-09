@@ -9,7 +9,7 @@
 		},
 		"write": {
 			"ubus": {
-				"luci.firmwareupgrade": [ "startUpgrade", "cancelUpgrade", "saveSettings" ]
+				"luci.firmwareupgrade": [ "startUpgrade", "saveSettings" ]
 			},
 			"uci": [ "firmwareupgrade" ]
 		}
