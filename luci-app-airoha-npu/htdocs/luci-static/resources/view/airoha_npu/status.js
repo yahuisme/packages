@@ -17,13 +17,6 @@ var themeCSS = '\
 @media(max-width:760px){.npu-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.npu-detail-grid{grid-template-columns:1fr}}@media(max-width:480px){.npu-summary-grid{grid-template-columns:1fr}.npu-summary-card{min-height:64px}.npu-panel{padding:10px}}\
 ';
 
-function injectCSS() {
-	if (document.getElementById('npu-theme-css')) return;
-	var el = document.createElement('style');
-	el.id = 'npu-theme-css';
-	el.textContent = themeCSS;
-	document.head.appendChild(el);
-}
 
 function text(value) { return value == null || value === '' ? _('Unknown') : String(value); }
 function nodeText(value) { return [text(value)]; }
@@ -55,7 +48,6 @@ return view.extend({
 	},
 
 	render: function(data) {
-		injectCSS();
 		var self = this;
 		var info = data[0] || {};
 		var status = data[1] || {};
@@ -134,6 +126,7 @@ return view.extend({
 		}
 
 		var page = E('div', { 'class': 'cbi-map npu-dashboard' }, [
+			E('style', {}, themeCSS),
 			E('div', { 'class': 'cbi-map-descr' }, _('View real-time Airoha SoC frequency, NPU acceleration, and system status.')),
 			E('div', { 'class': 'npu-summary-grid' }, [
 				summaryCard('freq', _('CPU Frequency'), cards.freq),

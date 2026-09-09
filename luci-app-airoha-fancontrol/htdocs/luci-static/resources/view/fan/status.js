@@ -25,13 +25,6 @@ var statusCSS = '\
 @media(max-width:480px){.fan-summary-grid{grid-template-columns:1fr}.fan-panel{padding:10px}}\
 ';
 
-function injectCSS() {
-	if (document.getElementById('fan-status-css')) return;
-	var style = document.createElement('style');
-	style.id = 'fan-status-css';
-	style.textContent = statusCSS;
-	document.head.appendChild(style);
-}
 
 function validNumber(value, min, max) {
 	return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
@@ -128,9 +121,9 @@ return view.extend({
 	},
 
 	render: function(data) {
-		injectCSS();
 		var status = data || {};
 		var viewEl = E('div', { 'class': 'cbi-map fan-dashboard' }, [
+			E('style', {}, statusCSS),
 			E('div', { 'class': 'cbi-map-descr' }, _('View fan speed and system temperatures.')),
 			renderSummary(status),
 			E('div', { 'class': 'fan-panel' }, [

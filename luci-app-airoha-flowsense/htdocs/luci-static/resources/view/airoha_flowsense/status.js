@@ -21,10 +21,6 @@ var css = `
 .flowsense-dashboard .cbi-input-text,.flowsense-dashboard .cbi-button{min-height:32px;box-sizing:border-box}
 `;
 
-function installCSS() {
-	if (document.getElementById('flowsense-css')) return;
-	var style = document.createElement('style'); style.id = 'flowsense-css'; style.textContent = css; document.head.appendChild(style);
-}
 
 function number(value, min, max) { return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max ? value : null; }
 function text(value) { return typeof value === 'string' ? value : ''; }
@@ -55,8 +51,7 @@ return view.extend({
 	load: function() { return getOverview().catch(function() { return null; }); },
 
 	render: function(initial) {
-		installCSS();
-		var root = E('div', { 'class': 'cbi-map flowsense-dashboard' });
+		var root = E('div', { 'class': 'cbi-map flowsense-dashboard' }, [E('style', {}, css)]);
 		var message = E('div', { 'class': 'cbi-map-descr' }, _('Waiting for data'));
 		var summary = E('div', { 'class': 'flowsense-summary' });
 		var interfaces = E('div');
