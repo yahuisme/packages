@@ -16,6 +16,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@main
 
+      - name: Setup Git Identity
+        run: |
+          git config user.name "yahuisme"
+          git config user.email "40222380+yahuisme@users.noreply.github.com"
+
       - name: Update sing-box
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -37,6 +42,8 @@ jobs:
             sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${VERSION}/" sing-box/Makefile
             sed -i "s/^PKG_HASH:=.*/PKG_HASH:=${HASH}/" sing-box/Makefile
             sed -i "s/^PKG_RELEASE:=.*/PKG_RELEASE:=1/" sing-box/Makefile
+            git add sing-box/
+            git commit -m "chore: update sing-box to ${VERSION}"
             echo "sing-box updated to ${VERSION}"
           fi
 
@@ -67,7 +74,6 @@ jobs:
             echo "$IP_VER" > "$RES_DIR/china_ip4.ver"
             echo "$IP_VER" > "$RES_DIR/china_ip6.ver"
           fi
-          echo "HomeProxy China IP resources updated."
 
           # 2. Update geosite_cn.srs
           GEOSITE_VER=$(gh api repos/SagerNet/sing-geosite/releases/latest --jq .tag_name 2>/dev/null || echo "")
@@ -79,13 +85,20 @@ jobs:
           if [ -n "$GEOSITE_VER" ] && [ "$GEOSITE_VER" != "latest" ]; then
             echo "$GEOSITE_VER" > "$RES_DIR/geosite_cn.ver"
           fi
-          echo "HomeProxy geosite_cn.srs updated."
 
-      - name: Commit and Push
+          if ! git diff --quiet "$RES_DIR"; then
+            git add "$RES_DIR"
+            RES_LABEL="${IP_VER:-${GEOSITE_VER:-}}"
+            if [ -n "$RES_LABEL" ]; then
+              git commit -m "chore: update resources to ${RES_LABEL}"
+            else
+              git commit -m "chore: update resources"
+            fi
+            echo "HomeProxy resources updated."
+          fi
+
+      - name: Push Changes
         run: |
-          git diff --quiet && exit 0
-
-          git config user.name "yahuisme"
-          git config user.email "40222380+yahuisme@users.noreply.github.com"
-          git commit -am "chore: update packages and resources"
-          git push
+          if [ -n "$(git log origin/main..HEAD --oneline)" ]; then
+            git push
+          fi
