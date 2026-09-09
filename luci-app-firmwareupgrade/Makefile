@@ -17,6 +17,10 @@ LUCI_TITLE:=LuCI Support for One-Click Firmware Upgrade
 LUCI_DEPENDS:=+luci-base +curl +ca-bundle +jsonfilter
 LUCI_PKGARCH:=all
 
+define Package/$(LUCI_PKGNAME)/conffiles
+/etc/config/firmwareupgrade
+endef
+
 include $(TOPDIR)/feeds/luci/luci.mk
 
 # call BuildPackage - OpenWrt buildroot signature
