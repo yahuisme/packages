@@ -1,7 +1,14 @@
 msgid ""
 msgstr ""
-"Content-Type: text/plain; charset=UTF-8
-"
+"Project-Id-Version: luci-app-airoha-fancontrol\n"
+"PO-Revision-Date: 2026-09-09 00:00+0000\n"
+"Last-Translator: yahuisme\n"
+"Language-Team: Chinese (Simplified)\n"
+"Language: zh_Hans\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 msgid "10G LAN"
 msgstr ""

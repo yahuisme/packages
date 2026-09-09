@@ -4,7 +4,7 @@ String.prototype.format=function(...a){let i=0;return this.replace(/%[sd]/g,()=>
 const L={toArray:v=>v==null?[]:Array.isArray(v)?v:String(v).split(/\s+/),naturalCompare:(a,b)=>a.localeCompare(b)};
 const rpc={declare:()=>()=>Promise.resolve({})};
 const uci={sections:()=>[{'.name':'mlo0',mlo:'1',device:['radio0','radio1']}]};
-const f=Function('rpc','L','uci','_',source.slice(0,source.indexOf('return view.extend'))+'return {flattenRuntime,uniqueValues};')(rpc,L,uci,x=>x);
+const f=Function('rpc','L','uci','_',source.slice(0,source.indexOf('return baseclass.extend'))+'return {flattenRuntime,uniqueValues};')(rpc,L,uci,x=>x);
 let runtime=f.flattenRuntime({radio0:{up:true,interfaces:[{section:'mlo0',ifname:'ap-mld0',mld:true},{section:'mlo0',ifname:'ap-mld0',mld:true}]},radio1:{up:false,interfaces:[{section:'mlo0',ifname:'ap-mld1',mld:true}]}});
 assert.deepEqual(runtime.activeMldIfnames,['ap-mld0']);
 assert.equal(runtime.sections.mlo0.up,true);

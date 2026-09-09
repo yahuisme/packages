@@ -19,8 +19,8 @@ async function boot({readonly=false,unknown=false,iface={}}={}) {
  load('rpc');const rpc=mods.rpc; const replies=[];
  rpc.declare=spec=>async(...args)=>{if(unknown&&spec.object!=='session')throw new Error('fixture RPC unavailable');let value=spec.object==='session'?{access:!readonly}:{radio0:{up:true,config:{band:'5g'},interfaces:[{section:'test',ifname:'ap-mld0',config:{device:['radio0','radio1'],mode:'ap'}}]}};replies.push({spec,args});return new Promise((resolve,reject)=>rpc.handleCallReply({...spec,resolve,reject,priv:[]},clone({jsonrpc:'2.0',result:[0,value]})));};
  mods.fs={};load('validation');load('ui');load('form');
- mods.poll.add=()=>{};mods.view=mods.baseclass.extend({});
- const src=SOURCE;const deps=['view','form','uci','ui','poll','rpc'];let C=w.Function(...deps,src)(...deps.map(n=>mods[n]));const app=new C();
+ mods.poll.add=()=>{};
+ const src=SOURCE;const deps=['baseclass','form','uci','ui','poll','rpc'];let C=w.Function(...deps,src)(...deps.map(n=>mods[n]));const app=new C();
  const node=await app.render(await app.load());w.document.getElementById('view').append(node);
  const map=mods.dom.findClassInstance(node);return {j,w,mods,db,writes,node,map,app,clone,hash:crypto.createHash('sha256').update(src).digest('hex')};
 }

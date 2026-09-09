@@ -4,18 +4,22 @@
 'require poll';
 'require ui';
 
-var getOverview = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getOverview', raise: true });
-var getPpeEntries = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getPpeEntries', raise: true });
-var setMonitor = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setMonitor', params: ['target', 'enabled'], raise: true });
+var getOverview = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getOverview', reject: true });
+var getPpeEntries = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getPpeEntries', reject: true });
+var setMonitor = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setMonitor', params: ['target', 'enabled'], reject: true });
 
-var css = '\
-.flowsense-summary{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:8px;margin:12px 0}\
-.flowsense-card{padding:10px 12px;min-height:72px;box-sizing:border-box;background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#ddd);border-radius:6px}\
-.flowsense-label{font-size:11px;font-weight:500;color:var(--cbi-muted-color,#666);text-transform:uppercase;letter-spacing:.04em}.flowsense-value{display:block;margin-top:3px;font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}.flowsense-sub{font-size:12px;color:var(--cbi-muted-color,#888)}\
-.flowsense-status{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border:1px solid var(--cbi-border-color,#ddd);border-radius:4px;font-size:12px}.flowsense-up{color:var(--cbi-success-color,#10b981);border-color:currentColor}.flowsense-up:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}.flowsense-down{color:var(--cbi-muted-color,#888)}\
-.flowsense-section{margin:12px 0}.flowsense-section .cbi-value{padding:7px 0;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,.12))}.flowsense-section .cbi-value:last-child{border-bottom:0}.flowsense-port{margin:8px 0;padding:10px 12px;border:1px solid var(--cbi-border-color,#ddd);border-radius:6px}.flowsense-port-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;font-weight:600}.flowsense-port-name{font-family:ui-monospace,monospace}.flowsense-details{margin-top:8px}.flowsense-details summary{cursor:pointer;color:var(--cbi-link-color,#0ea5e9)}\
-@media(max-width:760px){.flowsense-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:480px){.flowsense-summary{grid-template-columns:1fr}.flowsense-card{min-height:64px}}\
-';
+var css = `
+.flowsense-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:16px;margin:16px 0}
+.flowsense-card{padding:8px 0;min-width:0;box-sizing:border-box}
+.flowsense-label{font-size:inherit;font-weight:500;color:var(--cbi-muted-color,#666)}
+.flowsense-value{display:block;margin-top:8px;font-size:18px;font-weight:500;font-variant-numeric:tabular-nums}
+.flowsense-sub{color:var(--cbi-muted-color,#888)}
+.flowsense-status{font-size:inherit;color:inherit}
+.flowsense-section{margin:16px 0}.flowsense-section .cbi-value{padding:8px 0}
+.flowsense-port{margin:16px 0;padding:8px 0}.flowsense-port-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;font-weight:500}
+.flowsense-details{margin-top:16px}.flowsense-details summary{cursor:pointer;min-height:32px}
+.flowsense-dashboard .cbi-input-text,.flowsense-dashboard .cbi-button{min-height:32px;box-sizing:border-box}
+`;
 
 function installCSS() {
 	if (document.getElementById('flowsense-css')) return;
@@ -29,7 +33,7 @@ function rate(bytes, previous, seconds) {
 	return current != null && old != null && seconds > 0 && current >= old ? (current - old) * 8 / seconds / 1000000 : null;
 }
 function formatRate(value) { return value == null ? '—' : (value < 1 ? value.toFixed(2) : value.toFixed(value < 10 ? 1 : 0)) + ' Mbit/s'; }
-function metric(label, value) { return E('div', { 'class': 'cbi-value' }, [E('span', { 'class': 'cbi-value-title' }, label), E('div', { 'class': 'cbi-value-field' }, value)]); }
+function metric(label, value) { return E('div', { 'class': 'cbi-value' }, [E(value && value.id ? 'label' : 'span', { 'class': 'cbi-value-title', 'for': value && value.id || null }, label), E('div', { 'class': 'cbi-value-field' }, value)]); }
 function statusBadge(carrier) {
 	var up = carrier === 1 || carrier === true, down = carrier === 0 || carrier === false;
 	return E('span', { 'class': 'flowsense-status' + (up ? ' flowsense-up' : down ? ' flowsense-down' : '') }, up ? _('Up') : down ? _('Down') : _('Unknown'));
@@ -45,7 +49,10 @@ function validTarget(value) {
 }
 
 return view.extend({
-	load: function() { return getOverview().catch(function() { return {}; }); },
+	handleSave: null,
+	handleSaveApply: null,
+	handleReset: null,
+	load: function() { return getOverview().catch(function() { return null; }); },
 
 	render: function(initial) {
 		installCSS();
@@ -58,7 +65,7 @@ return view.extend({
 		var target = E('input', { id: 'flowsense-target', 'class': 'cbi-input-text', maxlength: 253, placeholder: '223.5.5.5' });
 		var enabled = E('input', { id: 'flowsense-enabled', type: 'checkbox', 'class': 'cbi-input-checkbox' });
 		var apply = E('button', { 'class': 'cbi-button cbi-button-action cbi-button-primary' }, _('Save & Apply'));
-		var previous = null, dirty = false, pending = null;
+		var previous = null, dirty = false, pending = null, ppePending = null, generation = 0, online = false;
 		target.addEventListener('input', function() { dirty = true; }); enabled.addEventListener('change', function() { dirty = true; });
 		apply.addEventListener('click', function() {
 			if (!validTarget(target.value)) { ui.addNotification(null, E('p', {}, _('Enter a valid IPv4 address or hostname.')), 'error'); target.focus(); return; }
@@ -82,6 +89,12 @@ return view.extend({
 			if (pending) return pending;
 			pending = getOverview().then(function(data) {
 				if (!root.isConnected) return;
+				paint(data);
+			}).catch(clear).finally(function() { pending = null; });
+			return pending;
+		}
+		function paint(data) {
+				online = true;
 				data = data && typeof data === 'object' ? data : {};
 				var jitter = data.jitter && typeof data.jitter === 'object' ? data.jitter : null;
 				var ports = Array.isArray(data.interfaces) ? data.interfaces.filter(function(port) { return port && typeof port.device === 'string' && port.device !== 'eth0' && port.stats && typeof port.stats === 'object'; }) : [];
@@ -94,27 +107,45 @@ return view.extend({
 					if (rx != null) { totalRx += rx; rxOk++; } if (tx != null) { totalTx += tx; txOk++; }
 					interfaces.appendChild(E('div', { 'class': 'flowsense-port' }, [E('div', { 'class': 'flowsense-port-title' }, [E('span', { 'class': 'flowsense-port-name' }, port.device), statusBadge(port.carrier)]), metric(_('Speed'), number(port.speed, 0, 1000000) == null ? '—' : port.speed + ' Mbit/s'), metric(_('RX / TX rate'), formatRate(rx) + ' / ' + formatRate(tx)), metric(_('RX / TX errors'), (number(port.stats.rx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : port.stats.rx_errors) + ' / ' + (number(port.stats.tx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : port.stats.tx_errors))]));
 				});
-				var ppeData = data.ppe && typeof data.ppe === 'object' ? data.ppe : {};
-				summary.replaceChildren(card(_('Total Port Receive Rate'), rxOk === ports.length && ports.length ? formatRate(totalRx) : '—', rxOk + ' / ' + ports.length), card(_('Total Port Transmit Rate'), txOk === ports.length && ports.length ? formatRate(totalTx) : '—', txOk + ' / ' + ports.length), card(_('PPE Flow Engine'), ppeData.available === true ? (number(ppeData.bnd, 0, 1000000) == null ? _('Unavailable') : ppeData.bnd + ' ' + _('Flows')) : _('Unavailable'), ppeData.available === true && number(ppeData.unb, 0, 1000000) != null ? _('Unbound') + ': ' + ppeData.unb : '—'), card(_('Network Quality'), jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : '—', jitter && number(jitter.loss, 0, 100) != null ? _('Loss') + ': ' + jitter.loss + '%' : _('Probe data unavailable')));
+				summary.replaceChildren(card(_('Total Port Receive Rate'), rxOk === ports.length && ports.length ? formatRate(totalRx) : '—', rxOk + ' / ' + ports.length), card(_('Total Port Transmit Rate'), txOk === ports.length && ports.length ? formatRate(totalTx) : '—', txOk + ' / ' + ports.length), card(_('PPE Flow Engine'), data.configured_hw === true ? _('Enabled') : data.configured_hw === false ? _('Disabled') : _('Unknown'), _('Hardware flow offload')), card(_('Network Quality'), jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : '—', jitter && number(jitter.loss, 0, 100) != null ? _('Loss') + ': ' + jitter.loss + '%' : _('Probe data unavailable')));
 				quality.replaceChildren(E('h3', { 'class': 'cbi-section-title' }, _('Link Quality')), metric(_('Latest RTT'), jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : _('Probe data unavailable')), metric(_('RTT mean absolute deviation'), jitter && number(jitter.deviation, 0, 60000) != null ? jitter.deviation + ' ms' : '—'), metric(_('Window packet loss'), jitter && number(jitter.loss, 0, 100) != null ? jitter.loss + '%' : '—'), metric(_('Hardware flow offload'), data.configured_hw === true ? _('Enabled') : data.configured_hw === false ? _('Disabled') : _('Unknown')), metric(_('Software flow offload'), data.configured_sw === true ? _('Enabled') : data.configured_sw === false ? _('Disabled') : _('Unknown')));
 				previous = { time: number(data.uptime, 0, Number.MAX_SAFE_INTEGER) || 0, ports: {} }; ports.forEach(function(port) { previous.ports[port.device] = port.stats; });
 				message.textContent = data.timestamp ? _('Last update') + ': ' + new Date(data.timestamp * 1000).toLocaleTimeString() : _('Data unavailable');
-				if (details.open) return loadPpe();
-			}).catch(function() { if (!root.isConnected) return; previous = null; message.textContent = _('Data unavailable; previous readings cleared.'); interfaces.replaceChildren(); }).finally(function() { pending = null; });
-			return pending;
+				}
+		function clear() {
+			if (!root.isConnected) return;
+			previous = null; online = false; generation++;
+			message.textContent = _('Data unavailable; previous readings cleared.');
+			[interfaces, summary, quality, ppe].forEach(function(node) { node.replaceChildren(); });
 		}
-		function loadPpe() { return getPpeEntries().then(function(result) { ppe.replaceChildren(); if (!result || result.available !== true || !Array.isArray(result.entries)) { ppe.appendChild(E('p', {}, _('PPE data unavailable'))); return; } ppe.appendChild(E('p', {}, _('Shown / Total') + ': ' + result.entries.length + ' / ' + (number(result.total, 0, 1000000) == null ? '—' : result.total))); result.entries.forEach(function(entry) { if (!entry || typeof entry !== 'object') return; ppe.appendChild(E('div', { 'class': 'cbi-value' }, [E('span', { 'class': 'cbi-value-title' }, text(entry.index)), E('div', { 'class': 'cbi-value-field' }, text(entry.state) + ' · ' + text(entry.type))])); }); }).catch(function() { ppe.replaceChildren(E('p', {}, _('PPE data unavailable'))); }); }
-		details.addEventListener('toggle', function() { if (details.open) loadPpe(); });
+		function loadPpe() {
+			if (!root.isConnected || !details.open || !online) return Promise.resolve();
+			if (ppePending) return ppePending;
+			var requestGeneration = generation;
+			ppePending = getPpeEntries().then(function(result) {
+				if (!root.isConnected || !details.open || requestGeneration !== generation) return;
+				ppe.replaceChildren();
+				if (!result || result.available !== true || !Array.isArray(result.entries)) { ppe.appendChild(E('p', {}, _('PPE data unavailable'))); return; }
+				ppe.appendChild(E('p', {}, _('Shown / Total') + ': ' + result.entries.length + ' / ' + (number(result.total, 0, 1000000) == null ? '—' : result.total)));
+				result.entries.forEach(function(entry) { if (!entry || typeof entry !== 'object') return; ppe.appendChild(metric(text(entry.index), text(entry.state) + ' · ' + text(entry.type))); });
+			}).catch(function() {
+				if (root.isConnected && details.open && requestGeneration === generation) ppe.replaceChildren(E('p', {}, _('PPE data unavailable')));
+			}).finally(function() { ppePending = null; });
+			return ppePending;
+		}
+		details.addEventListener('toggle', function() { if (details.open) loadPpe(); else { generation++; ppe.replaceChildren(); } });
 		requestAnimationFrame(function() {
 			if (!root.isConnected) return;
 			var removal = new MutationObserver(function() {
 				if (root.isConnected) return;
 				poll.remove(update);
+				poll.remove(loadPpe); generation++;
 				removal.disconnect();
 			});
 			removal.observe(document.body, { childList: true, subtree: true });
-			update();
+			if (initial) paint(initial); else clear();
 			poll.add(update, 5);
+			poll.add(loadPpe, 30);
 		});
 		return root;
 	}

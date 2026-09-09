@@ -1,5 +1,5 @@
 'use strict';
-'require view';
+'require baseclass';
 'require form';
 'require uci';
 'require ui';
@@ -166,7 +166,7 @@ function overview(sectionId, radiosByName, runtime) {
 	]);
 }
 
-return view.extend({
+return baseclass.extend({
 	load: function() {
 		return Promise.all([ uci.load('wireless'), uci.load('network'), fetchRuntime() ]);
 	},
@@ -299,7 +299,7 @@ return view.extend({
 
 		return map.render().then(function(nodes) {
 			nodes.classList.add('mlo-map');
-			nodes.appendChild(E('style', {}, '.mlo-map .mlo-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:8px 0 14px}.mlo-map .mlo-summary-item{min-height:76px;padding:10px 12px;box-sizing:border-box;border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;background:var(--cbi-section-bg,transparent);display:flex;flex-direction:column;justify-content:center}.mlo-map .mlo-summary-label{font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--cbi-muted-color,#666)}.mlo-map .mlo-summary-item strong{font-size:16px;font-weight:500;line-height:1.4}.mlo-map .mlo-summary-item small{font-size:12px;color:var(--cbi-muted-color,#888);overflow-wrap:anywhere}.mlo-map .mlo-active{color:var(--cbi-link-color,#0ea5e9)}.mlo-map .mlo-muted{color:var(--cbi-muted-color,#888)}.mlo-map .mlo-warning strong{color:var(--cbi-warning-color,#b45309)}.mlo-map .mlo-overview{display:grid;gap:2px;min-width:180px;overflow-wrap:anywhere}.mlo-map .mlo-overview-primary{font-weight:500}.mlo-map .mlo-overview span:not(.mlo-overview-primary){font-size:12px;color:var(--cbi-muted-color,#666)}@media(max-width:760px){.mlo-map .mlo-summary{grid-template-columns:1fr}.mlo-map .mlo-overview{min-width:0}}'));
+			nodes.appendChild(E('style', {}, '.mlo-map .mlo-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:8px 0 16px}.mlo-map .mlo-summary-item{min-height:80px;padding:16px;box-sizing:border-box;border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;background:var(--cbi-section-bg,transparent);display:flex;flex-direction:column;justify-content:center}.mlo-map .mlo-summary-label{font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--cbi-muted-color,#666)}.mlo-map .mlo-summary-item strong{font-size:16px;font-weight:500;line-height:1.4}.mlo-map .mlo-summary-item small{font-size:12px;color:var(--cbi-muted-color,#888);overflow-wrap:anywhere}.mlo-map .mlo-active{color:inherit}.mlo-map .mlo-muted{color:var(--cbi-muted-color,#888)}.mlo-map .mlo-warning strong{color:var(--cbi-warning-color,#b45309)}.mlo-map .mlo-overview{display:grid;gap:8px;min-width:180px;overflow-wrap:anywhere}.mlo-map .mlo-overview-primary{font-weight:500}.mlo-map .mlo-overview span:not(.mlo-overview-primary){font-size:12px;color:var(--cbi-muted-color,#666)}@media(max-width:760px){.mlo-map .mlo-summary{grid-template-columns:1fr}.mlo-map .mlo-overview{min-width:0}}'));
 			let description = nodes.querySelector('.cbi-map-descr');
 			let status = summary(runtime, radios);
 			description && description.parentNode.insertBefore(status, description.nextSibling);

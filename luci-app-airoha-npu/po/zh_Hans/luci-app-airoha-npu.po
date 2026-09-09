@@ -1,7 +1,14 @@
 msgid ""
 msgstr ""
-"Content-Type: text/plain; charset=UTF-8\n"
+"Project-Id-Version: luci-app-airoha-npu\n"
+"PO-Revision-Date: 2026-09-09 00:00+0000\n"
+"Last-Translator: yahuisme\n"
+"Language-Team: Chinese (Simplified)\n"
 "Language: zh_Hans\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 msgid "Adjust CPU governor policy and maximum scaling frequency."
 msgstr "调节 CPU 调速策略与频率上限。"
@@ -164,3 +171,6 @@ msgstr "用户空间"
 
 msgid "View real-time Airoha SoC frequency, NPU acceleration, and system status."
 msgstr "查看 Airoha SoC 实时频率、NPU 硬件加速与系统状态。"
+
+msgid "Flow offloading state is unknown; refresh before changing it."
+msgstr "流控状态未知，请刷新后重试。"

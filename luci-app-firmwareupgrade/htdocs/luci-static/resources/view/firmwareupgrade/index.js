@@ -7,7 +7,7 @@
 var callInfo = rpc.declare({ object: 'luci.firmwareupgrade', method: 'getSystemInfo', expect: { '': {} } });
 var callCheck = rpc.declare({ object: 'luci.firmwareupgrade', method: 'checkUpdate', expect: { '': {} } });
 var callStatus = rpc.declare({ object: 'luci.firmwareupgrade', method: 'getStatus', expect: { '': {} } });
-var callStart = rpc.declare({ object: 'luci.firmwareupgrade', method: 'startUpgrade', params: [ 'keep_config' ], expect: { '': {} } });
+var callStart = rpc.declare({ object: 'luci.firmwareupgrade', method: 'startUpgrade', params: [ 'keep_config', 'candidate_id' ], expect: { '': {} } });
 var callSave = rpc.declare({ object: 'luci.firmwareupgrade', method: 'saveSettings', params: [ 'repository', 'token', 'keep_config' ], expect: { '': {} } });
 
 var css = '\
@@ -55,25 +55,25 @@ return view.extend({
 		return root;
 	},
 	check: function(notice, latest, detail, ev) {
-		var button = ev.currentTarget; button.disabled = true; button.textContent = _('Checking…'); message(notice);
+		var button = ev.currentTarget; button.disabled = true; button.textContent = _('Checking…'); message(notice); latest.textContent = _('Not checked'); detail.style.display = 'none'; document.getElementById('fwup-detail').textContent = ''; document.getElementById('fwup-notes').textContent = ''; document.getElementById('fwup-release-date').textContent = '';
 		return callCheck().then(L.bind(function(result) {
 			button.disabled = false; button.textContent = _('Check update');
-			if (!result || !result.success) { message(notice, 'error', result && result.error || _('Failed to check for updates.')); return; }
+			if (!result || !result.success || !/^[a-f0-9]{32}$/.test(result.candidate_id || '')) { latest.textContent = _('Not checked'); detail.style.display = 'none'; document.getElementById('fwup-detail').textContent = ''; document.getElementById('fwup-notes').textContent = ''; message(notice, 'error', result && result.error || _('Failed to check for updates.')); return; }
 			latest.textContent = result.tag_name || '—'; document.getElementById('fwup-release-date').textContent = result.published_at || '';
 			var details = document.getElementById('fwup-detail'); details.textContent = '';
 			[ [_('Image'), result.asset_name], [_('Size'), bytes(result.asset_size)], [_('SHA256'), result.sha256] ].forEach(function(row) { details.appendChild(E('div', { class: 'fwup-row' }, [ E('div', { class: 'fwup-key' }, row[0]), E('div', { class: 'fwup-data' }, row[1] || '—') ])); });
 			var keep = E('input', { type: 'checkbox', checked: document.getElementById('fwup-keep').checked });
 			details.appendChild(E('div', { class: 'fwup-row' }, [ E('label', { class: 'fwup-key' }, _('Keep settings')), keep ]));
-			details.appendChild(E('div', { class: 'fwup-actions' }, [ E('button', { class: 'cbi-button cbi-button-negative', click: ui.createHandlerFn(this, 'confirm', keep, notice) }, _('Upgrade firmware')) ]));
+			details.appendChild(E('div', { class: 'fwup-actions' }, [ E('button', { class: 'cbi-button cbi-button-negative', click: ui.createHandlerFn(this, 'confirm', keep, notice, result.candidate_id) }, _('Upgrade firmware')) ]));
 			document.getElementById('fwup-notes').textContent = result.body || ''; detail.style.display = '';
 			message(notice, 'info', _('Release verified. Review the image before upgrading.'));
 		}, this)).catch(function() { button.disabled = false; button.textContent = _('Check update'); message(notice, 'error', _('Failed to check for updates.')); });
 	},
-	confirm: function(keep, notice) {
-		ui.showModal(_('Confirm firmware upgrade'), [ E('p', {}, _('The verified image will be downloaded, checked again, and flashed.')), E('div', { class: 'right' }, [ E('button', { class: 'cbi-button', click: ui.hideModal }, _('Cancel')), ' ', E('button', { class: 'cbi-button cbi-button-negative', click: ui.createHandlerFn(this, 'start', keep.checked ? '1' : '0', notice) }, _('Start upgrade')) ]) ]);
+	confirm: function(keep, notice, candidateId) {
+		ui.showModal(_('Confirm firmware upgrade'), [ E('p', {}, _('The verified image will be downloaded, checked again, and flashed.')), E('div', { class: 'right' }, [ E('button', { class: 'cbi-button', click: ui.hideModal }, _('Cancel')), ' ', E('button', { class: 'cbi-button cbi-button-negative', click: ui.createHandlerFn(this, 'start', keep.checked ? '1' : '0', notice, candidateId) }, _('Start upgrade')) ]) ]);
 	},
-	start: function(keep, notice) {
-		return callStart(keep).then(L.bind(function(result) { if (!result || !result.success) { ui.hideModal(); message(notice, 'error', result && result.error || _('Unable to start upgrade.')); return; } this.progress(); }, this));
+	start: function(keep, notice, candidateId) {
+		return callStart(keep, candidateId).then(L.bind(function(result) { if (!result || !result.success) { ui.hideModal(); message(notice, 'error', result && result.error || _('Unable to start upgrade.')); return; } this.progress(); }, this));
 	},
 	progress: function() {
 		var value = E('i', { style: 'width:0%' }); var text = E('p', {}, _('Preparing upgrade…')); var box = E('div', {}, [ text, E('div', { class: 'fwup-progress' }, value) ]); ui.showModal(_('Upgrading firmware'), [ box ]);

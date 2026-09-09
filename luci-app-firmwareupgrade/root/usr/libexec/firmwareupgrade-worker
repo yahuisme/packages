@@ -41,20 +41,31 @@ validate_input() {
 }
 
 set_status() {
-	printf '{"stage":"%s","percent":%s,"message":"%s"}\n' "$1" "$2" "$3" > "$STATUS_FILE"
+	printf '{"stage":"%s","percent":%s,"message":"%s"}\n' "$1" "$2" "$3" > "$STATUS_FILE.$$" && mv -f "$STATUS_FILE.$$" "$STATUS_FILE"
 }
 
 cleanup() {
 	[ -n "$TMP_DIR" ] && rm -rf "$TMP_DIR"
-	rm -f "$PID_FILE"
+	[ -n "$CURL_PID" ] && kill "$CURL_PID" 2>/dev/null
+	if [ -r "$PID_FILE" ]; then
+		read -r owner < "$PID_FILE"
+		[ "$owner" != "$$" ] || rm -f "$PID_FILE"
+	fi
+	rmdir "$WORKER_LOCK" 2>/dev/null
 }
-trap cleanup EXIT INT TERM
+
 
 if [ "$1" = test_validate ]; then
 	DOWNLOAD_URL="$2" ASSET_NAME="$3" EXPECTED_SHA256="$4" KEEP_CONFIG="$5" TOTAL_SIZE="$6"
 	validate_input && printf 'ok\n' || printf 'invalid\n'
 	exit 0
 fi
+
+# A contender must not touch another worker's PID or status.
+WORKER_LOCK='/var/run/firmwareupgrade.worker.lock'
+mkdir "$WORKER_LOCK" 2>/dev/null || exit 1
+trap cleanup EXIT
+trap 'set_status error 0 "Upgrade interrupted"; exit 1' INT TERM
 
 if ! validate_input; then
 	set_status error 0 'Invalid verified upgrade request'
@@ -86,6 +97,7 @@ wait "$CURL_PID" || {
 	exit 1
 }
 
+CURL_PID=""
 [ -s "$TARGET_FILE" ] && [ "$(wc -c < "$TARGET_FILE")" = "$TOTAL_SIZE" ] || {
 	set_status error 0 '固件大小校验失败'
 	exit 1
@@ -106,7 +118,10 @@ sysupgrade -T "$TARGET_FILE" >/dev/null 2>&1 || {
 
 set_status flashing 100 '预检通过，正在刷写固件并重启路由器...'
 if [ "$KEEP_CONFIG" = 1 ]; then
-	exec sysupgrade "$TARGET_FILE"
+	sysupgrade "$TARGET_FILE"
 else
-	exec sysupgrade -n "$TARGET_FILE"
+	sysupgrade -n "$TARGET_FILE"
 fi
+rc=$?
+[ "$rc" -eq 0 ] && set_status complete 100 '固件刷写命令已完成' || set_status error 0 '固件刷写失败，请检查设备状态'
+exit "$rc"

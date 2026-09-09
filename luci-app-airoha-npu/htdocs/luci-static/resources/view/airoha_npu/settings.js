@@ -96,7 +96,9 @@ return view.extend({
 		o = s.option(form.ListValue, 'flow', _('Hardware flow offloading'));
 		o.value('0', _('Disabled'));
 		o.value('1', _('Enabled'));
-		o.default = typeof flow.enabled === 'boolean' ? (flow.enabled ? '1' : '0') : '0';
+		o.default = typeof flow.enabled === 'boolean' ? (flow.enabled ? '1' : '0') : '';
+		o.readonly = typeof flow.enabled !== 'boolean';
+		if (o.readonly) o.value('', _('Unknown'));
 
 		function getVal(name, section) {
 			var opt = m.lookupOption(name, section);
@@ -120,6 +122,7 @@ return view.extend({
 				addTask(function() { return setFrequency(formFreq); }, function() { return oldFreq ? setFrequency(oldFreq) : Promise.resolve({ result: 'ok' }); });
 			}
 			if (formFlow != null && formFlow !== '' && formFlow !== String(flow.enabled ? '1' : '0')) {
+				if (typeof flow.enabled !== 'boolean') return Promise.reject(new Error(_('Flow offloading state is unknown; refresh before changing it.')));
 				var oldFlow = flow.enabled === true ? '1' : '0';
 				addTask(function() { return setFlow(formFlow); }, function() { return setFlow(oldFlow); });
 			}
@@ -137,11 +140,11 @@ return view.extend({
 					return executeSequence(idx + 1);
 				});
 			}
-			function rollback(idx) {
-				if (idx < 0) return Promise.resolve(true);
-				return applied[idx].undo().then(function(res) {
-					return res && res.result === 'ok' ? rollback(idx - 1) : false;
-				}, function() { return false; });
+			function rollback(idx, ok) {
+				if (idx < 0) return Promise.resolve(ok);
+				return Promise.resolve().then(applied[idx].undo).then(function(res) {
+					return rollback(idx - 1, ok && !!(res && res.result === 'ok'));
+				}, function() { return rollback(idx - 1, false); });
 			}
 
 			return executeSequence(0).then(function() {
@@ -150,8 +153,16 @@ return view.extend({
 				if (formFlow != null && formFlow !== '') flow.enabled = formFlow === '1';
 				ui.addNotification(null, E('p', {}, _('Settings applied.')), 'info');
 			}).catch(function(err) {
-				return rollback(applied.length - 1).then(function(ok) {
-					ui.addNotification(null, E('p', {}, ok ? (err.message || message('write_failed')) : message('rollback_failed')), 'error');
+				return rollback(applied.length - 1, true).then(function(ok) {
+					return Promise.all([getStatus(), getFlow()]).then(function(current) {
+						var verified = ok && current[0] && current[1] &&
+							current[0].cpu_governor === status.cpu_governor &&
+							current[0].cpu_max_freq === status.cpu_max_freq &&
+							current[1].enabled === flow.enabled;
+						ui.addNotification(null, E('p', {}, message(verified ? 'write_failed' : 'rollback_failed')), 'error');
+					}, function() {
+						ui.addNotification(null, E('p', {}, message('rollback_failed')), 'error');
+					});
 				});
 			});
 		};

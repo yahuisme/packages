@@ -84,15 +84,15 @@ def read_firewall():
             parts = line.split(None, 2)
             if len(parts) == 3:
                 key = parts[1]
-                val = parts[2].strip("'\\"")
+                val = parts[2].strip("'\"")
                 res[cur_sec][key] = val
     return res
 
 def write_firewall(data):
     lines = ['config defaults']
     for k, v in data.get('defaults', {}).items():
-        lines.append(f"\\toption {k} '{v}'")
-    firewall_file.write_text('\\n'.join(lines) + '\\n')
+        lines.append(f"\toption {k} '{v}'")
+    firewall_file.write_text('\n'.join(lines) + '\n')
 
 if cmd == 'get':
     target = clean_args[1]

@@ -4,7 +4,8 @@
 
 ```sh
 export NODE_PATH=/path/to/node_modules
-export LUCI_RPC=/path/to/luci/modules/luci-base/htdocs/luci-static/resources/rpc.js
+export LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/resources
+export LUCI_RPC="$LUCI_RESOURCE_DIR/rpc.js"
 node tests/telemetry.test.js
 node tests/lifecycle.test.js
 node tests/mlo-runtime.cjs
@@ -21,6 +22,7 @@ MLO_TEST=1 node tests/regression.test.js
 READONLY_TEST=1 node tests/regression.test.js
 export LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/resources
 node tests/integration.cjs
+node tests/lazy-regression.cjs
 python3 tests/catalog.test.py
 python3 tests/probes.test.py
 ```
@@ -29,6 +31,6 @@ python3 tests/probes.test.py
 
 采集测试用临时命令替身验证固定脚本拒绝参数、固件文本长度和周期采集不读取内核日志。翻译测试验证全部 JS 字符串、菜单和权限描述的 PO/POT 一致性。
 
-集成测试加载真实 LuCI `uci.js`、`rpc.js` 和 DOM 实现，仅以隔离 HTTP 数据替代路由器，覆盖 apply/confirm、数字错误码、失败后恢复旧值再提交等路径。预期权限失败用例可能输出 LuCI 的 RPCError 日志，以最终断言及退出码为准。
+集成测试保留真实顶层 `view` 自动构造/挂载生命周期，并以 `baseclass` 加载嵌入式 MLO，断言父页和四个页签未被覆盖；同时加载真实 LuCI `uci.js`、`rpc.js` 和 DOM 实现，仅以隔离 HTTP 数据替代路由器，覆盖 apply/confirm、数字错误码、失败后恢复旧值再提交等路径。预期权限失败用例可能输出 LuCI 的 RPCError 日志，以最终断言及退出码为准。
 
 这些测试不替代固件构建、实机无线应用、客户端协商与真实性能测量。

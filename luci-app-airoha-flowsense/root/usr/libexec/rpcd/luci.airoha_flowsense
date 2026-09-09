@@ -6,7 +6,9 @@ json_number() {
 }
 
 json_decimal() {
-    case "$1" in ''|*[!0-9.]*) printf null;; *) printf '%s' "$1";; esac
+    printf '%s\n' "$1" | awk -v max="${2:-60000}" '
+        /^[0-9]+(\.[0-9]+)?$/ && $0 !~ /^0[0-9]/ && length($0) <= 20 && $0 + 0 <= max { value=$0; valid=1 }
+        END { if (NR == 1 && valid) printf "%s", value; else printf "null" }'
 }
 
 get_ppe() {
@@ -57,7 +59,7 @@ get_jitter() {
     samples=$(jsonfilter -i "$file" -e '@.samples' 2>/dev/null)
     received=$(jsonfilter -i "$file" -e '@.received' 2>/dev/null)
     loss=$(jsonfilter -i "$file" -e '@.loss' 2>/dev/null)
-    printf '{"timestamp":%s,"target":"%s","last_ping":%s,"deviation":%s,"samples":%s,"received":%s,"loss":%s}' "$stamp" "$target" "$(json_decimal "$last")" "$(json_decimal "$deviation")" "$(json_number "$samples")" "$(json_number "$received")" "$(json_decimal "$loss")"
+    printf '{"timestamp":%s,"target":"%s","last_ping":%s,"deviation":%s,"samples":%s,"received":%s,"loss":%s}' "$stamp" "$target" "$(json_decimal "$last")" "$(json_decimal "$deviation")" "$(json_number "$samples")" "$(json_number "$received")" "$(json_decimal "$loss" 100)"
 }
 
 get_overview() {
@@ -67,7 +69,7 @@ get_overview() {
     flow=$(uci -q get firewall.@defaults[0].flow_offloading_hw); sw=$(uci -q get firewall.@defaults[0].flow_offloading)
     now=$(date +%s); read -r uptime _ < /proc/uptime
     printf '{"timestamp":%s,"uptime":%s,"configured_hw":%s,"configured_sw":%s,"monitor":{"enabled":%s,"target":"%s"},"jitter":' "$now" "$uptime" "$(boolean "$flow")" "$(boolean "$sw")" "$(boolean "$enabled")" "$target"
-    get_jitter; printf ',"interfaces":'; get_interfaces; printf ',"ppe":'; get_ppe 0; printf '}'
+    get_jitter; printf ',"interfaces":'; get_interfaces; printf '}'
 }
 
 set_monitor() {

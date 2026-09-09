@@ -38,7 +38,7 @@ const rpc={declare:spec=>(...args)=>new Promise((resolve,reject)=>{
 const notices=[];
 const telemetry=new Function('baseclass',fs.readFileSync(require('path').join(__dirname,'../htdocs/luci-static/resources/wifi7/telemetry.js'),'utf8'))({extend:x=>x});
 const mloView={load:async()=>[],render:async()=>E('div',{},'MLO fixture'),pause:()=>{},resume:()=>Promise.resolve()};
-const app=new Function('view','network','rpc','uci','ui','poll','document','E','_','cbi_update_table','telemetry','mloView',source)({extend:x=>x},network,rpc,uci,{addNotification:(...a)=>notices.push(a)},{add:f=>pollFn=f},document,E,x=>x,(t,rows)=>clientRows=rows,telemetry,mloView);
+const app=new Function('view','network','rpc','uci','ui','poll','document','E','_','cbi_update_table','telemetry','mloView',source)({extend:x=>x},network,rpc,uci,{addNotification:(...a)=>notices.push(a)},{add:f=>pollFn=f,remove:()=>{}},document,E,x=>x,(t,rows)=>clientRows=rows,telemetry,mloView);
 
 
-module.exports = { app, document, dom, uci, config, staged, writes, calls, notices, tick:()=>new Promise(r=>setImmediate(r)), poll:()=>pollFn(), counters:()=>({saves,applies,loads,diagnosticCalls}) };
+module.exports = { mloView, network, app, document, dom, uci, config, staged, writes, calls, notices, tick:()=>new Promise(r=>setImmediate(r)), poll:()=>pollFn(), counters:()=>({saves,applies,loads,diagnosticCalls}) };

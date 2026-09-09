@@ -1,6 +1,7 @@
 #!/bin/sh
 # Copyright (C) 2026 yahuisme
 # Firmware release discovery and controlled upgrade launcher.
+umask 077
 
 STATUS_FILE='/var/run/firmwareupgrade.status'
 PID_FILE='/var/run/firmwareupgrade.pid'
@@ -14,7 +15,7 @@ quote() {
 
 valid_uint() { case "$1" in ''|*[!0-9]*|0[0-9]*|??????????*) return 1;; esac; return 0; }
 valid_sha256() { [ "${#1}" -eq 64 ] && case "$1" in *[!0123456789abcdefABCDEF]*) return 1;; esac; }
-valid_repo() { case "$1" in [A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*) [ "${#1}" -le 200 ];; *) return 1;; esac; }
+valid_repo() { case "$1" in *[!A-Za-z0-9._/-]*) return 1;; esac; [ "${#1}" -le 200 ] && printf '%s\n' "$1" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$'; }
 valid_token() { [ -z "$1" ] || case "$1" in *[!A-Za-z0-9_=-]*) return 1;; esac; [ "${#1}" -le 512 ]; }
 validate_settings() {
 	valid_repo "$1" && valid_token "$2" && { [ "$3" = 0 ] || [ "$3" = 1 ]; }
@@ -53,8 +54,10 @@ system_info() {
 match_asset() {
 	awk -F '\t' -v board="$2" -v variant="$3" '
 	BEGIN { b=tolower(board); v=tolower(variant) }
-	$2 ~ /^[A-Za-z0-9._-]+$/ && tolower($2) ~ /sysupgrade/ && tolower($2) !~ /(factory|initramfs|kernel|rootfs)/ {
-	 n=tolower($2); score=0
+	NF != 4 { next }
+	{ name=$1 }
+	name ~ /^[A-Za-z0-9._-]+$/ && tolower(name) ~ /sysupgrade/ && tolower(name) !~ /(factory|initramfs|kernel|rootfs)/ {
+	 n=tolower(name); score=0
 	 if (index(b,"w1700k")) { if (!index(n,"w1700k")) next; score=50 }
 	 else if (index(b,"mx4200")) { if (!index(n,"mx4200")) next; score=50 } else next
 	 if (v=="ubi2-oc") { if (n ~ /(ubi2-oc|ubi2_oc|-oc)/) score+=40; else next }
@@ -67,28 +70,32 @@ match_asset() {
 }
 
 release_check() {
+	if ! mkdir "$LOCK_DIR" 2>/dev/null; then printf '{"success":false,"error":"已有升级任务正在检查"}\n'; return; fi
+	trap 'rmdir "$LOCK_DIR" 2>/dev/null' EXIT
+	rm -f "$CANDIDATE_FILE" || { printf '{"success":false,"error":"Unable to clear candidate"}\n'; return; }
 	board=$(get_board_name); variant=$(detect_variant "$board"); repo=$(uci -q get firmwareupgrade.main.repository); [ -n "$repo" ] || repo=$(default_repo "$board")
 	valid_repo "$repo" || { printf '{"success":false,"error":"未配置有效的 GitHub 仓库"}\n'; return; }
 	token=$(uci -q get firmwareupgrade.main.token); valid_token "$token" || { printf '{"success":false,"error":"仓库设置无效"}\n'; return; }
 	tmp=$(mktemp /tmp/firmwareupgrade-release.XXXXXX) || return
 	assets=$(mktemp /tmp/firmwareupgrade-assets.XXXXXX) || { rm -f "$tmp"; return; }
 	api="https://api.github.com/repos/$repo/releases/latest"
-	if [ -n "$token" ]; then curl --fail --silent --show-error --max-time 15 -H "Authorization: Bearer $token" -H 'Accept: application/vnd.github+json' -H 'User-Agent: OpenWrt-FirmwareUpgrade' "$api" > "$tmp"; else curl --fail --silent --show-error --max-time 15 -H 'Accept: application/vnd.github+json' -H 'User-Agent: OpenWrt-FirmwareUpgrade' "$api" > "$tmp"; fi
+	if [ -n "$token" ]; then curl --fail --silent --show-error --max-time 15 -H "Authorization: Bearer $token" -H 'Accept: application/vnd.github+json' -H 'User-Agent: OpenWrt-FirmwareUpgrade' "$api" > "$tmp"; else curl --fail --silent --show-error --max-time 15 -H 'Accept: application/vnd.github+json' -H 'User-Agent: OpenWrt-FirmwareUpgrade' "$api" > "$tmp"; fi || { rm -f "$tmp" "$assets"; printf '{"success":false,"error":"无法获取最新 Release"}\n'; return; }
 	[ -s "$tmp" ] || { rm -f "$tmp" "$assets"; printf '{"success":false,"error":"无法获取最新 Release"}\n'; return; }
 	tag=$(jsonfilter -i "$tmp" -e '@.tag_name'); published=$(jsonfilter -i "$tmp" -e '@.published_at'); body=$(jsonfilter -i "$tmp" -e '@.body'); [ -n "$tag" ] || { rm -f "$tmp" "$assets"; printf '{"success":false,"error":"Release 数据解析失败"}\n'; return; }
 	jsonfilter -i "$tmp" -e '@.assets[*]' | while IFS= read -r asset; do
 		name=$(printf '%s' "$asset" | jsonfilter -e '@.name'); size=$(printf '%s' "$asset" | jsonfilter -e '@.size'); digest=$(printf '%s' "$asset" | jsonfilter -e '@.digest'); url=$(printf '%s' "$asset" | jsonfilter -e '@.browser_download_url')
-		valid_asset_name "$name" && valid_uint "$size" && valid_sha256 "${digest#sha256:}" && printf '%s	%s	%s	%s\n' "$name" "$size" "$digest" "$url"
+		valid_asset_name "$name" && valid_uint "$size" && [ "$size" -gt 0 ] && valid_url "$url" && valid_sha256 "${digest#sha256:}" && printf '%s	%s	%s	%s\n' "$name" "$size" "$digest" "$url"
 	done > "$assets"
 	rm -f "$tmp"
-	match=$(match_asset "$assets" "$board" "$variant"); rm -f "$assets"; [ -n "$match" ] || { printf '{"success":false,"error":"未找到可验证的匹配固件"}\n'; return; }
+	match=$(match_asset "$assets" "$board" "$variant"); rm -f "$assets"; [ -n "$match" ] || { rm -f "$CANDIDATE_FILE"; printf '{"success":false,"error":"未找到可验证的匹配固件"}\n'; return; }
 	IFS="$(printf '	')" read -r name size digest url <<EOF
 $match
 EOF
 	sha=${digest#sha256:}; valid_sha256 "$sha" || { printf '{"success":false,"error":"固件缺少可信 SHA256"}\n'; return; }
 	candidate=$(mktemp /var/run/firmwareupgrade.candidate.XXXXXX) || return
-	printf '%s\n%s\n%s\n%s\n' "$url" "$name" "$sha" "$size" > "$candidate" && chmod 600 "$candidate" && mv -f "$candidate" "$CANDIDATE_FILE" || { rm -f "$candidate"; printf '{"success":false,"error":"无法保存待升级固件信息"}\n'; return; }
-	printf '{"success":true,"tag_name":'; quote "$tag"; printf ',"published_at":'; quote "$published"; printf ',"body":'; quote "$body"; printf ',"asset_name":'; quote "$name"; printf ',"asset_size":%s,"sha256":' "$size"; quote "$sha"; printf '}\n'
+	id=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n'); [ "${#id}" -eq 32 ] || { rm -f "$candidate"; return; }
+	printf '%s\n%s\n%s\n%s\n%s\n' "$id" "$url" "$name" "$sha" "$size" > "$candidate" && chmod 600 "$candidate" && mv -f "$candidate" "$CANDIDATE_FILE" || { rm -f "$candidate"; printf '{"success":false,"error":"无法保存待升级固件信息"}\n'; return; }
+	printf '{"success":true,"candidate_id":'; quote "$id"; printf ',"tag_name":'; quote "$tag"; printf ',"published_at":'; quote "$published"; printf ',"body":'; quote "$body"; printf ',"asset_name":'; quote "$name"; printf ',"asset_size":%s,"sha256":' "$size"; quote "$sha"; printf '}\n'
 }
 
 start_upgrade() {
@@ -97,29 +104,59 @@ start_upgrade() {
 		return
 	fi
 	trap 'rmdir "$LOCK_DIR" 2>/dev/null' EXIT
-	input=$(cat); keep=$(jsonfilter -s "$input" -e '@.keep_config'); [ "$keep" = 0 ] || [ "$keep" = 1 ] || { printf '{"success":false,"error":"Invalid upgrade mode"}\n'; return; }
+	input=$(cat); keep=$(jsonfilter -s "$input" -e '@.keep_config'); requested=$(jsonfilter -s "$input" -e '@.candidate_id'); [ "$keep" = 0 ] || [ "$keep" = 1 ] || { printf '{"success":false,"error":"Invalid upgrade mode"}\n'; return; }
+	[ -d /var/run/firmwareupgrade.worker.lock ] && { printf '{"success":false,"error":"Upgrade worker busy"}\n'; return; }
 	[ -f "$PID_FILE" ] && read -r pid < "$PID_FILE" && kill -0 "$pid" 2>/dev/null && { printf '{"success":false,"error":"已有升级任务正在运行"}\n'; return; }
 	[ -r "$CANDIDATE_FILE" ] || { printf '{"success":false,"error":"Invalid upgrade request: 请重新检查更新"}\n'; return; }
-	{ IFS= read -r url; IFS= read -r name; IFS= read -r sha; IFS= read -r size; } < "$CANDIDATE_FILE"
+	{ IFS= read -r id; IFS= read -r url; IFS= read -r name; IFS= read -r sha; IFS= read -r size; } < "$CANDIDATE_FILE"
+	[ "${#id}" -eq 32 ] && [ "$requested" = "$id" ] && case "$id" in *[!0-9a-f]*) false;; *) true;; esac || { rm -f "$CANDIDATE_FILE"; printf '{"success":false,"error":"候选固件已更新，请重新检查"}\n'; return; }
 	valid_url "$url" && valid_asset_name "$name" && valid_sha256 "$sha" && valid_uint "$size" && [ "$size" -gt 0 ] || { rm -f "$CANDIDATE_FILE"; printf '{"success":false,"error":"Invalid upgrade request: 待升级信息无效"}\n'; return; }
-	rm -f "$CANDIDATE_FILE"
+	rm -f "$CANDIDATE_FILE" && [ ! -e "$CANDIDATE_FILE" ] || { printf '{"success":false,"error":"Unable to consume candidate"}\n'; return; }
 	"$WORKER_SCRIPT" "$url" "$name" "$sha" "$keep" "$size" >/dev/null 2>&1 & echo "$!" > "$PID_FILE"
 	printf '{"success":true}\n'
 }
 
 save_settings() {
+	if ! mkdir "$LOCK_DIR" 2>/dev/null; then printf '{"success":false,"error":"Upgrade operation busy"}\n'; return; fi
+	trap 'rmdir "$LOCK_DIR" 2>/dev/null' EXIT
+	rm -f "$CANDIDATE_FILE" || { printf '{"success":false,"error":"Unable to clear candidate"}\n'; return; }
 	input=$(cat); repo=$(jsonfilter -s "$input" -e '@.repository'); token=$(jsonfilter -s "$input" -e '@.token'); keep=$(jsonfilter -s "$input" -e '@.keep_config')
 	[ -n "$token" ] || token=$(uci -q get firmwareupgrade.main.token)
 	validate_settings "$repo" "$token" "$keep" || { printf '{"success":false,"error":"Invalid settings"}\n'; return; }
-	uci -q set firmwareupgrade.main.repository="$repo" && uci -q set firmwareupgrade.main.token="$token" && uci -q set firmwareupgrade.main.keep_config="$keep" && uci -q commit firmwareupgrade || { printf '{"success":false,"error":"Failed to save settings"}\n'; return; }
-	[ "$(uci -q get firmwareupgrade.main.repository)" = "$repo" ] && [ "$(uci -q get firmwareupgrade.main.token)" = "$token" ] && [ "$(uci -q get firmwareupgrade.main.keep_config)" = "$keep" ] || { printf '{"success":false,"error":"Settings verification failed"}\n'; return; }
+	# Never commit another LuCI session's pending edits. Work on a private copy.
+	changes=$(uci -q changes firmwareupgrade) || { printf '{"success":false,"error":"Unable to read pending settings"}\n'; return; }
+	[ -z "$changes" ] || { printf '{"success":false,"error":"Apply or revert pending settings first"}\n'; return; }
+	transaction=$(mktemp -d /etc/config/.firmwareupgrade.XXXXXX) || { printf '{"success":false,"error":"Unable to prepare settings"}\n'; return; }
+	trap 'rm -rf "$transaction"; rmdir "$LOCK_DIR" 2>/dev/null' EXIT
+	cp -p /etc/config/firmwareupgrade "$transaction/original" && cp -p "$transaction/original" "$transaction/firmwareupgrade" && mkdir "$transaction/delta" "$transaction/override" || { printf '{"success":false,"error":"Unable to back up settings"}\n'; return; }
+	old_state=$(uci -q show firmwareupgrade) || { printf '{"success":false,"error":"Unable to read settings"}\n'; return; }
+	private_uci() { uci -c "$transaction" -C "$transaction/override" -t "$transaction/delta" "$@"; }
+	private_uci -q set firmwareupgrade.main.repository="$repo" && private_uci -q set firmwareupgrade.main.token="$token" && private_uci -q set firmwareupgrade.main.keep_config="$keep" && private_uci -q commit firmwareupgrade &&
+		[ "$(private_uci -q get firmwareupgrade.main.repository)" = "$repo" ] && [ "$(private_uci -q get firmwareupgrade.main.token)" = "$token" ] && [ "$(private_uci -q get firmwareupgrade.main.keep_config)" = "$keep" ] || { printf '{"success":false,"error":"Failed to prepare settings"}\n'; return; }
+	# Recheck immediately before publishing; shared UCI staging is never mutated.
+	changes=$(uci -q changes firmwareupgrade) && [ -z "$changes" ] && cmp -s /etc/config/firmwareupgrade "$transaction/original" || { printf '{"success":false,"error":"Settings changed concurrently"}\n'; return; }
+	mv -f "$transaction/firmwareupgrade" /etc/config/firmwareupgrade || { printf '{"success":false,"error":"Failed to publish settings"}\n'; return; }
+	if [ "$(uci -q get firmwareupgrade.main.repository)" != "$repo" ] || [ "$(uci -q get firmwareupgrade.main.token)" != "$token" ] || [ "$(uci -q get firmwareupgrade.main.keep_config)" != "$keep" ]; then
+		# One atomic file restore preserves absent options and exact original content.
+		rollback_ok=1
+		if cp -p "$transaction/original" "$transaction/restore"; then
+			mv -f "$transaction/restore" /etc/config/firmwareupgrade || rollback_ok=0
+		else
+			rollback_ok=0
+		fi
+		cmp -s "$transaction/original" /etc/config/firmwareupgrade || rollback_ok=0
+		restored_state=$(uci -q show firmwareupgrade) || rollback_ok=0
+		[ "$restored_state" = "$old_state" ] || rollback_ok=0
+		[ "$rollback_ok" = 1 ] || { printf '{"success":false,"error":"Settings rollback failed; inspect configuration"}\n'; return; }
+		printf '{"success":false,"error":"Settings verification failed; restored original"}\n'; return
+	fi
 	printf '{"success":true}\n'
 }
 
 status() { [ -r "$STATUS_FILE" ] && cat "$STATUS_FILE" || printf '{"stage":"idle","percent":0,"message":""}\n'; }
 
 case "$1" in
-	list) printf '{"getSystemInfo":{},"checkUpdate":{},"getStatus":{},"startUpgrade":{"keep_config":"str"},"saveSettings":{"repository":"str","token":"str","keep_config":"str"}}\n';;
+	list) printf '{"getSystemInfo":{},"checkUpdate":{},"getStatus":{},"startUpgrade":{"keep_config":"str","candidate_id":"str"},"saveSettings":{"repository":"str","token":"str","keep_config":"str"}}\n';;
 	call) case "$2" in getSystemInfo) system_info;; checkUpdate) release_check;; getStatus) status;; startUpgrade) start_upgrade;; saveSettings) save_settings;; *) printf '{"error":"unsupported"}\n';; esac;;
 	test_match) match_asset "$2" "$3" "$4";;
 	test_start) start_upgrade;;
