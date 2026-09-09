@@ -80,7 +80,7 @@ msgstr ""
 msgid "Online CPUs"
 msgstr ""
 
-msgid "Only kernel-supported values are offered. The frequency limit is not a fixed clock. CPU changes last until reboot or another service changes them."
+msgid "Adjust CPU governor and maximum scaling frequency."
 msgstr ""
 
 msgid "Performance"
@@ -95,7 +95,7 @@ msgstr ""
 msgid "Select a value"
 msgstr ""
 
-msgid "Sets software and hardware flow offloading together and reloads the firewall. This may interrupt connections. Bridge filtering is not an offload switch; configure AP networking in the native network settings and follow your firmware documentation."
+msgid "Manage hardware PPE and software flow offloading."
 msgstr ""
 
 msgid "Settings applied."

@@ -81,8 +81,8 @@ msgstr "按需调速"
 msgid "Online CPUs"
 msgstr "在线 CPU 数量"
 
-msgid "Only kernel-supported values are offered. The frequency limit is not a fixed clock. CPU changes last until reboot or another service changes them."
-msgstr "仅提供内核支持的值。频率上限并非锁定频率。CPU 更改持续到重启或被其他服务修改。"
+msgid "Adjust CPU governor and maximum scaling frequency."
+msgstr "调节 CPU 调速器与频率上限。"
 
 msgid "Performance"
 msgstr "性能优先"
@@ -96,8 +96,8 @@ msgstr "调度器利用率"
 msgid "Select a value"
 msgstr "请选择"
 
-msgid "Sets software and hardware flow offloading together and reloads the firewall. This may interrupt connections. Bridge filtering is not an offload switch; configure AP networking in the native network settings and follow your firmware documentation."
-msgstr "同时设置软件和硬件流量卸载并重新加载防火墙，可能中断连接。桥接过滤不是卸载开关；请在原生网络设置中配置 AP 网络并参考固件文档。"
+msgid "Manage hardware PPE and software flow offloading."
+msgstr "管理硬件 PPE 与软件流量卸载。"
 
 msgid "Settings applied."
 msgstr "设置已应用。"
@@ -139,10 +139,10 @@ msgid "SoC & NPU Details"
 msgstr "SoC 与 NPU 详情"
 
 msgid "Max limit: "
-msgstr "上限限制："
+msgstr "上限 "
 
 msgid "Hardware flow offload"
-msgstr "硬件流量卸载"
+msgstr "硬件流控 PPE"
 
 msgid "Unknown"
 msgstr "未知"

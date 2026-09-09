@@ -12,16 +12,25 @@ var setFrequency = rpc.declare({ object: 'luci.airoha_npu', method: 'setMaxFreq'
 var setFlow = rpc.declare({ object: 'luci.airoha_npu', method: 'setFlowOffload', params: ['enabled'], expect: { '': {} }, reject: true });
 
 var themeCSS = '\
-.npu-dashboard{--npu-font-ui:system-ui,-apple-system,sans-serif;--npu-font-mono:ui-monospace,monospace;font-family:var(--npu-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit)}\
-.npu-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:10px;margin-bottom:14px}\
+.npu-dashboard{--npu-font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--npu-font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;font-family:var(--npu-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\
+.npu-notice{font-size:12px;color:var(--cbi-muted-color,#888);margin:-4px 0 14px;min-height:18px;font-variant-numeric:tabular-nums}\
+.npu-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:14px}\
 .npu-summary-card{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center;box-sizing:border-box}\
-.npu-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
+.npu-card-title{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
 .npu-card-value{font-size:18px;font-family:var(--npu-font-mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,inherit)}\
 .npu-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
 .npu-dashboard .cbi-section{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:14px;margin:14px 0}\
 .npu-dashboard .cbi-section-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
-@media(max-width:1050px){.npu-summary-grid{grid-template-columns:repeat(2,minmax(140px,1fr))}}\
-@media(max-width:640px){.npu-summary-grid{grid-template-columns:1fr}.npu-summary-card{min-height:68px}}\
+.npu-dashboard .cbi-section-descr{font-size:12px;color:var(--cbi-muted-color,#888);margin-bottom:12px}\
+.npu-dashboard .cbi-value{display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,.08))}\
+.npu-dashboard .cbi-value:last-child{border-bottom:none}\
+.npu-dashboard .cbi-value-title{width:220px;flex:0 0 220px;margin:0;font-size:13px;font-weight:500;color:var(--cbi-muted-color,#666)}\
+.npu-dashboard .cbi-value-field{flex:1;display:flex;align-items:center;gap:8px;min-width:0;margin:0}\
+.npu-dashboard .cbi-value-field span{font-family:var(--npu-font-mono);font-variant-numeric:tabular-nums}\
+.npu-dashboard select{width:16em;max-width:240px;height:32px;border-radius:4px;font-family:var(--npu-font-mono);font-variant-numeric:tabular-nums}\
+.npu-dashboard .cbi-button{height:32px;padding:0 16px;border-radius:4px;font-size:12px;font-weight:500;margin:0}\
+@media(max-width:1050px){.npu-summary-grid{grid-template-columns:repeat(2,minmax(150px,1fr))}}\
+@media(max-width:640px){.npu-summary-grid{grid-template-columns:1fr}.npu-summary-card{min-height:68px}.npu-dashboard .cbi-value{flex-direction:column;align-items:flex-start;gap:4px;padding:8px 0}.npu-dashboard .cbi-value-title{width:auto;flex:none}.npu-dashboard .cbi-value-field{width:100%;flex-wrap:wrap}}\
 ';
 
 function injectCSS() {
@@ -87,7 +96,7 @@ return view.extend({
 			return row(label, metrics[id]);
 		}
 		function control(id, label, options, value, call) {
-			var select = E('select', { id: 'npu-' + id, name: 'npu-' + id, 'class': 'cbi-input-select', style: 'width:16em;max-width:100%' },
+			var select = E('select', { id: 'npu-' + id, name: 'npu-' + id, 'class': 'cbi-input-select' },
 				[E('option', { value: '' }, _('Select a value'))].concat(options.map(function(o) { return E('option', { value: o[0] }, o[1]); })));
 			select.value = value == null ? '' : String(value);
 			select.disabled = !L.hasViewPermission() || !options.length;
@@ -105,10 +114,10 @@ return view.extend({
 			button.disabled = select.disabled;
 			return E('div', { 'class': 'cbi-value' }, [
 				E('label', { 'class': 'cbi-value-title', 'for': select.id }, label),
-				E('div', { 'class': 'cbi-value-field' }, [select, ' ', button])
+				E('div', { 'class': 'cbi-value-field' }, [select, button])
 			]);
 		}
-		var notice = E('p', { role: 'status' }, '');
+		var notice = E('div', { 'class': 'npu-notice', role: 'status' }, '');
 		function update(s, f) {
 			if (!self.active) return;
 			s = s || {}; f = f || {};
@@ -161,13 +170,13 @@ return view.extend({
 			]),
 			E('div', { 'class': 'cbi-section' }, [
 				E('h3', { 'class': 'cbi-section-title' }, _('Kernel CPU controls')),
-				E('div', { 'class': 'cbi-section-descr' }, _('Only kernel-supported values are offered. The frequency limit is not a fixed clock. CPU changes last until reboot or another service changes them.')),
+				E('div', { 'class': 'cbi-section-descr' }, _('Adjust CPU governor and maximum scaling frequency.')),
 				control('governor-setting', _('Governor'), words(info.governors).filter(function(v) { return /^[a-zA-Z0-9_-]+$/.test(v); }).map(function(v) { return [v, governor(v)]; }), status.cpu_governor, setGovernor),
 				control('frequency', _('Maximum CPU frequency'), words(info.frequencies).filter(function(v) { return /^[1-9][0-9]{0,9}$/.test(v); }).map(function(v) { return [v, frequency(Number(v))]; }), status.cpu_max_freq, setFrequency)
 			]),
 			E('div', { 'class': 'cbi-section' }, [
 				E('h3', { 'class': 'cbi-section-title' }, _('Firewall flow offloading')),
-				E('div', { 'class': 'cbi-section-descr' }, _('Sets software and hardware flow offloading together and reloads the firewall. This may interrupt connections. Bridge filtering is not an offload switch; configure AP networking in the native network settings and follow your firmware documentation.')),
+				E('div', { 'class': 'cbi-section-descr' }, _('Manage hardware PPE and software flow offloading.')),
 				control('flow', _('Hardware flow offloading'), [['0', _('Disabled')], ['1', _('Enabled')]], typeof flow.enabled === 'boolean' ? (flow.enabled ? '1' : '0') : '', setFlow)
 			])
 		]);
