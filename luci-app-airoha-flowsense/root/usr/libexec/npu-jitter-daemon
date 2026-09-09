@@ -3,7 +3,7 @@
 . /usr/libexec/flowsense-common.sh
 TARGET=${1:-223.5.5.5}
 fs_target "$TARGET" || exit 2
-RESULT=/tmp/npu-jitter.json
+RESULT=/var/run/npu-jitter.json
 TMP="$RESULT.$$"
 trap 'rm -f "$TMP"; exit 0' INT TERM
 values=
@@ -20,6 +20,7 @@ while :; do
       printf "{\"timestamp\":%d,\"target\":\"%s\",\"last_ping\":%s,\"deviation\":%s,\"samples\":%d,\"received\":%d,\"loss\":%.1f}\n%s\n",now,target,last,mad,n,good,100*(n-good)/n,trim
     }')
     printf '%s\n' "$result" | { IFS= read -r line; printf '%s\n' "$line" > "$TMP"; }
+    chmod 600 "$TMP" || exit 1
     mv -f "$TMP" "$RESULT" || exit 1
     values=${result#*
 }

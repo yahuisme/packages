@@ -4,536 +4,117 @@
 'require poll';
 'require ui';
 
-var overview = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getOverview', raise: true });
-var flows = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getPpeEntries', raise: true });
-var saveMonitor = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setMonitor', params: ['target', 'enabled'], raise: true });
+var getOverview = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getOverview', raise: true });
+var getPpeEntries = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getPpeEntries', raise: true });
+var setMonitor = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setMonitor', params: ['target', 'enabled'], raise: true });
 
-var HISTORY_WINDOW_MS = 2 * 60 * 1000;
-var TIME_GRID_MS = 10 * 1000;
-var TIME_LABEL_MS = 30 * 1000;
-var VALUE_GRID_DIV = 4;
-var HISTORY_KEY = 'airoha-flowsense-history-v1';
-var history = [];
-
-var themeCSS = '\
-:root{--fs-canvas-bg:#fbfcfd;--fs-grid:rgba(80,90,100,.14);--fs-axis:#64748b}\
-@media(prefers-color-scheme:dark){:root{--fs-canvas-bg:#161616;--fs-grid:rgba(255,255,255,.08);--fs-axis:#94a3b8}}\
-[data-theme="dark"],[data-dark="true"],[data-darkmode="true"],.dark-mode,:root[data-dark="true"]{--fs-canvas-bg:#161616;--fs-grid:rgba(255,255,255,.08);--fs-axis:#94a3b8}\
-.flowsense-dashboard{--fs-font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--fs-font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;font-family:var(--fs-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\
-.flowsense-dashboard .cbi-tabmenu{margin-bottom:14px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
-.flowsense-dashboard .cbi-map-descr{margin-bottom:14px;min-height:18px;font-variant-numeric:tabular-nums}\
-.fs-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:14px}\
-.fs-summary-card,.fs-card-neutral{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
-.fs-summary-card{padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center}\
-.fs-card-title{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
-.fs-card-value{font-size:18px;font-family:var(--fs-font-mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,inherit)}\
-.fs-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
-.flowsense-dashboard .cbi-section{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:14px;margin:14px 0;box-sizing:border-box}\
-.flowsense-dashboard .cbi-section-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:8px;margin:0 0 12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0);display:flex;align-items:center;justify-content:space-between}\
-.flowsense-dashboard .cbi-section-descr{font-size:12px;color:var(--cbi-muted-color,#888);margin-bottom:12px}\
-.flowsense-dashboard .cbi-section-node{padding:12px 14px;margin-bottom:12px}\
-.flowsense-dashboard .cbi-value{display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,.08))}\
-.flowsense-dashboard .cbi-value:last-child{border-bottom:none}\
-.flowsense-dashboard .cbi-value-title{width:220px;flex:0 0 220px;margin:0;font-size:13px;font-weight:500;color:var(--cbi-muted-color,#666)}\
-.flowsense-dashboard .cbi-value-field{flex:1;display:flex;align-items:center;gap:8px;min-width:0;margin:0}\
-.flowsense-dashboard .cbi-value-field span{font-family:var(--fs-font-mono);font-variant-numeric:tabular-nums}\
-.flowsense-dashboard .cbi-input-text{height:32px;border-radius:4px;font-family:var(--fs-font-mono);font-variant-numeric:tabular-nums;width:100%;max-width:320px;box-sizing:border-box}\
-.flowsense-dashboard .cbi-button{height:32px;padding:0 16px;border-radius:4px;font-size:12px;font-weight:500;margin:0}\
-.fs-chart-panel{background:transparent;border:none;padding:0;margin:10px 0 0}\
-.fs-chart-title{font-size:11px;font-weight:500;color:var(--cbi-muted-color,#666);text-transform:uppercase;letter-spacing:.5px;padding-bottom:6px;margin-bottom:8px;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,0.12))}\
-.fs-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}\
-.fs-chart-card{background:transparent;border:none;padding:0;min-width:0}\
-.fs-chart-canvas{display:block;width:100%;height:100px;margin-top:4px;background:var(--fs-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
-.fs-iface-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,0.12))}\
-.fs-iface-title{display:flex;align-items:baseline;gap:8px}\
-.fs-iface-name{font-size:14px;font-weight:600;color:var(--cbi-text-color,inherit);font-family:var(--fs-font-mono)}\
-.fs-iface-badge{display:inline-flex;align-items:center;padding:2px 8px;font-size:11px;font-weight:600;border-radius:4px;border:1px solid var(--cbi-border-color,#e0e0e0);color:var(--cbi-muted-color,#666)}\
-.fs-badge-up{border-color:var(--cbi-success-color,#10b981);color:var(--cbi-success-color,#10b981);background:rgba(16,185,129,0.10)}\
-.fs-badge-up::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:5px}\
-.fs-badge-down{border-color:var(--cbi-border-color,rgba(128,128,128,0.2));color:var(--cbi-muted-color,#888);background:rgba(128,128,128,0.08);opacity:0.8}\
-@media(max-width:1050px){.fs-summary-grid{grid-template-columns:repeat(2,minmax(150px,1fr))}}\
-@media(max-width:760px){.fs-chart-grid{grid-template-columns:1fr}}\
-@media(max-width:640px){\
-.fs-summary-grid{grid-template-columns:1fr}\
-.fs-summary-card{min-height:68px}\
-.flowsense-dashboard .cbi-section{padding:10px}\
-.flowsense-dashboard .cbi-value{flex-direction:column;align-items:flex-start;gap:4px;padding:8px 0}\
-.flowsense-dashboard .cbi-value-title{width:auto;flex:none}\
-.flowsense-dashboard .cbi-value-field{width:100%;flex-wrap:wrap}\
-.flowsense-dashboard .cbi-input-text{max-width:100%}\
-}\
+var css = '\
+.flowsense-summary{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:8px;margin:12px 0}\
+.flowsense-card{padding:10px 12px;min-height:72px;box-sizing:border-box;background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#ddd);border-radius:6px}\
+.flowsense-label{font-size:11px;font-weight:500;color:var(--cbi-muted-color,#666);text-transform:uppercase;letter-spacing:.04em}.flowsense-value{display:block;margin-top:3px;font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}.flowsense-sub{font-size:12px;color:var(--cbi-muted-color,#888)}\
+.flowsense-status{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border:1px solid var(--cbi-border-color,#ddd);border-radius:4px;font-size:12px}.flowsense-up{color:var(--cbi-success-color,#10b981);border-color:currentColor}.flowsense-up:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}.flowsense-down{color:var(--cbi-muted-color,#888)}\
+.flowsense-section{margin:12px 0}.flowsense-section .cbi-value{padding:7px 0;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,.12))}.flowsense-section .cbi-value:last-child{border-bottom:0}.flowsense-port{margin:8px 0;padding:10px 12px;border:1px solid var(--cbi-border-color,#ddd);border-radius:6px}.flowsense-port-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;font-weight:600}.flowsense-port-name{font-family:ui-monospace,monospace}.flowsense-details{margin-top:8px}.flowsense-details summary{cursor:pointer;color:var(--cbi-link-color,#0ea5e9)}\
+@media(max-width:760px){.flowsense-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:480px){.flowsense-summary{grid-template-columns:1fr}.flowsense-card{min-height:64px}}\
 ';
 
-function injectCSS() {
-	if (document.getElementById('fs-theme-css')) return;
-	var el = document.createElement('style');
-	el.id = 'fs-theme-css';
-	el.textContent = themeCSS;
-	document.head.appendChild(el);
+function installCSS() {
+	if (document.getElementById('flowsense-css')) return;
+	var style = document.createElement('style'); style.id = 'flowsense-css'; style.textContent = css; document.head.appendChild(style);
 }
 
-function restoreHistory() {
-	try {
-		var saved = JSON.parse(window.localStorage.getItem(HISTORY_KEY) || '[]');
-		var now = Date.now();
-		var cutoff = now - HISTORY_WINDOW_MS;
-		if (!Array.isArray(saved)) return;
-		history = saved.filter(function(s) {
-			return s && typeof s.time === 'number' && s.time >= cutoff && s.time <= now;
-		});
-	} catch (e) {
-		history = [];
+function number(value, min, max) { return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max ? value : null; }
+function text(value) { return typeof value === 'string' ? value : ''; }
+function rate(bytes, previous, seconds) {
+	var current = number(bytes, 0, Number.MAX_SAFE_INTEGER), old = number(previous, 0, Number.MAX_SAFE_INTEGER);
+	return current != null && old != null && seconds > 0 && current >= old ? (current - old) * 8 / seconds / 1000000 : null;
+}
+function formatRate(value) { return value == null ? '—' : (value < 1 ? value.toFixed(2) : value.toFixed(value < 10 ? 1 : 0)) + ' Mbit/s'; }
+function metric(label, value) { return E('div', { 'class': 'cbi-value' }, [E('span', { 'class': 'cbi-value-title' }, label), E('div', { 'class': 'cbi-value-field' }, value)]); }
+function statusBadge(carrier) {
+	var up = carrier === 1 || carrier === true, down = carrier === 0 || carrier === false;
+	return E('span', { 'class': 'flowsense-status' + (up ? ' flowsense-up' : down ? ' flowsense-down' : '') }, up ? _('Up') : down ? _('Down') : _('Unknown'));
+}
+function validTarget(value) {
+	value = text(value).trim();
+	if (!value || value.length > 253 || !/^[a-zA-Z0-9.-]+$/.test(value)) return false;
+	if (/^[0-9.]+$/.test(value)) {
+		var parts = value.split('.');
+		return parts.length === 4 && parts.every(function(part) { return /^(0|[1-9][0-9]*)$/.test(part) && +part <= 255; });
 	}
-}
-
-function persistHistory() {
-	try {
-		window.localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-	} catch (e) {}
-}
-
-function appendHistory(data) {
-	var now = Date.now();
-	function safeValue(v, min, max) {
-		return typeof v === 'number' && isFinite(v) && v >= min && v <= max ? v : null;
-	}
-	var ppe = data.ppe || {};
-	var sample = {
-		time: now,
-		bnd: safeValue(ppe.bnd, 0, 1000000),
-		unb: safeValue(ppe.unb, 0, 1000000),
-		interfaces: {}
-	};
-	(data.interfaces || []).forEach(function(port) {
-		sample.interfaces[port.device] = {
-			rx_bytes: safeValue(port.stats.rx_bytes, 0, Number.MAX_SAFE_INTEGER),
-			tx_bytes: safeValue(port.stats.tx_bytes, 0, Number.MAX_SAFE_INTEGER)
-		};
-	});
-	history.push(sample);
-	while (history.length && history[0].time < now - HISTORY_WINDOW_MS) history.shift();
-	persistHistory();
-}
-
-function chartScale(hist, key, minMax, step) {
-	var maximum = minMax;
-	for (var i = 0; i < hist.length; i++) if (hist[i][key] != null) maximum = Math.max(maximum, hist[i][key]);
-	return Math.ceil(maximum / step) * step;
-}
-
-function drawChart(canvas, hist, key, options) {
-	if (!canvas) return;
-	var style = window.getComputedStyle(canvas);
-	var width = Math.max(canvas.clientWidth, 1);
-	var height = Math.max(canvas.clientHeight, 1);
-	var dpr = Math.min(window.devicePixelRatio || 1, 2);
-	var ctx = canvas.getContext('2d');
-	var pad = { left: 31, right: 6, top: 7, bottom: 16 };
-	var plotW = Math.max(width - pad.left - pad.right, 1);
-	var plotH = Math.max(height - pad.top - pad.bottom, 1);
-	var plotB = pad.top + plotH;
-	var now = Date.now();
-	hist = hist.filter(function(s) { return s.time >= now - HISTORY_WINDOW_MS && s.time <= now; });
-	var start = now - HISTORY_WINDOW_MS;
-	var maximum = chartScale(hist, key, options.minMax, options.step);
-	var minimum = 0;
-	var gridColor = style.getPropertyValue('--fs-grid').trim() || 'rgba(127,127,127,.24)';
-	var axisColor = style.getPropertyValue('--fs-axis').trim() || style.color || '#666';
-
-	canvas.width = Math.round(width * dpr);
-	canvas.height = Math.round(height * dpr);
-	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-	ctx.clearRect(0, 0, width, height);
-	ctx.strokeStyle = gridColor;
-	ctx.lineWidth = 1;
-	ctx.beginPath();
-	for (var e = 0; e <= HISTORY_WINDOW_MS; e += TIME_GRID_MS) {
-		var gx = pad.left + plotW * e / HISTORY_WINDOW_MS;
-		ctx.moveTo(gx, pad.top);
-		ctx.lineTo(gx, plotB);
-	}
-	for (var d = 0; d <= VALUE_GRID_DIV; d++) {
-		var gy = pad.top + plotH * d / VALUE_GRID_DIV;
-		ctx.moveTo(pad.left, gy);
-		ctx.lineTo(pad.left + plotW, gy);
-	}
-	ctx.stroke();
-
-	ctx.fillStyle = axisColor;
-	ctx.font = '10px var(--fs-font-mono, ui-monospace, monospace)';
-	ctx.textAlign = 'right';
-	ctx.textBaseline = 'top';
-	ctx.fillText(options.format(maximum), pad.left - 4, pad.top - 1);
-	ctx.textBaseline = 'middle';
-	ctx.fillText(options.format(maximum / 2), pad.left - 4, pad.top + plotH / 2);
-	ctx.textBaseline = 'bottom';
-	ctx.fillText(options.format(minimum), pad.left - 4, plotB + 1);
-	for (var t = 0; t <= HISTORY_WINDOW_MS; t += TIME_LABEL_MS) {
-		var lx = pad.left + plotW * t / HISTORY_WINDOW_MS;
-		var remaining = (HISTORY_WINDOW_MS - t) / 1000;
-		ctx.textAlign = t === 0 ? 'left' : t === HISTORY_WINDOW_MS ? 'right' : 'center';
-		ctx.fillText(remaining ? '-' + remaining + 's' : '0', lx, height);
-	}
-
-	if (!hist.length) return;
-	ctx.beginPath();
-	ctx.moveTo(pad.left, plotB);
-	for (var i = 0; i < hist.length; i++) {
-		var sample = hist[i];
-		var val = options.extract ? options.extract(sample) : sample[key];
-		if (val == null || !isFinite(val)) {
-			if (i > 0) ctx.lineTo(pad.left + (sample.time - start) / HISTORY_WINDOW_MS * plotW, plotB);
-		} else {
-			var x = pad.left + (sample.time - start) / HISTORY_WINDOW_MS * plotW;
-			var y = plotB - (val - minimum) / (maximum - minimum) * plotH;
-			ctx.lineTo(x, y);
-		}
-	}
-	ctx.lineTo(pad.left + (hist[hist.length - 1].time - start) / HISTORY_WINDOW_MS * plotW, plotB);
-	ctx.closePath();
-	ctx.fillStyle = options.fillColor;
-	ctx.fill();
-
-	ctx.beginPath();
-	var previous = null;
-	for (var j = 0; j < hist.length; j++) {
-		var s = hist[j];
-		var v = options.extract ? options.extract(s) : s[key];
-		if (v == null || !isFinite(v)) {
-			previous = null;
-			continue;
-		}
-		var px = pad.left + (s.time - start) / HISTORY_WINDOW_MS * plotW;
-		var py = plotB - (v - minimum) / (maximum - minimum) * plotH;
-		if (!previous || s.time - previous.time > 10000) ctx.moveTo(px, py);
-		else ctx.lineTo(px, py);
-		previous = s;
-	}
-	ctx.strokeStyle = options.lineColor;
-	ctx.lineWidth = 1.7;
-	ctx.stroke();
-}
-
-function chartCard(label, canvasId) {
-	return E('div', { 'class': 'fs-chart-card' }, [
-		E('div', { 'class': 'fs-card-title' }, label),
-		E('canvas', { 'id': canvasId, 'class': 'fs-chart-canvas' })
-	]);
-}
-
-function formatMbps(v) {
-	if (v == null || !isFinite(v)) return '—';
-	if (v === 0) return '0';
-	if (v < 0.1) return v.toFixed(3);
-	if (v < 1) return v.toFixed(2);
-	if (v < 10) return v.toFixed(1);
-	return v.toFixed(0);
-}
-
-function drawAllCharts() {
-	if (!history.length) return;
-	injectCSS();
-	drawChart(document.getElementById('fc-bnd'), history, 'bnd', { minMax: 10, step: 10, lineColor: '#10b981', fillColor: 'rgba(16,185,129,.08)', format: function(v) { return String(v); } });
-	drawChart(document.getElementById('fc-unb'), history, 'unb', { minMax: 10, step: 10, lineColor: '#f59e0b', fillColor: 'rgba(245,158,11,.08)', format: function(v) { return String(v); } });
-	
-	// 为所有已收集的物理网口绘制趋势图
-	var knownIfaces = {};
-	history.forEach(function(s) {
-		Object.keys(s.interfaces || {}).forEach(function(dev) {
-			if (dev !== 'eth0') knownIfaces[dev] = true;
-		});
-	});
-	Object.keys(knownIfaces).forEach(function(iface) {
-		var rxCanvas = document.getElementById('fc-' + iface + '-rx');
-		var txCanvas = document.getElementById('fc-' + iface + '-tx');
-		if (!rxCanvas || !txCanvas) return;
-		
-		// 构建接口历史数据（带 Mbps 计算）
-		var ifaceHist = [];
-		for (var i = 1; i < history.length; i++) {
-			var curr = history[i];
-			var prev = history[i - 1];
-			if (!curr.interfaces[iface] || !prev.interfaces[iface]) continue;
-			var dt = (curr.time - prev.time) / 1000;
-			if (dt <= 0) continue;
-			var rx_delta = curr.interfaces[iface].rx_bytes - prev.interfaces[iface].rx_bytes;
-			var tx_delta = curr.interfaces[iface].tx_bytes - prev.interfaces[iface].tx_bytes;
-			if (rx_delta < 0 || tx_delta < 0) continue;
-			ifaceHist.push({
-				time: curr.time,
-				rx_mbps: rx_delta * 8 / dt / 1000000,
-				tx_mbps: tx_delta * 8 / dt / 1000000
-			});
-		}
-		
-		drawChart(rxCanvas, ifaceHist, 'rx_mbps', { minMax: 10, step: 10, lineColor: '#0ea5e9', fillColor: 'rgba(14,165,233,.08)', format: formatMbps });
-		drawChart(txCanvas, ifaceHist, 'tx_mbps', { minMax: 10, step: 10, lineColor: '#10b981', fillColor: 'rgba(16,185,129,.08)', format: formatMbps });
-	});
-}
-
-function value(v, suffix) { return v == null ? '—' : v + (suffix || ''); }
-function enabled(v) { return v === true ? _('Enabled') : v === false ? _('Disabled') : _('Unknown'); }
-function metric(label, node) {
-	return E('div', { 'class': 'cbi-value' }, [ E('span', { 'class': 'cbi-value-title' }, label), E('div', { 'class': 'cbi-value-field' }, node) ]);
-}
-function change(current, previous, key, dt) {
-	if (!previous || !(dt > 0) || current[key] == null || previous[key] == null || current[key] < previous[key]) return null;
-	return current[key] - previous[key];
+	return value.split('.').every(function(part) { return part.length <= 63 && /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/.test(part); });
 }
 
 return view.extend({
-	load: function() { return Promise.resolve(); },
+	load: function() { return getOverview().catch(function() { return {}; }); },
 
-	render: function() {
-		injectCSS();
-		restoreHistory();
-		var active = 0, paused = false, previous = null, dirty = false;
+	render: function(initial) {
+		installCSS();
+		var root = E('div', { 'class': 'cbi-map flowsense-dashboard' });
 		var message = E('div', { 'class': 'cbi-map-descr' }, _('Waiting for data'));
-		var hw = E('span'), sw = E('span'), counts = E('span'), ip = E('span');
-		var ping = E('span'), deviation = E('span'), loss = E('span');
+		var summary = E('div', { 'class': 'flowsense-summary' });
 		var interfaces = E('div');
-
-		var summaryCards = {
-			rx: { val: E('span', { 'class': 'fs-card-value' }, '—'), sub: E('span', { 'class': 'fs-card-sub' }, '—') },
-			tx: { val: E('span', { 'class': 'fs-card-value' }, '—'), sub: E('span', { 'class': 'fs-card-sub' }, '—') },
-			ppe: { val: E('span', { 'class': 'fs-card-value' }, '—'), sub: E('span', { 'class': 'fs-card-sub' }, '—') },
-			quality: { val: E('span', { 'class': 'fs-card-value' }, '—'), sub: E('span', { 'class': 'fs-card-sub' }, '—') }
-		};
-
-		function renderSummaryCard(id, title, card) {
-			return E('div', { 'id': 'fs-summary-' + id, 'class': 'fs-summary-card' }, [
-				E('div', { 'class': 'fs-card-title' }, title),
-				card.val,
-				card.sub
-			]);
-		}
-
-		var summaryGrid = E('div', { 'class': 'fs-summary-grid' }, [
-			renderSummaryCard('rx', _('Total Port Receive Rate'), summaryCards.rx),
-			renderSummaryCard('tx', _('Total Port Transmit Rate'), summaryCards.tx),
-			renderSummaryCard('ppe', _('PPE Flow Engine'), summaryCards.ppe),
-			renderSummaryCard('quality', _('Network Quality'), summaryCards.quality)
-		]);
-
-		var target = E('input', { id: 'fs-target', name: 'fs-target', 'class': 'cbi-input-text', maxlength: 253, placeholder: '223.5.5.5' });
-		var monitor = E('input', { id: 'fs-monitor', name: 'fs-monitor', type: 'checkbox', 'class': 'cbi-input-checkbox' });
-		target.addEventListener('input', function() { dirty = true; });
-		monitor.addEventListener('change', function() { dirty = true; });
-		var button = E('button', { 'class': 'cbi-button cbi-button-action cbi-button-primary', click: function() {
-			if (!target.value.trim()) { target.focus(); return; }
-			button.disabled = true;
-			return saveMonitor(target.value.trim(), monitor.checked ? 1 : 0).then(function(result) {
-				if (!result || result.success !== true) throw new Error(_('Unable to apply monitor settings. Check the target and service.'));
-				dirty = false;
-				return update();
-			}).catch(function(err) { ui.addNotification(null, E('p', {}, err.message), 'error'); })
-				.finally(function() { button.disabled = false; });
-		} }, _('Save & Apply'));
-		
-		var first = E('div', {}, [
-			summaryGrid,
-			E('div', { 'class': 'cbi-section' }, [
-				E('div', { 'class': 'cbi-section-title' }, [
-					E('span', {}, _('PPE Flow Trends'))
-				]),
-				E('div', { 'class': 'fs-chart-grid' }, [
-					chartCard(_('Bound Flows'), 'fc-bnd'),
-					chartCard(_('Unbound Flows'), 'fc-unb')
-				])
-			]),
-			E('div', { 'class': 'cbi-section' }, [
-				E('h3', { 'class': 'cbi-section-title' }, [
-					E('span', {}, _('Ethernet links'))
-				]),
-				E('div', { 'class': 'cbi-section-descr' }, _('Real-time interface throughput rates and interval error increments.')),
-				interfaces
-			]),
-			E('div', { 'class': 'cbi-section' }, [
-				E('h3', { 'class': 'cbi-section-title' }, [
-					E('span', {}, _('Link quality'))
-				]),
-				metric(_('Latest RTT'), ping),
-				metric(_('RTT mean absolute deviation'), deviation),
-				metric(_('Window packet loss'), loss),
-				metric(_('Hardware flow offload'), hw),
-				metric(_('Software flow offload'), sw),
-				metric(_('IPv4 / IPv6 / Other'), ip),
-				E('div', { 'class': 'cbi-value' }, [E('label', { 'class': 'cbi-value-title', 'for': 'fs-target' }, _('IPv4 address or hostname')), E('div', { 'class': 'cbi-value-field' }, target)]),
-				E('div', { 'class': 'cbi-value' }, [E('label', { 'class': 'cbi-value-title', 'for': 'fs-monitor' }, _('Enable periodic probes')), E('div', { 'class': 'cbi-value-field' }, monitor)]),
-				E('div', { 'class': 'cbi-value', style: 'padding-top:10px;' }, [E('div', { 'class': 'cbi-value-title' }), E('div', { 'class': 'cbi-value-field' }, button)])
-			])
-		]);
-
-		var detail = E('div'), detailMessage = E('div', { 'class': 'cbi-section-descr' });
-		var pause = E('button', { 'class': 'cbi-button', click: function() { 
-			paused = !paused; 
-			pause.textContent = paused ? _('Resume') : _('Pause'); 
-			if (!paused) update(); 
-		} }, _('Pause'));
-
-		var second = E('div', { style: 'display:none' }, [
-			E('div', { 'class': 'cbi-section' }, [
-				E('div', { 'class': 'cbi-section-title' }, [
-					E('span', {}, _('PPE Flow Offload')),
-					pause
-				]),
-				detailMessage,
-				detail
-			])
-		]);
-
-		var panes = [first, second], nav = E('ul', { 'class': 'cbi-tabmenu' });
-		[_('Overview & Quality'), _('PPE Flow Offload')].forEach(function(label, index) {
-			nav.appendChild(E('li', { 'class': index === 0 ? 'cbi-tab cbi-tab-active' : 'cbi-tab' }, E('a', { href: '#', click: function(event) {
-				if (event && event.preventDefault) event.preventDefault();
-				active = index;
-				panes.forEach(function(p, i) { 
-					p.style.display = i === active ? '' : 'none'; 
-					nav.children[i].className = i === active ? 'cbi-tab cbi-tab-active' : 'cbi-tab'; 
-				});
-				if (active === 0) {
-					requestAnimationFrame(drawAllCharts);
-				}
-				update();
-			} }, label)));
+		var quality = E('div', { 'class': 'flowsense-section cbi-section' });
+		var ppe = E('div', { 'class': 'flowsense-section cbi-section' });
+		var target = E('input', { id: 'flowsense-target', 'class': 'cbi-input-text', maxlength: 253, placeholder: '223.5.5.5' });
+		var enabled = E('input', { id: 'flowsense-enabled', type: 'checkbox', 'class': 'cbi-input-checkbox' });
+		var apply = E('button', { 'class': 'cbi-button cbi-button-action cbi-button-primary' }, _('Save & Apply'));
+		var previous = null, dirty = false, pending = null;
+		target.addEventListener('input', function() { dirty = true; }); enabled.addEventListener('change', function() { dirty = true; });
+		apply.addEventListener('click', function() {
+			if (!validTarget(target.value)) { ui.addNotification(null, E('p', {}, _('Enter a valid IPv4 address or hostname.')), 'error'); target.focus(); return; }
+			apply.disabled = true;
+			setMonitor(target.value.trim(), enabled.checked ? 1 : 0).then(function(result) {
+				if (!result || result.success !== true) throw new Error(_('Unable to apply monitor settings.'));
+				dirty = false; return update();
+			}).catch(function(error) { ui.addNotification(null, E('p', {}, error.message), 'error'); }).finally(function() { apply.disabled = false; });
 		});
+		var main = E('div', {}, [summary, E('div', { 'class': 'cbi-section' }, [E('h3', { 'class': 'cbi-section-title' }, _('Ethernet Links')), interfaces]), quality]);
+		var monitor = E('div', { 'class': 'cbi-section' }, [E('h3', { 'class': 'cbi-section-title' }, _('Probe Settings')), metric(_('IPv4 address or hostname'), target), metric(_('Enable periodic probes'), enabled), E('div', { 'class': 'cbi-value' }, [E('span', { 'class': 'cbi-value-title' }), E('div', { 'class': 'cbi-value-field' }, apply)])]);
+		var details = E('details', { 'class': 'flowsense-details' }, [E('summary', {}, _('Show PPE flow entries')), ppe]);
+		root.append(message, main, monitor, details);
 
-		var root = E('div', { 'class': 'cbi-map flowsense-dashboard' }, [message, nav, first, second]);
-		var pending = null;
+		function card(title, value, sub) { return E('div', { 'class': 'flowsense-card' }, [E('span', { 'class': 'flowsense-label' }, title), E('span', { 'class': 'flowsense-value' }, value), E('span', { 'class': 'flowsense-sub' }, sub)]); }
 		function update() {
+			if (!root.isConnected) {
+				poll.remove(update);
+				return Promise.resolve();
+			}
 			if (pending) return pending;
-			pending = overview().then(function(data) {
+			pending = getOverview().then(function(data) {
 				if (!root.isConnected) return;
-				hw.textContent = enabled(data.configured_hw); sw.textContent = enabled(data.configured_sw);
-				var ppe = data.ppe || {};
-				counts.textContent = ppe.available ? ppe.bnd + ' / ' + ppe.unb : _('Unavailable');
-				ip.textContent = ppe.available ? ppe.ipv4 + ' / ' + ppe.ipv6 + ' / ' + ppe.other : '—';
-				var monitorConfig = data.monitor || {};
-				if (!dirty) { target.value = monitorConfig.target || ''; monitor.checked = monitorConfig.enabled === true; }
-				var probeState = monitorConfig.enabled === false ? _('Probe disabled')
-					: monitorConfig.enabled === true ? _('Probe data unavailable') : _('Unknown');
-				var jitter = data.jitter;
-				ping.textContent = jitter ? value(jitter.last_ping, ' ms') : probeState;
-				deviation.textContent = jitter ? value(jitter.deviation, ' ms') : '—';
-				loss.textContent = jitter ? value(jitter.loss, '%') + ' (' + jitter.received + '/' + jitter.samples + ')' : '—';
-
-				var totalRxBps = 0, totalTxBps = 0, validRx = 0, validTx = 0;
+				data = data && typeof data === 'object' ? data : {};
+				var jitter = data.jitter && typeof data.jitter === 'object' ? data.jitter : null;
+				var ports = Array.isArray(data.interfaces) ? data.interfaces.filter(function(port) { return port && typeof port.device === 'string' && port.device !== 'eth0' && port.stats && typeof port.stats === 'object'; }) : [];
+				if (!dirty) { target.value = text(data.monitor && data.monitor.target); enabled.checked = data.monitor && data.monitor.enabled === true; }
+				var seconds = previous && number(data.uptime, 0, Number.MAX_SAFE_INTEGER) - previous.time;
+				var totalRx = 0, totalTx = 0, rxOk = 0, txOk = 0;
 				interfaces.replaceChildren();
-
-				var ifaceOrder = { 'wan': 1, 'lan2': 2, 'lan3': 3, 'lan4': 4, 'lan1': 5 };
-				var portList = (data.interfaces || []).filter(function(p) {
-					return p && p.device && p.device !== 'eth0';
-				}).sort(function(a, b) {
-					var oa = ifaceOrder[a.device] || 100;
-					var ob = ifaceOrder[b.device] || 100;
-					if (oa !== ob) return oa - ob;
-					return (a.device || '').localeCompare(b.device || '');
+				ports.forEach(function(port) {
+					var old = previous && previous.ports[port.device], rx = rate(port.stats.rx_bytes, old && old.rx_bytes, seconds), tx = rate(port.stats.tx_bytes, old && old.tx_bytes, seconds);
+					if (rx != null) { totalRx += rx; rxOk++; } if (tx != null) { totalTx += tx; txOk++; }
+					interfaces.appendChild(E('div', { 'class': 'flowsense-port' }, [E('div', { 'class': 'flowsense-port-title' }, [E('span', { 'class': 'flowsense-port-name' }, port.device), statusBadge(port.carrier)]), metric(_('Speed'), number(port.speed, 0, 1000000) == null ? '—' : port.speed + ' Mbit/s'), metric(_('RX / TX rate'), formatRate(rx) + ' / ' + formatRate(tx)), metric(_('RX / TX errors'), (number(port.stats.rx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : port.stats.rx_errors) + ' / ' + (number(port.stats.tx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : port.stats.tx_errors))]));
 				});
-
-				portList.forEach(function(port) {
-					var before = previous && previous.ports[port.device], dt = previous ? data.uptime - previous.time : 0;
-					if (before && before.ifindex !== port.ifindex) before = null;
-					var rx = change(port.stats, before && before.stats, 'rx_bytes', dt), tx = change(port.stats, before && before.stats, 'tx_bytes', dt);
-					if (rx != null && dt > 0) { totalRxBps += rx * 8 / dt; validRx++; }
-					if (tx != null && dt > 0) { totalTxBps += tx * 8 / dt; validTx++; }
-					var rxRateText = rx == null ? '—' : formatMbps(rx * 8 / dt / 1000000) + ' Mbit/s';
-					var txRateText = tx == null ? '—' : formatMbps(tx * 8 / dt / 1000000) + ' Mbit/s';
-
-					var isCarrierUp = port.carrier === 1 || port.carrier === true;
-					var isCarrierDown = port.carrier === 0 || port.carrier === false;
-					var statusBadge = E('span', {
-						'class': 'fs-iface-badge' + (isCarrierUp ? ' fs-badge-up' : isCarrierDown ? ' fs-badge-down' : '')
-					}, isCarrierUp ? _('Up') : isCarrierDown ? _('Down') : _('Unknown'));
-
-					var card = E('div', { 'class': 'cbi-section-node fs-card-neutral' }, [
-						E('div', { 'class': 'fs-iface-header' }, [
-							E('div', { 'class': 'fs-iface-title' }, [
-								E('span', { 'class': 'fs-iface-name' }, port.device),
-								E('span', { style: 'font-size:12px;color:var(--cbi-muted-color,#888)' }, value(port.speed, ' Mbit/s'))
-							]),
-							statusBadge
-						]),
-						metric(_('RX / TX rate'), rxRateText + ' / ' + txRateText)
-					]);
-					['rx_errors','tx_errors','rx_dropped','tx_dropped'].forEach(function(key, i) { 
-						card.appendChild(metric([_('RX errors'),_('TX errors'),_('RX drops'),_('TX drops')][i], value(change(port.stats, before && before.stats, key, dt)))); 
-					});
-					
-					// 添加接口吞吐率趋势图
-					card.appendChild(E('div', { 'class': 'fs-chart-panel', style: 'margin-top:10px' }, [
-						E('div', { 'class': 'fs-chart-title' }, _('Throughput Trends')),
-						E('div', { 'class': 'fs-chart-grid' }, [
-							chartCard(_('RX Rate (Mbps)'), 'fc-' + port.device + '-rx'),
-							chartCard(_('TX Rate (Mbps)'), 'fc-' + port.device + '-tx')
-						])
-					]));
-					
-					interfaces.appendChild(card);
-				});
-
-				// 更新 Summary Cards
-				summaryCards.rx.val.textContent = validRx > 0 && validRx === portList.length ? formatMbps(totalRxBps / 1000000) + ' Mbit/s' : '—';
-				summaryCards.rx.sub.textContent = _('All interfaces combined');
-
-				summaryCards.tx.val.textContent = validTx > 0 && validTx === portList.length ? formatMbps(totalTxBps / 1000000) + ' Mbit/s' : '—';
-				summaryCards.tx.sub.textContent = _('All interfaces combined');
-
-				summaryCards.ppe.val.textContent = ppe.available && ppe.bnd != null ? ppe.bnd + ' ' + _('Flows') : _('Unavailable');
-				summaryCards.ppe.sub.textContent = ppe.available
-					? (ppe.unb != null ? _('Unbound') + ': ' + ppe.unb : '—') + (data.configured_hw ? ' · ' + _('HW PPE') : '')
-					: _('PPE data unavailable');
-
-				summaryCards.quality.val.textContent = jitter && jitter.last_ping != null ? value(jitter.last_ping, ' ms') : '—';
-				summaryCards.quality.sub.textContent = jitter
-					? _('Loss') + ': ' + value(jitter.loss, '%') + (jitter.deviation != null ? ' · ±' + jitter.deviation + 'ms' : '')
-					: probeState;
-
-				appendHistory(data);
-				drawAllCharts();
-				previous = { time: data.uptime, ports: {} }; (data.interfaces || []).forEach(function(p) { previous.ports[p.device] = p; });
-				message.textContent = _('Last update') + ': ' + new Date(data.timestamp * 1000).toLocaleTimeString();
-				if (active !== 1 || paused) return;
-				return flows().then(function(p) {
-					if (!root.isConnected || active !== 1 || paused) return;
-					detail.replaceChildren();
-					if (!p.available) { detailMessage.textContent = _('PPE data unavailable'); return; }
-					detailMessage.textContent = _('Shown / Total') + ': ' + p.entries.length + ' / ' + p.total;
-					p.entries.forEach(function(entry) {
-						detail.appendChild(E('details', { 'class': 'cbi-section-node fs-card-neutral', style: 'margin-bottom:8px' }, [E('summary', { style: 'cursor:pointer;padding:8px 0' }, entry.index + ' · ' + entry.state + ' · ' + entry.type),
-							metric(_('Original Flow'), entry.orig || '—'), metric(_('New Flow'), entry.new_flow || '—')]));
-					});
-				});
-			}).catch(function() {
-				if (!root.isConnected) return;
-				previous = null; message.textContent = _('Data unavailable; previous readings cleared.');
-				[hw,sw,counts,ip,ping,deviation,loss].forEach(function(el) { el.textContent = '—'; });
-				summaryCards.rx.val.textContent = '—'; summaryCards.rx.sub.textContent = '—';
-				summaryCards.tx.val.textContent = '—'; summaryCards.tx.sub.textContent = '—';
-				summaryCards.ppe.val.textContent = '—'; summaryCards.ppe.sub.textContent = '—';
-				summaryCards.quality.val.textContent = '—'; summaryCards.quality.sub.textContent = '—';
-				interfaces.replaceChildren(); detail.replaceChildren(); detailMessage.textContent = _('PPE data unavailable');
-			}).finally(function() { pending = null; });
+				summary.replaceChildren(card(_('Total Port Receive Rate'), rxOk === ports.length && ports.length ? formatRate(totalRx) : '—', rxOk + ' / ' + ports.length), card(_('Total Port Transmit Rate'), txOk === ports.length && ports.length ? formatRate(totalTx) : '—', txOk + ' / ' + ports.length), card(_('PPE Flow Engine'), p.available === true ? (number(p.bnd, 0, 1000000) == null ? _('Unavailable') : p.bnd + ' ' + _('Flows')) : _('Unavailable'), p.available === true && number(p.unb, 0, 1000000) != null ? _('Unbound') + ': ' + p.unb : '—'), card(_('Network Quality'), jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : '—', jitter && number(jitter.loss, 0, 100) != null ? _('Loss') + ': ' + jitter.loss + '%' : _('Probe data unavailable')));
+				quality.replaceChildren(E('h3', { 'class': 'cbi-section-title' }, _('Link Quality')), metric(_('Latest RTT'), jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : _('Probe data unavailable')), metric(_('RTT mean absolute deviation'), jitter && number(jitter.deviation, 0, 60000) != null ? jitter.deviation + ' ms' : '—'), metric(_('Window packet loss'), jitter && number(jitter.loss, 0, 100) != null ? jitter.loss + '%' : '—'), metric(_('Hardware flow offload'), data.configured_hw === true ? _('Enabled') : data.configured_hw === false ? _('Disabled') : _('Unknown')), metric(_('Software flow offload'), data.configured_sw === true ? _('Enabled') : data.configured_sw === false ? _('Disabled') : _('Unknown')));
+				previous = { time: number(data.uptime, 0, Number.MAX_SAFE_INTEGER) || 0, ports: {} }; ports.forEach(function(port) { previous.ports[port.device] = port.stats; });
+				message.textContent = data.timestamp ? _('Last update') + ': ' + new Date(data.timestamp * 1000).toLocaleTimeString() : _('Data unavailable');
+				if (details.open) return loadPpe();
+			}).catch(function() { if (!root.isConnected) return; previous = null; message.textContent = _('Data unavailable; previous readings cleared.'); interfaces.replaceChildren(); }).finally(function() { pending = null; });
 			return pending;
 		}
-
-		requestAnimationFrame(function() { 
+		function loadPpe() { return getPpeEntries().then(function(result) { ppe.replaceChildren(); if (!result || result.available !== true || !Array.isArray(result.entries)) { ppe.appendChild(E('p', {}, _('PPE data unavailable'))); return; } ppe.appendChild(E('p', {}, _('Shown / Total') + ': ' + result.entries.length + ' / ' + (number(result.total, 0, 1000000) == null ? '—' : result.total))); result.entries.forEach(function(entry) { if (!entry || typeof entry !== 'object') return; ppe.appendChild(E('div', { 'class': 'cbi-value' }, [E('span', { 'class': 'cbi-value-title' }, text(entry.index)), E('div', { 'class': 'cbi-value-field' }, text(entry.state) + ' · ' + text(entry.type))])); }); }).catch(function() { ppe.replaceChildren(E('p', {}, _('PPE data unavailable'))); }); }
+		details.addEventListener('toggle', function() { if (details.open) loadPpe(); });
+		requestAnimationFrame(function() {
 			if (!root.isConnected) return;
-			var resize = new ResizeObserver(drawAllCharts);
-			resize.observe(root);
-			if (typeof MutationObserver !== 'undefined') {
-				var removal = new MutationObserver(function() {
-					if (root.isConnected) return;
-					poll.remove(update);
-					resize.disconnect();
-					removal.disconnect();
-				});
-				removal.observe(document.body, { childList: true, subtree: true });
-			}
-			drawAllCharts();
-			update(); 
-			poll.add(update, 5); 
+			var removal = new MutationObserver(function() {
+				if (root.isConnected) return;
+				poll.remove(update);
+				removal.disconnect();
+			});
+			removal.observe(document.body, { childList: true, subtree: true });
+			update();
+			poll.add(update, 5);
 		});
 		return root;
-	},
-	handleSaveApply: null, handleSave: null, handleReset: null
+	}
 });

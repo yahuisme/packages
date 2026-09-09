@@ -19,7 +19,7 @@ class DaemonTest(unittest.TestCase):
                 p.chmod(0o755)
             s = (root / 'root/usr/libexec/npu-jitter-daemon').read_text().replace(
                 '/usr/libexec/flowsense-common.sh', str(root / 'root/usr/libexec/flowsense-common.sh')).replace(
-                '/tmp/npu-jitter.json', str(d / 'result.json'))
+                '/var/run/npu-jitter.json', str(d / 'result.json'))
             (d / 'daemon').write_text(s)
             subprocess.run(['busybox', 'ash', str(d / 'daemon'), 'example.com'],
                            env=dict(os.environ, PATH=str(d / 'bin') + ':' + os.environ['PATH']),

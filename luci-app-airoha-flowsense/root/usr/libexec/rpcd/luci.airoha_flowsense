@@ -1,100 +1,88 @@
 #!/bin/sh
 . /usr/libexec/flowsense-common.sh
 
-boolean() {
-    case "$1" in 1) printf true;; 0) printf false;; *) printf null;; esac
+json_number() {
+    fs_uint "$1" && printf '%s' "$1" || printf null
 }
+
+json_decimal() {
+    case "$1" in ''|*[!0-9.]*) printf null;; *) printf '%s' "$1";; esac
+}
+
 get_ppe() {
     local limit=${1:-0} tmp rc
     tmp=$(mktemp /tmp/flowsense-ppe.XXXXXX) || { printf '{"available":false}'; return; }
     timeout 2 cat /sys/kernel/debug/ppe/entries > "$tmp" 2>/dev/null
     rc=$?
-    if [ "$rc" -ne 0 ]; then
-        rm -f "$tmp"
-        printf '{"available":false}'
-        return
-    fi
+    if [ "$rc" -ne 0 ]; then rm -f "$tmp"; printf '{"available":false}'; return; fi
     awk -v limit="$limit" '
-    function esc(s){gsub(/\\/,"\\\\",s);gsub(/"/,"\\\"",s);return s}
+    function esc(s,    i,c,o){o="";for(i=1;i<=length(s);i++){c=substr(s,i,1);if(c=="\\")o= o "\\\\";else if(c=="\"")o=o "\\\"";else if(c=="\t")o=o "\\t";else if(c=="\r")o=o "\\r";else if(c=="\n")o=o "\\n";else o=o c}return o}
     /^[0-9a-fA-F]+ (BND|UNB|FIN) / {
-        total++; if($2=="BND")bnd++;if($2=="UNB")unb++
-        if($3=="IPv4")v4++;else if($3=="IPv6")v6++;else other++
+        total++; if($2=="BND")bnd++; if($2=="UNB")unb++
+        if($3=="IPv4")v4++; else if($3=="IPv6")v6++; else other++
         if(shown>=limit)next
-        orig="";newf=""
-        for(i=4;i<=NF;i++){if($i~/^orig=/)orig=substr($i,6);if($i~/^new=/)newf=substr($i,5)}
+        orig="";newf="";for(i=4;i<=NF;i++){if($i~/^orig=/)orig=substr($i,6);if($i~/^new=/)newf=substr($i,5)}
         entries[shown++]=sprintf("{\"index\":\"%s\",\"state\":\"%s\",\"type\":\"%s\",\"orig\":\"%s\",\"new_flow\":\"%s\"}",$1,$2,esc($3),esc(orig),esc(newf))
     }
-    END {printf "{\"available\":true,\"total\":%d,\"bnd\":%d,\"unb\":%d,\"ipv4\":%d,\"ipv6\":%d,\"other\":%d,\"entries\":[",total,bnd,unb,v4,v6,other
-         for(i=0;i<shown;i++)printf "%s%s",i?",":"",entries[i];printf "]}"}' "$tmp"
+    END {printf "{\"available\":true,\"total\":%d,\"bnd\":%d,\"unb\":%d,\"ipv4\":%d,\"ipv6\":%d,\"other\":%d,\"entries\":[",total,bnd,unb,v4,v6,other;for(i=0;i<shown;i++)printf "%s%s",i?",":"",entries[i];printf "]}"}' "$tmp"
     rm -f "$tmp"
 }
+
 get_interfaces() {
     local dev name first=1 key sep
     printf '['
     for dev in /sys/class/net/*; do
         [ -d "$dev/device" ] || [ -d "$dev/dsa" ] || continue
         [ ! -d "$dev/phy80211" ] || continue
-        name=${dev##*/}
-        [ "$name" != "eth0" ] || continue
+        name=${dev##*/}; [ "$name" != "eth0" ] || continue
         case "$name" in ''|*[!a-zA-Z0-9_.:-]*) continue;; esac
-        [ "$first" -eq 1 ] || printf ','
-        first=0
-        printf '{"device":"%s","ifindex":%s,"carrier":%s,"speed":%s,"stats":{' "$name" "$(fs_read "$dev/ifindex")" "$(fs_read "$dev/carrier")" "$(fs_read "$dev/speed")"
+        [ "$first" -eq 1 ] || printf ','; first=0
+        printf '{"device":"%s","ifindex":%s,"carrier":%s,"speed":%s,"stats":{' "$name" "$(fs_uint "$(fs_read "$dev/ifindex")" && fs_read "$dev/ifindex" || printf null)" "$(fs_read "$dev/carrier")" "$(fs_read "$dev/speed")"
         sep=
-        for key in rx_bytes tx_bytes rx_errors tx_errors rx_dropped tx_dropped; do
-            printf '%s"%s":%s' "$sep" "$key" "$(fs_read "$dev/statistics/$key")"
-            sep=,
-        done
+        for key in rx_bytes tx_bytes rx_errors tx_errors rx_dropped tx_dropped; do printf '%s"%s":%s' "$sep" "$key" "$(fs_counter_read "$dev/statistics/$key")"; sep=,; done
         printf '}}'
     done
     printf ']'
 }
-get_overview() {
-    local target enabled flow sw jitter=null now stamp uptime
-    target=$(uci -q get npu-monitor.@jitter[0].target)
-    fs_target "$target" || target=223.5.5.5
-    enabled=$(uci -q get npu-monitor.@jitter[0].enabled)
-    [ -n "$enabled" ] || enabled=1
-    flow=$(uci -q get firewall.@defaults[0].flow_offloading_hw)
-    sw=$(uci -q get firewall.@defaults[0].flow_offloading)
+
+get_jitter() {
+    local file=/var/run/npu-jitter.json stamp now last deviation samples received loss target
+    [ -r "$file" ] || { printf null; return; }
+    stamp=$(jsonfilter -i "$file" -e '@.timestamp' 2>/dev/null)
     now=$(date +%s)
-    if [ "$enabled" = 1 ] && [ -r /tmp/npu-jitter.json ]; then
-        stamp=$(jsonfilter -i /tmp/npu-jitter.json -e '@.timestamp' 2>/dev/null)
-        if fs_uint "$stamp" && [ "$stamp" -le "$now" ] && [ "$((now-stamp))" -le 20 ]; then
-            jitter=$(cat /tmp/npu-jitter.json)
-        fi
-    fi
-    read -r uptime _ < /proc/uptime
-    printf '{"timestamp":%s,"uptime":%s,"configured_hw":%s,"configured_sw":%s,"monitor":{"enabled":%s,"target":"%s"},"jitter":%s,"interfaces":' "$now" "$uptime" "$(boolean "$flow")" "$(boolean "$sw")" "$(boolean "$enabled")" "$target" "$jitter"
-    get_interfaces
-    printf ',"ppe":'
-    get_ppe 0
-    printf '}'
+    fs_uint "$stamp" && [ "$stamp" -le "$now" ] && [ "$((now-stamp))" -le 20 ] || { printf null; return; }
+    target=$(jsonfilter -i "$file" -e '@.target' 2>/dev/null); fs_target "$target" || target=unknown
+    last=$(jsonfilter -i "$file" -e '@.last_ping' 2>/dev/null)
+    deviation=$(jsonfilter -i "$file" -e '@.deviation' 2>/dev/null)
+    samples=$(jsonfilter -i "$file" -e '@.samples' 2>/dev/null)
+    received=$(jsonfilter -i "$file" -e '@.received' 2>/dev/null)
+    loss=$(jsonfilter -i "$file" -e '@.loss' 2>/dev/null)
+    printf '{"timestamp":%s,"target":"%s","last_ping":%s,"deviation":%s,"samples":%s,"received":%s,"loss":%s}' "$stamp" "$target" "$(json_decimal "$last")" "$(json_decimal "$deviation")" "$(json_number "$samples")" "$(json_number "$received")" "$(json_decimal "$loss")"
 }
+
+get_overview() {
+    local target enabled flow sw now uptime
+    target=$(uci -q get npu-monitor.@jitter[0].target); fs_target "$target" || target=223.5.5.5
+    enabled=$(uci -q get npu-monitor.@jitter[0].enabled); [ "$enabled" = 0 ] || enabled=1
+    flow=$(uci -q get firewall.@defaults[0].flow_offloading_hw); sw=$(uci -q get firewall.@defaults[0].flow_offloading)
+    now=$(date +%s); read -r uptime _ < /proc/uptime
+    printf '{"timestamp":%s,"uptime":%s,"configured_hw":%s,"configured_sw":%s,"monitor":{"enabled":%s,"target":"%s"},"jitter":' "$now" "$uptime" "$(boolean "$flow")" "$(boolean "$sw")" "$(boolean "$enabled")" "$target"
+    get_jitter; printf ',"interfaces":'; get_interfaces; printf ',"ppe":'; get_ppe 0; printf '}'
+}
+
 set_monitor() {
-    local input target enabled oldtarget oldenabled failed=0
+    local input target enabled oldtarget oldenabled failed=0 rollback=0
     read -r input
-    target=$(printf '%s' "$input" | jsonfilter -e '@.target' 2>/dev/null)
-    enabled=$(printf '%s' "$input" | jsonfilter -e '@.enabled' 2>/dev/null)
-    if ! fs_target "$target" || { [ "$enabled" != 0 ] && [ "$enabled" != 1 ]; }; then
-        printf '{"success":false,"error":"invalid"}'
-        return
-    fi
+    target=$(printf '%s' "$input" | jsonfilter -e '@.target' 2>/dev/null); enabled=$(printf '%s' "$input" | jsonfilter -e '@.enabled' 2>/dev/null)
+    if ! fs_target "$target" || { [ "$enabled" != 0 ] && [ "$enabled" != 1 ]; }; then printf '{"success":false,"error":"invalid"}'; return; fi
     oldtarget=$(uci -q get npu-monitor.@jitter[0].target) || { printf '{"success":false,"error":"read"}'; return; }
     oldenabled=$(uci -q get npu-monitor.@jitter[0].enabled)
-    uci set "npu-monitor.@jitter[0].target=$target" &&
-    uci set "npu-monitor.@jitter[0].enabled=$enabled" &&
-    uci commit npu-monitor && /etc/init.d/npu-jitter restart >/dev/null 2>&1 || failed=1
+    uci set "npu-monitor.@jitter[0].target=$target" && uci set "npu-monitor.@jitter[0].enabled=$enabled" && uci commit npu-monitor && /etc/init.d/npu-jitter restart >/dev/null 2>&1 || failed=1
     [ "$(uci -q get npu-monitor.@jitter[0].target)" = "$target" ] && [ "$(uci -q get npu-monitor.@jitter[0].enabled)" = "$enabled" ] || failed=1
     if [ "$failed" -eq 1 ]; then
-        local rollback=0
         uci -q revert npu-monitor || rollback=1
         uci set "npu-monitor.@jitter[0].target=$oldtarget" || rollback=1
-        if [ -n "$oldenabled" ]; then
-            uci set "npu-monitor.@jitter[0].enabled=$oldenabled" || rollback=1
-        else
-            uci -q delete npu-monitor.@jitter[0].enabled
-        fi
+        if [ -n "$oldenabled" ]; then uci set "npu-monitor.@jitter[0].enabled=$oldenabled" || rollback=1; else uci -q delete npu-monitor.@jitter[0].enabled || rollback=1; fi
         uci commit npu-monitor || rollback=1
         /etc/init.d/npu-jitter restart >/dev/null 2>&1 || rollback=1
         if [ "$rollback" -eq 0 ]; then printf '{"success":false,"error":"apply"}'; else printf '{"success":false,"error":"rollback"}'; fi
@@ -102,10 +90,9 @@ set_monitor() {
     fi
     printf '{"success":true}'
 }
+
+boolean() { case "$1" in 1) printf true;; 0) printf false;; *) printf null;; esac; }
 case "$1:$2" in
     list:) printf '{"getOverview":{},"getPpeEntries":{},"setMonitor":{"target":"str","enabled":"int"}}';;
-    call:getOverview) get_overview;;
-    call:getPpeEntries) get_ppe 100;;
-    call:setMonitor) set_monitor;;
-    *) printf '{"error":"Invalid method"}'; exit 1;;
+    call:getOverview) get_overview;; call:getPpeEntries) get_ppe 100;; call:setMonitor) set_monitor;; *) printf '{"error":"Invalid method"}'; exit 1;;
 esac
