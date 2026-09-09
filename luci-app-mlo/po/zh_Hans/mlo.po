@@ -1,23 +1,8 @@
-msgid ""
-msgstr ""
-"Project-Id-Version: luci-app-mlo\n"
-"Language: zh_Hans\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=1; plural=0;\n"
-
-msgid "%d MLO interface(s) override the auto-generated MLD ifname."
-msgstr "%d 个 MLO 接口使用自定义接口名称。"
-
-msgid "%d MLO interface(s) still have fewer than two radios selected."
-msgstr "%d 个 MLO 接口选择的射频少于 2 个。"
+msgid "%d incomplete"
+msgstr "%d 个未完成"
 
 msgid "802.11w Management Frame Protection"
 msgstr "802.11w 管理帧保护"
-
-msgid "AP MLO is usually paired with WPA3-SAE or OWE"
-msgstr "AP MLO 通常搭配 WPA3-SAE 或 OWE 使用"
 
 msgid "Access Point"
 msgstr "接入点"
@@ -25,8 +10,8 @@ msgstr "接入点"
 msgid "Active"
 msgstr "运行中"
 
-msgid "Active MLD interfaces"
-msgstr "活动 MLD 接口"
+msgid "Active MLD"
+msgstr "活跃 MLD"
 
 msgid "Add MLO"
 msgstr "添加 MLO"
@@ -43,14 +28,8 @@ msgstr "BSSID"
 msgid "Client"
 msgstr "客户端"
 
-msgid "Configured radios"
-msgstr "已配置射频"
-
-msgid "Custom ifname overrides the default ap-mldX / sta-mldX naming"
-msgstr "自定义接口名称将替代系统自动命名"
-
-msgid "Details"
-msgstr "接口详情"
+msgid "Configure Wi-Fi 7 Multi-Link Operation interfaces."
+msgstr "配置 Wi-Fi 7 多链路操作接口。"
 
 msgid "Disabled"
 msgstr "已禁用"
@@ -61,11 +40,11 @@ msgstr "低 ACK 时断开关联"
 msgid "Down"
 msgstr "未运行"
 
-msgid "Edit wireless interface"
-msgstr "编辑无线接口"
+msgid "Each MLO interface needs at least two radios."
+msgstr "每个 MLO 接口至少需要两个射频。"
 
-msgid "Enable MLO"
-msgstr "启用 MLO"
+msgid "Edit MLO interface"
+msgstr "编辑 MLO 接口"
 
 msgid "Enable OCV"
 msgstr "启用 OCV"
@@ -91,32 +70,35 @@ msgstr "授予访问 LuCI MLO 应用的权限"
 msgid "Hide SSID"
 msgstr "隐藏 SSID"
 
+msgid "Inactive"
+msgstr "未激活"
+
+msgid "Interface"
+msgstr "接口"
+
 msgid "Interface name"
 msgstr "接口名"
 
-msgid "Logical network names from <code>/etc/config/network</code>, for example <code>lan</code>."
-msgstr "来自 <code>/etc/config/network</code> 的逻辑网络名，例如 <code>lan</code>。"
+msgid "Limited"
+msgstr "受限"
 
 msgid "MAC address"
 msgstr "MAC 地址"
 
-msgid "Verified MLD"
-msgstr "已验证 MLD"
-
 msgid "MLO"
 msgstr "MLO"
 
-msgid "MLO Overview"
-msgstr "MLO 概览"
+msgid "MLO Interfaces"
+msgstr "MLO 接口"
 
-msgid "MLO is configured, but no active runtime MLD interface is currently reported."
-msgstr "已配置 MLO，但当前没有检测到活动的运行时 MLD 接口。"
+msgid "MLO interfaces"
+msgstr "MLO 接口"
+
+msgid "MLO needs at least two radios."
+msgstr "MLO 至少需要两个射频。"
 
 msgid "MLO requires at least two radio devices"
 msgstr "MLO 至少需要 2 个射频"
-
-msgid "MLO-enabled"
-msgstr "已启用 MLO"
 
 msgid "Manage in Wireless"
 msgstr "前往无线设置"
@@ -124,17 +106,11 @@ msgstr "前往无线设置"
 msgid "Mode"
 msgstr "模式"
 
-msgid "Needs at least two radios"
-msgstr "至少需要 2 个射频"
+msgid "Needs attention"
+msgstr "需要处理"
 
-msgid "Networks"
-msgstr "网络"
-
-msgid "No MLO-enabled wireless interface is configured yet."
-msgstr "当前还没有配置启用 MLO 的无线接口。"
-
-msgid "No active interface was reported yet"
-msgstr "当前还没有上报活动接口"
+msgid "No active MLD interface"
+msgstr "没有活跃的 MLD 接口"
 
 msgid "No encryption"
 msgstr "不加密"
@@ -142,53 +118,32 @@ msgstr "不加密"
 msgid "No runtime state"
 msgstr "无运行状态"
 
-msgid "No wireless interfaces are configured yet."
-msgstr "当前还没有配置任何无线接口。"
+msgid "None"
+msgstr "无"
 
 msgid "OWE"
 msgstr "OWE"
 
-msgid "Only one radio is configured. MLO needs at least two radios."
-msgstr "可用射频不足，MLO 至少需要 2 个射频。"
-
 msgid "Optional"
 msgstr "可选"
 
-msgid "Optional override for the generated interface MAC address."
-msgstr "可选，用于覆盖自动生成的接口 MAC 地址。"
-
-msgid "Optional override. Leave empty to use auto-generated names such as <code>ap-mld0</code> or <code>sta-mld0</code>."
-msgstr "可选覆盖项。留空时会使用自动生成的名称，例如 <code>ap-mld0</code> 或 <code>sta-mld0</code>。"
+msgid "Optional override."
+msgstr "可选覆盖。"
 
 msgid "Passphrase"
 msgstr "密码"
 
-msgid "Passphrase is required for the selected encryption"
-msgstr "所选加密方式必须填写密码"
+msgid "Radio availability"
+msgstr "射频可用性"
 
 msgid "Radio devices"
 msgstr "射频设备"
 
-msgid "Radios"
-msgstr "射频"
-
-msgid "Refresh Runtime Status"
-msgstr "刷新运行状态"
-
 msgid "Required"
 msgstr "必需"
 
-msgid "Runtime MLD status is driven by underlying wireless and kernel telemetry."
-msgstr "MLD 运行状态由无线底层与内核实时驱动。"
-
-msgid "Runtime radios"
-msgstr "运行射频"
-
-msgid "Runtime status: unknown"
-msgstr "运行状态未知"
-
-msgid "SAE and OWE require Management Frame Protection."
-msgstr "SAE 和 OWE 必须启用管理帧保护。"
+msgid "Runtime status unavailable"
+msgstr "运行时状态不可用"
 
 msgid "SAE and OWE require Management Frame Protection: select Required."
 msgstr "SAE 和 OWE 的管理帧保护必须设为“必需”。"
@@ -196,29 +151,20 @@ msgstr "SAE 和 OWE 的管理帧保护必须设为“必需”。"
 msgid "SSID"
 msgstr "SSID"
 
-msgid "Save & Apply, then verify driver support if this persists"
-msgstr "请先“保存并应用”；如果仍然如此，再检查驱动是否支持"
-
 msgid "Security"
 msgstr "安全"
 
-msgid "Select at least one radio device"
-msgstr "至少选择 1 个射频"
-
-msgid "Select one radio for normal Wi-Fi, or two or more radios for MLO."
-msgstr "普通 Wi-Fi 选择 1 个射频，MLO 至少选择 2 个。"
-
-msgid "Single-link"
-msgstr "单链路"
-
-msgid "Stations"
-msgstr "终端数"
+msgid "Select at least two radios for MLO."
+msgstr "为 MLO 选择至少两个射频。"
 
 msgid "This mode or encryption is not supported by this editor."
 msgstr "此模式或加密方式请在无线设置中管理。"
 
-msgid "Use multiple radios for this interface."
-msgstr "为此接口启用多射频连接。"
+msgid "Unavailable"
+msgstr "不可用"
+
+msgid "Unnamed network"
+msgstr "未命名网络"
 
 msgid "WPA/WPA2 mixed PSK"
 msgstr "WPA/WPA2 混合 PSK"
@@ -232,47 +178,8 @@ msgstr "WPA2/WPA3 混合"
 msgid "WPA3-SAE"
 msgstr "WPA3-SAE"
 
-msgid "WPA3-SAE with required Management Frame Protection is recommended for MLO."
-msgstr "建议使用 WPA3-SAE，并将管理帧保护设为“必需”。"
-
-msgid "Wi-Fi 7 (802.11be) Multi-Link Operation"
-msgstr "Wi-Fi 7 (802.11be) 多重连接模式"
-
 msgid "Wi-Fi MLO"
 msgstr "MLO"
 
-msgid "Wireless Interfaces"
-msgstr "无线接口"
-
 msgid "channel %s"
 msgstr "信道 %s"
-
-msgid "ifname"
-msgstr "接口名称"
-
-msgid "none"
-msgstr "无"
-
-msgid "unknown"
-msgstr "未知"
-
-msgid "unset"
-msgstr "未设置"
-
-msgid "%d interface(s) total"
-msgstr "共 %d 个接口"
-
-msgid "Multi-radio ready"
-msgstr "多射频就绪"
-
-msgid "No active MLD link"
-msgstr "无活动 MLD 链路"
-
-msgid "No wireless interfaces"
-msgstr "无无线接口"
-
-msgid "Runtime status unavailable"
-msgstr "运行时状态不可用"
-
-msgid "Verified kernel MLD"
-msgstr "内核已验证 MLD"

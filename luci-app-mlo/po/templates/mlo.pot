@@ -1,20 +1,7 @@
-msgid ""
-msgstr ""
-"Project-Id-Version: luci-app-mlo\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-
-msgid "%d MLO interface(s) override the auto-generated MLD ifname."
-msgstr ""
-
-msgid "%d MLO interface(s) still have fewer than two radios selected."
+msgid "%d incomplete"
 msgstr ""
 
 msgid "802.11w Management Frame Protection"
-msgstr ""
-
-msgid "AP MLO is usually paired with WPA3-SAE or OWE"
 msgstr ""
 
 msgid "Access Point"
@@ -23,7 +10,7 @@ msgstr ""
 msgid "Active"
 msgstr ""
 
-msgid "Active MLD interfaces"
+msgid "Active MLD"
 msgstr ""
 
 msgid "Add MLO"
@@ -41,13 +28,7 @@ msgstr ""
 msgid "Client"
 msgstr ""
 
-msgid "Configured radios"
-msgstr ""
-
-msgid "Custom ifname overrides the default ap-mldX / sta-mldX naming"
-msgstr ""
-
-msgid "Details"
+msgid "Configure Wi-Fi 7 Multi-Link Operation interfaces."
 msgstr ""
 
 msgid "Disabled"
@@ -59,10 +40,10 @@ msgstr ""
 msgid "Down"
 msgstr ""
 
-msgid "Edit wireless interface"
+msgid "Each MLO interface needs at least two radios."
 msgstr ""
 
-msgid "Enable MLO"
+msgid "Edit MLO interface"
 msgstr ""
 
 msgid "Enable OCV"
@@ -89,31 +70,34 @@ msgstr ""
 msgid "Hide SSID"
 msgstr ""
 
+msgid "Inactive"
+msgstr ""
+
+msgid "Interface"
+msgstr ""
+
 msgid "Interface name"
 msgstr ""
 
-msgid "Logical network names from <code>/etc/config/network</code>, for example <code>lan</code>."
+msgid "Limited"
 msgstr ""
 
 msgid "MAC address"
 msgstr ""
 
-msgid "Verified MLD"
-msgstr ""
-
 msgid "MLO"
 msgstr ""
 
-msgid "MLO Overview"
+msgid "MLO Interfaces"
 msgstr ""
 
-msgid "MLO is configured, but no active runtime MLD interface is currently reported."
+msgid "MLO interfaces"
+msgstr ""
+
+msgid "MLO needs at least two radios."
 msgstr ""
 
 msgid "MLO requires at least two radio devices"
-msgstr ""
-
-msgid "MLO-enabled"
 msgstr ""
 
 msgid "Manage in Wireless"
@@ -122,16 +106,10 @@ msgstr ""
 msgid "Mode"
 msgstr ""
 
-msgid "Needs at least two radios"
+msgid "Needs attention"
 msgstr ""
 
-msgid "Networks"
-msgstr ""
-
-msgid "No MLO-enabled wireless interface is configured yet."
-msgstr ""
-
-msgid "No active interface was reported yet"
+msgid "No active MLD interface"
 msgstr ""
 
 msgid "No encryption"
@@ -140,52 +118,31 @@ msgstr ""
 msgid "No runtime state"
 msgstr ""
 
-msgid "No wireless interfaces are configured yet."
+msgid "None"
 msgstr ""
 
 msgid "OWE"
 msgstr ""
 
-msgid "Only one radio is configured. MLO needs at least two radios."
-msgstr ""
-
 msgid "Optional"
 msgstr ""
 
-msgid "Optional override for the generated interface MAC address."
-msgstr ""
-
-msgid "Optional override. Leave empty to use auto-generated names such as <code>ap-mld0</code> or <code>sta-mld0</code>."
+msgid "Optional override."
 msgstr ""
 
 msgid "Passphrase"
 msgstr ""
 
-msgid "Passphrase is required for the selected encryption"
+msgid "Radio availability"
 msgstr ""
 
 msgid "Radio devices"
 msgstr ""
 
-msgid "Radios"
-msgstr ""
-
-msgid "Refresh Runtime Status"
-msgstr ""
-
 msgid "Required"
 msgstr ""
 
-msgid "Runtime MLD status is driven by underlying wireless and kernel telemetry."
-msgstr ""
-
-msgid "Runtime radios"
-msgstr ""
-
-msgid "Runtime status: unknown"
-msgstr ""
-
-msgid "SAE and OWE require Management Frame Protection."
+msgid "Runtime status unavailable"
 msgstr ""
 
 msgid "SAE and OWE require Management Frame Protection: select Required."
@@ -194,28 +151,19 @@ msgstr ""
 msgid "SSID"
 msgstr ""
 
-msgid "Save & Apply, then verify driver support if this persists"
-msgstr ""
-
 msgid "Security"
 msgstr ""
 
-msgid "Select at least one radio device"
-msgstr ""
-
-msgid "Select one radio for normal Wi-Fi, or two or more radios for MLO."
-msgstr ""
-
-msgid "Single-link"
-msgstr ""
-
-msgid "Stations"
+msgid "Select at least two radios for MLO."
 msgstr ""
 
 msgid "This mode or encryption is not supported by this editor."
 msgstr ""
 
-msgid "Use multiple radios for this interface."
+msgid "Unavailable"
+msgstr ""
+
+msgid "Unnamed network"
 msgstr ""
 
 msgid "WPA/WPA2 mixed PSK"
@@ -230,47 +178,8 @@ msgstr ""
 msgid "WPA3-SAE"
 msgstr ""
 
-msgid "WPA3-SAE with required Management Frame Protection is recommended for MLO."
-msgstr ""
-
-msgid "Wi-Fi 7 (802.11be) Multi-Link Operation"
-msgstr ""
-
 msgid "Wi-Fi MLO"
 msgstr ""
 
-msgid "Wireless Interfaces"
-msgstr ""
-
 msgid "channel %s"
-msgstr ""
-
-msgid "ifname"
-msgstr ""
-
-msgid "none"
-msgstr ""
-
-msgid "unknown"
-msgstr ""
-
-msgid "unset"
-msgstr ""
-
-msgid "%d interface(s) total"
-msgstr ""
-
-msgid "Multi-radio ready"
-msgstr ""
-
-msgid "No active MLD link"
-msgstr ""
-
-msgid "No wireless interfaces"
-msgstr ""
-
-msgid "Runtime status unavailable"
-msgstr ""
-
-msgid "Verified kernel MLD"
 msgstr ""
