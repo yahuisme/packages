@@ -41,28 +41,21 @@ var appCSS = '\
 :root{--fw-canvas-bg:#fbfcfd;--fw-track-bg:rgba(128,128,128,.14)}\
 @media(prefers-color-scheme:dark){:root{--fw-canvas-bg:#161616;--fw-track-bg:rgba(255,255,255,.10)}}\
 [data-theme="dark"],[data-dark="true"],[data-darkmode="true"],.dark-mode,:root[data-dark="true"]{--fw-canvas-bg:#161616;--fw-track-bg:rgba(255,255,255,.10)}\
-.fwup-container{--fw-font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--fw-font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;font-family:var(--fw-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\
-.fwup-tabs{display:flex;gap:4px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0);margin:14px 0 18px}\
-.fwup-tab{padding:8px 18px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:transparent;color:var(--cbi-muted-color,#666);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s ease}\
-.fwup-tab.active{color:var(--cbi-button-primary-bg,#0066cc);border-bottom-color:var(--cbi-button-primary-bg,#0066cc);font-weight:600}\
-.fwup-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}\
+.fwup-view{--fw-font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--fw-font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;font-family:var(--fw-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\
+.fwup-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}\
 .fwup-card{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center;box-sizing:border-box}\
 .fwup-card-title{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
 .fwup-card-value{font-size:18px;font-family:var(--fw-font-mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,inherit);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
 .fwup-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
-.fwup-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:14px;margin:14px 0;box-sizing:border-box}\
-.fwup-panel-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0);display:flex;align-items:center;justify-content:space-between}\
-.fwup-value-row{display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,.08))}\
-.fwup-value-row:last-child{border-bottom:none}\
-.fwup-value-label{width:220px;flex:0 0 220px;font-size:13px;font-weight:500;color:var(--cbi-muted-color,#666)}\
-.fwup-value-content{flex:1;min-width:0;display:flex;align-items:center;gap:12px}\
-.fwup-input{height:32px;border-radius:4px;border:1px solid var(--cbi-border-color,#ccc);padding:0 10px;font-size:13px;font-family:var(--fw-font-mono);font-variant-numeric:tabular-nums;width:100%;max-width:380px;background:var(--cbi-input-bg,transparent);color:inherit;box-sizing:border-box}\
-.fwup-input:focus{border-color:var(--cbi-button-primary-bg,#0066cc);outline:none}\
+.fwup-view .cbi-section{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:14px;margin:14px 0;box-sizing:border-box}\
+.fwup-view .cbi-section-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0);display:flex;align-items:center;justify-content:space-between}\
+.fwup-view .cbi-value{display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,.08))}\
+.fwup-view .cbi-value:last-child{border-bottom:none}\
+.fwup-view .cbi-value-title{width:220px;flex:0 0 220px;font-size:13px;font-weight:500;color:var(--cbi-muted-color,#666);margin:0}\
+.fwup-view .cbi-value-field{flex:1;min-width:0;display:flex;align-items:center;gap:12px;margin:0}\
+.fwup-view .cbi-input-text,.fwup-view .cbi-input-password{height:32px;border-radius:4px;font-family:var(--fw-font-mono);font-variant-numeric:tabular-nums;width:100%;max-width:380px;box-sizing:border-box}\
+.fwup-view .cbi-button{height:32px;padding:0 16px;border-radius:4px;font-size:12px;font-weight:500;margin:0}\
 .fwup-notes{background:var(--fw-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px;padding:12px 14px;font-size:12px;line-height:1.6;max-height:220px;overflow-y:auto;white-space:pre-wrap;font-family:var(--fw-font-mono);font-variant-numeric:tabular-nums}\
-.fwup-btn{height:32px;padding:0 16px;border-radius:4px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--cbi-border-color,#ccc);background:var(--cbi-button-bg,#f5f5f5);color:inherit;transition:all .15s ease}\
-.fwup-btn-primary{background:var(--cbi-button-primary-bg,#0066cc);color:#fff;border-color:var(--cbi-button-primary-border,#0055aa)}\
-.fwup-btn:hover{opacity:.9}\
-.fwup-btn[disabled]{opacity:.5;cursor:not-allowed}\
 .fwup-progress-wrap{width:100%;background:var(--fw-track-bg,rgba(128,128,128,.14));border-radius:999px;height:12px;overflow:hidden;margin:12px 0}\
 .fwup-progress-bar{height:100%;border-radius:inherit;background:#0ea5e9;transition:width .3s ease}\
 .fwup-badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:500;background:rgba(128,128,128,.12);color:inherit}\
@@ -70,11 +63,11 @@ var appCSS = '\
 @media(max-width:768px){\
 .fwup-grid{grid-template-columns:1fr}\
 .fwup-card{min-height:68px}\
-.fwup-panel{padding:10px}\
-.fwup-value-row{flex-direction:column;align-items:flex-start;gap:6px}\
-.fwup-value-label{width:auto;flex:none}\
-.fwup-value-content{width:100%}\
-.fwup-input{max-width:100%}\
+.fwup-view .cbi-section{padding:10px}\
+.fwup-view .cbi-value{flex-direction:column;align-items:flex-start;gap:6px}\
+.fwup-view .cbi-value-title{width:auto;flex:none}\
+.fwup-view .cbi-value-field{width:100%}\
+.fwup-view .cbi-input-text,.fwup-view .cbi-input-password{max-width:100%}\
 }\
 ';
 
@@ -107,27 +100,35 @@ return view.extend({
 		injectCSS();
 		this.sysInfo = sysInfo || {};
 
-		var viewRoot = E('div', { 'class': 'fwup-container' }, [
+		var viewRoot = E('div', { 'class': 'fwup-view' }, [
 			E('h2', {}, _('Firmware Upgrade')),
-			E('p', { 'class': 'cbi-section-descr' }, _('Check and securely flash the latest firmware builds from GitHub Release.')),
+			E('div', { 'class': 'cbi-map-descr' }, _('Check and securely flash the latest firmware builds from GitHub Release.')),
 
-			// Tab Navigation
-			E('div', { 'class': 'fwup-tabs' }, [
-				E('button', {
-					'class': 'fwup-tab active',
-					'id': 'tab-btn-upgrade',
-					'click': ui.createHandlerFn(this, 'switchTab', 'upgrade')
-				}, _('Firmware Upgrade')),
-				E('button', {
-					'class': 'fwup-tab',
-					'id': 'tab-btn-settings',
-					'click': ui.createHandlerFn(this, 'switchTab', 'settings')
-				}, _('Settings'))
+			// 原生标准 cbi-tabmenu 导航结构
+			E('ul', { 'class': 'cbi-tabmenu' }, [
+				E('li', {
+					'class': 'cbi-tab cbi-tab-active',
+					'id': 'tab-nav-upgrade'
+				}, [
+					E('a', {
+						'href': '#',
+						'click': ui.createHandlerFn(this, 'switchTab', 'upgrade')
+					}, _('Firmware Upgrade'))
+				]),
+				E('li', {
+					'class': 'cbi-tab',
+					'id': 'tab-nav-settings'
+				}, [
+					E('a', {
+						'href': '#',
+						'click': ui.createHandlerFn(this, 'switchTab', 'settings')
+					}, _('Settings'))
+				])
 			]),
 
-			// Tab 1: Upgrade Panel
+			// Tab 1: 固件升级面板
 			E('div', { 'id': 'tab-content-upgrade' }, [
-				// Dual Cards
+				// 顶部中性双卡片
 				E('div', { 'class': 'fwup-grid' }, [
 					E('div', { 'class': 'fwup-card' }, [
 						E('div', { 'class': 'fwup-card-title' }, _('Current Firmware')),
@@ -145,12 +146,12 @@ return view.extend({
 					])
 				]),
 
-				// Control Section
-				E('div', { 'class': 'fwup-panel' }, [
-					E('div', { 'class': 'fwup-panel-title' }, [
+				// 原生 cbi-section 升级控制区
+				E('div', { 'class': 'cbi-section' }, [
+					E('div', { 'class': 'cbi-section-title' }, [
 						E('span', {}, _('Upgrade Control')),
 						E('button', {
-							'class': 'fwup-btn fwup-btn-primary',
+							'class': 'cbi-button cbi-button-primary',
 							'id': 'fwup-check-btn',
 							'click': ui.createHandlerFn(this, 'handleCheckUpdate')
 						}, _('Check Update'))
@@ -158,34 +159,34 @@ return view.extend({
 
 					E('div', { 'id': 'fwup-status-notice', 'style': 'margin-bottom:12px;display:none;' }),
 
-					// Detailed update info
+					// 固件详情列表（采用原生 cbi-value 结构）
 					E('div', { 'id': 'fwup-upgrade-details', 'style': 'display:none;' }, [
-						E('div', { 'class': 'fwup-value-row' }, [
-							E('div', { 'class': 'fwup-value-label' }, _('Target Image')),
-							E('div', { 'class': 'fwup-value-content', 'id': 'fwup-asset-name' }, '-')
+						E('div', { 'class': 'cbi-value' }, [
+							E('label', { 'class': 'cbi-value-title' }, _('Target Image')),
+							E('div', { 'class': 'cbi-value-field', 'id': 'fwup-asset-name' }, '-')
 						]),
-						E('div', { 'class': 'fwup-value-row' }, [
-							E('div', { 'class': 'fwup-value-label' }, _('Image Size')),
-							E('div', { 'class': 'fwup-value-content', 'id': 'fwup-asset-size' }, '-')
+						E('div', { 'class': 'cbi-value' }, [
+							E('label', { 'class': 'cbi-value-title' }, _('Image Size')),
+							E('div', { 'class': 'cbi-value-field', 'id': 'fwup-asset-size' }, '-')
 						]),
-						E('div', { 'class': 'fwup-value-row' }, [
-							E('div', { 'class': 'fwup-value-label' }, _('SHA256 Checksum')),
-							E('div', { 'class': 'fwup-value-content', 'style': 'font-family:var(--fw-font-mono);font-size:12px;', 'id': 'fwup-asset-sha' }, '-')
+						E('div', { 'class': 'cbi-value' }, [
+							E('label', { 'class': 'cbi-value-title' }, _('SHA256 Checksum')),
+							E('div', { 'class': 'cbi-value-field', 'style': 'font-family:var(--fw-font-mono);font-size:12px;', 'id': 'fwup-asset-sha' }, '-')
 						]),
-						E('div', { 'class': 'fwup-value-row' }, [
-							E('div', { 'class': 'fwup-value-label' }, _('Upgrade Mode')),
-							E('div', { 'class': 'fwup-value-content' }, [
+						E('div', { 'class': 'cbi-value' }, [
+							E('label', { 'class': 'cbi-value-title' }, _('Upgrade Mode')),
+							E('div', { 'class': 'cbi-value-field' }, [
 								E('label', { 'style': 'display:inline-flex;align-items:center;gap:6px;cursor:pointer;' }, [
-									E('input', { 'type': 'checkbox', 'id': 'fwup-keep-config', 'checked': sysInfo.keep_config === '1' }),
+									E('input', { 'type': 'checkbox', 'class': 'cbi-input-checkbox', 'id': 'fwup-keep-config', 'checked': sysInfo.keep_config === '1' }),
 									E('span', {}, _('Keep current settings (uncheck for clean install)'))
 								])
 							])
 						]),
-						E('div', { 'class': 'fwup-value-row', 'style': 'padding-top:14px;' }, [
-							E('div', { 'class': 'fwup-value-label' }, ''),
-							E('div', { 'class': 'fwup-value-content' }, [
+						E('div', { 'class': 'cbi-value', 'style': 'padding-top:14px;' }, [
+							E('div', { 'class': 'cbi-value-title' }, ''),
+							E('div', { 'class': 'cbi-value-field' }, [
 								E('button', {
-									'class': 'fwup-btn fwup-btn-primary',
+									'class': 'cbi-button cbi-button-action cbi-button-primary',
 									'id': 'fwup-upgrade-btn',
 									'click': ui.createHandlerFn(this, 'handleStartUpgrade')
 								}, _('Upgrade Firmware Now'))
@@ -193,7 +194,7 @@ return view.extend({
 						])
 					]),
 
-					// Changelog Area
+					// 更新日志展示区
 					E('div', { 'id': 'fwup-changelog-wrap', 'style': 'display:none;margin-top:16px;' }, [
 						E('div', { 'class': 'fwup-card-title', 'style': 'margin-bottom:8px;' }, _('Release Notes')),
 						E('div', { 'class': 'fwup-notes', 'id': 'fwup-changelog' })
@@ -201,24 +202,24 @@ return view.extend({
 				])
 			]),
 
-			// Tab 2: Settings Panel
+			// Tab 2: 设置面板（完全复用原生 CBI 表单组件）
 			E('div', { 'id': 'tab-content-settings', 'style': 'display:none;' }, [
-				E('div', { 'class': 'fwup-panel' }, [
-					E('div', { 'class': 'fwup-panel-title' }, [
+				E('div', { 'class': 'cbi-section' }, [
+					E('div', { 'class': 'cbi-section-title' }, [
 						E('span', {}, _('Repository & Network Settings'))
 					]),
 
 					E('div', { 'id': 'fwup-settings-notice', 'style': 'margin-bottom:12px;display:none;' }),
 
-					E('div', { 'class': 'fwup-value-row' }, [
-						E('div', { 'class': 'fwup-value-label' }, [
+					E('div', { 'class': 'cbi-value' }, [
+						E('label', { 'class': 'cbi-value-title', 'for': 'cfg-repository' }, [
 							_('GitHub Repository'),
 							E('div', { 'class': 'fwup-descr' }, _('Target GitHub release repository (owner/repo)'))
 						]),
-						E('div', { 'class': 'fwup-value-content' }, [
+						E('div', { 'class': 'cbi-value-field' }, [
 							E('input', {
 								'type': 'text',
-								'class': 'fwup-input',
+								'class': 'cbi-input-text',
 								'id': 'cfg-repository',
 								'value': sysInfo.repository || '',
 								'placeholder': sysInfo.default_repository || 'owner/repo'
@@ -226,15 +227,15 @@ return view.extend({
 						])
 					]),
 
-					E('div', { 'class': 'fwup-value-row' }, [
-						E('div', { 'class': 'fwup-value-label' }, [
+					E('div', { 'class': 'cbi-value' }, [
+						E('label', { 'class': 'cbi-value-title', 'for': 'cfg-proxy' }, [
 							_('Download Mirror / Proxy'),
 							E('div', { 'class': 'fwup-descr' }, _('Leave empty for direct GitHub connection'))
 						]),
-						E('div', { 'class': 'fwup-value-content' }, [
+						E('div', { 'class': 'cbi-value-field' }, [
 							E('input', {
 								'type': 'text',
-								'class': 'fwup-input',
+								'class': 'cbi-input-text',
 								'id': 'cfg-proxy',
 								'value': sysInfo.proxy || '',
 								'placeholder': 'https://ghproxy.net/'
@@ -242,38 +243,38 @@ return view.extend({
 						])
 					]),
 
-					E('div', { 'class': 'fwup-value-row' }, [
-						E('div', { 'class': 'fwup-value-label' }, [
+					E('div', { 'class': 'cbi-value' }, [
+						E('label', { 'class': 'cbi-value-title', 'for': 'cfg-token' }, [
 							_('GitHub Access Token'),
 							E('div', { 'class': 'fwup-descr' }, _('Optional, for private repositories or avoiding rate limits'))
 						]),
-						E('div', { 'class': 'fwup-value-content' }, [
+						E('div', { 'class': 'cbi-value-field' }, [
 							E('input', {
 								'type': 'password',
-								'class': 'fwup-input',
+								'class': 'cbi-input-password',
 								'id': 'cfg-token',
 								'placeholder': 'ghp_xxxxxxxxxxxx'
 							})
 						])
 					]),
 
-					E('div', { 'class': 'fwup-value-row' }, [
-						E('div', { 'class': 'fwup-value-label' }, [
+					E('div', { 'class': 'cbi-value' }, [
+						E('label', { 'class': 'cbi-value-title' }, [
 							_('Default Upgrade Mode')
 						]),
-						E('div', { 'class': 'fwup-value-content' }, [
+						E('div', { 'class': 'cbi-value-field' }, [
 							E('label', { 'style': 'display:inline-flex;align-items:center;gap:6px;cursor:pointer;' }, [
-								E('input', { 'type': 'checkbox', 'id': 'cfg-keep-config', 'checked': sysInfo.keep_config === '1' }),
+								E('input', { 'type': 'checkbox', 'class': 'cbi-input-checkbox', 'id': 'cfg-keep-config', 'checked': sysInfo.keep_config === '1' }),
 								E('span', {}, _('Keep settings by default (uncheck for clean install)'))
 							])
 						])
 					]),
 
-					E('div', { 'class': 'fwup-value-row', 'style': 'padding-top:14px;' }, [
-						E('div', { 'class': 'fwup-value-label' }, ''),
-						E('div', { 'class': 'fwup-value-content' }, [
+					E('div', { 'class': 'cbi-value', 'style': 'padding-top:14px;' }, [
+						E('div', { 'class': 'cbi-value-title' }, ''),
+						E('div', { 'class': 'cbi-value-field' }, [
 							E('button', {
-								'class': 'fwup-btn fwup-btn-primary',
+								'class': 'cbi-button cbi-button-action cbi-button-primary',
 								'id': 'cfg-save-btn',
 								'click': ui.createHandlerFn(this, 'handleSaveSettings')
 							}, _('Save Settings'))
@@ -286,15 +287,24 @@ return view.extend({
 		return viewRoot;
 	},
 
-	switchTab: function(tabName) {
+	switchTab: function(tabName, ev) {
+		if (ev && ev.preventDefault) ev.preventDefault();
 		this.activeTab = tabName;
 		var isUpgrade = tabName === 'upgrade';
 
-		document.getElementById('tab-btn-upgrade').className = 'fwup-tab' + (isUpgrade ? ' active' : '');
-		document.getElementById('tab-btn-settings').className = 'fwup-tab' + (!isUpgrade ? ' active' : '');
+		var navUpgrade = document.getElementById('tab-nav-upgrade');
+		var navSettings = document.getElementById('tab-nav-settings');
+		if (navUpgrade && navSettings) {
+			navUpgrade.className = 'cbi-tab' + (isUpgrade ? ' cbi-tab-active' : '');
+			navSettings.className = 'cbi-tab' + (!isUpgrade ? ' cbi-tab-active' : '');
+		}
 
-		document.getElementById('tab-content-upgrade').style.display = isUpgrade ? '' : 'none';
-		document.getElementById('tab-content-settings').style.display = !isUpgrade ? '' : 'none';
+		var contentUpgrade = document.getElementById('tab-content-upgrade');
+		var contentSettings = document.getElementById('tab-content-settings');
+		if (contentUpgrade && contentSettings) {
+			contentUpgrade.style.display = isUpgrade ? '' : 'none';
+			contentSettings.style.display = !isUpgrade ? '' : 'none';
+		}
 	},
 
 	handleSaveSettings: function(ev) {
@@ -318,7 +328,8 @@ return view.extend({
 				noticeEl.className = 'cbi-section-info';
 				noticeEl.textContent = _('Settings saved successfully.');
 				noticeEl.style.display = '';
-				document.getElementById('fwup-keep-config').checked = (keepConfig === '1');
+				var keepEl = document.getElementById('fwup-keep-config');
+				if (keepEl) keepEl.checked = (keepConfig === '1');
 			} else {
 				noticeEl.className = 'cbi-section-error';
 				noticeEl.textContent = _('Failed to save settings.');
@@ -354,12 +365,12 @@ return view.extend({
 
 			this.updateInfo = res;
 
-			// Update cards
+			// 更新顶部卡片
 			document.getElementById('fwup-latest-ver').textContent = res.tag_name;
 			var pubDate = res.published_at ? res.published_at.replace('T', ' ').replace('Z', ' UTC') : '';
 			document.getElementById('fwup-latest-sub').textContent = _('Release Date: ') + pubDate;
 
-			// Details
+			// 填充固件详情
 			document.getElementById('fwup-asset-name').textContent = res.asset_name;
 			document.getElementById('fwup-asset-size').textContent = formatBytes(res.asset_size);
 			document.getElementById('fwup-asset-sha').textContent = res.sha256 ? res.sha256 : _('Provided by sha256sums');
@@ -404,12 +415,12 @@ return view.extend({
 			E('p', { 'style': 'color:#d93025;font-weight:500;' }, _('Warning: Do not power off or reboot the device during flashing!')),
 			E('div', { 'class': 'right', 'style': 'margin-top:16px;' }, [
 				E('button', {
-					'class': 'fwup-btn',
+					'class': 'cbi-button',
 					'click': ui.hideModal
 				}, _('Cancel')),
 				' ',
 				E('button', {
-					'class': 'fwup-btn fwup-btn-primary',
+					'class': 'cbi-button cbi-button-action cbi-button-primary',
 					'click': ui.createHandlerFn(this, 'executeUpgradeProcess', keepConfig)
 				}, _('Confirm & Start Upgrade'))
 			])
