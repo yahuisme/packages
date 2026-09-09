@@ -2,73 +2,106 @@ msgid ""
 msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 
-msgid "Airoha SoC Status"
+msgid "Adjust CPU governor policy and maximum scaling frequency."
+msgstr ""
+
+msgid "Airoha SoC"
+msgstr ""
+
+msgid "Airoha SoC Settings"
 msgstr ""
 
 msgid "Another operation is in progress. Retry later."
 msgstr ""
 
-msgid "Apply"
-msgstr ""
-
 msgid "Apply or revert pending firewall changes first."
 msgstr ""
 
-msgid "CPU current frequency"
+msgid "Bound"
 msgstr ""
 
-msgid "CPU frequency limit"
+msgid "CPU Frequency"
 msgstr ""
 
-msgid "CPU governor"
+msgid "CPU Frequency Scaling"
+msgstr ""
+
+msgid "Clock Rate"
+msgstr ""
+
+msgid "Configure CPU governor, maximum scaling frequency, and firewall flow offloading."
 msgstr ""
 
 msgid "Conservative"
 msgstr ""
 
+msgid "Current Frequency"
+msgstr ""
+
+msgid "Current Governor"
+msgstr ""
+
 msgid "Disabled"
 msgstr ""
 
-msgid "Disabled in firewall configuration"
+msgid "Disabled in firewall"
+msgstr ""
+
+msgid "Driver Binding"
 msgstr ""
 
 msgid "Enabled"
 msgstr ""
 
-msgid "Enabled in firewall configuration"
+msgid "Enabled in firewall"
 msgstr ""
 
-msgid "Firewall flow offloading"
+msgid "Firewall Flow Offloading"
 msgstr ""
 
-msgid "Firmware file"
+msgid "Firmware File"
 msgstr ""
 
-msgid "Firmware file version"
+msgid "Firmware Version"
+msgstr ""
+
+msgid "Flow Offload"
+msgstr ""
+
+msgid "Frequency Limit"
 msgstr ""
 
 msgid "Governor"
 msgstr ""
 
+msgid "Hardware PPE Offload"
+msgstr ""
+
+msgid "Hardware flow offload"
+msgstr ""
+
 msgid "Hardware flow offloading"
 msgstr ""
 
-msgid "Hardware flow offloading configuration"
+msgid "Kernel CPU Controls"
 msgstr ""
 
-msgid "Kernel CPU controls"
+msgid "Manage hardware PPE and software flow offloading."
 msgstr ""
 
-msgid "Last updated"
+msgid "Max limit: "
 msgstr ""
 
 msgid "Maximum CPU frequency"
 msgstr ""
 
-msgid "NPU clock"
+msgid "NPU & Acceleration Engine"
 msgstr ""
 
-msgid "NPU driver binding"
+msgid "NPU Core"
+msgstr ""
+
+msgid "No changes to apply."
 msgstr ""
 
 msgid "Not bound"
@@ -80,9 +113,6 @@ msgstr ""
 msgid "Online CPUs"
 msgstr ""
 
-msgid "Adjust CPU governor and maximum scaling frequency."
-msgstr ""
-
 msgid "Performance"
 msgstr ""
 
@@ -92,19 +122,22 @@ msgstr ""
 msgid "Scheduler utilization"
 msgstr ""
 
-msgid "Select a value"
-msgstr ""
-
-msgid "Manage hardware PPE and software flow offloading."
+msgid "Settings"
 msgstr ""
 
 msgid "Settings applied."
 msgstr ""
 
-msgid "SoC compatible"
+msgid "SoC & CPU Architecture"
 msgstr ""
 
-msgid "Status unavailable or stale. Refresh to retry static information."
+msgid "SoC & NPU Details"
+msgstr ""
+
+msgid "SoC Compatible"
+msgstr ""
+
+msgid "Status"
 msgstr ""
 
 msgid "The change failed and recovery could not be verified. Check the system settings."
@@ -122,29 +155,11 @@ msgstr ""
 msgid "The required system interface is unavailable."
 msgstr ""
 
-msgid "Bound"
-msgstr ""
-
-msgid "CPU Frequency"
-msgstr ""
-
-msgid "NPU Core"
-msgstr ""
-
-msgid "Flow Offload"
-msgstr ""
-
-msgid "SoC & NPU Details"
-msgstr ""
-
-msgid "Max limit: "
-msgstr ""
-
-msgid "Hardware flow offload"
-msgstr ""
-
 msgid "Unknown"
 msgstr ""
 
 msgid "Userspace"
+msgstr ""
+
+msgid "View real-time Airoha SoC frequency, NPU acceleration, and system status."
 msgstr ""

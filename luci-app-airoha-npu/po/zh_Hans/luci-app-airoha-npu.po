@@ -3,74 +3,107 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Language: zh_Hans\n"
 
-msgid "Airoha SoC Status"
-msgstr "Airoha SoC 状态"
+msgid "Adjust CPU governor policy and maximum scaling frequency."
+msgstr "调节 CPU 调速策略与频率上限。"
+
+msgid "Airoha SoC"
+msgstr "Airoha SoC"
+
+msgid "Airoha SoC Settings"
+msgstr "Airoha SoC 设置"
 
 msgid "Another operation is in progress. Retry later."
 msgstr "另一项操作正在进行，请稍后重试。"
 
-msgid "Apply"
-msgstr "应用"
-
 msgid "Apply or revert pending firewall changes first."
 msgstr "请先应用或撤销待处理的防火墙更改。"
 
-msgid "CPU current frequency"
-msgstr "CPU 当前频率"
+msgid "Bound"
+msgstr "已绑定"
 
-msgid "CPU frequency limit"
-msgstr "CPU 频率上限"
+msgid "CPU Frequency"
+msgstr "CPU 频率"
 
-msgid "CPU governor"
-msgstr "CPU 调速器"
+msgid "CPU Frequency Scaling"
+msgstr "CPU 频率缩放刻度"
+
+msgid "Clock Rate"
+msgstr "时钟频率"
+
+msgid "Configure CPU governor, maximum scaling frequency, and firewall flow offloading."
+msgstr "配置 CPU 调速策略、最高运行频率与防火墙流量卸载。"
 
 msgid "Conservative"
 msgstr "保守调速"
 
+msgid "Current Frequency"
+msgstr "当前运行频率"
+
+msgid "Current Governor"
+msgstr "当前调速策略"
+
 msgid "Disabled"
 msgstr "已禁用"
 
-msgid "Disabled in firewall configuration"
-msgstr "防火墙配置中已禁用"
+msgid "Disabled in firewall"
+msgstr "防火墙中已禁用"
+
+msgid "Driver Binding"
+msgstr "驱动绑定状态"
 
 msgid "Enabled"
 msgstr "已启用"
 
-msgid "Enabled in firewall configuration"
-msgstr "防火墙配置中已启用"
+msgid "Enabled in firewall"
+msgstr "防火墙中已启用"
 
-msgid "Firewall flow offloading"
+msgid "Firewall Flow Offloading"
 msgstr "防火墙流量卸载"
 
-msgid "Firmware file"
-msgstr "固件文件"
+msgid "Firmware File"
+msgstr "固件文件路径"
 
-msgid "Firmware file version"
+msgid "Firmware Version"
 msgstr "固件文件版本"
 
+msgid "Flow Offload"
+msgstr "流量卸载"
+
+msgid "Frequency Limit"
+msgstr "最高频率上限"
+
 msgid "Governor"
-msgstr "调速器"
+msgstr "调速策略"
+
+msgid "Hardware PPE Offload"
+msgstr "硬件流控 PPE"
+
+msgid "Hardware flow offload"
+msgstr "硬件流控 PPE"
 
 msgid "Hardware flow offloading"
 msgstr "硬件流量卸载"
 
-msgid "Hardware flow offloading configuration"
-msgstr "硬件流量卸载配置"
-
-msgid "Kernel CPU controls"
+msgid "Kernel CPU Controls"
 msgstr "内核 CPU 控制"
 
-msgid "Last updated"
-msgstr "最后更新"
+msgid "Manage hardware PPE and software flow offloading."
+msgstr "管理硬件 PPE 与软件流量卸载。"
+
+msgid "Max limit: "
+msgstr "上限: "
 
 msgid "Maximum CPU frequency"
-msgstr "CPU 最高频率"
+msgstr "最高运行频率"
 
-msgid "NPU clock"
-msgstr "NPU 时钟"
+msgid "NPU & Acceleration Engine"
+msgstr "NPU 与流控引擎"
 
-msgid "NPU driver binding"
-msgstr "NPU 驱动绑定"
+msgid "NPU Core"
+msgstr "NPU 核心"
+
+msgid "No changes to apply."
+msgstr "没有需要应用的更改。"
 
 msgid "Not bound"
 msgstr "未绑定"
@@ -79,10 +112,7 @@ msgid "On demand"
 msgstr "按需调速"
 
 msgid "Online CPUs"
-msgstr "在线 CPU 数量"
-
-msgid "Adjust CPU governor and maximum scaling frequency."
-msgstr "调节 CPU 调速器与频率上限。"
+msgstr "在线 CPU 核心"
 
 msgid "Performance"
 msgstr "性能优先"
@@ -91,22 +121,25 @@ msgid "Power saving"
 msgstr "节能优先"
 
 msgid "Scheduler utilization"
-msgstr "调度器利用率"
+msgstr "智能调度"
 
-msgid "Select a value"
-msgstr "请选择"
-
-msgid "Manage hardware PPE and software flow offloading."
-msgstr "管理硬件 PPE 与软件流量卸载。"
+msgid "Settings"
+msgstr "设置"
 
 msgid "Settings applied."
 msgstr "设置已应用。"
 
-msgid "SoC compatible"
+msgid "SoC & CPU Architecture"
+msgstr "SoC 与 CPU 架构"
+
+msgid "SoC & NPU Details"
+msgstr "SoC 与 NPU 详情"
+
+msgid "SoC Compatible"
 msgstr "SoC 兼容标识"
 
-msgid "Status unavailable or stale. Refresh to retry static information."
-msgstr "状态不可用或已过期。请刷新页面以重试静态信息。"
+msgid "Status"
+msgstr "状态"
 
 msgid "The change failed and recovery could not be verified. Check the system settings."
 msgstr "更改失败且无法验证恢复结果，请检查系统设置。"
@@ -123,30 +156,11 @@ msgstr "请求的值无效或不受内核支持。"
 msgid "The required system interface is unavailable."
 msgstr "所需的系统接口不可用。"
 
-msgid "Bound"
-msgstr "已绑定"
-
-msgid "CPU Frequency"
-msgstr "CPU 频率"
-
-msgid "NPU Core"
-msgstr "NPU 核心"
-
-msgid "Flow Offload"
-msgstr "流量卸载"
-
-msgid "SoC & NPU Details"
-msgstr "SoC 与 NPU 详情"
-
-msgid "Max limit: "
-msgstr "上限 "
-
-msgid "Hardware flow offload"
-msgstr "硬件流控 PPE"
-
 msgid "Unknown"
 msgstr "未知"
 
 msgid "Userspace"
 msgstr "用户空间"
 
+msgid "View real-time Airoha SoC frequency, NPU acceleration, and system status."
+msgstr "查看 Airoha SoC 实时频率、NPU 硬件加速与系统状态。"

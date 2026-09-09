@@ -3,16 +3,135 @@
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
 PACKAGE = Path(__file__).resolve().parents[1]
 BACKEND = PACKAGE / 'root/usr/libexec/rpcd/luci.airoha_npu'
 
-DEFAULT_UCI = os.environ.get('UCI_BIN') or ('/root/wifi7-audit-evidence/uci-test-source/uci' if Path('/root/wifi7-audit-evidence/uci-test-source/uci').exists() else 'uci')
-DEFAULT_JSONFILTER = os.environ.get('JSONFILTER_BIN') or ('/root/flowsense-audit/jsonfilter' if Path('/root/flowsense-audit/jsonfilter').exists() else 'jsonfilter')
+UCI_PATH = os.environ.get('UCI_BIN') or shutil.which('uci')
+JSONFILTER_PATH = os.environ.get('JSONFILTER_BIN') or shutil.which('jsonfilter')
+
+JSONFILTER_SCRIPT = '''#!/usr/bin/env python3
+import json, sys
+s = None
+target = None
+mode = 'e'
+it = iter(sys.argv[1:])
+for arg in it:
+    if arg == '-s': s = next(it)
+    elif arg == '-t': mode = 't'; target = next(it)
+    elif arg == '-e': mode = 'e'; target = next(it)
+if s is None:
+    s = sys.stdin.read()
+try:
+    data = json.loads(s)
+    key = target.replace('@.', '')
+    val = data.get(key)
+    if mode == 't':
+        if isinstance(val, str): print('string')
+        elif isinstance(val, int) and not isinstance(val, bool): print('number')
+        elif isinstance(val, bool): print('boolean')
+        elif val is None: sys.exit(1)
+        else: print('object')
+    else:
+        if val is not None:
+            if isinstance(val, (dict, list)): sys.exit(1)
+            print(val)
+        else:
+            sys.exit(1)
+except Exception:
+    sys.exit(1)
+'''
+
+UCI_SCRIPT = '''#!/usr/bin/env python3
+import sys
+from pathlib import Path
+import re
+
+args = sys.argv[1:]
+config_dir = None
+delta_dir = None
+it = iter(args)
+clean_args = []
+for arg in it:
+    if arg == '-q': pass
+    elif arg == '-c': config_dir = Path(next(it))
+    elif arg in ('-t', '-P'): next(it)
+    else: clean_args.append(arg)
+
+if not clean_args:
+    sys.exit(0)
+
+cmd = clean_args[0]
+firewall_file = (config_dir / 'firewall') if config_dir else Path('/etc/config/firewall')
+
+def read_firewall():
+    if not firewall_file.exists(): return {}
+    content = firewall_file.read_text()
+    res = {}
+    cur_sec = None
+    for line in content.splitlines():
+        line = line.strip()
+        if line.startswith('config defaults'):
+            cur_sec = 'defaults'
+            res[cur_sec] = {}
+        elif line.startswith('option') and cur_sec:
+            parts = line.split(None, 2)
+            if len(parts) == 3:
+                key = parts[1]
+                val = parts[2].strip("'\\"")
+                res[cur_sec][key] = val
+    return res
+
+def write_firewall(data):
+    lines = ['config defaults']
+    for k, v in data.get('defaults', {}).items():
+        lines.append(f"\\toption {k} '{v}'")
+    firewall_file.write_text('\\n'.join(lines) + '\\n')
+
+if cmd == 'get':
+    target = clean_args[1]
+    data = read_firewall()
+    if target == 'firewall.@defaults[0]':
+        if 'defaults' in data:
+            print('defaults')
+            sys.exit(0)
+        sys.exit(1)
+    elif target.startswith('firewall.@defaults[0].'):
+        key = target.split('.', 2)[2]
+        val = data.get('defaults', {}).get(key)
+        if val is not None:
+            print(val)
+            sys.exit(0)
+        sys.exit(1)
+    sys.exit(1)
+
+elif cmd == 'changes':
+    sys.exit(0)
+
+elif cmd == 'set':
+    assignment = clean_args[1]
+    data = read_firewall()
+    if 'defaults' not in data:
+        data['defaults'] = {}
+    m = re.match(r'firewall\.@defaults\[0\]\.([a-zA-Z0-9_]+)=(.*)', assignment)
+    if m:
+        key, val = m.group(1), m.group(2)
+        data['defaults'][key] = val
+        write_firewall(data)
+        sys.exit(0)
+    sys.exit(1)
+
+elif cmd == 'commit':
+    sys.exit(0)
+
+sys.exit(0)
+'''
 
 class Backend(unittest.TestCase):
     def setUp(self):
@@ -22,9 +141,27 @@ class Backend(unittest.TestCase):
         self.policy = self.root / 'sys/devices/system/cpu/cpufreq/policy0'
         self.policy.mkdir(parents=True)
         (self.root / 'var/lock').mkdir(parents=True)
+
+        tool_bin = self.root / 'bin'
+        tool_bin.mkdir(parents=True)
+        
+        jsonfilter_bin = JSONFILTER_PATH
+        if not jsonfilter_bin:
+            jf = tool_bin / 'jsonfilter'
+            jf.write_text(JSONFILTER_SCRIPT)
+            jf.chmod(0o755)
+            jsonfilter_bin = str(jf)
+
+        uci_bin = UCI_PATH
+        if not uci_bin:
+            ub = tool_bin / 'uci'
+            ub.write_text(UCI_SCRIPT)
+            ub.chmod(0o755)
+            uci_bin = str(ub)
+
         self.env = dict(os.environ, NPU_ROOT=str(self.root),
-                        NPU_JSONFILTER=DEFAULT_JSONFILTER,
-                        NPU_UCI=DEFAULT_UCI)
+                        NPU_JSONFILTER=jsonfilter_bin,
+                        NPU_UCI=uci_bin)
         for name, value in {'scaling_available_governors': 'performance powersave schedutil',
                             'scaling_governor': 'schedutil',
                             'scaling_available_frequencies': '500000 1200000 1400000',
@@ -50,7 +187,7 @@ class Backend(unittest.TestCase):
         self.assertNotIn('actual_mhz', self.call('setMaxFreq', {'freq': '1200000'}))
 
     def test_write_and_readback_failures(self):
-        # /dev/null accepts writes but returns a mismatched readback. No hardware I/O.
+        # /dev/null accepts writes but returns an empty string, triggering write_failed or unavailable.
         target = self.policy / 'scaling_max_freq'
         target.unlink()
         target.symlink_to('/dev/null')
@@ -79,7 +216,7 @@ class Backend(unittest.TestCase):
         reload = self.root / 'reload'
         reload.write_text('#!/bin/sh\nexit 0\n')
         reload.chmod(0o755)
-        self.env.update(NPU_UCI=DEFAULT_UCI, NPU_FIREWALL=str(reload))
+        self.env.update(NPU_FIREWALL=str(reload))
         self.assertEqual(self.call('getFlowOffload')['enabled'], False)
         self.assertEqual(self.call('setFlowOffload', {'enabled': '1'}).get('result'), 'ok')
         self.assertEqual(self.call('getFlowOffload')['enabled'], True)
