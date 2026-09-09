@@ -16,8 +16,9 @@ const {app,document,writes,poll,counters}=require('./harness');
  [...document.querySelectorAll('button')].find(b=>b.textContent==='Save & Apply').click();
  await new Promise(r=>setImmediate(r));assert.equal(writes.length,0);
  assert.ok(!document.body.textContent.includes('CAC Passed')); assert.ok(!document.body.textContent.includes('Unlocked'));
- document.querySelectorAll('.cbi-tabmenu a')[2].dispatchEvent(new window.MouseEvent('click',{bubbles:true,cancelable:true}));
+ document.querySelectorAll('.cbi-tabmenu a')[3].dispatchEvent(new window.MouseEvent('click',{bubbles:true,cancelable:true}));
  if(process.env.MLO_TEST || process.env.NATIVE_TEST) {
+  await new Promise(r=>setTimeout(r,20));
   assert.equal(document.querySelectorAll('details').length,1);
   const detail=document.querySelector('details'); detail.open=true;
   await poll(); assert.equal(document.querySelector('details').open,true);

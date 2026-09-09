@@ -2,13 +2,13 @@
     "luci-app-wifi7": {
         "description": "WiFi 7 Manager",
         "read": {
-            "file": { "/usr/libexec/wifi7-status": [ "exec" ], "/usr/libexec/wifi7-firmware": [ "exec" ], "/usr/libexec/wifi7-diagnostics": [ "exec" ] },
+            "file": { "/usr/libexec/wifi7-status": [ "exec" ], "/usr/libexec/wifi7-status-summary": [ "exec" ], "/usr/libexec/wifi7-firmware": [ "exec" ], "/usr/libexec/wifi7-diagnostics": [ "exec" ] },
             "ubus": {
                 "file": [ "exec" ],
                 "iwinfo": [ "devices", "info", "assoclist", "freqlist" ],
                 "luci-rpc": [ "getWirelessDevices" ]
             },
-            "uci": [ "wireless" ]
+            "uci": [ "wireless", "network" ]
         },
         "write": {
             "ubus": { "uci": [ "set", "delete", "apply", "confirm", "changes" ] },

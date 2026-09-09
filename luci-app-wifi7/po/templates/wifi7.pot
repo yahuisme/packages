@@ -8,6 +8,9 @@ msgstr ""
 msgid "%d client associations"
 msgstr ""
 
+msgid "%d incomplete"
+msgstr ""
+
 msgid "%d seconds remaining"
 msgstr ""
 
@@ -17,10 +20,34 @@ msgstr ""
 msgid "5GHz DFS Status"
 msgstr ""
 
+msgid "802.11w Management Frame Protection"
+msgstr ""
+
+msgid "Access Point"
+msgstr ""
+
+msgid "Active"
+msgstr ""
+
+msgid "Active MLD"
+msgstr ""
+
+msgid "Add MLO"
+msgstr ""
+
+msgid "Advanced"
+msgstr ""
+
 msgid "After changing country, apply and reload to refresh permitted channels."
 msgstr ""
 
+msgid "Attached network(s)"
+msgstr ""
+
 msgid "Auto"
+msgstr ""
+
+msgid "BSSID"
 msgstr ""
 
 msgid "Background Radar"
@@ -41,10 +68,16 @@ msgstr ""
 msgid "Channels reported by the driver; current configuration is preserved."
 msgstr ""
 
+msgid "Client"
+msgstr ""
+
 msgid "Client data unavailable"
 msgstr ""
 
 msgid "Configuration applied. Runtime status will refresh."
+msgstr ""
+
+msgid "Configure Wi-Fi 7 Multi-Link Operation interfaces."
 msgstr ""
 
 msgid "Connected Clients"
@@ -65,7 +98,31 @@ msgstr ""
 msgid "Disabled"
 msgstr ""
 
+msgid "Disassociate on low ACK"
+msgstr ""
+
+msgid "Down"
+msgstr ""
+
+msgid "Each MLO interface needs at least two radios."
+msgstr ""
+
+msgid "Edit MLO interface"
+msgstr ""
+
+msgid "Enable OCV"
+msgstr ""
+
+msgid "Enable U-APSD"
+msgstr ""
+
+msgid "Enable WDS / 4-address mode"
+msgstr ""
+
 msgid "Enabled"
+msgstr ""
+
+msgid "Encryption"
 msgstr ""
 
 msgid "Export wireless diagnostics"
@@ -74,22 +131,94 @@ msgstr ""
 msgid "Failed to apply configuration: %s"
 msgstr ""
 
+msgid "General"
+msgstr ""
+
+msgid "Hide SSID"
+msgstr ""
+
+msgid "Inactive"
+msgstr ""
+
+msgid "Interface"
+msgstr ""
+
+msgid "Interface name"
+msgstr ""
+
 msgid "Legacy"
+msgstr ""
+
+msgid "Limited"
+msgstr ""
+
+msgid "Loading MLO configuration…"
+msgstr ""
+
+msgid "MAC address"
+msgstr ""
+
+msgid "MLO"
+msgstr ""
+
+msgid "MLO Interfaces"
+msgstr ""
+
+msgid "MLO configuration is unavailable."
+msgstr ""
+
+msgid "MLO interfaces"
+msgstr ""
+
+msgid "MLO needs at least two radios."
+msgstr ""
+
+msgid "MLO requires at least two radio devices"
 msgstr ""
 
 msgid "MT76 Firmware"
 msgstr ""
 
+msgid "Manage in Wireless"
+msgstr ""
+
+msgid "Mode"
+msgstr ""
+
+msgid "Needs attention"
+msgstr ""
+
+msgid "No active MLD interface"
+msgstr ""
+
 msgid "No connected clients"
 msgstr ""
 
-msgid "Online Stations"
+msgid "No encryption"
+msgstr ""
+
+msgid "No runtime state"
+msgstr ""
+
+msgid "None"
+msgstr ""
+
+msgid "OWE"
 msgstr ""
 
 msgid "Operating"
 msgstr ""
 
 msgid "Operating Channel"
+msgstr ""
+
+msgid "Optional"
+msgstr ""
+
+msgid "Optional override."
+msgstr ""
+
+msgid "Passphrase"
 msgstr ""
 
 msgid "RX Rate"
@@ -101,15 +230,37 @@ msgstr ""
 msgid "Radio Status"
 msgstr ""
 
+msgid "Radio availability"
+msgstr ""
+
+msgid "Radio devices"
+msgstr ""
+
+msgid "Required"
+msgstr ""
+
 msgid "Requires driver support; channel availability checks may still be required."
+msgstr ""
+
+msgid "Runtime status unavailable"
+msgstr ""
+
+msgid "SAE and OWE require Management Frame Protection: select Required."
+msgstr ""
+
+msgid "SSID"
 msgstr ""
 
 msgid "Save & Apply"
 msgstr ""
 
-msgid "Signal"
+msgid "Security"
 msgstr ""
 
+msgid "Select at least two radios for MLO."
+msgstr ""
+
+msgid "Signal"
 msgstr ""
 
 msgid "Standard / Bandwidth"
@@ -133,17 +284,41 @@ msgstr ""
 msgid "These changes may interrupt wireless connections, including MLO links. Apply?"
 msgstr ""
 
+msgid "This mode or encryption is not supported by this editor."
+msgstr ""
+
 msgid "Unavailable"
 msgstr ""
 
 msgid "Unknown"
 msgstr ""
 
+msgid "Unnamed network"
+msgstr ""
+
 msgid "Up"
+msgstr ""
+
+msgid "WPA/WPA2 mixed PSK"
+msgstr ""
+
+msgid "WPA2-PSK"
+msgstr ""
+
+msgid "WPA2/WPA3 mixed"
+msgstr ""
+
+msgid "WPA3-SAE"
+msgstr ""
+
+msgid "Wi-Fi MLO"
 msgstr ""
 
 msgid "WiFi 7"
 msgstr ""
 
 msgid "WiFi 7 Manager"
+msgstr ""
+
+msgid "channel %s"
 msgstr ""

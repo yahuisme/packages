@@ -4,7 +4,7 @@ const {JSDOM}=require('jsdom');
 const ROOT=process.env.LUCI_RESOURCE_DIR;
 const APP=process.env.WIFI7_JS||path.join(__dirname,'../htdocs/luci-static/resources/view/wifi7/index.js');
 const OUT=process.env.AUDIT_OUT;
-const SOURCE=fs.readFileSync(APP,'utf8'), TELEMETRY=fs.readFileSync(path.join(path.dirname(APP),'../../wifi7/telemetry.js'),'utf8');
+const SOURCE=fs.readFileSync(APP,'utf8'), TELEMETRY=fs.readFileSync(path.join(path.dirname(APP),'../../wifi7/telemetry.js'),'utf8'), MLO=fs.readFileSync(path.join(path.dirname(APP),'../../wifi7/mlo.js'),'utf8');
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
 const tick=()=>new Promise(r=>setImmediate(r));
 async function boot({readonly=false,missing=false,frequencyFailure=false}={}) {
@@ -33,7 +33,8 @@ async function boot({readonly=false,missing=false,frequencyFailure=false}={}) {
    else if(method==='apply'){assert.equal(p.rollback,true);if(!state.applyCode)committed=clone(staged);result=state.applyCode?(state.ubusFailure?[state.applyCode]:[0,state.applyCode]):[0];}
    else if(method==='confirm')result=[0];
    else throw Error('Unhandled UCI method '+method);
-  } else if(object==='iwinfo') {
+  } else if(object==='luci-rpc'&&method==='getWirelessDevices')result=[0,{radio0:{up:true,interfaces:[]},radio1:{up:true,interfaces:[{section:'mlo0',ifname:'ap-mld0',mld:true}]},radio2:{up:true,interfaces:[]}}];
+  else if(object==='iwinfo') {
    if(method==='freqlist')result=state.frequencyFailure?[6]:[0,{results:[{channel:13,mhz:2472},{channel:36,mhz:5180},{channel:40,mhz:5200,restricted:true,flags:['no_ir']},{channel:37,mhz:6135},...(staged.radio0.country==='US'?[{channel:11,mhz:2462}]:[])]}];
    else if(method==='devices')result=[0,{devices:['ap-mld']}];
    else if(method==='assoclist')result=[0,{results:[{mac:'aa:bb:cc:dd:ee:01',signal:-42,tx:{rate:1200000,eht:true,mhz:80}}]}];
@@ -44,13 +45,13 @@ async function boot({readonly=false,missing=false,frequencyFailure=false}={}) {
   const body=clone({jsonrpc:'2.0',id:req.id,result});return {ok:true,status:200,json:()=>body};
  };
  function load(n,src){src=src||fs.readFileSync(ROOT+'/'+n+'.js','utf8');const deps=[...src.matchAll(/'require ([^';]+)';/g)].map(m=>m[1]),names=deps.map(x=>x.split(' as ')[1]||x.split('.').at(-1)),values=deps.map(x=>mods[x.split(' as ')[0]]);const C=w.Function(...names,src)(...values);return mods[n]=typeof C==='function'?new C():C;}
- load('rpc');load('uci');
+ load('rpc');load('uci');load('form');
  const applyRejections=[],realApply=mods.uci.apply;mods.uci.apply=function(...args){return realApply.apply(this,args).catch(e=>{applyRejections.push({type:typeof e,value:String(e)});throw e;});};
  mods.fs={};load('validation');load('ui');
  mods.ui.addNotification=(title,node,type)=>notifications.push({text:node.textContent,type});
  let poll;mods.poll.add=f=>{poll=f};mods.view=mods.baseclass.extend({});
  mods.network={flushCache:async()=>{},getWifiDevices:async()=>Object.keys(staged).map(id=>({getName:()=>id,isUp:()=>true})),getWifiNetworks:async()=>[{getIfname:()=>'ap-mld',getWifiDeviceName:()=>'radio1',getSSID:()=>'Fixture MLO'}]};
- load('wifi7.telemetry',TELEMETRY);const app=load('app',SOURCE),node=await app.render(await app.load());w.document.getElementById('view').append(node);await tick();
+ load('wifi7.telemetry',TELEMETRY);load('wifi7.mlo',MLO);const app=load('app',SOURCE),node=await app.render(await app.load());w.document.getElementById('view').append(node);await tick();
  const q=s=>node.querySelector(s),field=(id,key)=>q('#wifi7-'+id+'-'+key),save=q('.cbi-button-apply');
  async function clickSave(){save.click();await tick();const deadline=Date.now()+5000;while(save.disabled&&!readonly&&Date.now()<deadline)await new Promise(r=>setTimeout(r,25));await tick();assert.ok(!save.disabled||readonly,'save did not settle');assert.deepEqual(errors,[]);}
  return {j,w,node,q,field,save,calls,state,notifications,applyRejections,clickSave,poll:async()=>{await poll();await tick()},tab:async i=>{q('.cbi-tabmenu').children[i].querySelector('a').click();await tick()},db:()=>({staged,committed}),writes:()=>calls.filter(c=>c.object==='uci'&&['set','delete','apply','confirm'].includes(c.method))};
@@ -66,9 +67,10 @@ async function main(){if(OUT)fs.mkdirSync(OUT,{recursive:true});const results=[]
  await test('ubus-apply-failure-and-retry',async h=>{h.field('radio0','power').value='25';h.state.applyCode=6;h.state.ubusFailure=true;await h.clickSave();assert.match(h.notifications.at(-1).text,/6/);assert.equal(h.applyRejections[0].type,'object');assert.equal(h.db().committed.radio0.txpower,undefined);h.state.applyCode=0;await h.clickSave();assert.equal(h.db().committed.radio0.txpower,'25');});
  await test('failed-edit-restored-before-next-apply',async h=>{h.field('radio0','power').value='24';h.state.applyCode=6;await h.clickSave();h.field('radio0','power').value='';h.field('radio1','power').value='25';h.state.applyCode=0;await h.clickSave();assert.equal(h.db().committed.radio0.txpower,undefined);assert.equal(h.db().committed.radio1.txpower,'25');});
  await test('readonly-prohibits-writes',async h=>{assert.equal(h.save.disabled,true);assert.ok([...h.node.querySelectorAll('input,select')].every(e=>e.disabled));await h.clickSave();assert.equal(h.writes().length,0);},{readonly:true});
- await test('unknown-RSSI-link-retained',async h=>{await h.tab(2);const detail=h.q('details');assert.ok(detail);detail.open=true;assert.match(detail.textContent,/MLO 9/);assert.match(detail.textContent,/2400/);assert.match(detail.textContent,/6 GHz/);});
- await test('client-DOM-identity',async h=>{await h.tab(2);const detail=h.q('details');detail.open=true;await h.poll();assert.equal(h.q('details'),detail);assert.equal(detail.open,true);});
- await test('tab-activation-latest-and-export',async h=>{await h.tab(2);await h.tab(0);h.state.generation=23;await h.poll();await h.tab(2);assert.match(h.q('details').textContent,/123 s/);h.q('details').open=true;for(let i=0;i<3;i++){await h.tab(i);if(OUT)fs.writeFileSync(path.join(OUT,'tab-'+i+'.html'),h.j.serialize());}});
+ await test('MLO tab loads within WiFi 7',async h=>{await h.tab(2);assert.match(h.q('[data-wifi7-pane="mlo"]').textContent,/MLO|interface/i);assert.equal(h.node.querySelectorAll('.cbi-tabmenu a').length,4);});
+ await test('unknown-RSSI-link-retained',async h=>{await h.tab(3);const detail=h.q('details');assert.ok(detail);detail.open=true;assert.match(detail.textContent,/MLO 9/);assert.match(detail.textContent,/2400/);assert.match(detail.textContent,/6 GHz/);});
+ await test('client-DOM-identity',async h=>{await h.tab(3);const detail=h.q('details');detail.open=true;await h.poll();assert.equal(h.q('details'),detail);assert.equal(detail.open,true);});
+ await test('tab-activation-latest-and-export',async h=>{await h.tab(3);await h.tab(0);h.state.generation=23;await h.poll();await h.tab(3);assert.match(h.q('details').textContent,/123 s/);h.q('details').open=true;for(let i=0;i<4;i++){await h.tab(i);if(OUT)fs.writeFileSync(path.join(OUT,'tab-'+i+'.html'),h.j.serialize());}});
  const report={application:APP,sourceSha256:hash(SOURCE),telemetrySha256:hash(TELEMETRY),realModules:['cbi.js','luci.js','rpc.js (declare/call/parseCallReply/handleCallReply)','uci.js (load/set/unset/save/apply/confirm)','validation.js','ui.js','wifi7.telemetry'],boundary:'HTTP request.post fixture; staged/committed UCI simulation, network WifiDevice/WifiNetwork fixtures, no router or geometry validation; real apply timeout and numeric rejection unchanged',results};if(OUT)fs.writeFileSync(path.join(OUT,'results.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));if(results.some(r=>!r.pass))process.exitCode=1;
 }
 if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1});

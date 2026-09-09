@@ -6,6 +6,11 @@
 export NODE_PATH=/path/to/node_modules
 export LUCI_RPC=/path/to/luci/modules/luci-base/htdocs/luci-static/resources/rpc.js
 node tests/telemetry.test.js
+node tests/lifecycle.test.js
+node tests/mlo-runtime.cjs
+node tests/mlo-editor.cjs
+node tests/mlo-poll.cjs
+node tests/mlo-integration.cjs
 node tests/view.test.js
 NATIVE_TEST=1 node tests/view.test.js
 MLO_TEST=1 node tests/view.test.js

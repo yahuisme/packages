@@ -6,6 +6,7 @@
 'require ui';
 'require poll';
 'require wifi7.telemetry as telemetry';
+'require wifi7.mlo as mloView';
 
 var devices = rpc.declare({ object: 'iwinfo', method: 'devices', expect: { devices: [] }, raise: true });
 var assoc = rpc.declare({ object: 'iwinfo', method: 'assoclist', params: ['device'], expect: { results: [] }, raise: true });
@@ -89,7 +90,7 @@ return view.extend({
 				])
 			]);
 			var body = E('div', { 'class': 'wifi7-card-body' });
-			[[ 'channel', _('Channel / Bandwidth')], ['power', _('TX Power')], ['util', _('Channel Utilization')], ['count', _('Online Stations')]].forEach(function(item) {
+			[[ 'channel', _('Channel / Bandwidth')], ['power', _('TX Power')], ['util', _('Channel Utilization')]].forEach(function(item) {
 				c[item[0]] = E('span', { 'class': 'wifi7-value' }, '—');
 				body.appendChild(E('div', { 'class': 'wifi7-row' }, [ E('span', { 'class': 'wifi7-label' }, item[1]), c[item[0]] ]));
 			});
@@ -133,6 +134,8 @@ return view.extend({
 			E('div', { 'class': 'wifi7-info-row' }, [ E('span', { 'class': 'wifi7-info-label' }, _('MT76 Firmware')), E('span', { 'class': 'wifi7-info-value' }, fw) ]),
 			E('div', { 'class': 'wifi7-info-row' }, [ E('span', { 'class': 'wifi7-info-label' }, _('5GHz DFS Status')), E('span', { 'class': 'wifi7-info-value' }, dfs) ]) ]) ]);
 		var clients = E('div', { 'class': 'cbi-section' });
+		var mlo = E('div', { 'class': 'cbi-section', 'data-wifi7-pane': 'mlo' }, E('div', { 'class': 'cbi-section-descr' }, _('Loading MLO configuration…')));
+		var mloLoaded = false;
 		var download = E('button', { 'class': 'cbi-button', click: function() {
 			if (!window.confirm(_('Diagnostic output includes SSIDs and MAC addresses. Review before sharing. Continue?'))) return;
 			download.disabled = true;
@@ -146,13 +149,34 @@ return view.extend({
 				.finally(function() { download.disabled = false; });
 		} }, _('Export wireless diagnostics'));
 		overview.appendChild(download);
-		var panes = [overview, settings, clients];
+		var panes = [overview, settings, mlo, clients];
 		var nav = E('ul', { 'class': 'cbi-tabmenu' });
-		[_('Radio Status'), _('Radio Settings'), _('Connected Clients')].forEach(function(label, i) {
+		[_('Radio Status'), _('Radio Settings'), _('MLO'), _('Connected Clients')].forEach(function(label, i) {
 			panes[i].style.display = i ? 'none' : '';
 			nav.appendChild(E('li', { 'class': i ? 'cbi-tab-disabled' : 'cbi-tab' }, E('a', { href: '#', click: function(ev) {
 				ev.preventDefault(); activeTab = i;
-				if (i === 2) renderClients();
+				if (i === 2) {
+					if (mloLoaded)
+						mloView.resume();
+					else {
+						mloLoaded = true;
+						mloView.load().then(function(data) { return mloView.render(data); }).then(function(node) {
+							node.classList.add('wifi7-mlo-content');
+							mlo.replaceChildren(node);
+						}, function() {
+							mlo.replaceChildren(E('div', { 'class': 'cbi-section-descr' }, _('MLO configuration is unavailable.')));
+						});
+					}
+				} else if (mloLoaded) {
+					mloView.pause();
+				}
+				if (i === 3) {
+					renderClients();
+					busy ? busy.then(function() {
+						if (activeTab === 3)
+							return update(true);
+					}) : update(true);
+				}
 				panes.forEach(function(p, n) { p.style.display = n === i ? '' : 'none'; nav.children[n].className = n === i ? 'cbi-tab' : 'cbi-tab-disabled'; });
 			} }, label)));
 		});
@@ -231,14 +255,15 @@ return view.extend({
 
 		lockControls();
 
-		function update() {
+		function update(includeClients) {
 			if (busy) return busy;
 			busy = Promise.all([
 				settled(network.flushCache().then(function() { return Promise.all([network.getWifiDevices(), network.getWifiNetworks()]); })),
-				settled(devices().then(function(list) { return Promise.all(Array.from(new Set(list)).map(function(d) { return Promise.all([settled(assoc(d)), settled(info(d))]).then(function(r) { return { name: d, stations: r[0], info: r[1] }; }); })); })),
-				settled(probe('/usr/libexec/wifi7-status', []))
+				includeClients ? settled(devices().then(function(list) { return Promise.all(Array.from(new Set(list)).map(function(d) { return Promise.all([settled(assoc(d)), settled(info(d))]).then(function(r) { return { name: d, stations: r[0], info: r[1] }; }); })); })) : Promise.resolve({ ok: true, value: [] }),
+				settled(probe(includeClients ? '/usr/libexec/wifi7-status' : '/usr/libexec/wifi7-status-summary', [])),
+				Promise.all(radios.map(function(r) { return settled(info(r['.name'])); }))
 			]).then(function(result) {
-				var runtime = result[0], native = result[1], shell = result[2];
+				var runtime = result[0], native = result[1], shell = result[2], radioInfo = result[3];
 				var parsed = telemetry.parse(shell.ok && shell.value.code === 0 ? shell.value.stdout : '');
 				var ssids = {}, ifaceRadio = {}, runtimeRadios = {}, nativeByName = {}, stats = {}, rows = [], nextPrevious = {};
 				if (runtime.ok) {
@@ -295,6 +320,11 @@ return view.extend({
 							mapped.forEach(function(r) { stats[r].failed = true; });
 						if (linkIds.length) linkIds.forEach(function(lid) { row(s.links[lid], lid); }); else row(s, null);
 					});
+					radioInfo.forEach(function(result, index) {
+						var value = result.ok ? result.value : {};
+						var id = radios[index]['.name'];
+						if (value.frequency) stats[id].current = Object.assign({}, value, { width: value.htmode ? String(value.htmode).replace(/^(?:HT|VHT|HE|EHT)/, '') + ' MHz' : null });
+					});
 				});
 				previous = nextPrevious;
 				parsed.hostapd.forEach(function(h) { var r = radioFor('', h.freq), u = telemetry.utilization(h.chan_util_avg); if (r && u != null) stats[r].util = u; });
@@ -304,7 +334,6 @@ return view.extend({
 					var isDis = d && !d.isUp();
 					c.state.textContent = d ? (isUp ? _('Up') : _('Disabled')) : _('Unknown');
 					c.state.className = 'wifi7-status-badge' + (isUp ? ' wifi7-badge-up' : isDis ? ' wifi7-badge-disabled' : '');
-					c.count.textContent = s.known && !s.failed ? String(s.count) : '—';
 					c.util.textContent = s.util == null ? '—' : s.util + '%';
 					c.channel.textContent = s.current && s.current.channel ? s.current.channel + ' / ' + (s.current.width || '—') : '—';
 					c.power.textContent = s.current && s.current.txpower != null ? s.current.txpower + ' dBm' : '—';
@@ -314,13 +343,13 @@ return view.extend({
 				dfs.textContent = state === 'cac' ? _('DFS CAC in progress') + (remaining.length && remaining.every(function(n) { return n !== null; }) ? ' · ' + _('%d seconds remaining').format(Math.max.apply(null, remaining)) : '') : state === 'active' ? _('Operating') : _('Unknown');
 				notice.textContent = '';
 				clientCache = { rows: rows, empty: anyKnown && !anyFailed ? _('No connected clients') : _('Client data unavailable') };
-				if (activeTab === 2) renderClients();
+				if (activeTab === 3) renderClients();
 			}).catch(function() {
 				notice.textContent = _('Telemetry update failed');
 				Object.keys(cells).forEach(function(id) { Object.keys(cells[id]).forEach(function(k) { cells[id][k].textContent = '—'; }); });
 				dfs.textContent = _('Unknown');
 				clientCache = { rows: [], empty: _('Client data unavailable') };
-				if (activeTab === 2) renderClients();
+				if (activeTab === 3) renderClients();
 			}).finally(function() { busy = null; });
 			return busy;
 		}
@@ -366,67 +395,68 @@ return view.extend({
 			});
 		}
 
-		poll.add(update, 5);
-		update();
-		return E('div', { 'class': 'cbi-map wifi7-map' }, [ E('style', {}, `
-			.wifi7-map { --wifi7-font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; --wifi7-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-family: var(--wifi7-font-ui); font-size: 13px; line-height: 1.5; color: var(--cbi-text-color, inherit); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
-			.wifi7-map .cbi-tabmenu { margin-bottom: 16px; border-bottom: 1px solid var(--cbi-border-color, #e0e0e0); }
-			.wifi7-notice { font-size: 12px; color: var(--cbi-muted-color, #888); min-height: 18px; margin: -4px 0 14px; font-variant-numeric: tabular-nums; }
-			.wifi7-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; margin-bottom:16px; }
-			.wifi7-card { border:1px solid var(--cbi-border-color, var(--hairline, rgba(128,128,128,0.2))); border-radius:6px; padding:14px 16px; min-width:0; background:var(--cbi-section-bg, rgba(128,128,128,0.03)); display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box; }
-			.wifi7-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid var(--cbi-border-color, rgba(128,128,128,0.12)); }
-			.wifi7-card-title { display:flex; align-items:baseline; gap:8px; }
-			.wifi7-band-name { font-size:15px; font-weight:600; color:var(--cbi-text-color, inherit); }
-			.wifi7-device-tag { font-size:11px; color:var(--cbi-muted-color, #888); font-family:var(--wifi7-font-mono); }
+		var refresh = function() { return update(activeTab === 3); };
+		poll.add(refresh, 5);
+		update(false);
+		var root = E('div', { 'class': 'cbi-map wifi7-map' }, [ E('style', {}, `
+			.wifi7-map { font-size:13px; line-height:1.5; color:var(--cbi-text-color,inherit); }
+			.wifi7-map .cbi-tabmenu { margin-bottom:12px; }
+			.wifi7-notice { font-size:12px; color:var(--cbi-muted-color,#888); min-height:18px; margin:-4px 0 12px; font-variant-numeric:tabular-nums; }
+			.wifi7-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:8px; margin-bottom:12px; }
+			.wifi7-card { min-width:0; min-height:76px; padding:10px 12px; box-sizing:border-box; background:var(--cbi-section-bg,transparent); border:1px solid var(--cbi-border-color,#e0e0e0); border-radius:6px; }
+			.wifi7-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+			.wifi7-card-title { display:flex; align-items:baseline; gap:6px; }
+			.wifi7-band-name { font-size:15px; font-weight:500; }
+			.wifi7-device-tag,.wifi7-status-label,.wifi7-label { font-size:12px; color:var(--cbi-muted-color,#666); }
+			.wifi7-device-tag { font-size:11px; }
 			.wifi7-status-wrap { display:flex; align-items:center; gap:6px; }
-			.wifi7-status-label { font-size:12px; color:var(--cbi-muted-color, #888); }
-			.wifi7-status-badge { display:inline-flex; align-items:center; padding:2px 8px; font-size:11px; font-weight:600; border-radius:4px; border:1px solid var(--cbi-border-color, rgba(128,128,128,0.2)); color:var(--cbi-muted-color, #666); line-height:1.4; }
-			.wifi7-badge-up { border-color:rgba(16,185,129,0.3); color:#10b981; background:rgba(16,185,129,0.10); }
-			.wifi7-badge-up::before { content:""; display:inline-block; width:6px; height:6px; border-radius:50%; background:currentColor; margin-right:5px; }
-			.wifi7-badge-disabled { border-color:var(--cbi-border-color, rgba(128,128,128,0.2)); color:var(--cbi-muted-color, #888); background:rgba(128,128,128,0.08); opacity:0.8; }
-			.wifi7-card-body { display:flex; flex-direction:column; gap:2px; }
-			.wifi7-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:5px 0; font-size:13px; }
-			.wifi7-row:not(:last-child) { border-bottom:1px dashed var(--cbi-border-color, rgba(128,128,128,0.08)); }
-			.wifi7-label { color:var(--cbi-muted-color, #666); font-size:12px; font-weight:500; letter-spacing:.5px; }
-			.wifi7-value { font-family:var(--wifi7-font-mono); font-variant-numeric:tabular-nums; text-align:right; font-weight:600; color:var(--cbi-text-color, inherit); }
-			.wifi7-system-info { background:var(--cbi-section-bg, rgba(128,128,128,0.03)); border:1px solid var(--cbi-border-color, var(--hairline, rgba(128,128,128,0.2))); border-radius:6px; padding:14px 16px; margin:16px 0; }
-			.wifi7-info-row { display:flex; align-items:center; padding:8px 0; font-size:13px; }
-			.wifi7-info-row:not(:last-child) { border-bottom:1px dashed var(--cbi-border-color, rgba(128,128,128,0.12)); }
-			.wifi7-info-label { width:180px; flex:0 0 180px; font-weight:500; color:var(--cbi-muted-color, #666); font-size:13px; }
-			.wifi7-info-value { flex:1; min-width:0; font-weight:500; font-family:var(--wifi7-font-mono); font-variant-numeric:tabular-nums; color:var(--cbi-text-color, inherit); overflow-wrap:anywhere; }
-			.wifi7-info-value .cbi-button { height:32px; padding:0 16px; border-radius:4px; font-size:12px; font-weight:500; margin:0; }
-			.wifi7-narrow-input { width:110px !important; height:32px; border-radius:4px; font-family:var(--wifi7-font-mono); font-variant-numeric:tabular-nums; }
-			.wifi7-settings-card { background:var(--cbi-section-bg, rgba(128,128,128,0.03)); border:1px solid var(--cbi-border-color, var(--hairline, rgba(128,128,128,0.2))); border-radius:6px; padding:16px 20px; margin-bottom:16px; }
-			.wifi7-settings-card h4 { margin:0 0 16px; padding-bottom:8px; border-bottom:1px solid var(--cbi-border-color, rgba(128,128,128,0.12)); font-size:15px; font-weight:600; color:var(--cbi-text-color, inherit); }
-			.wifi7-settings-card .cbi-value { display:flex; align-items:center; padding:6px 0; border-bottom:1px solid var(--cbi-border-color, rgba(128,128,128,.08)); }
-			.wifi7-settings-card .cbi-value:last-of-type { border-bottom:none; }
-			.wifi7-settings-card .cbi-value-title { width:180px; flex:0 0 180px; margin:0; font-size:13px; font-weight:500; color:var(--cbi-muted-color, #666); }
+			.wifi7-status-badge { font-size:12px; font-weight:500; color:var(--cbi-muted-color,#666); }
+			.wifi7-badge-up { color:var(--cbi-link-color,#0ea5e9); }
+			.wifi7-badge-disabled { color:var(--cbi-muted-color,#888); }
+			.wifi7-card-body { display:flex; flex-direction:column; }
+			.wifi7-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:3px 0; font-size:13px; }
+			.wifi7-value { text-align:right; font-weight:500; font-variant-numeric:tabular-nums; }
+			.wifi7-system-info,.wifi7-settings-card,.wifi7-client-details { background:var(--cbi-section-bg,transparent); border:1px solid var(--cbi-border-color,#e0e0e0); border-radius:6px; }
+			.wifi7-system-info { padding:10px 12px; margin:12px 0; }
+			.wifi7-info-row { display:flex; align-items:center; padding:4px 0; font-size:13px; }
+			.wifi7-info-label { width:160px; flex:0 0 160px; font-weight:500; color:var(--cbi-muted-color,#666); }
+			.wifi7-info-value { flex:1; min-width:0; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+			.wifi7-info-value .cbi-button,.wifi7-save-bar .cbi-button { height:32px; padding:0 16px; margin:0; }
+			.wifi7-narrow-input { width:104px !important; height:32px; font-variant-numeric:tabular-nums; }
+			.wifi7-settings-card { padding:12px 16px; margin-bottom:12px; }
+			.wifi7-settings-card h4 { margin:0 0 8px; font-size:15px; font-weight:500; }
+			.wifi7-settings-card .cbi-value { display:flex; align-items:center; padding:6px 0; }
+			.wifi7-settings-card .cbi-value-title { width:160px; flex:0 0 160px; margin:0; font-size:13px; font-weight:500; color:var(--cbi-muted-color,#666); }
 			.wifi7-settings-card .cbi-value-field { flex:1; min-width:0; margin:0; }
-			.wifi7-settings-card .cbi-value-description { font-size:12px; color:var(--cbi-muted-color, #888); margin-top:4px; }
-			.wifi7-settings-card .cbi-input-select { max-width:320px; height:32px; border-radius:4px; }
-			.wifi7-save-bar { display:flex; justify-content:flex-end; padding-top:12px; margin-top:8px; }
-			.wifi7-save-bar .cbi-button { height:32px; padding:0 16px; border-radius:4px; font-size:12px; font-weight:500; margin:0; }
-			.wifi7-client-details { margin-bottom:12px; border:1px solid var(--cbi-border-color, var(--hairline, rgba(128,128,128,0.2))); border-radius:6px; padding:10px 16px; background:var(--cbi-section-bg, rgba(128,128,128,0.03)); }
-			.wifi7-client-summary { cursor:pointer; padding:6px 0; font-weight:500; font-family:var(--wifi7-font-mono); font-variant-numeric:tabular-nums; font-size:13px; user-select:none; outline:none; }
-			.wifi7-client-summary:focus-visible { outline:2px solid var(--cbi-primary-color, #0069d9); border-radius:4px; }
-			.wifi7-link-box { padding:8px 0; }
-			.wifi7-link-box:not(:last-child) { border-bottom:1px dashed var(--cbi-border-color, rgba(128,128,128,0.12)); }
-			.wifi7-link-label { font-size:12px; font-weight:600; color:var(--cbi-muted-color, #888); margin-bottom:4px; }
+			.wifi7-settings-card .cbi-value-description { font-size:12px; color:var(--cbi-muted-color,#888); margin-top:4px; }
+			.wifi7-settings-card .cbi-input-select { max-width:320px; height:32px; }
+			.wifi7-save-bar { display:flex; justify-content:flex-end; padding-top:8px; }
+			.wifi7-client-details { margin-bottom:8px; padding:8px 12px; }
+			.wifi7-client-summary { cursor:pointer; padding:4px 0; font-weight:500; font-variant-numeric:tabular-nums; font-size:13px; }
+			.wifi7-client-summary:focus-visible { outline:2px solid var(--cbi-primary-color,#0069d9); border-radius:4px; }
+			.wifi7-link-box { padding:6px 0; }
+			.wifi7-link-label { font-size:12px; font-weight:500; color:var(--cbi-muted-color,#888); margin-bottom:2px; }
 			.wifi7-link-box .wifi7-row { max-width:640px; }
-			@media (max-width: 640px) {
-				.wifi7-grid { grid-template-columns:1fr; gap:12px; }
-				.wifi7-card { padding:12px 14px; }
-				.wifi7-settings-card { padding:12px 14px; }
-				.wifi7-settings-card .cbi-value { flex-direction:column; align-items:flex-start; gap:4px; padding:8px 0; }
-				.wifi7-settings-card .cbi-value-title { width:auto; flex:none; }
+			.wifi7-mlo-content { margin:0; padding:0; }
+			.wifi7-mlo-content > .cbi-map-descr { display:none; }
+			.wifi7-mlo-content > .cbi-section { margin:0 0 12px; }
+			@media (max-width:640px) {
+				.wifi7-grid { grid-template-columns:1fr; }
+				.wifi7-card,.wifi7-settings-card { padding:10px 12px; }
+				.wifi7-settings-card .cbi-value,.wifi7-info-row { flex-direction:column; align-items:flex-start; gap:4px; padding:8px 0; }
+				.wifi7-settings-card .cbi-value-title,.wifi7-info-label { width:auto; flex:none; }
 				.wifi7-settings-card .cbi-value-field { width:100%; }
-				.wifi7-system-info { padding:10px 14px; }
-				.wifi7-info-row { flex-direction:column; align-items:flex-start; gap:4px; }
-				.wifi7-info-label { width:auto; flex:none; }
-				.wifi7-save-bar { justify-content:stretch; }
 				.wifi7-save-bar .cbi-button { width:100%; }
 			}
 		`), E('h2', {}, _('WiFi 7')), nav ].concat(panes));
+		var observer = new MutationObserver(function() {
+			if (root.isConnected)
+				return;
+			poll.remove(refresh);
+			observer.disconnect();
+		});
+		observer.observe(document.body, { childList: true, subtree: true });
+		return root;
 	},
 	handleSaveApply: null,
 	handleSave: null,

@@ -44,7 +44,8 @@ const assert=require('node:assert/strict');
  assert.equal(writes.filter(w=>w[2]==='disabled'||w[2]==='background_radar').length,0);
  console.log('PASS save transaction, country refresh and retry');
  assert.equal(document.querySelectorAll('details').length,0,'hidden clients must not render');
- document.querySelectorAll('.cbi-tabmenu a')[2].dispatchEvent(new window.MouseEvent('click',{bubbles:true,cancelable:true}));
+ document.querySelectorAll('.cbi-tabmenu a')[3].dispatchEvent(new window.MouseEvent('click',{bubbles:true,cancelable:true}));
+ await new Promise(r=>setTimeout(r,20));
  if(process.env.MLO_TEST || process.env.NATIVE_TEST) {
   const detail=document.querySelector('details'); assert.ok(detail);
   detail.open=true; const summary=detail.querySelector('summary'); summary.focus();
@@ -63,7 +64,7 @@ const assert=require('node:assert/strict');
   }
  }
  assert.equal(calls.filter(c=>c[1]==='/usr/libexec/wifi7-firmware').length,1);
- assert.ok(document.querySelector('style').textContent.includes('--hairline'));
+ assert.ok(document.querySelector('style').textContent.includes('.wifi7-grid'));
  console.log('PASS client telemetry, stable DOM and RPC lifecycle');
  power.value='23'; uci.apply=async()=>{await apply();config.radio0.txpower='22'};
  save.click(); await tick(); assert.equal(power.value,'22','reload updates normalized controls');

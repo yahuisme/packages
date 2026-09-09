@@ -2,7 +2,7 @@
 const fs=require('fs'),crypto=require('crypto'),assert=require('assert/strict');
 const {JSDOM}=require('jsdom');
 const ROOT=process.env.LUCI_RESOURCE_DIR.replace(/\/$/,'')+'/';
-const APP=process.env.MLO_JS||require('path').join(__dirname,'../htdocs/luci-static/resources/view/mlo.js');
+const APP=process.env.MLO_JS||require('path').join(__dirname,'../htdocs/luci-static/resources/wifi7/mlo.js');
 const SOURCE=fs.readFileSync(APP,'utf8');
 async function boot({readonly=false,unknown=false,iface={}}={}) {
  const j=new JSDOM('<!doctype html><html><body><div id="maincontent"><div id="view"></div></div></body></html>',{url:'http://localhost/cgi-bin/luci/admin/network/mlo',runScripts:'outside-only',pretendToBeVisual:true});

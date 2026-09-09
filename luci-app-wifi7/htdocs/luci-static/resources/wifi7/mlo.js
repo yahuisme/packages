@@ -6,11 +6,14 @@
 'require poll';
 'require rpc';
 
-const callWirelessDevices = rpc.declare({
+var callWirelessDevices = rpc.declare({
 	object: 'luci-rpc',
 	method: 'getWirelessDevices',
 	raise: true
 });
+
+var mloRefresh = null;
+var mloActive = true;
 
 function listValues(value) {
 	return L.toArray(value).map(value => String(value).trim()).filter(Boolean);
@@ -168,6 +171,15 @@ return view.extend({
 		return Promise.all([ uci.load('wireless'), uci.load('network'), fetchRuntime() ]);
 	},
 
+	pause: function() {
+		mloActive = false;
+	},
+
+	resume: function() {
+		mloActive = true;
+		return mloRefresh ? mloRefresh() : Promise.resolve();
+	},
+
 	render: function(data) {
 		let runtime = data[2];
 		let radios = uci.sections('wireless', 'wifi-device');
@@ -297,6 +309,8 @@ return view.extend({
 					poll.remove(refresh);
 					return Promise.resolve();
 				}
+				if (!mloActive)
+					return Promise.resolve();
 				if (inflight)
 					return inflight;
 				inflight = fetchRuntime().then(function(nextRuntime) {
@@ -313,6 +327,7 @@ return view.extend({
 				}).then(function(result) { inflight = null; return result; }, function(error) { inflight = null; throw error; });
 				return inflight;
 			};
+			mloRefresh = refresh;
 			poll.add(refresh, 5);
 			let observer = new MutationObserver(function() {
 				if (nodes.isConnected)

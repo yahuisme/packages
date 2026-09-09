@@ -1,0 +1,17 @@
+#!/bin/sh
+# Fixed read-only summary probe. No caller-supplied commands, paths or interfaces.
+[ "$#" -eq 0 ] || exit 2
+probe() {
+	kind=$1 name=$2
+	shift 2
+	data=$("$@" 2>/dev/null)
+	code=$?
+	printf '@@ %s %s %s\n%s\n' "$kind" "$name" "$code" "$data"
+}
+for socket in /var/run/hostapd/*; do
+	[ -S "$socket" ] || continue
+	iface=${socket##*/}
+	case "$iface" in global|''|*[!a-zA-Z0-9_.:-]*) continue;; esac
+	probe hostapd "$iface" hostapd_cli -p /var/run/hostapd -i "$iface" status
+done
+exit 0

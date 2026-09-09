@@ -1,0 +1,15 @@
+const fs=require('fs'),assert=require('node:assert/strict');
+const {JSDOM}=require('jsdom');
+const dom=new JSDOM('<body/>'),document=dom.window.document;
+global.L={hasViewPermission:()=>true};
+global.MutationObserver=dom.window.MutationObserver;
+const source=fs.readFileSync(require('path').join(__dirname,'../htdocs/luci-static/resources/view/wifi7/index.js'),'utf8');
+let registered,removed=0;
+const rpc={declare:()=>()=>Promise.resolve({devices:[],results:[],code:0,stdout:''})};
+const uci={load:()=>Promise.resolve(),sections:()=>[],get:()=>null};
+const network={flushCache:()=>Promise.resolve(),getWifiDevices:()=>Promise.resolve([]),getWifiNetworks:()=>Promise.resolve([])};
+const poll={add:fn=>registered=fn,remove:fn=>{assert.strictEqual(fn,registered);removed++;}};
+const telemetry={parse:()=>({devices:{},stations:{},surveys:{},hostapd:[]}),dfs:()=> 'unknown',band:()=>null,utilization:()=>null,delta:()=>null};
+const E=(tag,attrs,children)=>{if(Array.isArray(attrs)||typeof attrs==='string'){children=attrs;attrs={};}const n=document.createElement(tag);for(const [k,v] of Object.entries(attrs||{}))if(typeof v==='function')n.addEventListener(k,v);else n.setAttribute(k,v);for(const child of [children].flat(Infinity))if(child!=null)n.append(child);return n;};
+const app=Function('view','network','rpc','uci','ui','poll','document','E','_','cbi_update_table','telemetry',source)({extend:x=>x},network,rpc,uci,{addNotification:()=>{}},poll,document,E,x=>x,()=>{},telemetry);
+(async()=>{const node=await app.render(await app.load());document.body.append(node);assert(registered);node.remove();await new Promise(r=>setTimeout(r,0));assert.equal(removed,1,'detached view must unregister polling immediately');console.log('PASS detached view unregisters polling immediately');})().catch(e=>{console.error(e);process.exitCode=1});

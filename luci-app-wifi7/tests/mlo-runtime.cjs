@@ -1,5 +1,5 @@
 const fs=require('fs'),assert=require('assert/strict');
-const source=fs.readFileSync(require('path').join(__dirname, '../htdocs/luci-static/resources/view/mlo.js'),'utf8');
+const source=fs.readFileSync(require('path').join(__dirname, '../htdocs/luci-static/resources/wifi7/mlo.js'),'utf8');
 String.prototype.format=function(...a){let i=0;return this.replace(/%[sd]/g,()=>a[i++]);};
 const L={toArray:v=>v==null?[]:Array.isArray(v)?v:String(v).split(/\s+/),naturalCompare:(a,b)=>a.localeCompare(b)};
 const rpc={declare:()=>()=>Promise.resolve({})};

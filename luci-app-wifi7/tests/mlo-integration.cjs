@@ -1,4 +1,4 @@
-const {boot}=require('./luci-dom.cjs');const assert=require('assert/strict');
+const {boot}=require('./mlo-luci-dom.cjs');const assert=require('assert/strict');
 const results=[];
 async function edit(x){await x.map.children[0].renderMoreOptionsModal('test');const node=x.w.document.querySelector('.modal .cbi-map');return node?x.mods.dom.findClassInstance(node):null;}
 function set(x,key,value){const e=x.w.document.getElementById('widget.cbid.wireless.test.'+key);assert(e,'missing widget '+key);e.value=value;e.dispatchEvent(new x.w.Event('change',{bubbles:true}));return e;}
