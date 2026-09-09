@@ -12,10 +12,8 @@ LOG_PATH="$RUN_DIR/$NAME.log"
 RESULT_PATH="$RUN_DIR/update_resources.result"
 GEOIP_SOURCE="${GEOIP_SOURCE:-https://cdn.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/geoip-cn.srs}"
 GEOIP_VERSION_URL="${GEOIP_VERSION_URL:-https://github.com/SagerNet/sing-geoip/releases/latest}"
-GEOSITE_REPO="SagerNet/sing-geosite"
-GEOSITE_BRANCH="rule-set"
-GEOSITE_SOURCE="${GEOSITE_SOURCE:-https://cdn.jsdelivr.net/gh/$GEOSITE_REPO@$GEOSITE_BRANCH/geosite-cn.srs}"
-GEOSITE_VERSION_URL="${GEOSITE_VERSION_URL:-https://github.com/$GEOSITE_REPO/releases/latest}"
+GEOSITE_SOURCE="${GEOSITE_SOURCE:-https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set-unstable/geosite-cn.srs}"
+GEOSITE_VERSION_URL="${GEOSITE_VERSION_URL:-https://github.com/SagerNet/sing-geosite/releases/latest}"
 DASHBOARD_SOURCE="${DASHBOARD_SOURCE:-https://codeload.github.com/SagerNet/sing-box-dashboard/zip/refs/heads/gh-pages}"
 DASHBOARD_VERSION_URL="${DASHBOARD_VERSION_URL:-https://github.com/SagerNet/sing-box-dashboard/commits/gh-pages.atom}"
 USER_AGENT="HomeProxy resource updater"
@@ -86,11 +84,8 @@ download() {
 }
 
 validate_rule_set() {
-	[ -s "$1" ] || return 1
-	[ "$(head -c 3 "$1" 2>/dev/null)" = "SRS" ] || return 1
-	if [ -x "$SING_BOX" ]; then
-		"$SING_BOX" rule-set match -f binary "$1" 192.0.2.1 >"/dev/null" 2>&1 || return 1
-	fi
+	[ -x "$SING_BOX" ] &&
+		"$SING_BOX" rule-set match -f binary "$1" 192.0.2.1 >"/dev/null" 2>&1
 }
 
 fetch_release_version() {
@@ -132,6 +127,20 @@ versioned_url() {
 	http://*|https://*) printf '%s?v=%s' "$1" "$2" ;;
 	*) printf '%s' "$1" ;;
 	esac
+}
+
+install_rule_set() {
+	local source_file="$1" version="$2" resource="$3"
+	local stage_dir="$RESOURCES_DIR/.update.$$.tmp"
+
+	if ! mkdir -p "$stage_dir" || \
+	   ! cp "$source_file" "$stage_dir/$resource.srs" || \
+	   ! printf '%s\n' "$version" > "$stage_dir/$resource.ver" || \
+	   ! chmod 0644 "$stage_dir/$resource.srs" "$stage_dir/$resource.ver" || \
+	   ! mv -f "$stage_dir/$resource.srs" "$RESOURCES_DIR/$resource.srs" || \
+	   ! mv -f "$stage_dir/$resource.ver" "$RESOURCES_DIR/$resource.ver"; then
+		return 1
+	fi
 }
 
 exec 9>"$RUN_DIR/update_resources.lock"
@@ -205,27 +214,11 @@ TMP_DIR="$(mktemp -d "$RUN_DIR/resources-update.XXXXXX")" || {
 	log "[RESOURCES] Failed to prepare the temporary update directory."
 	finish 1
 }
-# Stage beside the destination so installation uses same-filesystem renames.
-# Never delete the active directory before a replacement is ready.
-install_directory() {
-	local stage="$1" target="$2" backup="${2}.old.$$"
-	[ ! -e "$backup" ] || return 1
-	mv "$target" "$backup" || return 1
-	if mv "$stage" "$target"; then
-		rm -rf "$backup"
-		return 0
-	fi
-	mv "$backup" "$target" || log "[RESOURCES] CRITICAL: restore failed; old files retained at $backup."
-	return 1
-}
-
 DASHBOARD_STAGE="${DASHBOARD_DIR}.new.$$"
-RESOURCE_STAGE="${RESOURCES_DIR}.new.$$"
 cleanup() {
-	rm -rf "$TMP_DIR" "$DASHBOARD_STAGE" "$RESOURCE_STAGE"
+	rm -rf "$TMP_DIR" "$DASHBOARD_STAGE" "$RESOURCES_DIR/.update.$$.tmp"
 }
-trap cleanup EXIT
-trap 'exit 1' INT TERM
+trap cleanup EXIT INT TERM
 
 if [ "$GEOIP_CURRENT" -eq 0 ]; then
 	if ! download "$(versioned_url "$GEOIP_SOURCE" "$NEW_GEOIP_VER")" "$TMP_DIR/geoip_cn.srs"; then
@@ -234,15 +227,10 @@ if [ "$GEOIP_CURRENT" -eq 0 ]; then
 	elif ! validate_rule_set "$TMP_DIR/geoip_cn.srs"; then
 		log "[geoip_cn] Update failed: invalid binary rule set."
 		mark_failed "geoip_cn"
-	elif ! cp -a "$RESOURCES_DIR" "$RESOURCE_STAGE" || \
-	     ! printf '%s\n' "$NEW_GEOIP_VER" > "$RESOURCE_STAGE/geoip_cn.ver" || \
-	     ! cp "$TMP_DIR/geoip_cn.srs" "$RESOURCE_STAGE/geoip_cn.srs" || \
-	     ! chmod 0644 "$RESOURCE_STAGE/geoip_cn.srs" "$RESOURCE_STAGE/geoip_cn.ver" || \
-	     ! install_directory "$RESOURCE_STAGE" "$RESOURCES_DIR"; then
+	elif ! install_rule_set "$TMP_DIR/geoip_cn.srs" "$NEW_GEOIP_VER" "geoip_cn"; then
 		log "[geoip_cn] Update failed while installing the IP rule set."
 		mark_failed "geoip_cn"
 	else
-		chmod 0644 "$RESOURCES_DIR/geoip_cn.srs" "$RESOURCES_DIR/geoip_cn.ver"
 		log "[geoip_cn] Successfully updated."
 		CORE_UPDATED=1
 		mark_updated "geoip_cn"
@@ -253,16 +241,13 @@ if [ "$GEOSITE_CURRENT" -eq 0 ]; then
 	if ! download "$(versioned_url "$GEOSITE_SOURCE" "$NEW_GEOSITE_VER")" "$TMP_DIR/geosite_cn.srs"; then
 		log "[geosite_cn] Update failed while downloading the domain rule set."
 		mark_failed "geosite_cn"
-	elif ! validate_rule_set "$TMP_DIR/geosite_cn.srs" || \
-	     ! cp -a "$RESOURCES_DIR" "$RESOURCE_STAGE" || \
-	     ! printf '%s\n' "$NEW_GEOSITE_VER" > "$RESOURCE_STAGE/geosite_cn.ver" || \
-	     ! cp "$TMP_DIR/geosite_cn.srs" "$RESOURCE_STAGE/geosite_cn.srs" || \
-	     ! chmod 0644 "$RESOURCE_STAGE/geosite_cn.srs" "$RESOURCE_STAGE/geosite_cn.ver" || \
-	     ! install_directory "$RESOURCE_STAGE" "$RESOURCES_DIR"; then
+	elif ! validate_rule_set "$TMP_DIR/geosite_cn.srs"; then
+		log "[geosite_cn] Update failed: invalid binary rule set."
+		mark_failed "geosite_cn"
+	elif ! install_rule_set "$TMP_DIR/geosite_cn.srs" "$NEW_GEOSITE_VER" "geosite_cn"; then
 		log "[geosite_cn] Update failed while installing the domain rule set."
 		mark_failed "geosite_cn"
 	else
-		chmod 0644 "$RESOURCES_DIR/geosite_cn.srs" "$RESOURCES_DIR/geosite_cn.ver"
 		log "[geosite_cn] Successfully updated."
 		CORE_UPDATED=1
 		mark_updated "geosite_cn"
@@ -306,7 +291,8 @@ if [ "$DASHBOARD_CURRENT" -eq 0 ]; then
 		fi
 	fi
 	if [ "$DASHBOARD_READY" -eq 1 ]; then
-		if install_directory "$DASHBOARD_STAGE" "$DASHBOARD_DIR"; then
+		rm -rf "$DASHBOARD_DIR"
+		if mv "$DASHBOARD_STAGE" "$DASHBOARD_DIR"; then
 			log "[dashboard] Successfully updated."
 			DASHBOARD_UPDATED=1
 			mark_updated "dashboard"

@@ -15,8 +15,6 @@
 'require homeproxy as hp';
 'require tools.widgets as widgets';
 
-let nodeLatencySections = Object.create(null);
-
 const callNodeLatencyTest = rpc.declare({
 	object: 'luci.homeproxy',
 	method: 'node_latency_test',
@@ -198,17 +196,7 @@ function parseShareLink(uri, features) {
 			break;
 		case 'ss':
 			try {
-				/* "Lovely" Shadowrocket format */
-				try {
-					let suri = uri[1].split('#'), slabel = '';
-					if (suri.length <= 2) {
-						if (suri.length === 2)
-							slabel = '#' + suri[1];
-						uri[1] = hp.decodeBase64Str(suri[0]) + slabel;
-					}
-				} catch(e) { }
-
-				/* SIP002 format https://shadowsocks.org/guide/sip002.html */
+				/* SIP002 format https://shadowsocks.org/doc/sip002.html */
 				url = new URL('http://' + uri[1]);
 
 				let userinfo;
@@ -243,20 +231,7 @@ function parseShareLink(uri, features) {
 					shadowsocks_plugin_opts: plugin_opts
 				};
 			} catch(e) {
-				/* Legacy format https://github.com/shadowsocks/shadowsocks-org/commit/78ca46cd6859a4e9475953ed34a2d301454f579e */
-				uri = uri[1].split('@');
-				if (uri.length < 2)
-					return null;
-				else if (uri.length > 2)
-					uri = [ uri.slice(0, -1).join('@'), uri.slice(-1).toString() ];
-
-				config = {
-					type: 'shadowsocks',
-					address: uri[1].split(':')[0],
-					port: uri[1].split(':')[1],
-					shadowsocks_encrypt_method: uri[0].split(':')[0],
-					password: uri[0].split(':').slice(1).join(':')
-				};
+				return null;
 			}
 
 			break;
@@ -520,28 +495,32 @@ function getNodeLatencyStatusText(row_state) {
 	}
 }
 
-function getNodeLatencyStatusClass(row_state) {
+function getNodeLatencyStatusStyle(row_state) {
 	if (!row_state)
-		return '';
+		return 'color:gray';
 
 	switch (row_state.state) {
 	case NODE_LATENCY_ROW_STATES.TESTING:
-		return 'label label-info';
+		return 'color:#0a84ff';
 	case NODE_LATENCY_ROW_STATES.SUCCESS:
-		return 'label label-success';
+		return 'color:green';
 	case NODE_LATENCY_ROW_STATES.TIMEOUT:
-		return 'label label-warning';
+		return 'color:#ff8c00';
 	case NODE_LATENCY_ROW_STATES.ERROR:
-		return 'label label-danger';
+		return 'color:red';
 	case NODE_LATENCY_ROW_STATES.UNTESTED:
 	default:
-		return '';
+		return 'color:gray';
 	}
+}
+
+function renderNodeLatencyStatus(row_state) {
+	return '<strong style="%s">%s</strong>'.format(getNodeLatencyStatusStyle(row_state), getNodeLatencyStatusText(row_state));
 }
 
 function renderNodeLatencyStatusNode(row_state, attrs) {
 	return E('strong', Object.assign({
-		'class': getNodeLatencyStatusClass(row_state)
+		'style': getNodeLatencyStatusStyle(row_state)
 	}, attrs || {}), [ getNodeLatencyStatusText(row_state) ]);
 }
 
@@ -708,14 +687,19 @@ function createNodeLatencyRowStateModel() {
 	};
 }
 
-function renderNodeSettings(section, data, features, main_node, routing_mode, node_latency_row_state) {
+function renderNodeSettings(section, data, features, main_node, node_latency_row_state) {
 	let s = section, o;
+	if (typeof globalThis !== 'undefined') {
+		globalThis.__hpNodeLatencySections = globalThis.__hpNodeLatencySections || {};
+		globalThis.__hpNodeLatencyTrigger = function(section_id) {
+			let target = globalThis.__hpNodeLatencySections?.[section_id];
+			return target ? target.handleNodeLatencyTest(section_id) : false;
+		};
+	}
 	s.rowcolors = true;
 	s.sortable = true;
 	s.nodescriptions = true;
-	/* Let the native LuCI table choose its columns responsively. A fixed
-	 * seven-column row makes node actions unusable on narrow screens. */
-	s.max_cols = 0;
+	s.max_cols = 7;
 	s.modaltitle = L.bind(hp.loadModalTitle, this, _('Node'), _('Add a node'), data[0]);
 	s.sectiontitle = L.bind(hp.loadDefaultLabel, this, data[0]);
 	s.node_latency_row_state = node_latency_row_state;
@@ -733,11 +717,11 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 		let latency_id = 'cbi-%s-%s-_latency'.format(data[0], section_id);
 		let test_id = 'cbi-%s-%s-_test_latency'.format(data[0], section_id);
 
-		let status_widget = this.map?.findElement ? this.map.findElement('id', latency_id) : null;
+		let status_widget = this.map.findElement('id', latency_id);
 		if (status_widget)
-			status_widget.replaceChildren(renderNodeLatencyStatusNode(row_state));
+			status_widget.innerHTML = renderNodeLatencyStatus(row_state);
 
-		let test_widget = this.map?.findElement ? this.map.findElement('id', test_id) : null;
+		let test_widget = this.map.findElement('id', test_id);
 		let test_button = test_widget ? test_widget.querySelector('button') : null;
 		if (test_button) {
 			test_button.textContent = getNodeLatencyActionTitle(row_state);
@@ -786,29 +770,26 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 		return this.handleNodeLatencyTests([section_id]);
 	}
 
-	if (routing_mode !== 'custom') {
-		o = s.option(form.Button, '_apply', _('Apply'));
-		o.editable = true;
-		o.modalonly = false;
-		o.inputstyle = 'apply';
-		o.inputtitle = function(section_id) {
-			if (main_node == section_id) {
-				this.readonly = true;
-				return _('Applied');
-			} else {
-				this.readonly = false;
-				return _('Apply');
-			}
-		}
-		o.onclick = function(ev, section_id) {
-			uci.set(data[0], 'config', 'main_node', section_id);
-
-			return this.map.save(null, true).then(() => {
-				ui.changes.apply(true);
-			});
+	o = s.option(form.Button, '_apply', _('Apply'));
+	o.editable = true;
+	o.modalonly = false;
+	o.inputstyle = 'apply';
+	o.inputtitle = function(section_id) {
+		if (main_node == section_id) {
+			this.readonly = true;
+			return _('Applied');
+		} else {
+			this.readonly = false;
+			return _('Apply');
 		}
 	}
+	o.onclick = function(ev, section_id) {
+		uci.set(data[0], 'config', 'main_node', section_id);
 
+		return this.map.save(null, true).then(() => {
+			ui.changes.apply(true);
+		});
+	}
 	o = s.option(form.DummyValue, '_latency', _('Latency'));
 	o.rawhtml = true;
 	o.modalonly = false;
@@ -832,12 +813,12 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 		let outputEl = E('output', { 'for': this.cbid(section_id) });
 		let row_state = s.getNodeLatencyRowState(section_id);
 
-		if (!nodeLatencySections[section_id])
-			nodeLatencySections[section_id] = s;
+		if (typeof globalThis !== 'undefined' && globalThis.__hpNodeLatencySections)
+			globalThis.__hpNodeLatencySections[section_id] = s;
 
 		outputEl.appendChild(E('button', {
 			'class': 'cbi-button cbi-button-action',
-			'click': ui.createHandlerFn(s, () => s.handleNodeLatencyTest(section_id)),
+			'onclick': 'return globalThis.__hpNodeLatencyTrigger(%s);'.format(JSON.stringify(section_id)),
 			'disabled': (row_state.state === NODE_LATENCY_ROW_STATES.TESTING) ? true : null
 		}, [ getNodeLatencyActionTitle(row_state) ]));
 
@@ -930,7 +911,7 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 	o = s.option(form.Value, 'anytls_idle_session_timeout', _('Idle session check timeout'),
 		_('In the check, close sessions that have been idle for longer than this, in seconds.'));
 	o.datatype = 'uinteger';
-	o.placeholder = '30';
+	o.placeholder = '120';
 	o.depends('type', 'anytls');
 	o.modalonly = true;
 
@@ -982,6 +963,7 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 	o = s.option(form.ListValue, 'hysteria_obfs_type', _('Obfuscate type'));
 	o.value('', _('Disable'));
 	o.value('salamander', _('Salamander'));
+	o.value('gecko', _('Gecko'));
 	o.depends('type', 'hysteria2');
 	o.modalonly = true;
 
@@ -996,6 +978,12 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 	o.datatype = 'uinteger';
 	o.depends('type', 'hysteria');
 	o.depends('type', 'hysteria2');
+	o.validate = function(section_id, value) {
+		if (section_id && this.section.formvalue(section_id, 'type') === 'hysteria' && !value)
+			return _('Expecting: %s').format(_('non-empty value'));
+
+		return true;
+	}
 	o.modalonly = true;
 
 	o = s.option(form.Value, 'hysteria_up_mbps', _('Max upload speed'),
@@ -1003,6 +991,12 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 	o.datatype = 'uinteger';
 	o.depends('type', 'hysteria');
 	o.depends('type', 'hysteria2');
+	o.validate = function(section_id, value) {
+		if (section_id && this.section.formvalue(section_id, 'type') === 'hysteria' && !value)
+			return _('Expecting: %s').format(_('non-empty value'));
+
+		return true;
+	}
 	o.modalonly = true;
 
 	o = s.option(form.Value, 'hysteria_stream_receive_window', _('QUIC stream receive window'),
@@ -1207,35 +1201,27 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 	o.onchange = function(ev, section_id, value) {
 		let desc = this.map.findElement('id', 'cbid.homeproxy.%s.transport'.format(section_id)).nextElementSibling;
 		if (value === 'http')
-			dom.content(desc, _('TLS is not enforced. If TLS is not configured, plain HTTP 1.1 is used.'));
+			desc.innerHTML = _('TLS is not enforced. If TLS is not configured, plain HTTP 1.1 is used.');
 		else if (value === 'quic')
-			dom.content(desc, _('No additional encryption support: It\'s basically duplicate encryption.'));
+			desc.innerHTML = _('No additional encryption support: It\'s basically duplicate encryption.');
 		else
-			dom.content(desc, _('No TCP transport, plain HTTP is merged into the HTTP transport.'));
+			desc.innerHTML = _('No TCP transport, plain HTTP is merged into the HTTP transport.');
 
 		let tls = this.map.findElement('id', 'cbid.homeproxy.%s.tls'.format(section_id)).firstElementChild;
 		if ((value === 'http' && tls.checked) || (value === 'grpc' && !features.with_grpc)) {
-			dom.content(
-				this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id)).nextElementSibling,
-				_('Specifies the period of time (in seconds) after which a health check will be performed using a ping frame if no frames have been received on the connection.') + ' ' +
-				_('Please note that a ping response is considered a received frame, so if there is no other traffic on the connection, the health check will be executed every interval.')
-			);
+			this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id)).nextElementSibling.innerHTML =
+				_('Specifies the period of time (in seconds) after which a health check will be performed using a ping frame if no frames have been received on the connection.<br/>' +
+					'Please note that a ping response is considered a received frame, so if there is no other traffic on the connection, the health check will be executed every interval.');
 
-			dom.content(
-				this.map.findElement('id', 'cbid.homeproxy.%s.http_ping_timeout'.format(section_id)).nextElementSibling,
-				_('Specifies the timeout duration (in seconds) after sending a PING frame, within which a response must be received.') + ' ' +
-				_('If a response to the PING frame is not received within the specified timeout duration, the connection will be closed.')
-			);
+			this.map.findElement('id', 'cbid.homeproxy.%s.http_ping_timeout'.format(section_id)).nextElementSibling.innerHTML =
+				_('Specifies the timeout duration (in seconds) after sending a PING frame, within which a response must be received.<br/>' +
+					'If a response to the PING frame is not received within the specified timeout duration, the connection will be closed.');
 		} else if (value === 'grpc' && features.with_grpc) {
-			dom.content(
-				this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id)).nextElementSibling,
-				_('If the transport doesn\'t see any activity after a duration of this time (in seconds), it pings the client to check if the connection is still active.')
-			);
+			this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id)).nextElementSibling.innerHTML =
+				_('If the transport doesn\'t see any activity after a duration of this time (in seconds), it pings the client to check if the connection is still active.');
 
-			dom.content(
-				this.map.findElement('id', 'cbid.homeproxy.%s.http_ping_timeout'.format(section_id)).nextElementSibling,
-				_('The timeout (in seconds) that after performing a keepalive check, the client will wait for activity. If no activity is detected, the connection will be closed.')
-			);
+			this.map.findElement('id', 'cbid.homeproxy.%s.http_ping_timeout'.format(section_id)).nextElementSibling.innerHTML =
+				_('The timeout (in seconds) that after performing a keepalive check, the client will wait for activity. If no activity is detected, the connection will be closed.');
 		}
 	}
 	o.modalonly = true;
@@ -1628,10 +1614,8 @@ return view.extend({
 	},
 
 	render(data) {
-		nodeLatencySections = Object.create(null);
 		let m, s, o, ss, so;
 		let main_node = uci.get(data[0], 'config', 'main_node');
-		let routing_mode = uci.get(data[0], 'config', 'routing_mode');
 		let features = data[1];
 		let node_latency_row_state = createNodeLatencyRowStateModel();
 
@@ -1674,7 +1658,7 @@ return view.extend({
 		/* User nodes start */
 		s.tab('node', _('Nodes'));
 		o = s.taboption('node', form.SectionValue, '_node', form.GridSection, 'node');
-		ss = renderNodeSettings(o.subsection, data, features, main_node, routing_mode, node_latency_row_state);
+		ss = renderNodeSettings(o.subsection, data, features, main_node, node_latency_row_state);
 		ss.addremove = true;
 		ss.filter = function(section_id) {
 			return !uci.get(data[0], section_id, 'grouphash');
@@ -1782,7 +1766,7 @@ return view.extend({
 		for (const info of subinfo) {
 			s.tab('sub_' + info.hash, _('Sub (%s)').format(info.title));
 			o = s.taboption('sub_' + info.hash, form.SectionValue, '_sub_' + info.hash, form.GridSection, 'node');
-			ss = renderNodeSettings(o.subsection, data, features, main_node, routing_mode, node_latency_row_state);
+			ss = renderNodeSettings(o.subsection, data, features, main_node, node_latency_row_state);
 			ss.filter = function(section_id) {
 				return (uci.get(data[0], section_id, 'grouphash') === info.hash);
 			}
@@ -1942,7 +1926,7 @@ return view.extend({
 					let section_ids = getActiveSubscriptionLatencySectionIds(el);
 					if (!section_ids.length)
 						return false;
-			let target = nodeLatencySections[section_ids[0]];
+					let target = globalThis.__hpNodeLatencySections?.[section_ids[0]];
 					if (!target)
 						return false;
 

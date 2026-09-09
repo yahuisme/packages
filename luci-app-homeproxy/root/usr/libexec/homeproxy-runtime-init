@@ -75,11 +75,5 @@ if [ "$dashboard_port_initialized" != '1' ]; then
 	changed=1
 fi
 
-if [ "$changed" -eq 0 ]; then
-	exit 0
-fi
-uci -q commit homeproxy || {
-	log "Failed to commit generated runtime ports."
-	exit 1
-}
+[ "$changed" -eq 0 ] || uci -q commit homeproxy
 exit 0

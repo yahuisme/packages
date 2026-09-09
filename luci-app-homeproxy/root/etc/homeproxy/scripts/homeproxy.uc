@@ -4,7 +4,7 @@
  * Copyright (C) 2023 ImmortalWrt.org
  */
 
-import { popen } from 'fs';
+import { popen, readfile } from 'fs';
 import { urldecode_params } from 'luci.http';
 
 /* Global variables start */
@@ -91,6 +91,93 @@ export function normalizeList(value) {
 	return (type(value) === 'array') ? value : [value];
 };
 
+export function normalizeDomainList(content) {
+	let domains = [], seen = {};
+
+	for (let domain in split(content || '', /[\r\n]+/)) {
+		domain = lc(replace(trim(domain), /^\.+|\.+$/g, ''));
+		if (!domain || (domain in seen))
+			continue;
+
+		seen[domain] = true;
+		push(domains, domain);
+	}
+
+	return domains;
+};
+
+export function domainListPath(id) {
+	if (id === 'direct')
+		return `${HP_DIR}/resources/direct_list.txt`;
+	if (id === 'proxy')
+		return `${HP_DIR}/resources/proxy_list.txt`;
+	return `${HP_DIR}/resources/diversion/${id}.txt`;
+};
+
+export function splitDomainList(domains) {
+	let suffixes = [], keywords = [];
+	for (let domain in domains)
+		push(match(domain, /\./) ? suffixes : keywords, domain);
+	return { suffixes, keywords };
+};
+
+function domainSuffixOverlap(left, right) {
+	function endsWithDomain(value, suffix) {
+		const offset = length(value) - length(suffix);
+		return offset >= 0 && substr(value, offset) === suffix &&
+			(offset === 0 || substr(value, offset - 1, 1) === '.');
+	}
+
+	return endsWithDomain(left, right) || endsWithDomain(right, left);
+}
+
+export function findDomainGroupConflict(groups) {
+	let entries = [];
+	for (let group in groups) {
+		for (let suffix in group.suffixes)
+			push(entries, { group: group.id, type: 'suffix', value: suffix });
+		for (let keyword in group.keywords)
+			push(entries, { group: group.id, type: 'keyword', value: keyword });
+	}
+
+	for (let i = 0; i < length(entries); i++) {
+		for (let j = 0; j < i; j++) {
+			const left = entries[i], right = entries[j];
+			if (left.group === right.group)
+				continue;
+
+			let overlap;
+			if (left.type === 'keyword' || right.type === 'keyword') {
+				const keyword = left.type === 'keyword' ? left.value : right.value;
+				const other = left.type === 'keyword' ? right.value : left.value;
+				overlap = index(other, keyword) >= 0 ||
+					(right.type === 'keyword' && index(keyword, other) >= 0);
+			} else {
+				overlap = domainSuffixOverlap(left.value, right.value);
+			}
+
+			if (overlap)
+				return { left, right };
+		}
+	}
+
+	return null;
+};
+
+export function resolveLanPolicy(uci, config) {
+	const mainlandMode = (uci.get(config, 'config', 'routing_mode') || 'bypass_mainland_china') ===
+		'bypass_mainland_china';
+	const listMode = mainlandMode && uci.get(config, 'control', 'lan_whitelist_mode') === '1';
+
+	return {
+		mode: listMode ? 'mainland_list' : (mainlandMode ? 'mainland_default' : 'global'),
+		use_direct_list: !listMode,
+		use_proxy_list: mainlandMode,
+		use_rule_proxy_list: listMode,
+		restrict_to_list: listMode
+	};
+};
+
 export function reserveUniqueLabel(used, label, fallback) {
 	let base = trim(label || '') || fallback;
 	let candidate = base;
@@ -106,7 +193,8 @@ export function reserveUniqueLabel(used, label, fallback) {
 export function createNodeLabelRegistry() {
 	return {
 		'direct-out': true,
-		'main-out': true
+		'main-out': true,
+		'tailscale-out': true
 	};
 };
 
@@ -150,7 +238,7 @@ export function filterExistingNodes(uci, config, value, onRemove) {
 };
 
 export function reconcileUrltestNodes(uci, config, logger) {
-	let changed = false, removed = 0, disabled = 0;
+	let changed = false, removed = 0;
 
 	function log(message) {
 		if (type(logger) === 'function')
@@ -186,35 +274,25 @@ export function reconcileUrltestNodes(uci, config, logger) {
 			sprintf('Main URLTest group is empty; switching to node %s.', fallback));
 	}
 
-	uci.foreach(config, 'routing_node', (section) => {
-		if (section.node !== 'urltest')
-			return;
-
-		const nodes = reconcileList(section['.name'], 'urltest_nodes');
-		if (section.enabled === '1' && !length(nodes)) {
-			uci.set(config, section['.name'], 'enabled', '0');
-			changed = true;
-			disabled++;
-			log(sprintf('Routing URLTest group %s is empty; disabling it.', section['.name']));
-		}
-	});
-
 	return {
 		changed,
-		removed,
-		disabled
+		removed
 	};
 };
 
-export function hasForceProxyRules(uci, config, proxyDomainList) {
-	if (!isEmpty(proxyDomainList))
+export function hasForceProxyRules(uci, config, hasDomainProxyRules) {
+	const lanPolicy = resolveLanPolicy(uci, config);
+	if (lanPolicy.mode === 'global')
+		return false;
+
+	if (hasDomainProxyRules)
 		return true;
 
 	let options = [
 		'lan_proxy_ipv4_ips', 'lan_proxy_mac_addrs',
 		'wan_proxy_ipv4_ips', 'wan_proxy_ipv6_ips'
 	];
-	if (uci.get(config, 'control', 'lan_whitelist_mode') === '1') {
+	if (lanPolicy.use_rule_proxy_list) {
 		push(options, 'lan_auto_proxy_ipv4_ips');
 		push(options, 'lan_auto_proxy_mac_addrs');
 	}
@@ -228,12 +306,6 @@ export function hasForceProxyRules(uci, config, proxyDomainList) {
 
 export function strToBool(str) {
 	return (str === '1') || null;
-};
-
-export function requirePort(value) {
-	if (!match(value || '', /^[0-9]+$/) || int(value) < 1 || int(value) > 65535)
-		die('Invalid port: expected 1..65535');
-	return int(value);
 };
 
 export function strToInt(str) {
@@ -325,7 +397,7 @@ export function renderV2RayTransport(node, server_mode) {
 	}
 };
 
-export function renderOutbound(node, routingMark) {
+export function renderOutbound(node) {
 	if (type(node) !== 'object' || isEmpty(node))
 		return null;
 
@@ -384,7 +456,6 @@ export function renderOutbound(node, routingMark) {
 	const outbound = {
 		type: node.type,
 		tag: 'cfg-' + node['.name'] + '-out',
-		routing_mark: strToInt(routingMark),
 		tcp_fast_open: (node.type !== 'anytls') ? strToBool(node.tcp_fast_open) : null,
 		tcp_multi_path: strToBool(node.tcp_multi_path),
 		udp_fragment: strToBool(node.udp_fragment)
@@ -399,7 +470,7 @@ export function renderOutbound(node, routingMark) {
 	case 'anytls':
 		outbound.password = node.password;
 		outbound.idle_session_check_interval = strToTime(node.anytls_idle_session_check_interval);
-		outbound.idle_session_timeout = strToTime(node.anytls_idle_session_timeout);
+		outbound.idle_session_timeout = strToTime(node.anytls_idle_session_timeout || '120');
 		outbound.min_idle_session = strToInt(node.anytls_min_idle_session);
 		break;
 	case 'http':

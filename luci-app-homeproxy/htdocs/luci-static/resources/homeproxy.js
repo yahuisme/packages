@@ -108,7 +108,7 @@ return baseclass.extend({
 		const available = Object.create(null);
 		const orphanedNodes = [];
 		let firstNode = null;
-		let changed = false, removed = 0, removedNodes = 0, disabled = 0;
+		let changed = false, removed = 0, removedNodes = 0;
 
 		const subscriptionUrls = uci.get(uciconfig, 'subscription', 'subscription_url');
 		for (const configuredUrl of (Array.isArray(subscriptionUrls) ? subscriptionUrls :
@@ -166,19 +166,7 @@ return baseclass.extend({
 			changed = true;
 		}
 
-		uci.sections(uciconfig, 'routing_node', (section) => {
-			if (section.node !== 'urltest')
-				return;
-
-			const nodes = reconcileList(section['.name'], 'urltest_nodes');
-			if (section.enabled === '1' && !nodes.length) {
-				uci.set(uciconfig, section['.name'], 'enabled', '0');
-				changed = true;
-				disabled++;
-			}
-		});
-
-		return { changed, removed, removedNodes, disabled };
+		return { changed, removed, removedNodes };
 	},
 
 	calcStringMD5(e) {
@@ -343,14 +331,13 @@ return baseclass.extend({
 		const callWriteCertificate = rpc.declare({
 			object: 'luci.homeproxy',
 			method: 'certificate_write',
-			params: ['filename', 'temp'],
+			params: ['filename'],
 			expect: { '': {} }
 		});
 
-		const temp = '/tmp/homeproxy_certificate-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
-		return ui.uploadFile(temp, ev.target)
+		return ui.uploadFile('/tmp/homeproxy_certificate.tmp', ev.target)
 		.then(L.bind((_btn, res) => {
-			return L.resolveDefault(callWriteCertificate(filename, temp), {}).then((ret) => {
+			return L.resolveDefault(callWriteCertificate(filename), {}).then((ret) => {
 				if (ret.result === true)
 					ui.addNotification(null, E('p', _('Your %s was successfully uploaded. Size: %sB.').format(type, res.size)));
 				else

@@ -7,11 +7,13 @@
 
 'use strict';
 
-import { lstat, open, popen, readfile, writefile } from 'fs';
+import { lstat, open, popen, readfile, rename, unlink, writefile } from 'fs';
 import { cursor } from 'uci';
 
 import {
-	HP_DIR, RUN_DIR, isBinary, removeBlankAttrs, renderEndpoint, renderOutbound, shellQuote
+	HP_DIR, RUN_DIR, domainListPath, findDomainGroupConflict, isBinary,
+	normalizeDomainList, removeBlankAttrs, renderEndpoint, renderOutbound,
+	shellQuote, splitDomainList, validation
 } from '/etc/homeproxy/scripts/homeproxy.uc';
 
 function hasKernelModule(kmod) {
@@ -24,7 +26,7 @@ const RESOURCES = {
 		version: `${HP_DIR}/resources/geoip_cn.ver`
 	},
 	geosite_cn: {
-		source: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set/geosite-cn.srs',
+		source: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set-unstable/geosite-cn.srs',
 		version: `${HP_DIR}/resources/geosite_cn.ver`
 	},
 	dashboard: {
@@ -36,56 +38,144 @@ const CONNECTION_SITES = {
 	baidu: 'https://www.baidu.com/',
 	bilibili: 'https://www.bilibili.com/',
 	jd: 'https://www.jd.com/',
-	taobao: 'https://www.taobao.com/',
 	google: 'https://www.google.com/',
 	github: 'https://github.com/',
-	youtube: 'https://www.youtube.com/',
-	cloudflare: 'https://www.cloudflare.com/'
+	youtube: 'https://www.youtube.com/'
 };
 
+function validDomainListId(id) {
+	return type(id) === 'string' && match(id, /^[A-Za-z0-9_]+$/);
+}
+
+function normalizeDomainContent(content) {
+	if (isBinary(content))
+		return null;
+
+	for (let domain in split(content || '', /[\r\n]+/)) {
+		domain = trim(domain);
+		if (domain && !replace(domain, /^\.+|\.+$/g, ''))
+			return null;
+	}
+
+	let domains = normalizeDomainList(content);
+	for (let domain in domains)
+		if (!validation('hostname', domain))
+			return null;
+	return length(domains) ? join('\n', domains) + '\n' : '';
+}
+
+function validateDomainLists(changes, routingMode) {
+	const uci = cursor();
+	uci.load('homeproxy');
+
+	let groups = [], seen = {};
+	function appendGroup(id) {
+		if (id in seen)
+			return;
+		seen[id] = true;
+
+		const content = (id in changes) ? changes[id] : readfile(domainListPath(id));
+		const domains = normalizeDomainList(content);
+		if (length(domains))
+			push(groups, { id, ...splitDomainList(domains) });
+	}
+
+	appendGroup('direct');
+	if (routingMode === 'bypass_mainland_china')
+		appendGroup('proxy');
+	uci.foreach('homeproxy', 'domain_route', (section) => appendGroup(section['.name']));
+	for (let id in keys(changes))
+		if (!(id in ['direct', 'proxy']))
+			appendGroup(id);
+
+	return findDomainGroupConflict(groups);
+}
+
 const methods = {
-	acllist_read: {
-		args: { type: 'type' },
+	domainlist_read: {
+		args: { id: 'id' },
 		call: function(req) {
-			if (index(['direct_list', 'proxy_list'], req.args?.type) === -1)
+			const id = req.args?.id;
+			if (!validDomainListId(id))
 				return { content: null, error: 'illegal type' };
 
-			const filecontent = readfile(`${HP_DIR}/resources/${req.args?.type}.txt`);
+			const filecontent = readfile(domainListPath(id));
 			return { content: filecontent };
 		}
 	},
-	acllist_write: {
-		args: { type: 'type', content: 'content' },
+	domainlist_write: {
+		args: { lists: {}, routing_mode: 'routing_mode' },
 		call: function(req) {
-			if (index(['direct_list', 'proxy_list'], req.args?.type) === -1)
-				return { result: false, error: 'illegal type' };
+			const lists = req.args?.lists;
+			const routingMode = req.args?.routing_mode;
+			if (type(lists) !== 'object' || !(routingMode in ['bypass_mainland_china', 'global']))
+				return { result: false, error: 'invalid domain list request' };
 
-			const file = `${HP_DIR}/resources/${req.args?.type}.txt`;
-			let content = (type(req.args?.content) === 'string') ? req.args.content : '';
+			let changes = {};
+			for (let id in keys(lists)) {
+				if (!validDomainListId(id) || type(lists[id]) !== 'string')
+					return { result: false, error: 'illegal domain list identifier' };
 
-			/* Sanitize content */
-			if (content) {
-				content = trim(content);
-				content = replace(content, /\r\n?/g, '\n');
-				if (!match(content, /\n$/))
-					content += '\n';
+				const content = normalizeDomainContent(lists[id]);
+				if (content === null)
+					return { result: false, error: `invalid domain in list ${id}` };
+				changes[id] = content;
 			}
 
-			system(`mkdir -p ${HP_DIR}/resources`);
-			if (writefile(file, content) === null)
-				return { result: false, error: 'failed to write domain list' };
+			const conflict = validateDomainLists(changes, routingMode);
+			if (conflict)
+				return {
+					result: false,
+					error: `domain ${conflict.left.value} conflicts with ${conflict.right.value}`
+				};
+
+			system(`mkdir -p ${HP_DIR}/resources/diversion`);
+			let staged = [];
+			for (let id in keys(changes)) {
+				const file = domainListPath(id), temporary = file + '.new';
+				if (writefile(temporary, changes[id]) === null) {
+					for (let path in staged)
+						unlink(path.temporary);
+					return { result: false, error: 'failed to write domain list' };
+				}
+				push(staged, { file, temporary });
+			}
+
+			for (let path in staged)
+				if (!rename(path.temporary, path.file)) {
+					for (let pending in staged)
+						unlink(pending.temporary);
+					return { result: false, error: 'failed to install domain list' };
+				}
+
+			return { result: true };
+		}
+	},
+	domainlist_remove: {
+		args: { id: 'id' },
+		call: function(req) {
+			const id = req.args?.id;
+			if (!validDomainListId(id) || id in ['direct', 'proxy'])
+				return { result: false, error: 'illegal domain list identifier' };
+
+			const file = domainListPath(id);
+			for (let path in [file, file + '.new']) {
+				if (readfile(path) === null)
+					continue;
+				unlink(path);
+				if (readfile(path) !== null)
+					return { result: false, error: 'failed to remove domain list' };
+			}
 
 			return { result: true };
 		}
 	},
 
 	certificate_write: {
-		args: { filename: 'filename', temp: 'temp' },
+		args: { filename: 'filename' },
 		call: function(req) {
 			const writeCertificate = (filename, kind) => {
-				const tmpcert = req.args?.temp;
-				if (type(tmpcert) !== 'string' || !match(tmpcert, /^\/tmp\/homeproxy_certificate-[A-Za-z0-9_-]+$/))
-					return { result: false, error: 'illegal temporary file' };
+				const tmpcert = '/tmp/homeproxy_certificate.tmp';
 				const filestat = lstat(tmpcert);
 
 				if (!filestat || filestat.type !== 'file' || filestat.size <= 0) {
@@ -256,9 +346,6 @@ const methods = {
 		call: function() {
 			const uci = cursor();
 			uci.load('homeproxy');
-			const routing_mode = uci.get('homeproxy', 'config', 'routing_mode') || 'bypass_mainland_china';
-			if (routing_mode === 'custom')
-				return { mode: 'custom', active: null, error: null };
 
 			const formatNode = (section_id, fallback_name) => {
 				if (!section_id || section_id in ['nil', 'same'])
@@ -623,20 +710,6 @@ const methods = {
 				code: error_codes.backend_execution_failed,
 				message: 'latency test did not return a result'
 			})) };
-		}
-	},
-
-	log_read: {
-		args: { type: 'type' },
-		call: function(req) {
-			if (!(req.args?.type in ['homeproxy', 'sing-box-c', 'sing-box-s']))
-				return { error: 'illegal type' };
-			const fd = popen(`/usr/bin/tail -c 131072 ${shellQuote(RUN_DIR + '/' + req.args.type + '.log')} 2>/dev/null`);
-			if (!fd)
-				return { error: 'log unavailable' };
-			const content = fd.read(131072);
-			const status = fd.close();
-			return status === 0 ? { content: content || '' } : { error: 'log unavailable' };
 		}
 	},
 

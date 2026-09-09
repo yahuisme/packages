@@ -7,6 +7,7 @@
 'use strict';
 'require dom';
 'require form';
+'require fs';
 'require poll';
 'require rpc';
 'require uci';
@@ -15,143 +16,28 @@
 
 /* Thanks to luci-app-aria2 */
 const css = '				\
-.homeproxy-status {					\
-	--hp-font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;\
-	--hp-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;\
-}					\
-.homeproxy-status #log_textarea {				\
-	padding: 12px;			\
-	border: 1px solid var(--cbi-border-color, #e0e0e0);\
-	border-radius: 6px;		\
-	background: var(--cbi-section-bg, transparent);\
-	box-sizing: border-box;		\
+#log_textarea {				\
+	padding: 10px;			\
 	text-align: left;		\
 }					\
-.homeproxy-status #log_textarea pre {			\
-	font-family: var(--hp-font-mono);\
-	font-size: 12px;		\
-	line-height: 1.5;		\
-	padding: 0;			\
-	word-wrap: break-word;		\
-	overflow-wrap: anywhere;		\
+#log_textarea pre {			\
+	padding: .5rem;			\
+	word-break: break-all;		\
 	margin: 0;			\
 }					\
-.homeproxy-status .hp-status-grid {			\
-	display: grid;			\
-	grid-template-columns: repeat(4, minmax(0, 1fr));\
-	gap: 10px;			\
-	margin-bottom: 12px;		\
-}					\
-.homeproxy-status .hp-card {				\
-	background: var(--cbi-section-bg, transparent);\
-	border: 1px solid var(--cbi-border-color, #e0e0e0);\
-	border-radius: 6px;		\
-	padding: 10px 14px;		\
-	box-sizing: border-box;		\
-	display: flex;			\
-	flex-direction: column;		\
-	justify-content: space-between;	\
-	min-height: 76px;		\
-	-webkit-font-smoothing: antialiased;\
-	text-rendering: optimizeLegibility;\
-}					\
-.homeproxy-status .hp-card-header {			\
-	display: flex;			\
-	justify-content: space-between;	\
-	align-items: center;		\
-	margin-bottom: 6px;		\
-}					\
-.homeproxy-status .hp-card-title {			\
-	font-size: 13px;		\
-	font-weight: 500;		\
-	color: var(--cbi-text-color, inherit);\
-}					\
-.homeproxy-status .hp-card-link {				\
-	font-size: 11px;		\
-	font-family: var(--hp-font-mono);\
-	font-variant-numeric: tabular-nums;\
-	color: var(--cbi-muted-color, #888);\
-	text-decoration: none;		\
-	overflow: hidden;		\
-	text-overflow: ellipsis;	\
-	white-space: nowrap;		\
-	max-width: 120px;		\
-}					\
-.homeproxy-status .hp-card-link:hover {			\
-	text-decoration: underline;	\
-	color: var(--cbi-link-color, #0069d9);\
-}					\
-.homeproxy-status .hp-card-body {				\
-	display: flex;			\
-	align-items: baseline;		\
-	justify-content: space-between;	\
-	gap: 8px;			\
-	margin-top: auto;		\
-}					\
-.homeproxy-status .hp-card-state {			\
-	font-size: 12px;		\
-	font-weight: 500;		\
-}					\
-.homeproxy-status .hp-card-latency {			\
-	font-size: 12px;		\
-	font-weight: 500;		\
-	font-family: var(--hp-font-mono);\
-	font-variant-numeric: tabular-nums;\
-	color: var(--cbi-text-color, inherit);\
-}					\
-.homeproxy-status .hp-badge {				\
-	display: inline-flex;		\
-	align-items: center;		\
-	padding: 2px 8px;		\
-	border-radius: 4px;		\
-	font-size: 11px;		\
-	font-weight: 500;		\
-	font-family: var(--hp-font-mono);\
-	font-variant-numeric: tabular-nums;\
-	border: 1px solid transparent;	\
-	line-height: 1.4;		\
-}					\
-.homeproxy-status .hp-badge-success {			\
-	background: rgba(16,185,129,0.10);\
-	color: var(--cbi-success-color, #10b981);\
-	border-color: rgba(16,185,129,0.30);\
-}					\
-.homeproxy-status .hp-badge-danger {			\
-	background: rgba(239,68,68,0.10);\
-	color: var(--cbi-error-color, #ef4444);\
-	border-color: rgba(239,68,68,0.30);\
-}					\
-.homeproxy-status .cbi-button-action {			\
-	height: 32px;			\
-	padding: 0 16px;		\
-	border-radius: 4px;		\
-	font-size: 12px;		\
-	font-weight: 500;		\
-}					\
-.homeproxy-status .hp-section-header { display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px; }\
-.homeproxy-status .hp-card-state.is-pending { color:var(--cbi-muted-color,#888); }\
-.homeproxy-status .hp-card-state.is-success { color:var(--cbi-success-color,#10b981); }\
-.homeproxy-status .hp-card-state.is-failed { color:var(--cbi-error-color,#ef4444); }\
-.homeproxy-status .hp-card-header,.homeproxy-status .hp-card-body { min-width:0; }\
-.homeproxy-status .hp-card-body > span { min-width:0;overflow-wrap:anywhere; }\
-\
-@media (max-width: 1050px) {		\
-	.homeproxy-status .hp-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }\
-}					\
-@media (max-width: 540px) {		\
-	.homeproxy-status .hp-status-grid { grid-template-columns: 1fr; }\
-}					\
-';
+.description {				\
+	background-color: #33ccff;	\
+}';
+
+const hp_dir = '/var/run/homeproxy';
 
 const connectionSites = [
 	{ type: 'baidu', name: _('Baidu'), url: 'https://www.baidu.com/' },
 	{ type: 'bilibili', name: _('Bilibili'), url: 'https://www.bilibili.com/' },
 	{ type: 'jd', name: _('JD'), url: 'https://www.jd.com/' },
-	{ type: 'taobao', name: _('Taobao'), url: 'https://www.taobao.com/' },
 	{ type: 'google', name: _('Google'), url: 'https://www.google.com/' },
 	{ type: 'github', name: _('GitHub'), url: 'https://github.com/' },
-	{ type: 'youtube', name: _('YouTube'), url: 'https://www.youtube.com/' },
-	{ type: 'cloudflare', name: _('Cloudflare'), url: 'https://www.cloudflare.com/' }
+	{ type: 'youtube', name: _('YouTube'), url: 'https://www.youtube.com/' }
 ];
 
 const connectionTestTimeout = 10000;
@@ -164,29 +50,33 @@ function getConnectionStatus() {
 		expect: { '': {} }
 	});
 
+	const table = E('table', { 'class': 'table' }, [
+		E('tr', { 'class': 'tr table-titles' }, [
+			E('th', { 'class': 'th' }, _('Website')),
+			E('th', { 'class': 'th' }, _('URL')),
+			E('th', { 'class': 'th' }, _('Connectivity')),
+			E('th', { 'class': 'th' }, _('Latency'))
+		])
+	]);
 	const statusElements = {};
-	const grid = E('div', { 'class': 'hp-status-grid' }, connectionSites.map((site) => {
-		const state = E('span', { 'class': 'hp-card-state is-pending' }, '-');
-		const latency = E('span', { 'class': 'hp-card-latency' }, '-');
+	const rows = connectionSites.map((site) => {
+		const state = E('strong', { 'style': 'color:gray' }, '-');
+		const latency = E('span', {}, '-');
 		statusElements[site.type] = { state, latency };
 
-		return E('div', { 'class': 'hp-card' }, [
-			E('div', { 'class': 'hp-card-header' }, [
-				E('span', { 'class': 'hp-card-title' }, site.name),
-				E('a', {
-					'class': 'hp-card-link',
-					'href': site.url,
-					'target': '_blank',
-					'rel': 'noreferrer noopener',
-					'title': site.url
-				}, site.url.replace(/^https?:\/\//, '').replace(/\/$/, ''))
-			]),
-			E('div', { 'class': 'hp-card-body' }, [
-				E('span', {}, [ _('Connection'), ': ', state ]),
-				E('span', {}, [ _('Latency'), ': ', latency ])
-			])
-		]);
-	}));
+		return [
+			site.name,
+			E('a', {
+				'href': site.url,
+				'target': '_blank',
+				'rel': 'noreferrer noopener',
+				'style': 'word-break:break-all'
+			}, site.url),
+			state,
+			latency
+		];
+	});
+	cbi_update_table(table, rows);
 
 	let running = false;
 	let generation = 0;
@@ -198,11 +88,11 @@ function getConnectionStatus() {
 			return;
 
 		if (result?.result) {
-			elements.state.className = 'hp-card-state is-success';
+			elements.state.style.setProperty('color', 'green');
 			dom.content(elements.state, _('Success'));
-			dom.content(elements.latency, result.latency_ms + ' ms');
+			dom.content(elements.latency, _('%s ms').format(result.latency_ms));
 		} else {
-			elements.state.className = 'hp-card-state is-failed';
+			elements.state.style.setProperty('color', 'red');
 			dom.content(elements.state, result?.timed_out ? _('Timed out') : _('Failed'));
 			dom.content(elements.latency, '-');
 		}
@@ -217,7 +107,7 @@ function getConnectionStatus() {
 		const currentGeneration = ++generation;
 		connectionSites.forEach((site) => {
 			const elements = statusElements[site.type];
-			elements.state.className = 'hp-card-state is-pending'
+			elements.state.style.setProperty('color', 'gray');
 			dom.content(elements.state, _('Testing...'));
 			dom.content(elements.latency, '-');
 		});
@@ -265,18 +155,15 @@ function getConnectionStatus() {
 		'click': ui.createHandlerFn(this, runAllTests)
 	}, [ _('Test all') ]);
 
-	const view = E('div', { 'class': 'cbi-map homeproxy-status' }, [
-		E('h3', { 'name': 'content', 'class': 'hp-section-header' }, [
+	const view = E('div', { 'class': 'cbi-map' }, [
+		E('h3', { 'name': 'content', 'style': 'align-items:center;display:flex' }, [
 			_('Connection Status'),
 			testButton
 		]),
-		E('div', { 'class': 'cbi-section' }, [ grid ])
+		E('div', { 'class': 'cbi-section' }, [ table ])
 	]);
 
-	window.requestAnimationFrame(() => {
-		runAllTests();
-	});
-
+	window.setTimeout(runAllTests, 0);
 	return view;
 }
 
@@ -313,36 +200,38 @@ function getResources(o) {
 		(result.resources || []).forEach((resource) => {
 			status[resource.type] = resource;
 		});
-		const list = E('div', { 'class': 'hp-status-grid' }, resources.map((resource) => {
+		const table = E('table', { 'class': 'table' }, [
+			E('tr', { 'class': 'tr table-titles' }, [
+				E('th', { 'class': 'th' }, _('Name')),
+				E('th', { 'class': 'th' }, _('Version')),
+				E('th', { 'class': 'th' }, _('Source'))
+			])
+		]);
+		const rows = resources.map((resource) => {
 			const resourceStatus = status[resource.type] || {};
 			const available = resourceStatus.version;
 			const source = resourceStatus.source;
 
-			return E('div', { 'class': 'hp-card' }, [
-				E('div', { 'class': 'hp-card-header' }, [
-					E('span', { 'class': 'hp-card-title' }, resource.name),
-					E('span', {
-						'class': 'hp-badge ' + (available ? 'hp-badge-success' : 'hp-badge-danger')
-					}, [ available ? ('' + available) : _('Unavailable') ])
-				]),
-				source ? E('div', { 'style': 'margin-top:auto;padding-top:6px;' }, [
-					E('a', {
-						'class': 'hp-card-link',
-						'href': source,
-						'target': '_blank',
-						'rel': 'noreferrer noopener',
-						'title': source,
-						'style': 'max-width:100%;display:block;'
-					}, source.replace(/^https?:\/\//, ''))
-				]) : ''
-			]);
-		}));
+			return [
+				resource.name,
+				E('span', { 'style': available ? 'color:green' : 'color:red' },
+					available || '-'),
+				source ? E('a', {
+					'href': source,
+					'target': '_blank',
+					'rel': 'noreferrer noopener',
+					'style': 'word-break:break-all'
+				}, source) : '-'
+			];
+		});
+		cbi_update_table(table, rows);
 
-		return E('div', { 'class': 'cbi-map homeproxy-status' }, [
-			E('h3', { 'name': 'content', 'class': 'hp-section-header' }, [
+		return E('div', { 'class': 'cbi-map' }, [
+			E('h3', { 'name': 'content', 'style': 'align-items:center;display:flex' }, [
 				_('Resource Management'),
 				E('button', {
 					'class': 'btn cbi-button cbi-button-action',
+					'style': 'margin-left:4px',
 					'click': ui.createHandlerFn(this, () => {
 						return L.resolveDefault(callResUpdate(), {}).then((res) => {
 							let message, severity = 'info';
@@ -382,7 +271,7 @@ function getResources(o) {
 					})
 				}, [ _('Update all') ])
 			]),
-			E('div', { 'class': 'cbi-section' }, [ list ])
+			E('div', { 'class': 'cbi-section' }, [ table ])
 		]);
 	});
 }
@@ -435,11 +324,6 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 		});
 	}
 
-	const callLogRead = rpc.declare({
-		object: 'luci.homeproxy', method: 'log_read', params: ['type'],
-		expect: { '': {} }, reject: true
-	});
-
 	const callLogClean = rpc.declare({
 		object: 'luci.homeproxy',
 		method: 'log_clean',
@@ -457,12 +341,10 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 
 	let log;
 	poll.add(L.bind(() => {
-		return callLogRead(filename)
+		return fs.read_direct(String.format('%s/%s.log', hp_dir, filename), 'text')
 		.then((res) => {
-			if (res.error)
-				throw new Error(res.error);
 			log = E('pre', { 'wrap': 'pre' }, [
-				(res.content || '').slice(-131072).trim() || _('Log is empty.')
+				res.trim() || _('Log is empty.')
 			]);
 
 			dom.content(log_textarea, log);
@@ -482,25 +364,17 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 
 	return E([
 		E('style', [ css ]),
-		E('div', {'class': 'cbi-map homeproxy-status'}, [
-			E('h3', {'name': 'content', 'class': 'hp-section-header'}, [
+		E('div', {'class': 'cbi-map'}, [
+			E('h3', {'name': 'content', 'style': 'align-items: center; display: flex;'}, [
 				_('%s Log').format(name),
-				E('div', {'style': 'display:flex;align-items:center;gap:6px;'}, [
-					log_level_el || '',
-					E('button', {
-						'class': 'btn cbi-button cbi-button-action',
-						'click': ui.createHandlerFn(this, () => {
-						return L.resolveDefault(callLogClean(filename), {}).then((res) => {
-							if (res.result === false)
-								throw new Error(res.error || _('Failed to clean log.'));
-							dom.content(log_textarea, E('pre', { 'wrap': 'pre' }, [ _('Log is empty.') ]));
-							ui.addNotification(null, E('p', _('Log cleaned.')), 'info');
-						}).catch((err) => {
-							ui.addNotification(null, E('p', _('Failed to clean log: %s.').format(err.message || err)), 'error');
-						});
+				log_level_el || '',
+				E('button', {
+					'class': 'btn cbi-button cbi-button-action',
+					'style': 'margin-left: 4px;',
+					'click': ui.createHandlerFn(this, () => {
+						return L.resolveDefault(callLogClean(filename), {});
 					})
-					}, [ _('Clean log') ])
-				])
+				}, [ _('Clean log') ])
 			]),
 			E('div', {'class': 'cbi-section'}, [
 				log_textarea,

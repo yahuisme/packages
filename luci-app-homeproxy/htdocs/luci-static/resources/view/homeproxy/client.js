@@ -5,8 +5,8 @@
  */
 
 'use strict';
-'require dom';
 'require form';
+'require dom';
 'require network';
 'require poll';
 'require rpc';
@@ -21,32 +21,88 @@
 
 const callReadDomainList = rpc.declare({
 	object: 'luci.homeproxy',
-	method: 'acllist_read',
-	params: ['type'],
+	method: 'domainlist_read',
+	params: ['id'],
 	expect: { '': {} }
 });
 
-const callWriteDomainList = rpc.declare({
+const callWriteDomainLists = rpc.declare({
 	object: 'luci.homeproxy',
-	method: 'acllist_write',
-	params: ['type', 'content'],
+	method: 'domainlist_write',
+	params: ['lists', 'routing_mode'],
 	expect: { '': {} }
 });
 
-function normalizeDomainList(value) {
-	value = (value || '').trim().replace(/\r\n?/g, '\n');
-	return value ? value + '\n' : '';
+const callRemoveDomainList = rpc.declare({
+	object: 'luci.homeproxy',
+	method: 'domainlist_remove',
+	params: ['id'],
+	expect: { '': {} }
+});
+
+function parseDomainList(value) {
+	let suffixes = [], keywords = [], normalized = [], seen = Object.create(null);
+	for (let item of (value || '').replace(/\r\n?/g, '\n').split('\n')) {
+		item = item.trim().toLowerCase();
+		if (!item)
+			continue;
+		item = item.replace(/^\.+|\.+$/g, '');
+		if (!item)
+			return { error: _('Expecting: %s').format(_('valid hostname')) };
+		if (!stubValidator.apply('hostname', item))
+			return { error: _('Expecting: %s').format(_('valid hostname')) };
+		if (seen[item])
+			continue;
+
+		seen[item] = true;
+		normalized.push(item);
+		(item.includes('.') ? suffixes : keywords).push(item);
+	}
+
+	return {
+		content: normalized.length ? normalized.join('\n') + '\n' : '',
+		suffixes,
+		keywords
+	};
 }
 
-function writeDomainList(type, checksumOption, value) {
-	const content = normalizeDomainList(value);
+function domainSuffixOverlap(left, right) {
+	const endsWithDomain = (value, suffix) =>
+		value === suffix || value.endsWith('.' + suffix);
+	return endsWithDomain(left, right) || endsWithDomain(right, left);
+}
 
-	return callWriteDomainList(type, content).then((result) => {
-		if (!result.result)
-			throw new Error(_('Failed to save domain list.'));
-		uci.set('homeproxy', 'control', checksumOption, hp.calcStringMD5(content));
-		return result;
-	});
+function findDomainListConflict(groups) {
+	let entries = [];
+	for (let group of groups) {
+		for (let value of group.suffixes)
+			entries.push({ group, type: 'suffix', value });
+		for (let value of group.keywords)
+			entries.push({ group, type: 'keyword', value });
+	}
+
+	for (let i = 0; i < entries.length; i++) {
+		for (let j = 0; j < i; j++) {
+			const left = entries[i], right = entries[j];
+			if (left.group.id === right.group.id)
+				continue;
+
+			let overlap;
+			if (left.type === 'keyword' || right.type === 'keyword') {
+				const keyword = left.type === 'keyword' ? left.value : right.value;
+				const other = left.type === 'keyword' ? right.value : left.value;
+				overlap = other.includes(keyword) ||
+					(right.type === 'keyword' && keyword.includes(other));
+			} else {
+				overlap = domainSuffixOverlap(left.value, right.value);
+			}
+
+			if (overlap)
+				return { left, right };
+		}
+	}
+
+	return null;
 }
 
 const callCurrentNode = rpc.declare({
@@ -56,26 +112,20 @@ const callCurrentNode = rpc.declare({
 });
 
 function renderStatus(isRunning, version, currentNode) {
+	let spanTemp = '<em><span style="color:%s"><strong>%s (sing-box v%s) %s</strong></span></em>';
+	let renderHTML;
+	let statusColor = isRunning ? 'green' : 'red';
+	let nodeColor = '#1e90ff';
+	if (isRunning)
+		renderHTML = spanTemp.format(statusColor, _('HomeProxy'), version, _('RUNNING'));
+	else
+		renderHTML = spanTemp.format(statusColor, _('HomeProxy'), version, _('NOT RUNNING'));
 
-	return E('div', { 'class': 'homeproxy-service-status' }, [
-		E('div', { 'class': 'homeproxy-service-status-line' }, [
-			E('span', {}, [ _('HomeProxy') + ' (sing-box v' + (version || '?') + ')' ]),
-			E('span', { 'class': isRunning ? 'homeproxy-status-badge is-running' : 'homeproxy-status-badge is-stopped' }, [
-				E('span', { 'class': 'homeproxy-status-dot', 'aria-hidden': 'true' }),
-				isRunning ? _('RUNNING') : _('NOT RUNNING')
-			])
-		]),
-		currentNode ? E('div', { 'class': 'homeproxy-current-node' }, [ currentNode ]) : ''
-	]);
+	if (currentNode)
+		renderHTML += '<div><em><span style="color:%s"><strong>%s</strong></span></em></div>'.format(nodeColor, '%h'.format(currentNode));
+
+	return renderHTML;
 }
-
-const statusCss = `.homeproxy-service-status { margin: 0 0 8px; }
-.homeproxy-service-status-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 14px; font-weight: 600; }
-.homeproxy-status-badge { display: inline-flex; align-items: center; padding: 2px 8px; border: 1px solid transparent; border-radius: 4px; font-size: 12px; font-weight: 500; }
-.homeproxy-status-badge.is-running { color: var(--cbi-success-color, #10b981); background: rgba(16,185,129,.1); border-color: rgba(16,185,129,.3); }
-.homeproxy-status-badge.is-stopped { color: var(--cbi-error-color, #ef4444); background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.3); }
-.homeproxy-status-dot { width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: currentColor; }
-.homeproxy-current-node { margin-top: 4px; color: var(--cbi-muted-color, #666); font-size: 12px; overflow-wrap: anywhere; }`;
 
 let stubValidator = {
 	factory: validation,
@@ -118,18 +168,92 @@ return view.extend({
 		});
 
 		m = new form.Map('homeproxy', _('HomeProxy'),
-			_('The modern ImmortalWrt / OpenWrt proxy platform for ARM64/AMD64.'));
+			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition'));
+
+		let domainListCache = Object.create(null),
+		    pendingDomainLists = Object.create(null);
+
+		function loadDomainList(id) {
+			if (Object.prototype.hasOwnProperty.call(pendingDomainLists, id))
+				return Promise.resolve(pendingDomainLists[id]);
+
+			return L.resolveDefault(callReadDomainList(id), {}).then((res) => {
+				domainListCache[id] = res.content || '';
+				return domainListCache[id];
+			});
+		}
+
+		function stageDomainList(id, value) {
+			const parsed = parseDomainList(value);
+			if (parsed.error)
+				throw new TypeError(parsed.error);
+
+			pendingDomainLists[id] = parsed.content;
+			domainListCache[id] = parsed.content;
+		}
+
+		function domainListContent(id) {
+			return Object.prototype.hasOwnProperty.call(pendingDomainLists, id) ?
+				pendingDomainLists[id] : (domainListCache[id] || '');
+		}
+
+		function validateDomainLists() {
+			const routingMode = uci.get('homeproxy', 'config', 'routing_mode') || 'bypass_mainland_china';
+			let groups = [ { id: 'direct', label: _('Direct List') } ];
+			if (routingMode === 'bypass_mainland_china')
+				groups.push({ id: 'proxy', label: _('Proxy List') });
+			uci.sections('homeproxy', 'domain_route', (section) => {
+				groups.push({
+					id: section['.name'],
+					label: section.label || section['.name']
+				});
+			});
+
+			for (let group of groups) {
+				const parsed = parseDomainList(domainListContent(group.id));
+				if (parsed.error)
+					throw new TypeError(_('%s contains an invalid domain.').format(group.label));
+				Object.assign(group, parsed);
+			}
+
+			const conflict = findDomainListConflict(groups);
+			if (conflict)
+				throw new TypeError(
+					_('Domain %s in %s conflicts with %s in %s.').format(
+						conflict.left.value, conflict.left.group.label,
+						conflict.right.value, conflict.right.group.label
+					)
+				);
+
+			return routingMode;
+		}
+
+		const saveMap = m.save;
+		m.save = function(cb, silent) {
+			return saveMap.call(this, () => Promise.resolve(
+				typeof cb === 'function' ? cb() : null
+			).then(() => {
+				const routingMode = validateDomainLists();
+				const ids = Object.keys(pendingDomainLists);
+				if (!ids.length)
+					return null;
+
+				const lists = Object.assign({}, pendingDomainLists);
+				return callWriteDomainLists(lists, routingMode).then((result) => {
+					if (!result.result)
+						throw new Error(result.error || _('Failed to save domain lists.'));
+					pendingDomainLists = Object.create(null);
+				});
+			}), silent);
+		};
 
 		s = m.section(form.TypedSection);
 		s.render = function () {
-			const statusView = E('p', { id: 'service_status' }, _('Collecting data...'));
-			const updateStatus = () => {
+			poll.add(function () {
 				return Promise.all([
 					L.resolveDefault(hp.getServiceStatus('sing-box-c'), false),
 					L.resolveDefault(callCurrentNode(), null)
 				]).then((res) => {
-					if (!statusView.isConnected)
-						return;
 					let isRunning = res[0],
 					    current = res[1],
 					    current_label = null;
@@ -137,15 +261,17 @@ return view.extend({
 					if (current?.mode === 'urltest') {
 						let active = current.active || {};
 						let nodeName = (active?.id && active.id !== 'urltest') ? (proxy_nodes[active.id] || active.label || active.id) : _('Invalid node');
+
 						current_label = _('URLTest: %s').format(nodeName);
 					}
-
-					statusView.replaceChildren(renderStatus(isRunning, features.version, current_label));
+					let view = document.getElementById('service_status');
+					view.innerHTML = renderStatus(isRunning, features.version, current_label);
 				});
-			};
-			poll.add(updateStatus);
+			});
 
-			return E('div', { class: 'cbi-section', id: 'status_bar' }, [ statusView ]);
+			return E('div', { class: 'cbi-section', id: 'status_bar' }, [
+				E('p', { id: 'service_status' }, _('Collecting data...'))
+			]);
 		}
 
 		s = m.section(form.NamedSection, 'config', 'homeproxy');
@@ -168,29 +294,33 @@ return view.extend({
 			_('List of nodes to test.'));
 		for (let i in proxy_nodes)
 			o.value(i, proxy_nodes[i]);
-		o.depends('main_node', 'urltest');
+		o.depends({ routing_mode: 'bypass_mainland_china', main_node: 'urltest' });
+		o.depends({ routing_mode: 'global', main_node: 'urltest' });
 		o.rmempty = false;
 		o.retain = true;
 
 		o = s.taboption('routing', form.Value, 'main_urltest_interval', _('Test interval'),
 			_('The test interval in seconds.'));
 		o.datatype = 'uinteger';
-		o.placeholder = '180';
-		o.depends('main_node', 'urltest');
+		o.placeholder = '90';
+		o.depends({ routing_mode: 'bypass_mainland_china', main_node: 'urltest' });
+		o.depends({ routing_mode: 'global', main_node: 'urltest' });
 		o.retain = true;
 
 		o = s.taboption('routing', form.Value, 'main_urltest_tolerance', _('Test tolerance'),
 			_('The test tolerance in milliseconds.'));
 		o.datatype = 'uinteger';
 		o.placeholder = '50';
-		o.depends('main_node', 'urltest');
+		o.depends({ routing_mode: 'bypass_mainland_china', main_node: 'urltest' });
+		o.depends({ routing_mode: 'global', main_node: 'urltest' });
 		o.retain = true;
 
 		o = s.taboption('routing', form.Flag, 'main_urltest_interrupt_exist_connections', _('Interrupt existing connections'),
 			_('Interrupt existing connections when the selected outbound has changed.'));
 		o.default = o.disabled;
 		o.rmempty = false;
-		o.depends('main_node', 'urltest');
+		o.depends({ routing_mode: 'bypass_mainland_china', main_node: 'urltest' });
+		o.depends({ routing_mode: 'global', main_node: 'urltest' });
 		o.retain = true;
 
 		o = s.taboption('routing', form.Value, 'dns_server', _('DNS server'),
@@ -268,13 +398,14 @@ return view.extend({
 
 		o = s.taboption('routing', form.ListValue, 'routing_mode', _('Routing mode'));
 		o.value('bypass_mainland_china', _('Bypass mainland China'));
-		o.value('custom', _('Custom routing'));
 		o.value('global', _('Global'));
 		o.default = 'bypass_mainland_china';
 		o.rmempty = false;
 
 		o = s.taboption('routing', form.Value, 'routing_port', _('Routing ports'),
 			_('Specify target ports to be proxied. Multiple ports must be separated by commas.'));
+		o.depends('routing_mode', 'bypass_mainland_china');
+		o.depends('routing_mode', 'global');
 		o.value('', _('All ports'));
 		o.value('common', _('Common ports only (bypass P2P traffic)'));
 		o.validate = function(section_id, value) {
@@ -293,13 +424,6 @@ return view.extend({
 			return true;
 		}
 
-		o = s.taboption('routing', form.ListValue, 'proxy_mode', _('Proxy mode'));
-		o.value('tun', _('TUN TCP/UDP'));
-		o.value('tproxy', _('TProxy TCP/UDP'));
-		o.default = 'tun';
-		o.description = _('TUN uses sing-box automatic routing and redirect on Linux; TProxy uses native TCP/UDP transparent proxying.');
-		o.rmempty = false;
-
 		o = s.taboption('routing', form.ListValue, 'tcpip_stack', _('TCP/IP stack'),
 			_('TCP/IP stack.'));
 		if (features.with_gvisor) {
@@ -308,26 +432,31 @@ return view.extend({
 		}
 		o.value('system', 'System');
 		o.default = 'mixed';
-		o.depends('proxy_mode', 'tun');
+		o.depends('routing_mode', 'bypass_mainland_china');
+		o.depends('routing_mode', 'global');
 		o.rmempty = false;
 		o.retain = true;
 		o.onchange = function(ev, section_id, value) {
 			let desc = ev.target.nextElementSibling;
 			if (value === 'mixed')
-				dom.content(desc, _('Mixed <code>System</code> TCP stack and <code>gVisor</code> UDP stack.'))
+				desc.innerHTML = _('Mixed <code>System</code> TCP stack and <code>gVisor</code> UDP stack.')
 			else if (value === 'gvisor')
-				dom.content(desc, _('Based on Google/gVisor.'));
+				desc.innerHTML = _('Based on Google/gVisor.');
 			else if (value === 'system')
-				dom.content(desc, _('Less compatibility and sometimes better performance.'));
+				desc.innerHTML = _('Less compatibility and sometimes better performance.');
 		}
 
 		o = s.taboption('routing', form.Flag, 'ipv6_support', _('IPv6 support'));
 		o.default = o.enabled;
 		o.rmempty = false;
+		o.depends('routing_mode', 'bypass_mainland_china');
+		o.depends('routing_mode', 'global');
 
 		o = s.taboption('dashboard', form.Flag, 'dashboard_enabled', _('Enable dashboard'));
 		o.default = '0';
 		o.rmempty = false;
+		o.depends('routing_mode', 'bypass_mainland_china');
+		o.depends('routing_mode', 'global');
 
 		o = s.taboption('dashboard', form.Value, 'dashboard_port', _('Listen port'),
 			_('A random available port is assigned on first installation.'));
@@ -335,20 +464,21 @@ return view.extend({
 		o.datatype = 'port';
 		o.rmempty = false;
 		o.retain = true;
+		o.depends('routing_mode', 'bypass_mainland_china');
+		o.depends('routing_mode', 'global');
 
 		o = s.taboption('dashboard', form.Value, 'dashboard_secret', _('API secret'));
 		o.password = true;
-		o.depends('dashboard_enabled', '1');
-		o.rmempty = false;
+		o.rmempty = true;
 		o.retain = true;
-		o.validate = function(section_id, value) {
-			return (value && value.trim()) ? true : _('Expecting: non-empty value');
-		};
+		o.depends('routing_mode', 'bypass_mainland_china');
+		o.depends('routing_mode', 'global');
 
 		o = s.taboption('dashboard', form.Button, '_open_dashboard', _('sing-box dashboard'));
 		o.inputtitle = _('Open dashboard');
 		o.inputstyle = 'apply';
-		o.depends('dashboard_enabled', '1');
+		o.depends({ routing_mode: 'bypass_mainland_china', dashboard_enabled: '1' });
+		o.depends({ routing_mode: 'global', dashboard_enabled: '1' });
 		o.onclick = function() {
 			let host = window.location.hostname,
 			    port = uci.get('homeproxy', 'config', 'dashboard_port') || '9095';
@@ -357,1121 +487,12 @@ return view.extend({
 			window.open('http://' + host + ':' + port + '/dashboard/', '_blank', 'noopener,noreferrer');
 		};
 
-		/* Custom routing settings start */
-		/* Routing settings start */
-		o = s.taboption('routing', form.SectionValue, '_routing', form.NamedSection, 'routing', 'homeproxy');
-		o.depends('routing_mode', 'custom');
-
-		ss = o.subsection;
-		so = ss.option(form.Value, 'udp_timeout', _('UDP NAT expiration time'),
-			_('In seconds.'));
-		so.datatype = 'uinteger';
-		so.placeholder = '300';
-		so.depends('homeproxy.config.proxy_mode', 'tproxy');
-		so.depends('homeproxy.config.proxy_mode', 'tun');
-
-		so = ss.option(form.Flag, 'bypass_cn_traffic', _('Bypass CN traffic'),
-			_('Bypass mainland China traffic using sing-box routing rules.'));
-		so.rmempty = false;
-
-		so = ss.option(form.ListValue, 'domain_strategy', _('Domain strategy'),
-			_('If set, the requested domain name will be resolved to IP before routing.'));
-		for (let i in hp.dns_strategy)
-			so.value(i, hp.dns_strategy[i]);
-
-		so = ss.option(form.ListValue, 'default_outbound', _('Default outbound'),
-			_('Default outbound for connections not matched by any routing rules.'));
-		so.load = function(section_id) {
-			delete this.keylist;
-			delete this.vallist;
-
-			this.value('nil', _('Disable (the service)'));
-			this.value('direct-out', _('Direct'));
-			this.value('reject', _('Reject'));
-			uci.sections(data[0], 'routing_node', (res) => {
-				if (res.enabled === '1')
-					this.value(res['.name'], res.label);
-			});
-
-			return this.super('load', section_id);
-		}
-		so.default = 'nil';
-		so.rmempty = false;
-
-		so = ss.option(form.ListValue, 'default_outbound_dns', _('Default outbound DNS'),
-			_('Default DNS server for resolving domain name in the server address.'));
-		so.load = function(section_id) {
-			delete this.keylist;
-			delete this.vallist;
-
-			this.value('default-dns', _('Default DNS (issued by WAN)'));
-			this.value('system-dns', _('System DNS'));
-			uci.sections(data[0], 'dns_server', (res) => {
-				if (res.enabled === '1')
-					this.value(res['.name'], res.label);
-			});
-
-			return this.super('load', section_id);
-		}
-		so.default = 'default-dns';
-		so.rmempty = false;
-		/* Routing settings end */
-
-		/* Routing nodes start */
-		s.tab('routing_node', _('Routing Nodes'));
-		o = s.taboption('routing_node', form.SectionValue, '_routing_node', form.GridSection, 'routing_node');
-		o.depends('routing_mode', 'custom');
-
-		ss = o.subsection;
-		ss.addremove = true;
-		ss.rowcolors = true;
-		ss.sortable = true;
-		ss.nodescriptions = true;
-		ss.modaltitle = L.bind(hp.loadModalTitle, this, _('Routing Node'), _('Add a routing node'), data[0]);
-		ss.sectiontitle = L.bind(hp.loadDefaultLabel, this, data[0]);
-		ss.renderSectionAdd = L.bind(hp.renderSectionAdd, this, ss);
-
-		so = ss.option(form.Value, 'label', _('Label'));
-		so.load = L.bind(hp.loadDefaultLabel, this, data[0]);
-		so.validate = L.bind(hp.validateUniqueValue, this, data[0], 'routing_node', 'label');
-		so.modalonly = true;
-
-		so = ss.option(form.Flag, 'enabled', _('Enable'));
-		so.default = so.enabled;
-		so.rmempty = false;
-		so.editable = true;
-
-		so = ss.option(form.ListValue, 'node', _('Node'),
-			_('Outbound node'));
-		so.value('urltest', _('URLTest'));
-		for (let i in proxy_nodes)
-			so.value(i, proxy_nodes[i]);
-		so.validate = L.bind(hp.validateUniqueValue, this, data[0], 'routing_node', 'node');
-		so.editable = true;
-
-		so = ss.option(form.ListValue, 'domain_resolver', _('Domain resolver'),
-			_('For resolving domain name in the server address.'));
-		so.load = function(section_id) {
-			delete this.keylist;
-			delete this.vallist;
-
-			this.value('', _('Default'));
-			this.value('default-dns', _('Default DNS (issued by WAN)'));
-			this.value('system-dns', _('System DNS'));
-			uci.sections(data[0], 'dns_server', (res) => {
-				if (res.enabled === '1')
-					this.value(res['.name'], res.label);
-			});
-
-			return this.super('load', section_id);
-		}
-		so.depends({'node': 'urltest', '!reverse': true});
-		so.modalonly = true;
-
-		so = ss.option(form.ListValue, 'domain_strategy', _('Domain strategy'),
-			_('The domain strategy for resolving the domain name in the address.'));
-		for (let i in hp.dns_strategy)
-			so.value(i, hp.dns_strategy[i]);
-		so.depends({'node': 'urltest', '!reverse': true});
-		so.modalonly = true;
-
-		so = ss.option(widgets.DeviceSelect, 'bind_interface', _('Bind interface'),
-			_('The network interface to bind to.'));
-		so.multiple = false;
-		so.noaliases = true;
-		so.depends({'outbound': '', 'node': /^((?!urltest$).)+$/});
-		so.modalonly = true;
-
-		so = ss.option(form.ListValue, 'outbound', _('Outbound'),
-			_('The tag of the upstream outbound.<br/>Other dial fields will be ignored when enabled.'));
-		so.load = function(section_id) {
-			delete this.keylist;
-			delete this.vallist;
-
-			this.value('', _('Direct'));
-			uci.sections(data[0], 'routing_node', (res) => {
-				if (res['.name'] !== section_id && res.enabled === '1')
-					this.value(res['.name'], res.label);
-			});
-
-			return this.super('load', section_id);
-		}
-		so.validate = function(section_id, value) {
-			if (section_id && value) {
-				let node = this.section.formvalue(section_id, 'node');
-
-				let conflict = false;
-				uci.sections(data[0], 'routing_node', (res) => {
-					if (res['.name'] !== section_id) {
-						if (res.outbound === section_id && res['.name'] == value)
-							conflict = true;
-						else if (res.node === 'urltest' && res.urltest_nodes?.includes(node) && res['.name'] == value)
-							conflict = true;
-					}
-				});
-				if (conflict)
-					return _('Recursive outbound detected!');
-			}
-
-			return true;
-		}
-		so.depends({'node': 'urltest', '!reverse': true});
-		so.editable = true;
-
-		so = ss.option(hp.CBIStaticList, 'urltest_nodes', _('URLTest nodes'),
-			_('List of nodes to test.'));
-		for (let i in proxy_nodes)
-			so.value(i, proxy_nodes[i]);
-		so.depends('node', 'urltest');
-		so.validate = function(section_id) {
-			let value = this.section.formvalue(section_id, 'urltest_nodes');
-			if (section_id && !value.length)
-				return _('Expecting: %s').format(_('non-empty value'));
-
-			return true;
-		}
-		so.modalonly = true;
-
-		so = ss.option(form.Value, 'urltest_url', _('Test URL'),
-			_('The URL to test.'));
-		so.placeholder = 'https://www.gstatic.com/generate_204';
-		so.validate = function(section_id, value) {
-			if (section_id && value) {
-				try {
-					let url = new URL(value);
-					if (!url.hostname)
-						return _('Expecting: %s').format(_('valid URL'));
-				}
-				catch(e) {
-					return _('Expecting: %s').format(_('valid URL'));
-				}
-			}
-
-			return true;
-		}
-		so.depends('node', 'urltest');
-		so.modalonly = true;
-
-		so = ss.option(form.Value, 'urltest_interval', _('Test interval'),
-			_('The test interval in seconds.'));
-		so.datatype = 'uinteger';
-		so.placeholder = '180';
-		so.validate = function(section_id, value) {
-			if (section_id && value) {
-				let idle_timeout = this.section.formvalue(section_id, 'idle_timeout') || '1800';
-				if (parseInt(value) > parseInt(idle_timeout))
-					return _('Test interval must be less or equal than idle timeout.');
-			}
-
-			return true;
-		}
-		so.depends('node', 'urltest');
-		so.modalonly = true;
-
-		so = ss.option(form.Value, 'urltest_tolerance', _('Test tolerance'),
-			_('The test tolerance in milliseconds.'));
-		so.datatype = 'uinteger';
-		so.placeholder = '50';
-		so.depends('node', 'urltest');
-		so.modalonly = true;
-
-		so = ss.option(form.Value, 'urltest_idle_timeout', _('Idle timeout'),
-			_('The idle timeout in seconds.'));
-		so.datatype = 'uinteger';
-		so.placeholder = '1800';
-		so.depends('node', 'urltest');
-		so.modalonly = true;
-
-		so = ss.option(form.Flag, 'urltest_interrupt_exist_connections', _('Interrupt existing connections'),
-			_('Interrupt existing connections when the selected outbound has changed.'));
-		so.default = so.disabled;
-		so.rmempty = false;
-		so.depends('node', 'urltest');
-		so.modalonly = true;
-		/* Routing nodes end */
-
-		/* Routing rules start */
-		s.tab('routing_rule', _('Routing Rules'));
-		o = s.taboption('routing_rule', form.SectionValue, '_routing_rule', form.GridSection, 'routing_rule');
-		o.depends('routing_mode', 'custom');
-
-		ss = o.subsection;
-		ss.addremove = true;
-		ss.rowcolors = true;
-		ss.sortable = true;
-		ss.nodescriptions = true;
-		ss.modaltitle = L.bind(hp.loadModalTitle, this, _('Routing Rule'), _('Add a routing rule'), data[0]);
-		ss.sectiontitle = L.bind(hp.loadDefaultLabel, this, data[0]);
-		ss.renderSectionAdd = L.bind(hp.renderSectionAdd, this, ss);
-
-		ss.tab('field_other', _('Other Fields'));
-		ss.tab('field_host', _('Host/IP Fields'));
-		ss.tab('field_port', _('Port Fields'));
-		ss.tab('fields_process', _('Process Fields'));
-
-		so = ss.taboption('field_other', form.Value, 'label', _('Label'));
-		so.load = L.bind(hp.loadDefaultLabel, this, data[0]);
-		so.validate = L.bind(hp.validateUniqueValue, this, data[0], 'routing_rule', 'label');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'enabled', _('Enable'));
-		so.default = so.enabled;
-		so.rmempty = false;
-		so.editable = true;
-
-		so = ss.taboption('field_other', form.ListValue, 'mode', _('Mode'),
-			_('The default rule uses the following matching logic:<br/>' +
-			'<code>(domain || domain_suffix || domain_keyword || domain_regex || ip_cidr || ip_is_private)</code> &&<br/>' +
-			'<code>(port || port_range)</code> &&<br/>' +
-			'<code>(source_ip_cidr || source_ip_is_private)</code> &&<br/>' +
-			'<code>(source_port || source_port_range)</code> &&<br/>' +
-			'<code>other fields</code>.<br/>' +
-			'Additionally, included rule sets can be considered merged rather than as a single rule sub-item.'));
-		so.value('default', _('Default'));
-		so.default = 'default';
-		so.rmempty = false;
-		so.readonly = true;
-
-		so = ss.taboption('field_other', form.ListValue, 'ip_version', _('IP version'),
-			_('4 or 6. Not limited if empty.'));
-		so.value('4', _('IPv4'));
-		so.value('6', _('IPv6'));
-		so.value('', _('Both'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.MultiValue, 'protocol', _('Protocol'),
-			_('Sniffed protocol, see <a target="_blank" href="https://sing-box.sagernet.org/configuration/route/sniff/">Sniff</a> for details.'));
-		so.value('bittorrent', _('BitTorrent'));
-		so.value('dns', _('DNS'));
-		so.value('dtls', _('DTLS'));
-		so.value('http', _('HTTP'));
-		so.value('quic', _('QUIC'));
-		so.value('rdp', _('RDP'));
-		so.value('ssh', _('SSH'));
-		so.value('stun', _('STUN'));
-		so.value('tls', _('TLS'));
-
-		so = ss.taboption('field_other', form.Value, 'client', _('Client'),
-			_('Sniffed client type (QUIC client type or SSH client name).'));
-		so.value('chromium', _('Chromium / Cronet'));
-		so.value('firefox', _('Firefox / uquic firefox'));
-		so.value('quic-go', _('quic-go / uquic chrome'));
-		so.value('safari', _('Safari / Apple Network API'));
-		so.depends('protocol', 'quic');
-		so.depends('protocol', 'ssh');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.ListValue, 'network', _('Network'));
-		so.value('tcp', _('TCP'));
-		so.value('udp', _('UDP'));
-		so.value('', _('Both'));
-
-		so = ss.taboption('field_other', form.DynamicList, 'user', _('User'),
-			_('Match user name.'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', hp.CBIStaticList, 'rule_set', _('Rule set'),
-			_('Match rule set.'));
-		so.load = function(section_id) {
-			delete this.keylist;
-			delete this.vallist;
-
-			uci.sections(data[0], 'ruleset', (res) => {
-				if (res.enabled === '1')
-					this.value(res['.name'], res.label);
-			});
-
-			return this.super('load', section_id);
-		}
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'rule_set_ip_cidr_match_source', _('Rule set IP CIDR as source IP'),
-			_('Make IP CIDR in rule set used to match the source IP.'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'invert', _('Invert'),
-			_('Invert match result.'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.ListValue, 'action', _('Action'));
-		so.value('route', _('Route'));
-		so.value('route-options', _('Route options'));
-		so.value('reject', _('Reject'));
-		so.value('resolve', _('Resolve'));
-		so.default = 'route';
-		so.rmempty = false;
-		so.editable = true;
-
-		so = ss.taboption('field_other', form.ListValue, 'outbound', _('Outbound'),
-			_('Tag of the target outbound.'));
-		so.load = function(section_id) {
-			delete this.keylist;
-			delete this.vallist;
-
-			this.value('direct-out', _('Direct'));
-			uci.sections(data[0], 'routing_node', (res) => {
-				if (res.enabled === '1')
-					this.value(res['.name'], res.label);
-			});
-
-			return this.super('load', section_id);
-		}
-		so.rmempty = false;
-		so.depends('action', 'route');
-		so.editable = true;
-
-		so = ss.taboption('field_other', form.Value, 'override_address', _('Override address'),
-			_('Override the connection destination address.'));
-		so.datatype = 'ipaddr';
-		so.depends('action', 'route');
-		so.depends('action', 'route-options');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Value, 'override_port', _('Override port'),
-			_('Override the connection destination port.'));
-		so.datatype = 'port';
-		so.depends('action', 'route');
-		so.depends('action', 'route-options');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'udp_disable_domain_unmapping', _('Disable UDP domain unmapping'),
-			_('If enabled, for UDP proxy requests addressed to a domain, the original packet address will be sent in the response instead of the mapped domain.'));
-		so.depends('action', 'route');
-		so.depends('action', 'route-options');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'udp_connect', _('connect UDP connections'),
-			_('If enabled, attempts to connect UDP connection to the destination instead of listen.'));
-		so.depends('action', 'route');
-		so.depends('action', 'route-options');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Value, 'udp_timeout', _('UDP timeout'),
-			_('Timeout for UDP connections.<br/>Setting a larger value than the inbound UDP timeout will have no effect.'));
-		so.datatype = 'uinteger';
-		so.depends('action', 'route');
-		so.depends('action', 'route-options');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'tls_record_fragment', _('TLS record fragment'),
-			_('Fragment TLS handshake into multiple TLS records.'));
-		so.depends('action', 'route');
-		so.depends('action', 'route-options');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'tls_fragment', _('TLS fragment'),
-			_('Fragment TLS handshakes. Due to poor performance, try <code>%s</code> first.').format(
-				_('TLS record fragment')));
-		so.depends('action', 'route');
-		so.depends('action', 'route-options');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Value, 'tls_fragment_fallback_delay', _('Fragment fallback delay'),
-			_('The fallback value in milliseconds used when TLS segmentation cannot automatically determine the wait time.'));
-		so.datatype = 'uinteger';
-		so.placeholder = '500';
-		so.depends('tls_fragment', '1');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.ListValue, 'resolve_server', _('DNS server'),
-			_('Specifies DNS server tag to use instead of selecting through DNS routing.'));
-		so.load = function(section_id) {
-			delete this.keylist;
-			delete this.vallist;
-
-			this.value('', _('Default'));
-			this.value('default-dns', _('Default DNS (issued by WAN)'));
-			this.value('system-dns', _('System DNS'));
-			uci.sections(data[0], 'dns_server', (res) => {
-				if (res.enabled === '1')
-					this.value(res['.name'], res.label);
-			});
-
-			return this.super('load', section_id);
-		}
-		so.depends('action', 'resolve');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.ListValue, 'reject_method', _('Method'));
-		so.value('default', _('Reply with TCP RST / ICMP port unreachable'));
-		so.value('drop', _('Drop packets'));
-		so.depends('action', 'reject');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'reject_no_drop', _('Don\'t drop packets'),
-			_('<code>%s</code> will be temporarily overwritten to <code>%s</code> after 50 triggers in 30s if not enabled.').format(
-			_('Method'), _('Drop packets')));
-		so.depends('reject_method', 'default');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.ListValue, 'resolve_strategy', _('Resolve strategy'),
-			_('Domain strategy for resolving the domain names.'));
-		for (let i in hp.dns_strategy)
-			so.value(i, hp.dns_strategy[i]);
-		so.depends('action', 'resolve');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'resolve_disable_cache', _('Disable DNS cache'),
-			_('Disable DNS cache in this query.'));
-		so.depends('action', 'resolve');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'resolve_disable_optimistic_cache', _('Disable optimistic DNS cache'),
-			_('Disable optimistic DNS caching in this query.'));
-		so.depends('action', 'resolve');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Value, 'resolve_rewrite_ttl', _('Rewrite TTL'),
-			_('Rewrite TTL in DNS responses.'));
-		so.datatype = 'uinteger';
-		so.depends('action', 'resolve');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Value, 'resolve_timeout', _('DNS query timeout'),
-			_('Override the DNS query timeout for this lookup, in seconds.'));
-		so.datatype = 'uinteger';
-		so.placeholder = '10';
-		so.depends('action', 'resolve');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Value, 'resolve_client_subnet', _('EDNS Client subnet'),
-			_('Append a <code>edns0-subnet</code> OPT extra record with the specified IP prefix to every query by default.<br/>' +
-			'If value is an IP address instead of prefix, <code>/32</code> or <code>/128</code> will be appended automatically.'));
-		so.datatype = 'or(cidr, ipaddr)';
-		so.depends('action', 'resolve');
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.DynamicList, 'domain', _('Domains'),
-			_('Match full domain.'));
-		so.datatype = 'hostname';
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.DynamicList, 'domain_suffix', _('Domain suffix'),
-			_('Match domain suffix.'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.DynamicList, 'domain_keyword', _('Domain keyword'),
-			_('Match domain using keyword.'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.DynamicList, 'domain_regex', _('Domain regex'),
-			_('Match domain using regular expression.'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.DynamicList, 'source_ip_cidr', _('Source IP CIDR'),
-			_('Match source IP CIDR.'));
-		so.datatype = 'or(cidr, ipaddr)';
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.Flag, 'source_ip_is_private', _('Match private source IP'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.DynamicList, 'ip_cidr', _('IP CIDR'),
-			_('Match IP CIDR.'));
-		so.datatype = 'or(cidr, ipaddr)';
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.Flag, 'ip_is_private', _('Match private IP'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_port', form.DynamicList, 'source_port', _('Source port'),
-			_('Match source port.'));
-		so.datatype = 'port';
-		so.modalonly = true;
-
-		so = ss.taboption('field_port', form.DynamicList, 'source_port_range', _('Source port range'),
-			_('Match source port range. Format as START:/:END/START:END.'));
-		so.validate = hp.validatePortRange;
-		so.modalonly = true;
-
-		so = ss.taboption('field_port', form.DynamicList, 'port', _('Port'),
-			_('Match port.'));
-		so.datatype = 'port';
-		so.modalonly = true;
-
-		so = ss.taboption('field_port', form.DynamicList, 'port_range', _('Port range'),
-			_('Match port range. Format as START:/:END/START:END.'));
-		so.validate = hp.validatePortRange;
-		so.modalonly = true;
-
-		so = ss.taboption('fields_process', form.DynamicList, 'process_name', _('Process name'),
-			_('Match process name.'));
-		so.modalonly = true;
-
-		so = ss.taboption('fields_process', form.DynamicList, 'process_path', _('Process path'),
-			_('Match process path.'));
-		so.modalonly = true;
-
-		so = ss.taboption('fields_process', form.DynamicList, 'process_path_regex', _('Process path (regex)'),
-			_('Match process path using regular expression.'));
-		so.modalonly = true;
-		/* Routing rules end */
-
-		/* DNS settings start */
-		s.tab('dns', _('DNS Settings'));
-		o = s.taboption('dns', form.SectionValue, '_dns', form.NamedSection, 'dns', 'homeproxy');
-		o.depends('routing_mode', 'custom');
-
-		ss = o.subsection;
-		so = ss.option(form.ListValue, 'default_strategy', _('Default DNS strategy'),
-			_('The DNS strategy for resolving the domain name in the address.'));
-		for (let i in hp.dns_strategy)
-			so.value(i, hp.dns_strategy[i]);
-
-		so = ss.option(form.ListValue, 'default_server', _('Default DNS server'));
-		so.load = function(section_id) {
-			delete this.keylist;
-			delete this.vallist;
-
-			this.value('default-dns', _('Default DNS (issued by WAN)'));
-			this.value('system-dns', _('System DNS'));
-			uci.sections(data[0], 'dns_server', (res) => {
-				if (res.enabled === '1')
-					this.value(res['.name'], res.label);
-			});
-
-			return this.super('load', section_id);
-		}
-		so.default = 'default-dns';
-		so.rmempty = false;
-
-		so = ss.option(form.Flag, 'disable_cache', _('Disable DNS cache'));
-
-		so = ss.option(form.Flag, 'disable_cache_expire', _('Disable cache expire'));
-		so.depends('disable_cache', '0');
-
-		so = ss.option(form.Flag, 'optimistic', _('Optimistic DNS cache'),
-			_('Serve expired DNS entries while refreshing them in the background.'));
-		so.depends({ disable_cache: '0', disable_cache_expire: '0' });
-
-		so = ss.option(form.Value, 'timeout', _('DNS query timeout'),
-			_('The default timeout for DNS queries, in seconds.'));
-		so.datatype = 'uinteger';
-		so.placeholder = '10';
-
-		so = ss.option(form.Value, 'client_subnet', _('EDNS Client subnet'),
-			_('Append a <code>edns0-subnet</code> OPT extra record with the specified IP prefix to every query by default.<br/>' +
-			'If value is an IP address instead of prefix, <code>/32</code> or <code>/128</code> will be appended automatically.'));
-		so.datatype = 'or(cidr, ipaddr)';
-
-		so = ss.option(form.Flag, 'cache_file_store_dns', _('Store DNS cache'),
-			_('Persist the complete DNS cache in the cache file.'));
-		/* DNS settings end */
-
-		/* DNS servers start */
-		s.tab('dns_server', _('DNS Servers'));
-		o = s.taboption('dns_server', form.SectionValue, '_dns_server', form.GridSection, 'dns_server');
-		o.depends('routing_mode', 'custom');
-
-		ss = o.subsection;
-		ss.addremove = true;
-		ss.rowcolors = true;
-		ss.sortable = true;
-		ss.nodescriptions = true;
-		ss.modaltitle = L.bind(hp.loadModalTitle, this, _('DNS Server'), _('Add a DNS server'), data[0]);
-		ss.sectiontitle = L.bind(hp.loadDefaultLabel, this, data[0]);
-		ss.renderSectionAdd = L.bind(hp.renderSectionAdd, this, ss);
-
-		so = ss.option(form.Value, 'label', _('Label'));
-		so.load = L.bind(hp.loadDefaultLabel, this, data[0]);
-		so.validate = L.bind(hp.validateUniqueValue, this, data[0], 'dns_server', 'label');
-		so.modalonly = true;
-
-		so = ss.option(form.Flag, 'enabled', _('Enable'));
-		so.default = so.enabled;
-		so.rmempty = false;
-		so.editable = true;
-
-		so = ss.option(form.ListValue, 'type', _('Type'));
-		so.value('udp', _('UDP'));
-		so.value('tcp', _('TCP'));
-		so.value('tls', _('TLS'));
-		so.value('https', _('HTTPS'));
-		so.value('h3', _('HTTP/3'));
-		so.value('quic', _('QUIC'));
-		so.default = 'udp';
-		so.rmempty = false;
-
-		so = ss.option(form.Value, 'server', _('Address'),
-			_('The address of the dns server.'));
-		so.datatype = 'or(hostname, ipaddr)';
-		so.rmempty = false;
-
-		so = ss.option(form.Value, 'server_port', _('Port'),
-			_('The port of the DNS server.'));
-		so.placeholder = 'auto';
-		so.datatype = 'port';
-
-		so = ss.option(form.Value, 'path', _('Path'),
-			_('The path of the DNS server.'));
-		so.placeholder = '/dns-query';
-		so.depends('type', 'https');
-		so.depends('type', 'h3');
-		so.modalonly = true;
-
-		so = ss.option(form.DynamicList, 'headers', _('Headers'),
-			_('Additional headers to be sent to the DNS server.'));
-		so.depends('type', 'https');
-		so.depends('type', 'h3');
-		so.modalonly = true;
-
-		so = ss.option(form.Value, 'tls_sni', _('TLS SNI'),
-			_('Used to verify the hostname on the returned certificates.'));
-		so.depends('type', 'tls');
-		so.depends('type', 'https');
-		so.depends('type', 'h3');
-		so.depends('type', 'quic');
-		so.modalonly = true;
-
-		so = ss.option(form.ListValue, 'domain_resolver', _('Domain resolver'),
-			_('Tag of another DNS server used to resolve a domain name in the server address.'));
-		so.load = function(section_id) {
-			delete this.keylist;
-			delete this.vallist;
-
-			this.value('', _('None'));
-			this.value('default-dns', _('Default DNS (issued by WAN)'));
-			this.value('system-dns', _('System DNS'));
-			uci.sections(data[0], 'dns_server', (res) => {
-				if (res['.name'] !== section_id && res.enabled === '1')
-					this.value(res['.name'], res.label);
-			});
-
-			return this.super('load', section_id);
-		}
-		so.validate = function(section_id, value) {
-			if (section_id && value) {
-				let conflict = false;
-				uci.sections(data[0], 'dns_server', (res) => {
-					if (res['.name'] !== section_id)
-						if (res.domain_resolver === section_id && res['.name'] == value)
-							conflict = true;
-				});
-				if (conflict)
-					return _('Recursive resolver detected!');
-			}
-
-			return true;
-		}
-		so.modalonly = true;
-
-		so = ss.option(form.ListValue, 'domain_strategy', _('Domain strategy'),
-			_('The domain strategy for resolving the domain name in the address.'));
-		for (let i in hp.dns_strategy)
-			so.value(i, hp.dns_strategy[i]);
-		so.depends({'domain_resolver': '', '!reverse': true});
-		so.modalonly = true;
-
-		so = ss.option(form.ListValue, 'outbound', _('Outbound'),
-			_('Tag of an outbound for connecting to the dns server.'));
-		so.load = function(section_id) {
-			delete this.keylist;
-			delete this.vallist;
-
-			this.value('direct-out', _('Direct'));
-			uci.sections(data[0], 'routing_node', (res) => {
-				if (res.enabled === '1')
-					this.value(res['.name'], res.label);
-			});
-
-			return this.super('load', section_id);
-		}
-		so.default = 'direct-out';
-		so.rmempty = false;
-		so.editable = true;
-		/* DNS servers end */
-
-		/* DNS rules start */
-		s.tab('dns_rule', _('DNS Rules'));
-		o = s.taboption('dns_rule', form.SectionValue, '_dns_rule', form.GridSection, 'dns_rule');
-		o.depends('routing_mode', 'custom');
-
-		ss = o.subsection;
-		ss.addremove = true;
-		ss.rowcolors = true;
-		ss.sortable = true;
-		ss.nodescriptions = true;
-		ss.modaltitle = L.bind(hp.loadModalTitle, this, _('DNS Rule'), _('Add a DNS rule'), data[0]);
-		ss.sectiontitle = L.bind(hp.loadDefaultLabel, this, data[0]);
-		ss.renderSectionAdd = L.bind(hp.renderSectionAdd, this, ss);
-
-		ss.tab('field_other', _('Other Fields'));
-		ss.tab('field_host', _('Host/IP Fields'));
-		ss.tab('field_port', _('Port Fields'));
-		ss.tab('fields_process', _('Process Fields'));
-
-		so = ss.taboption('field_other', form.Value, 'label', _('Label'));
-		so.load = L.bind(hp.loadDefaultLabel, this, data[0]);
-		so.validate = L.bind(hp.validateUniqueValue, this, data[0], 'dns_rule', 'label');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'enabled', _('Enable'));
-		so.default = so.enabled;
-		so.rmempty = false;
-		so.editable = true;
-
-		so = ss.taboption('field_other', form.ListValue, 'mode', _('Mode'),
-			_('The default rule uses the following matching logic:<br/>' +
-			'<code>(domain || domain_suffix || domain_keyword || domain_regex)</code> &&<br/>' +
-			'<code>(port || port_range)</code> &&<br/>' +
-			'<code>(source_ip_cidr || source_ip_is_private)</code> &&<br/>' +
-			'<code>(source_port || source_port_range)</code> &&<br/>' +
-			'<code>other fields</code>.<br/>' +
-			'Additionally, included rule sets can be considered merged rather than as a single rule sub-item.'));
-		so.value('default', _('Default'));
-		so.default = 'default';
-		so.rmempty = false;
-		so.readonly = true;
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.ListValue, 'ip_version', _('IP version'));
-		so.value('4', _('IPv4'));
-		so.value('6', _('IPv6'));
-		so.value('', _('Both'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.DynamicList, 'query_type', _('Query type'),
-			_('Match query type.'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.ListValue, 'network', _('Network'));
-		so.value('tcp', _('TCP'));
-		so.value('udp', _('UDP'));
-		so.value('', _('Both'));
-
-		so = ss.taboption('field_other', form.MultiValue, 'protocol', _('Protocol'),
-			_('Sniffed protocol, see <a target="_blank" href="https://sing-box.sagernet.org/configuration/route/sniff/">Sniff</a> for details.'));
-		so.value('bittorrent', _('BitTorrent'));
-		so.value('dtls', _('DTLS'));
-		so.value('http', _('HTTP'));
-		so.value('quic', _('QUIC'));
-		so.value('rdp', _('RDP'));
-		so.value('ssh', _('SSH'));
-		so.value('stun', _('STUN'));
-		so.value('tls', _('TLS'));
-
-		so = ss.taboption('field_other', form.DynamicList, 'user', _('User'),
-			_('Match user name.'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', hp.CBIStaticList, 'rule_set', _('Rule set'),
-			_('Match rule set.'));
-		so.load = function(section_id) {
-			delete this.keylist;
-			delete this.vallist;
-
-			uci.sections(data[0], 'ruleset', (res) => {
-				if (res.enabled === '1')
-					this.value(res['.name'], res.label);
-			});
-
-			return this.super('load', section_id);
-		}
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'rule_set_ip_cidr_match_source', _('Rule set IP CIDR as source IP'),
-			_('Make IP CIDR in rule sets match the source IP.'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'match_response', _('Match DNS response'),
-			_('Evaluate the query with the selected server before matching response addresses or IP rule sets.'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'invert', _('Invert'),
-			_('Invert match result.'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.ListValue, 'action', _('Action'));
-		so.value('route', _('Route'));
-		so.value('evaluate', _('Evaluate'));
-		so.value('respond', _('Respond'));
-		so.value('route-options', _('Route options'));
-		so.value('reject', _('Reject'));
-		so.value('predefined', _('Predefined'));
-		so.default = 'route';
-		so.rmempty = false;
-		so.editable = true;
-
-		so = ss.taboption('field_other', form.ListValue, 'server', _('Server'),
-			_('Tag of the target dns server.'));
-		so.load = function(section_id) {
-			delete this.keylist;
-			delete this.vallist;
-
-			this.value('default-dns', _('Default DNS (issued by WAN)'));
-			this.value('system-dns', _('System DNS'));
-			uci.sections(data[0], 'dns_server', (res) => {
-				if (res.enabled === '1')
-					this.value(res['.name'], res.label);
-			});
-
-			return this.super('load', section_id);
-		}
-		so.rmempty = false;
-		so.editable = true;
-		so.depends('action', 'route');
-		so.depends('action', 'evaluate');
-
-		so = ss.taboption('field_other', form.ListValue, 'evaluate_server', _('Evaluation server'),
-			_('DNS server used to obtain the response before response matching.'));
-		so.load = function(section_id) {
-			delete this.keylist;
-			delete this.vallist;
-
-			this.value('default-dns', _('Default DNS (issued by WAN)'));
-			this.value('system-dns', _('System DNS'));
-			uci.sections(data[0], 'dns_server', (res) => {
-				if (res.enabled === '1')
-					this.value(res['.name'], res.label);
-			});
-
-			return this.super('load', section_id);
-		}
-		so.depends('match_response', '1');
-		so.depends('action', 'respond');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'dns_disable_cache', _('Disable DNS cache'),
-			_('Disable cache and save cache in this query.'));
-		so.depends('action', 'route');
-		so.depends('action', 'evaluate');
-		so.depends('action', 'route-options');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'dns_disable_optimistic_cache', _('Disable optimistic DNS cache'),
-			_('Disable optimistic DNS caching in this query.'));
-		so.depends('action', 'route');
-		so.depends('action', 'evaluate');
-		so.depends('action', 'route-options');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Value, 'rewrite_ttl', _('Rewrite TTL'),
-			_('Rewrite TTL in DNS responses.'));
-		so.datatype = 'uinteger';
-		so.depends('action', 'route');
-		so.depends('action', 'evaluate');
-		so.depends('action', 'route-options');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Value, 'dns_timeout', _('DNS query timeout'),
-			_('Override the DNS query timeout for this rule, in seconds.'));
-		so.datatype = 'uinteger';
-		so.placeholder = '10';
-		so.depends('action', 'route');
-		so.depends('action', 'evaluate');
-		so.depends('action', 'route-options');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Value, 'client_subnet', _('EDNS Client subnet'),
-			_('Append a <code>edns0-subnet</code> OPT extra record with the specified IP prefix to every query by default.<br/>' +
-			'If value is an IP address instead of prefix, <code>/32</code> or <code>/128</code> will be appended automatically.'));
-		so.datatype = 'or(cidr, ipaddr)';
-		so.depends('action', 'route');
-		so.depends('action', 'evaluate');
-		so.depends('action', 'route-options');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.ListValue, 'reject_method', _('Method'));
-		so.value('default', _('Reply with REFUSED'));
-		so.value('drop', _('Drop requests'));
-		so.default = 'default';
-		so.depends('action', 'reject');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.Flag, 'reject_no_drop', _('Don\'t drop requests'),
-			_('<code>%s</code> will be temporarily overwritten to <code>%s</code> after 50 triggers in 30s if not enabled.').format(
-				_('Method'), _('Drop requests')));
-		so.depends('reject_method', 'default');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.ListValue, 'predefined_rcode', _('RCode'),
-			_('The response code.'));
-		so.value('NOERROR');
-		so.value('FORMERR');
-		so.value('SERVFAIL');
-		so.value('NXDOMAIN');
-		so.value('NOTIMP');
-		so.value('REFUSED');
-		so.default = 'NOERROR';
-		so.depends('action', 'predefined');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.DynamicList, 'predefined_answer', _('Answer'),
-			_('List of text DNS record to respond as answers.'));
-		so.depends('action', 'predefined');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.DynamicList, 'predefined_ns', _('NS'),
-			_('List of text DNS record to respond as name servers.'));
-		so.depends('action', 'predefined');
-		so.modalonly = true;
-
-		so = ss.taboption('field_other', form.DynamicList, 'predefined_extra', _('Extra records'),
-			_('List of text DNS record to respond as extra records.'));
-		so.depends('action', 'predefined');
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.DynamicList, 'domain', _('Domains'),
-			_('Match full domain.'));
-		so.datatype = 'hostname';
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.DynamicList, 'domain_suffix', _('Domain suffix'),
-			_('Match domain suffix.'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.DynamicList, 'domain_keyword', _('Domain keyword'),
-			_('Match domain using keyword.'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.DynamicList, 'domain_regex', _('Domain regex'),
-			_('Match domain using regular expression.'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.DynamicList, 'source_ip_cidr', _('Source IP CIDR'),
-			_('Match source IP CIDR.'));
-		so.datatype = 'or(cidr, ipaddr)';
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.Flag, 'source_ip_is_private', _('Match private source IP'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.DynamicList, 'ip_cidr', _('IP CIDR'),
-			_('Match IP CIDR with query response. Current rule will be skipped if not match.'));
-		so.datatype = 'or(cidr, ipaddr)';
-		so.modalonly = true;
-
-		so = ss.taboption('field_host', form.Flag, 'ip_is_private', _('Match private IP'),
-			_('Match private IP with query response.'));
-		so.modalonly = true;
-
-		so = ss.taboption('field_port', form.DynamicList, 'source_port', _('Source port'),
-			_('Match source port.'));
-		so.datatype = 'port';
-		so.modalonly = true;
-
-		so = ss.taboption('field_port', form.DynamicList, 'source_port_range', _('Source port range'),
-			_('Match source port range. Format as START:/:END/START:END.'));
-		so.validate = hp.validatePortRange;
-		so.modalonly = true;
-
-		so = ss.taboption('field_port', form.DynamicList, 'port', _('Port'),
-			_('Match port.'));
-		so.datatype = 'port';
-		so.modalonly = true;
-
-		so = ss.taboption('field_port', form.DynamicList, 'port_range', _('Port range'),
-			_('Match port range. Format as START:/:END/START:END.'));
-		so.validate = hp.validatePortRange;
-		so.modalonly = true;
-
-		so = ss.taboption('fields_process', form.DynamicList, 'process_name', _('Process name'),
-			_('Match process name.'));
-		so.modalonly = true;
-
-		so = ss.taboption('fields_process', form.DynamicList, 'process_path', _('Process path'),
-			_('Match process path.'));
-		so.modalonly = true;
-
-		so = ss.taboption('fields_process', form.DynamicList, 'process_path_regex', _('Process path (regex)'),
-			_('Match process path using regular expression.'));
-		so.modalonly = true;
-		/* DNS rules end */
-		/* Custom routing settings end */
-
-		/* Rule set settings start */
-		s.tab('ruleset', _('Rule Set'));
-		o = s.taboption('ruleset', form.SectionValue, '_ruleset', form.GridSection, 'ruleset');
-		o.depends('routing_mode', 'custom');
-
-		ss = o.subsection;
-		ss.addremove = true;
-		ss.rowcolors = true;
-		ss.sortable = true;
-		ss.nodescriptions = true;
-		ss.modaltitle = L.bind(hp.loadModalTitle, this, _('Rule Set'), _('Add a rule set'), data[0]);
-		ss.sectiontitle = L.bind(hp.loadDefaultLabel, this, data[0]);
-		ss.renderSectionAdd = L.bind(hp.renderSectionAdd, this, ss);
-
-		so = ss.option(form.Value, 'label', _('Label'));
-		so.load = L.bind(hp.loadDefaultLabel, this, data[0]);
-		so.validate = L.bind(hp.validateUniqueValue, this, data[0], 'ruleset', 'label');
-		so.modalonly = true;
-
-		so = ss.option(form.Flag, 'enabled', _('Enable'));
-		so.default = so.enabled;
-		so.rmempty = false;
-		so.editable = true;
-
-		so = ss.option(form.ListValue, 'type', _('Type'));
-		so.value('local', _('Local'));
-		so.value('remote', _('Remote'));
-		so.default = 'remote';
-		so.rmempty = false;
-
-		so = ss.option(form.ListValue, 'format', _('Format'));
-		so.value('binary', _('Binary file'));
-		so.value('source', _('Source file'));
-		so.default = 'binary';
-		so.rmempty = false;
-
-		so = ss.option(form.Value, 'path', _('Path'));
-		so.datatype = 'file';
-		so.placeholder = '/etc/homeproxy/ruleset/example.json';
-		so.rmempty = false;
-		so.depends('type', 'local');
-		so.modalonly = true;
-
-		so = ss.option(form.Value, 'url', _('Rule set URL'));
-		so.validate = function(section_id, value) {
-			if (section_id) {
-				if (!value)
-					return _('Expecting: %s').format(_('non-empty value'));
-
-				try {
-					let url = new URL(value);
-					if (!url.hostname)
-						return _('Expecting: %s').format(_('valid URL'));
-				}
-				catch(e) {
-					return _('Expecting: %s').format(_('valid URL'));
-				}
-			}
-
-			return true;
-		}
-		so.rmempty = false;
-		so.depends('type', 'remote');
-		so.modalonly = true;
-
-		so = ss.option(form.ListValue, 'outbound', _('Outbound'),
-			_('Tag of the outbound to download rule set.'));
-		so.load = function(section_id) {
-			delete this.keylist;
-			delete this.vallist;
-
-			this.value('', _('Default'));
-			this.value('direct-out', _('Direct'));
-			uci.sections(data[0], 'routing_node', (res) => {
-				if (res.enabled === '1')
-					this.value(res['.name'], res.label);
-			});
-
-			return this.super('load', section_id);
-		}
-		so.default = 'direct-out';
-		so.depends('type', 'remote');
-
-		so = ss.option(form.Value, 'update_interval', _('Update interval'),
-			_('Update interval of rule set.'));
-		so.placeholder = '1d';
-		so.depends('type', 'remote');
-		/* Rule set settings end */
-
 		/* ACL settings start */
 		s.tab('control', _('Access Control'));
 
 		o = s.taboption('control', form.SectionValue, '_control', form.NamedSection, 'control', 'homeproxy');
+		o.depends('routing_mode', 'bypass_mainland_china');
+		o.depends('routing_mode', 'global');
 		ss = o.subsection;
 
 		/* Interface control start */
@@ -1496,17 +517,24 @@ return view.extend({
 		so.default = '0';
 		so.rmempty = false;
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
-		so.depends('homeproxy.config.routing_mode', 'custom');
 		so.retain = true;
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_direct_ipv4_ips', _('Global Direct IPv4 addresses'),
 			_('IPv4 addresses in this option are forced to use global direct routing.'), 'ipv4', hosts, true);
-		so.depends('lan_whitelist_mode', '0');
+		so.depends({
+			'lan_whitelist_mode': '0',
+			'homeproxy.config.routing_mode': 'bypass_mainland_china'
+		});
+		so.depends('homeproxy.config.routing_mode', 'global');
 		so.retain = true;
 
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_direct_mac_addrs', _('Global Direct MAC addresses'),
 			_('MAC addresses in this option are forced to use global direct routing.'), hosts);
-		so.depends('lan_whitelist_mode', '0');
+		so.depends({
+			'lan_whitelist_mode': '0',
+			'homeproxy.config.routing_mode': 'bypass_mainland_china'
+		});
+		so.depends('homeproxy.config.routing_mode', 'global');
 		so.retain = true;
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_auto_proxy_ipv4_ips', _('Rule Proxy IPv4 addresses'),
@@ -1514,10 +542,6 @@ return view.extend({
 		so.depends({
 			'lan_whitelist_mode': '1',
 			'homeproxy.config.routing_mode': 'bypass_mainland_china'
-		});
-		so.depends({
-			'lan_whitelist_mode': '1',
-			'homeproxy.config.routing_mode': 'custom'
 		});
 		so.retain = true;
 
@@ -1527,22 +551,16 @@ return view.extend({
 			'lan_whitelist_mode': '1',
 			'homeproxy.config.routing_mode': 'bypass_mainland_china'
 		});
-		so.depends({
-			'lan_whitelist_mode': '1',
-			'homeproxy.config.routing_mode': 'custom'
-		});
 		so.retain = true;
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_proxy_ipv4_ips', _('Global Proxy IPv4 addresses'),
 			_('IPv4 addresses in this option are forced to use global proxy routing.'), 'ipv4', hosts, true);
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
-		so.depends('homeproxy.config.routing_mode', 'custom');
 		so.retain = true;
 
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_proxy_mac_addrs', _('Global Proxy MAC addresses'),
 			_('MAC addresses in this option are forced to use global proxy routing.'), hosts);
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
-		so.depends('homeproxy.config.routing_mode', 'custom');
 		so.retain = true;
 		/* LAN IP policy end */
 
@@ -1553,7 +571,6 @@ return view.extend({
 			_('IPv4 addresses in this option are forced to use global proxy routing.'));
 		so.datatype = 'or(ip4addr, cidr4)';
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
-		so.depends('homeproxy.config.routing_mode', 'custom');
 		so.retain = true;
 
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_proxy_ipv6_ips', _('Global Proxy IPv6 addresses'),
@@ -1561,10 +578,6 @@ return view.extend({
 		so.datatype = 'or(ip6addr, cidr6)';
 		so.depends({
 			'homeproxy.config.routing_mode': 'bypass_mainland_china',
-			'homeproxy.config.ipv6_support': '1'
-		});
-		so.depends({
-			'homeproxy.config.routing_mode': 'custom',
 			'homeproxy.config.ipv6_support': '1'
 		});
 		so.retain = true;
@@ -1580,71 +593,229 @@ return view.extend({
 		so.retain = true;
 		/* WAN IP policy end */
 
-		/* Proxy domain list start */
-		ss.tab('proxy_domain_list', _('Proxy Domain List'));
-
-		so = ss.taboption('proxy_domain_list', form.TextValue, '_proxy_domain_list');
-		so.rows = 10;
-		so.monospace = true;
-		so.datatype = 'hostname';
-		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
-		so.retain = true;
-		so.load = function(/* ... */) {
-			return L.resolveDefault(callReadDomainList('proxy_list')).then((res) => {
-				return res.content;
-			}, {});
-		}
-		so.write = function(_section_id, value) {
-			return writeDomainList('proxy_list', 'proxy_domain_list_checksum', value);
-		}
-		so.remove = function(/* ... */) {
-			return writeDomainList('proxy_list', 'proxy_domain_list_checksum', '');
-		}
-		so.validate = function(section_id, value) {
-			if (section_id && value)
-				for (let i of value.split('\n'))
-					if (i && !stubValidator.apply('hostname', i))
-						return _('Expecting: %s').format(_('valid hostname'));
-
-			return true;
-		}
-		/* Proxy domain list end */
-
-		/* Direct domain list start */
-		ss.tab('direct_domain_list', _('Direct Domain List'));
-
-		so = ss.taboption('direct_domain_list', form.TextValue, '_direct_domain_list');
-		so.rows = 10;
-		so.monospace = true;
-		so.datatype = 'hostname';
-		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
-		so.depends('homeproxy.config.routing_mode', 'global');
-		so.retain = true;
-		so.load = function(/* ... */) {
-			return L.resolveDefault(callReadDomainList('direct_list')).then((res) => {
-				return res.content;
-			}, {});
-		}
-		so.write = function(_section_id, value) {
-			return writeDomainList('direct_list', 'direct_domain_list_checksum', value);
-		}
-		so.remove = function(/* ... */) {
-			return writeDomainList('direct_list', 'direct_domain_list_checksum', '');
-		}
-		so.validate = function(section_id, value) {
-			if (section_id && value)
-				for (let i of value.split('\n'))
-					if (i && !stubValidator.apply('hostname', i))
-						return _('Expecting: %s').format(_('valid hostname'));
-
-			return true;
-		}
-		/* Direct domain list end */
 		/* ACL settings end */
 
-		return m.render().then((el) => {
-			el.prepend(E('style', { 'type': 'text/css' }, [ statusCss ]));
-			return el;
-		});
+		/* Diversion settings start */
+		s.tab('diversion', _('Diversion Control'));
+
+		o = s.taboption('diversion', form.SectionValue, '_diversion', form.NamedSection, 'diversion', 'homeproxy');
+		o.depends('routing_mode', 'bypass_mainland_china');
+		o.depends('routing_mode', 'global');
+		ss = o.subsection;
+
+		function configureDomainList(option, id) {
+			option.rows = 12;
+			option.monospace = true;
+			option.rmempty = true;
+			option.retain = true;
+			option.load = function(/* ... */) {
+				return loadDomainList(id);
+			};
+			option.write = function(_section_id, value) {
+				stageDomainList(id, value);
+			};
+			option.remove = function(/* ... */) {
+				stageDomainList(id, '');
+			};
+			option.validate = function(_section_id, value) {
+				return parseDomainList(value).error || true;
+			};
+		}
+
+		ss.tab('direct_list', _('Direct List'));
+		so = ss.taboption('direct_list', form.TextValue, '_direct_list', null,
+			_('Domains in this list always use direct routing.'));
+		configureDomainList(so, 'direct');
+
+		ss.tab('proxy_list', _('Proxy List'));
+		so = ss.taboption('proxy_list', form.TextValue, '_proxy_list', null,
+			_('Domains in this list always use the main node.'));
+		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
+		configureDomainList(so, 'proxy');
+
+		ss.tab('diversion_list', _('Diversion List'));
+		so = ss.taboption('diversion_list', form.SectionValue, '_domain_routes',
+			form.GridSection, 'domain_route', null);
+		let domainRoutes = so.subsection;
+		domainRoutes.anonymous = true;
+		domainRoutes.addremove = true;
+		domainRoutes.addbtntitle = _('Add diversion group');
+		domainRoutes.nodescriptions = true;
+		let domainRouteSerial = 0;
+		function newDomainRouteId() {
+			let id;
+			do {
+				id = 'route_' + Date.now().toString(36) + (domainRouteSerial++).toString(36);
+			} while (uci.get('homeproxy', id) != null);
+			return id;
+		}
+
+		/* Keep diversion group IDs stable across UCI reloads so their files remain addressable. */
+		domainRoutes.handleAdd = function(/* ev */) {
+			const config_name = this.uciconfig ?? this.map.config;
+			const section_id = this.map.data.add(config_name, this.sectiontype, newDomainRouteId());
+			const mapNode = this.getPreviousModalMap();
+			const prevMap = mapNode ? dom.findClassInstance(mapNode) : this.map;
+
+			prevMap.addedSection = section_id;
+			return this.renderMoreOptionsModal(section_id);
+		};
+
+		let dro = domainRoutes.option(form.Value, 'label', _('Name'));
+		dro.rmempty = false;
+
+		dro = domainRoutes.option(form.ListValue, 'node', _('Node'));
+		for (let i in proxy_nodes)
+			dro.value(i, proxy_nodes[i]);
+		dro.value('tailscale', _('[Tailscale] Tailscale'));
+		dro.rmempty = false;
+		dro.textvalue = function(section_id) {
+			const value = this.cfgvalue(section_id);
+			return value === 'tailscale' ? _('[Tailscale] Tailscale') :
+				(value != null ? (proxy_nodes[value] || value) : null);
+		};
+
+		dro = domainRoutes.option(form.TextValue, '_domain_list', _('Domain List'),
+			_('Entries containing a dot use domain suffix matching; other entries use keyword matching.'));
+		dro.modalonly = true;
+		dro.rows = 12;
+		dro.monospace = true;
+		dro.rmempty = true;
+		dro.load = function(section_id) {
+			return loadDomainList(section_id);
+		};
+		dro.write = function(section_id, value) {
+			stageDomainList(section_id, value);
+		};
+		dro.remove = function(section_id) {
+			stageDomainList(section_id, '');
+		};
+		dro.validate = function(_section_id, value) {
+			return parseDomainList(value).error || true;
+		};
+
+		const removeDomainRoute = domainRoutes.handleRemove;
+		domainRoutes.handleRemove = function(section_id, ev) {
+			delete pendingDomainLists[section_id];
+			return removeDomainRoute.call(this, section_id, ev).then(() => {
+				return callRemoveDomainList(section_id);
+			}).then((result) => {
+				if (!result.result)
+					throw new Error(result.error || _('Failed to save domain lists.'));
+				domainListCache[section_id] = '';
+			});
+		};
+		/* Diversion settings end */
+
+		/* Tailscale settings start */
+		s.tab('tailscale', _('Tailscale'));
+
+		o = s.taboption('tailscale', form.SectionValue, '_tailscale', form.NamedSection, 'tailscale', 'homeproxy');
+		o.depends('routing_mode', 'bypass_mainland_china');
+		o.depends('routing_mode', 'global');
+		ss = o.subsection;
+
+		so = ss.option(form.Flag, 'enabled', _('Enable Tailscale'),
+			_('Enable the sing-box Tailscale endpoint. A main node must also be enabled.'));
+		so.default = so.disabled;
+		so.rmempty = false;
+
+		so = ss.option(form.Value, 'auth_key', _('Authentication key'),
+			_('Used only when creating the node. Leave empty and open the login URL from the client log.'));
+		so.password = true;
+		so.rmempty = true;
+		so.retain = true;
+		so.depends('enabled', '1');
+
+		so = ss.option(form.Value, 'control_url', _('Control server'),
+			_('Coordination server URL. Leave empty to use the official Tailscale service.'));
+		so.placeholder = 'https://controlplane.tailscale.com';
+		so.rmempty = true;
+		so.retain = true;
+		so.depends('enabled', '1');
+		so.validate = function(_section_id, value) {
+			if (!value)
+				return true;
+			try {
+				const url = new URL(value);
+				return (url.hostname && ['http:', 'https:'].includes(url.protocol)) ||
+					_('Expecting: %s').format(_('valid URL'));
+			} catch (e) {
+				return _('Expecting: %s').format(_('valid URL'));
+			}
+		};
+
+		so = ss.option(form.Value, 'hostname', _('Hostname'),
+			_('Device name shown in the Tailscale network. The system hostname is used when empty.'));
+		so.datatype = 'hostname';
+		so.rmempty = true;
+		so.retain = true;
+		so.depends('enabled', '1');
+
+		so = ss.option(form.Flag, 'accept_routes', _('Accept routes'),
+			_('Accept subnet routes advertised by other Tailscale nodes.'));
+		so.default = so.disabled;
+		so.rmempty = false;
+		so.retain = true;
+		so.depends('enabled', '1');
+
+		so = ss.option(form.Value, 'exit_node', _('Exit node'),
+			_('Exit node name or IP address. Public domains can use Tailscale diversion only when an exit node is available.'));
+		so.rmempty = true;
+		so.retain = true;
+		so.depends('enabled', '1');
+		so.validate = function(section_id, value) {
+			if (!value)
+				return true;
+			if (this.section.formvalue(section_id, 'advertise_exit_node') === '1')
+				return _('An exit node cannot be used and advertised at the same time.');
+			return stubValidator.apply('hostname', value) ||
+				stubValidator.apply('ip4addr', value) ||
+				stubValidator.apply('ip6addr', value) ||
+				_('Expecting: %s').format(_('valid hostname or IP address'));
+		};
+
+		so = ss.option(form.Flag, 'exit_node_allow_lan_access', _('Allow LAN access with exit node'),
+			_('Keep locally accessible subnets outside the selected exit node.'));
+		so.default = so.disabled;
+		so.rmempty = false;
+		so.retain = true;
+		so.depends('enabled', '1');
+
+		so = ss.option(form.DynamicList, 'advertise_routes', _('Advertised routes'),
+			_('LAN subnets advertised as reachable through this router. Routes must also be approved by the coordination server.'));
+		so.datatype = 'cidr';
+		so.rmempty = true;
+		so.retain = true;
+		so.depends('enabled', '1');
+		so.validate = function(_section_id, value) {
+			if (value && !stubValidator.apply('cidr', value))
+				return _('Expecting: %s').format(_('valid network in CIDR notation'));
+			if (value === '0.0.0.0/0' || value === '::/0')
+				return _('Use "Advertise as exit node" instead of a default route.');
+			return true;
+		};
+
+		so = ss.option(form.Flag, 'advertise_exit_node', _('Advertise as exit node'),
+			_('Advertise this router as an exit node. Approval is still required on the coordination server.'));
+		so.default = so.disabled;
+		so.rmempty = false;
+		so.retain = true;
+		so.depends('enabled', '1');
+		so.validate = function(section_id, value) {
+			if (value === '1' && this.section.formvalue(section_id, 'exit_node'))
+				return _('An exit node cannot be used and advertised at the same time.');
+			return true;
+		};
+
+		so = ss.option(form.Value, 'listen_port', _('Listen port'),
+			_('UDP port for WireGuard and peer-to-peer traffic. A port is selected automatically when empty.'));
+		so.datatype = 'port';
+		so.rmempty = true;
+		so.retain = true;
+		so.depends('enabled', '1');
+		/* Tailscale settings end */
+
+		return m.render();
 	}
 });

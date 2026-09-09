@@ -11,7 +11,7 @@ import { writefile } from 'fs';
 import { cursor } from 'uci';
 
 import {
-	isEmpty, requirePort, validation, strToBool, strToInt, strToTime,
+	isEmpty, strToBool, strToInt, strToTime,
 	removeBlankAttrs, renderV2RayTransport, HP_DIR, RUN_DIR
 } from 'homeproxy';
 
@@ -121,14 +121,11 @@ uci.foreach(uciconfig, uciserver, (cfg) => {
 	if (cfg.enabled !== '1')
 		return;
 
-	const address = (cfg.address === null) ? '::' : cfg.address;
-	if (!validation('ipaddr', address))
-		die('Invalid server listen address');
 	const inbound = {
 		type: cfg.type,
 		tag: 'cfg-' + cfg['.name'] + '-in',
-		listen: address,
-		listen_port: requirePort(cfg.port),
+		listen: cfg.address || '::',
+		listen_port: strToInt(cfg.port),
 		bind_interface: cfg.bind_interface,
 		reuse_addr: strToBool(cfg.reuse_addr),
 		tcp_fast_open: strToBool(cfg.tcp_fast_open),

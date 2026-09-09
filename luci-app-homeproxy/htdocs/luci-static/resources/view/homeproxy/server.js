@@ -5,7 +5,6 @@
  */
 
 'use strict';
-'require dom';
 'require form';
 'require poll';
 'require rpc';
@@ -25,7 +24,7 @@ const CBIGenValue = form.Value.extend({
 		if (!this.password)
 			node.classList.add('control-group');
 
-		(node?.querySelector?.('.control-group') || node).appendChild(E('button', {
+		(node.querySelector('.control-group') || node).appendChild(E('button', {
 			class: 'cbi-button cbi-button-add',
 			title: _('Generate'),
 			click: ui.createHandlerFn(this, handleGenKey, this.hp_options || this.option)
@@ -36,18 +35,14 @@ const CBIGenValue = form.Value.extend({
 });
 
 function renderStatus(isRunning, version) {
-	let badgeStyle = isRunning
-		? 'display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;background:rgba(16,185,129,0.10);color:var(--cbi-success-color,#10b981);border:1px solid rgba(16,185,129,0.30);margin-left:8px;'
-		: 'display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;background:rgba(239,68,68,0.10);color:var(--cbi-error-color,#ef4444);border:1px solid rgba(239,68,68,0.30);margin-left:8px;';
-	let dotStyle = 'display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:5px;';
+	let spanTemp = '<em><span style="color:%s"><strong>%s (sing-box v%s) %s</strong></span></em>';
+	let renderHTML;
+	if (isRunning)
+		renderHTML = spanTemp.format('green', _('HomeProxy Server'), version, _('RUNNING'));
+	else
+		renderHTML = spanTemp.format('red', _('HomeProxy Server'), version, _('NOT RUNNING'));
 
-	return E('div', { 'style': 'display:flex;align-items:center;flex-wrap:wrap;font-size:14px;font-weight:600;margin-bottom:8px;' }, [
-		E('span', {}, [ _('HomeProxy Server') + ' (sing-box v' + (version || '?') + ')' ]),
-		E('span', { 'style': badgeStyle }, [
-			E('span', { 'style': dotStyle }),
-			isRunning ? _('RUNNING') : _('NOT RUNNING')
-		])
-	]);
+	return renderHTML;
 }
 
 function handleGenKey(option) {
@@ -115,21 +110,20 @@ return view.extend({
 		let features = data[1];
 
 		m = new form.Map('homeproxy', _('HomeProxy Server'),
-			_('The modern ImmortalWrt / OpenWrt proxy platform for ARM64/AMD64.'));
+			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition'));
 
 		s = m.section(form.TypedSection);
 		s.render = function() {
-			const statusView = E('p', { id: 'service_status' }, _('Collecting data...'));
-			const updateStatus = () => {
-				return L.resolveDefault(hp.getServiceStatus('sing-box-s'), false).then((res) => {
-					if (!statusView.isConnected)
-						return;
-					statusView.replaceChildren(renderStatus(res, features.version));
+			poll.add(() => {
+				return L.resolveDefault(hp.getServiceStatus('sing-box-s')).then((res) => {
+					let view = document.getElementById('service_status');
+					view.innerHTML = renderStatus(res, features.version);
 				});
-			};
-			poll.add(updateStatus);
+			});
 
-			return E('div', { class: 'cbi-section', id: 'status_bar' }, [ statusView ]);
+			return E('div', { class: 'cbi-section', id: 'status_bar' }, [
+					E('p', { id: 'service_status' }, _('Collecting data...'))
+			]);
 		}
 
 		s = m.section(form.NamedSection, 'server', 'homeproxy', _('Global Settings'));
@@ -180,14 +174,12 @@ return view.extend({
 		o.rmempty = false;
 
 		o = s.option(form.Value, 'address', _('Listen address'));
-		o.default = '::';
-		o.rmempty = false;
+		o.placeholder = '::';
 		o.datatype = 'ipaddr';
 		o.modalonly = true;
 
 		o = s.option(form.Value, 'port', _('Listen port'),
 			_('The port must be unique.'));
-		o.rmempty = false;
 		o.datatype = 'port';
 		o.validate = L.bind(hp.validateUniqueValue, this, data[0], 'server', 'port');
 
@@ -243,6 +235,12 @@ return view.extend({
 		o.datatype = 'uinteger';
 		o.depends('type', 'hysteria');
 		o.depends('type', 'hysteria2');
+		o.validate = function(section_id, value) {
+			if (section_id && this.section.formvalue(section_id, 'type') === 'hysteria' && !value)
+				return _('Expecting: %s').format(_('non-empty value'));
+
+			return true;
+		}
 		o.modalonly = true;
 
 		o = s.option(form.Value, 'hysteria_up_mbps', _('Max upload speed'),
@@ -250,6 +248,12 @@ return view.extend({
 		o.datatype = 'uinteger';
 		o.depends('type', 'hysteria');
 		o.depends('type', 'hysteria2');
+		o.validate = function(section_id, value) {
+			if (section_id && this.section.formvalue(section_id, 'type') === 'hysteria' && !value)
+				return _('Expecting: %s').format(_('non-empty value'));
+
+			return true;
+		}
 		o.modalonly = true;
 
 		o = s.option(form.ListValue, 'hysteria_auth_type', _('Authentication type'));
@@ -268,6 +272,7 @@ return view.extend({
 		o = s.option(form.ListValue, 'hysteria_obfs_type', _('Obfuscate type'));
 		o.value('', _('Disable'));
 		o.value('salamander', _('Salamander'));
+		o.value('gecko', _('Gecko'));
 		o.depends('type', 'hysteria2');
 		o.modalonly = true;
 
@@ -392,26 +397,21 @@ return view.extend({
 		o.depends('type', 'vless');
 		o.depends('type', 'vmess');
 		o.onchange = function(ev, section_id, value) {
-			let transport = this.map.findElement('id', 'cbid.homeproxy.%s.transport'.format(section_id));
-			let desc = transport ? transport.nextElementSibling : null;
-			if (desc) {
-				if (value === 'http')
-					dom.content(desc, _('TLS is not enforced. If TLS is not configured, plain HTTP 1.1 is used.'));
-				else if (value === 'quic')
-					dom.content(desc, _('No additional encryption support: It\'s basically duplicate encryption.'));
-				else
-					dom.content(desc, _('No TCP transport, plain HTTP is merged into the HTTP transport.'));
-			}
+			let desc = this.map.findElement('id', 'cbid.homeproxy.%s.transport'.format(section_id)).nextElementSibling;
+			if (value === 'http')
+				desc.innerHTML = _('TLS is not enforced. If TLS is not configured, plain HTTP 1.1 is used.');
+			else if (value === 'quic')
+				desc.innerHTML = _('No additional encryption support: It\'s basically duplicate encryption.');
+			else
+				desc.innerHTML = _('No TCP transport, plain HTTP is merged into the HTTP transport.');
 
-			let tls = this.map.findElement('id', 'cbid.homeproxy.%s.tls'.format(section_id));
-			let idle = this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id));
-			let idleDesc = idle ? idle.nextElementSibling : null;
-			if (idleDesc) {
-				if ((value === 'http' && tls?.firstElementChild?.checked) || (value === 'grpc' && !features.with_grpc))
-					dom.content(idleDesc, _('Specifies the time (in seconds) until idle clients should be closed with a GOAWAY frame. PING frames are not considered as activity.'));
-				else if (value === 'grpc' && features.with_grpc)
-					dom.content(idleDesc, _('If the transport doesn\'t see any activity after a duration of this time (in seconds), it pings the client to check if the connection is still active.'));
-			}
+			let tls_element = this.map.findElement('id', 'cbid.homeproxy.%s.tls'.format(section_id)).firstElementChild;
+			if ((value === 'http' && tls_element.checked) || (value === 'grpc' && !features.with_grpc))
+				this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id)).nextElementSibling.innerHTML =
+					_('Specifies the time (in seconds) until idle clients should be closed with a GOAWAY frame. PING frames are not considered as activity.');
+			else if (value === 'grpc' && features.with_grpc)
+				this.map.findElement('id', 'cbid.homeproxy.%s.http_idle_timeout'.format(section_id)).nextElementSibling.innerHTML =
+					_('If the transport doesn\'t see any activity after a duration of this time (in seconds), it pings the client to check if the connection is still active.');
 		}
 		o.modalonly = true;
 
@@ -532,11 +532,14 @@ return view.extend({
 		o.validate = function(section_id, value) {
 			if (section_id) {
 				let type = this.map.lookupOption('type', section_id)[0].formvalue(section_id);
+				let network_options = this.map.lookupOption('network', section_id);
+				let network = network_options?.[0]?.formvalue(section_id);
 				let transport_options = this.map.lookupOption('transport', section_id);
 				let transport = transport_options?.[0]?.formvalue(section_id);
 				let tls = this.map.findElement('id', 'cbid.homeproxy.%s.tls'.format(section_id)).firstElementChild;
 
-				if (['hysteria', 'hysteria2', 'tuic'].includes(type) || transport === 'quic') {
+				if (['hysteria', 'hysteria2', 'tuic'].includes(type) ||
+				    (type === 'naive' && network !== 'tcp') || transport === 'quic') {
 					tls.checked = true;
 					tls.disabled = true;
 				} else {
