@@ -90,11 +90,11 @@ const css = '				\
 }					\
 .homeproxy-status .hp-card-state {			\
 	font-size: 12px;		\
-	font-weight: 600;		\
+	font-weight: 500;		\
 }					\
 .homeproxy-status .hp-card-latency {			\
 	font-size: 12px;		\
-	font-weight: 600;		\
+	font-weight: 500;		\
 	font-family: var(--hp-font-mono);\
 	font-variant-numeric: tabular-nums;\
 	color: var(--cbi-text-color, inherit);\
@@ -105,7 +105,7 @@ const css = '				\
 	padding: 2px 8px;		\
 	border-radius: 4px;		\
 	font-size: 11px;		\
-	font-weight: 600;		\
+	font-weight: 500;		\
 	font-family: var(--hp-font-mono);\
 	font-variant-numeric: tabular-nums;\
 	border: 1px solid transparent;	\

@@ -133,8 +133,10 @@ set homeproxy_mainland_addr_v4 {
 	flags interval
 	auto-merge
 	elements = {
-		{% for (let cidr in split(trim(readfile(resources_dir + '/china_ip4.txt')), /[\r\n]/)): %}
+		{% for (let cidr in split(trim(readfile(resources_dir + '/china_ip4.txt') || ''), /[\r\n]/)): %}
+		{% if (cidr): %}
 		{{ cidr }},
+		{% endif %}
 		{% endfor %}
 	}
 }
@@ -145,8 +147,10 @@ set homeproxy_mainland_addr_v6 {
 	flags interval
 	auto-merge
 	elements = {
-		{% for (let cidr in split(trim(readfile(resources_dir + '/china_ip6.txt')), /[\r\n]/)): %}
+		{% for (let cidr in split(trim(readfile(resources_dir + '/china_ip6.txt') || ''), /[\r\n]/)): %}
+		{% if (cidr): %}
 		{{ cidr }},
+		{% endif %}
 		{% endfor %}
 	}
 }
