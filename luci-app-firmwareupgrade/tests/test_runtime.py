@@ -41,7 +41,11 @@ class Runtime(unittest.TestCase):
         self.release.write_text(json.dumps(dict(tag_name='v1', assets=[self.asset])))
 
     def stub(self, name, text):
-        path=self.bin/name; path.write_text(text); path.chmod(0o755)
+        path=self.bin/name
+        # Replacing an applet symlink must never overwrite its host binary.
+        if path.is_symlink():
+            path.unlink()
+        path.write_text(text); path.chmod(0o755)
 
     def rpc(self, method, data=None):
         result=subprocess.run(['busybox','ash',str(self.backend),'call',method],input=json.dumps(data or {}),capture_output=True,text=True,env=self.env,timeout=15)
@@ -55,6 +59,104 @@ class Runtime(unittest.TestCase):
         self.assertTrue(result['success'])
         self.assertRegex(result['candidate_id'],r'^[0-9a-f]{32}$')
         self.assertEqual((self.runtime/'firmwareupgrade.candidate').read_text().splitlines()[0],result['candidate_id'])
+
+    def openwrt_path(self):
+        # Explicit BusyBox applet allowlist: host /usr/bin must not supply od.
+        for name in ('busybox', 'awk', 'cat', 'chmod', 'grep', 'mkdir', 'mktemp',
+                     'mv', 'rm', 'rmdir', 'tr', 'uname'):
+            (self.bin / name).symlink_to('/usr/bin/busybox')
+        self.env['PATH'] = str(self.bin)
+        probe = subprocess.run(['busybox', 'ash', '-c', 'command -v od'],
+                               env=self.env, capture_output=True)
+        self.assertNotEqual(probe.returncode, 0)
+
+    def test_discovery_without_od(self):
+        self.openwrt_path()
+        identities = [self.rpc('checkUpdate')['candidate_id'] for _ in range(4)]
+        self.assertEqual(len(set(identities)), 4)
+        for identity in identities:
+            self.assertRegex(identity, r'^[0-9a-f]{32}$')
+        self.assertEqual((self.runtime / 'firmwareupgrade.candidate').stat().st_mode & 0o777, 0o600)
+        self.assertTrue(self.rpc('startUpgrade', dict(keep_config='0', candidate_id=identities[-1]))['success'])
+        self.assertFalse(self.rpc('startUpgrade', dict(keep_config='0', candidate_id=identities[-1]))['success'])
+
+    def test_mx4200v2_discovery_without_od(self):
+        self.openwrt_path()
+        self.backend.write_text(self.backend.read_text().replace('board=gemtek,w1700k', 'board=linksys,mx4200v2').replace('variant=ubi2', 'variant=v2', 1))
+        asset = dict(self.asset, name='immortalwrt-qualcommax-ipq807x-linksys_mx4200v2-squashfs-sysupgrade.bin')
+        wrong = dict(asset, name=asset['name'].replace('mx4200v2', 'mx4200v1'))
+        self.release.write_text(json.dumps(dict(tag_name='v2-release', assets=[wrong, asset])))
+        result = self.rpc('checkUpdate')
+        self.assertTrue(result['success'], result)
+        self.assertEqual(result['asset_name'], asset['name'])
+        self.assertRegex(result['candidate_id'], r'^[0-9a-f]{32}$')
+        self.assertFalse((self.root / 'launches').exists())
+        self.assertFalse((self.root / 'flashes').exists())
+
+    def test_candidate_creation_failures_return_json(self):
+        self.openwrt_path()
+        original = self.backend.read_text()
+        for stage in ('release', 'assets', 'candidate', 'missing-random', 'empty-random', 'invalid-random', 'tr', 'chmod', 'mv', 'write'):
+            with self.subTest(stage=stage):
+                self.backend.write_text(original)
+                for command in ('mktemp', 'chmod', 'mv', 'tr'):
+                    (self.bin / command).unlink()
+                    (self.bin / command).symlink_to('/usr/bin/busybox')
+                if stage in ('release', 'assets', 'candidate'):
+                    (self.bin / 'mktemp').unlink()
+                    self.stub('mktemp', '#!/bin/sh\ncase "$*" in *firmwareupgrade.' + stage + '.*|*firmwareupgrade-' + stage + '.*) exit 1;; esac\nexec /usr/bin/busybox mktemp "$@"\n')
+                elif stage.endswith('-random'):
+                    random = self.root / 'random'
+                    if stage == 'empty-random':
+                        random.write_text('')
+                    elif stage == 'invalid-random':
+                        random.write_text('x' * 36 + '\n')
+                    self.backend.write_text(original.replace('/proc/sys/kernel/random/uuid', str(random)))
+                elif stage == 'write':
+                    (self.bin / 'mktemp').unlink()
+                    self.stub('mktemp', '#!/bin/sh\ncase "$*" in *firmwareupgrade.candidate.*) printf /dev/full; exit 0;; esac\nexec /usr/bin/busybox mktemp "$@"\n')
+                    # Never allow cleanup of the injected device boundary.
+                    self.stub('rm', '#!/bin/sh\nfor arg do [ "$arg" = /dev/full ] && exit 0; done\nexec /usr/bin/busybox rm "$@"\n')
+                else:
+                    (self.bin / stage).unlink()
+                    self.stub(stage, '#!/bin/sh\nexit 1\n')
+                result = self.rpc('checkUpdate')
+                self.assertFalse(result['success'], result)
+                self.assertTrue(result['error'])
+                self.assertFalse((self.runtime / 'firmwareupgrade.candidate').exists())
+                self.assertFalse(list(self.runtime.glob('firmwareupgrade.candidate.*')))
+                self.assertFalse((self.runtime / 'firmwareupgrade.lock').exists())
+                self.assertFalse((self.root / 'launches').exists())
+
+    def test_real_w1700k_release_selects_variant_not_latest_oc(self):
+        self.cfg.write_text("config firmwareupgrade 'main'\n option repository 'yahuisme/w1700k-immortalwrt'\n option token ''\n option keep_config '0'\n")
+        fixtures = PACKAGE / 'tests/fixtures'
+        self.release.write_bytes((fixtures / 'w1700k-immortalwrt-latest.json').read_bytes())
+        (self.root / 'releases.json').write_bytes((fixtures / 'w1700k-immortalwrt-releases.json').read_bytes())
+        self.stub('curl', '#!/bin/sh\ncase "$*" in *releases/latest*) cat "$ROOT/release.json";; *releases?per_page=20*) cat "$ROOT/releases.json";; *) exit 22;; esac\n')
+        releases = json.loads((self.root / 'releases.json').read_text())
+        normal = next(r for r in releases if r['tag_name'].startswith('W1700K-ImmortalWrt_'))
+        result = self.rpc('checkUpdate')
+        self.assertTrue(result['success'], result)
+        self.assertEqual(result['tag_name'], normal['tag_name'])
+        self.assertEqual(result['sha256'], normal['assets'][0]['digest'][7:])
+        # OC uses the same filename, but must get its own release digest.
+        self.backend.write_text(self.backend.read_text().replace('variant=ubi2', 'variant=ubi2-oc', 1))
+        oc = next(r for r in releases if r['tag_name'].startswith('W1700K-ImmortalWrt-OC_'))
+        result = self.rpc('checkUpdate')
+        self.assertTrue(result['success'], result)
+        self.assertEqual(result['sha256'], oc['assets'][0]['digest'][7:])
+        # Never cross branches, accept prereleases or bypass digest validation.
+        for rejected in ([normal], [dict(oc, prerelease=True)],
+                         [dict(oc, draft=True)],
+                         [dict(oc, assets=[dict(oc['assets'][0], digest=None)])],
+                         [dict(oc, assets=[dict(oc['assets'][0], size=0)])],
+                         [dict(oc, assets=[dict(oc['assets'][0], browser_download_url='http://github.com/image')])]):
+            (self.root / 'releases.json').write_text(json.dumps(rejected))
+            self.assertFalse(self.rpc('checkUpdate')['success'])
+            self.assertFalse((self.runtime / 'firmwareupgrade.candidate').exists())
+        self.assertFalse((self.root / 'launches').exists())
+        self.assertFalse((self.root / 'flashes').exists())
 
     def test_lock_contender_does_not_delete_candidate(self):
         candidate=self.runtime/'firmwareupgrade.candidate'; candidate.write_text('sentinel')

@@ -285,7 +285,7 @@ return view.extend({
 					var b = telemetry.band(frequency), matches = radios.filter(function(r) { return b && r.band === b; });
 					return matches.length === 1 ? matches[0]['.name'] : !b ? ifaceRadio[iface] : null;
 				}
-				var ifaces = Array.from(new Set(Object.keys(parsed.devices).concat(Object.keys(nativeByName), Object.keys(ifaceRadio))));
+				var ifaces = Array.from(new Set(Object.keys(parsed.devices).concat(Object.keys(parsed.surveys), Object.keys(nativeByName), Object.keys(ifaceRadio))));
 				var anyKnown = false, anyFailed = false;
 				ifaces.forEach(function(iface) {
 					var n = nativeByName[iface], dev = parsed.devices[iface] || {}, ni = n && n.info.ok ? n.info.value : {};
@@ -459,7 +459,8 @@ return view.extend({
 				.wifi7-settings-card .cbi-value-field { width:100%; }
 				.wifi7-save-bar .cbi-button { width:100%; }
 			}
-		`), E('h2', {}, _('WiFi 7')), nav ].concat(panes));
+		`), E('h2', {}, _('WiFi 7')),
+			E('div', { 'class': 'cbi-map-descr' }, _('Wi-Fi 7 (802.11be)  & Multi-Link Operation Settings')), nav ].concat(panes));
 		var observer = new MutationObserver(function() {
 			if (root.isConnected)
 				return;

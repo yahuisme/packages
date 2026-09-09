@@ -23,28 +23,28 @@ msgid "5GHz DFS Status"
 msgstr "5 GHz DFS 状态"
 
 msgid "802.11w Management Frame Protection"
-msgstr "802.11w Management Frame Protection"
+msgstr "802.11w 管理帧保护"
 
 msgid "Access Point"
-msgstr "Access Point"
+msgstr "接入点"
 
 msgid "Active"
-msgstr "Active"
+msgstr "活跃"
 
 msgid "Active MLD"
 msgstr "活跃 MLD"
 
 msgid "Add MLO"
-msgstr "Add MLO"
+msgstr "添加 MLO"
 
 msgid "Advanced"
-msgstr "Advanced"
+msgstr "高级"
 
 msgid "After changing country, apply and reload to refresh permitted channels."
 msgstr "修改国家代码后，请应用并重新载入页面以刷新可用信道。"
 
 msgid "Attached network(s)"
-msgstr "Attached network(s)"
+msgstr "关联网络"
 
 msgid "Auto"
 msgstr "自动"
@@ -71,7 +71,7 @@ msgid "Channels reported by the driver; current configuration is preserved."
 msgstr "信道列表由驱动提供，当前配置予以保留。"
 
 msgid "Client"
-msgstr "Client"
+msgstr "客户端"
 
 msgid "Client data unavailable"
 msgstr "无法获取客户端数据"
@@ -80,7 +80,7 @@ msgid "Configuration applied. Runtime status will refresh."
 msgstr "配置已应用，运行状态将自动刷新。"
 
 msgid "Configure Wi-Fi 7 Multi-Link Operation interfaces."
-msgstr "Configure Wi-Fi 7 Multi-Link Operation interfaces."
+msgstr "配置 Wi-Fi 7 多链路操作接口。"
 
 msgid "Connected Clients"
 msgstr "已连接客户端"
@@ -101,10 +101,10 @@ msgid "Disabled"
 msgstr "已禁用"
 
 msgid "Disassociate on low ACK"
-msgstr "Disassociate on low ACK"
+msgstr "低 ACK 时断开关联"
 
 msgid "Down"
-msgstr "Down"
+msgstr "已停止"
 
 msgid "Each MLO interface needs at least two radios."
 msgstr "每个 MLO 接口至少需要两个射频。"
@@ -113,19 +113,19 @@ msgid "Edit MLO interface"
 msgstr "编辑 MLO 接口"
 
 msgid "Enable OCV"
-msgstr "Enable OCV"
+msgstr "启用 OCV"
 
 msgid "Enable U-APSD"
-msgstr "Enable U-APSD"
+msgstr "启用 U-APSD"
 
 msgid "Enable WDS / 4-address mode"
-msgstr "Enable WDS / 4-address mode"
+msgstr "启用 WDS / 四地址模式"
 
 msgid "Enabled"
 msgstr "已启用"
 
 msgid "Encryption"
-msgstr "Encryption"
+msgstr "加密"
 
 msgid "Export wireless diagnostics"
 msgstr "导出无线诊断"
@@ -134,10 +134,10 @@ msgid "Failed to apply configuration: %s"
 msgstr "应用配置失败：%s"
 
 msgid "General"
-msgstr "General"
+msgstr "常规"
 
 msgid "Hide SSID"
-msgstr "Hide SSID"
+msgstr "隐藏 SSID"
 
 msgid "Inactive"
 msgstr "未激活"
@@ -146,7 +146,7 @@ msgid "Interface"
 msgstr "接口"
 
 msgid "Interface name"
-msgstr "Interface name"
+msgstr "接口名称"
 
 msgid "Legacy"
 msgstr "传统协议"
@@ -158,7 +158,7 @@ msgid "Loading MLO configuration…"
 msgstr "正在加载 MLO 配置…"
 
 msgid "MAC address"
-msgstr "MAC address"
+msgstr "MAC 地址"
 
 msgid "MLO"
 msgstr "MLO"
@@ -176,16 +176,16 @@ msgid "MLO needs at least two radios."
 msgstr "MLO 至少需要两个射频。"
 
 msgid "MLO requires at least two radio devices"
-msgstr "MLO requires at least two radio devices"
+msgstr "MLO 至少需要两个射频设备"
 
 msgid "MT76 Firmware"
 msgstr "MT76 驱动固件"
 
 msgid "Manage in Wireless"
-msgstr "Manage in Wireless"
+msgstr "在无线设置中管理"
 
 msgid "Mode"
-msgstr "Mode"
+msgstr "模式"
 
 msgid "Needs attention"
 msgstr "需要处理"
@@ -197,10 +197,10 @@ msgid "No connected clients"
 msgstr "暂无已连接的客户端"
 
 msgid "No encryption"
-msgstr "No encryption"
+msgstr "不加密"
 
 msgid "No runtime state"
-msgstr "No runtime state"
+msgstr "无运行状态"
 
 msgid "None"
 msgstr "无"
@@ -215,13 +215,13 @@ msgid "Operating Channel"
 msgstr "工作信道"
 
 msgid "Optional"
-msgstr "Optional"
+msgstr "可选"
 
 msgid "Optional override."
 msgstr "可选覆盖。"
 
 msgid "Passphrase"
-msgstr "Passphrase"
+msgstr "密码短语"
 
 msgid "RX Rate"
 msgstr "接收速率"
@@ -236,19 +236,19 @@ msgid "Radio availability"
 msgstr "射频可用性"
 
 msgid "Radio devices"
-msgstr "Radio devices"
+msgstr "射频设备"
 
 msgid "Required"
-msgstr "Required"
+msgstr "必须"
 
 msgid "Requires driver support; channel availability checks may still be required."
 msgstr "需要驱动支持；部分情况下仍需进行信道可用性检查。"
 
 msgid "Runtime status unavailable"
-msgstr "Runtime status unavailable"
+msgstr "运行状态不可用"
 
 msgid "SAE and OWE require Management Frame Protection: select Required."
-msgstr "SAE and OWE require Management Frame Protection: select Required."
+msgstr "SAE 和 OWE 需要管理帧保护：请选择“必须”。"
 
 msgid "SSID"
 msgstr "SSID"
@@ -257,7 +257,7 @@ msgid "Save & Apply"
 msgstr "保存并应用"
 
 msgid "Security"
-msgstr "Security"
+msgstr "安全"
 
 msgid "Select at least two radios for MLO."
 msgstr "为 MLO 选择至少两个射频。"
@@ -287,7 +287,7 @@ msgid "These changes may interrupt wireless connections, including MLO links. Ap
 msgstr "这些更改可能中断无线连接及相关 MLO 链路，是否应用？"
 
 msgid "This mode or encryption is not supported by this editor."
-msgstr "This mode or encryption is not supported by this editor."
+msgstr "此模式或加密方式不受此编辑器支持。"
 
 msgid "Unavailable"
 msgstr "无法获取"
@@ -302,16 +302,23 @@ msgid "Up"
 msgstr "运行中"
 
 msgid "WPA/WPA2 mixed PSK"
-msgstr "WPA/WPA2 mixed PSK"
+msgstr "WPA/WPA2 混合 PSK"
 
 msgid "WPA2-PSK"
 msgstr "WPA2-PSK"
 
 msgid "WPA2/WPA3 mixed"
-msgstr "WPA2/WPA3 mixed"
+msgstr "WPA2/WPA3 混合模式"
 
 msgid "WPA3-SAE"
 msgstr "WPA3-SAE"
+
+msgid "Wi-Fi 7 (802.11be)  & Multi-Link Operation Settings"
+msgstr "Wi-Fi 7 (802.11be) 和 MLO 设置"
+
+# LuCI _() collapses repeated whitespace before catalog lookup.
+msgid "Wi-Fi 7 (802.11be) & Multi-Link Operation Settings"
+msgstr "Wi-Fi 7 (802.11be) 和 MLO 设置"
 
 msgid "Wi-Fi MLO"
 msgstr "Wi-Fi MLO"
@@ -323,4 +330,4 @@ msgid "WiFi 7 Manager"
 msgstr "WiFi 7 管理"
 
 msgid "channel %s"
-msgstr "channel %s"
+msgstr "信道 %s"

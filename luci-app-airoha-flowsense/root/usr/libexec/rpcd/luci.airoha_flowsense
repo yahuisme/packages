@@ -73,10 +73,13 @@ get_overview() {
 }
 
 set_monitor() {
-    local input target enabled oldtarget oldenabled failed=0 rollback=0
+    local input target enabled oldtarget oldenabled changes failed=0 rollback=0
     read -r input
     target=$(printf '%s' "$input" | jsonfilter -e '@.target' 2>/dev/null); enabled=$(printf '%s' "$input" | jsonfilter -e '@.enabled' 2>/dev/null)
     if ! fs_target "$target" || { [ "$enabled" != 0 ] && [ "$enabled" != 1 ]; }; then printf '{"success":false,"error":"invalid"}'; return; fi
+    # Do not commit or revert another LuCI session's staged settings.
+    changes=$(uci -q changes npu-monitor) || { printf '{"success":false,"error":"read"}'; return; }
+    [ -z "$changes" ] || { printf '{"success":false,"error":"pending_changes"}'; return; }
     oldtarget=$(uci -q get npu-monitor.@jitter[0].target) || { printf '{"success":false,"error":"read"}'; return; }
     oldenabled=$(uci -q get npu-monitor.@jitter[0].enabled)
     uci set "npu-monitor.@jitter[0].target=$target" && uci set "npu-monitor.@jitter[0].enabled=$enabled" && uci commit npu-monitor && /etc/init.d/npu-jitter restart >/dev/null 2>&1 || failed=1

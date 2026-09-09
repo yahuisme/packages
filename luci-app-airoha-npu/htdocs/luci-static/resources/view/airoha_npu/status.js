@@ -10,9 +10,9 @@ var getFlow = rpc.declare({ object: 'luci.airoha_npu', method: 'getFlowOffload',
 var themeCSS = '\
 .npu-dashboard{font-size:13px;line-height:1.5}\
 .npu-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:8px;margin:12px 0}\
-.npu-summary-card,.npu-gauge-card,.npu-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#ddd);border-radius:6px;box-sizing:border-box}\
+.npu-summary-card,.npu-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#ddd);border-radius:6px;box-sizing:border-box}\
 .npu-summary-card{min-height:72px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center}.npu-card-title,.npu-detail-group-title{font-size:11px;font-weight:500;color:var(--cbi-muted-color,#666);text-transform:uppercase;letter-spacing:.04em}.npu-card-value{display:block;margin-top:3px;font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}.npu-card-sub{font-size:12px;color:var(--cbi-muted-color,#888)}\
-.npu-gauge-card{padding:10px 12px;margin:12px 0}.npu-gauge-row{display:flex;justify-content:space-between;gap:10px;margin-bottom:7px}.npu-gauge-label{font-size:12px}.npu-gauge-value,.npu-detail-value{font-variant-numeric:tabular-nums}.npu-gauge-value{font-size:13px;font-weight:600}.npu-gauge-track{height:6px;border-radius:3px;overflow:hidden;background:var(--cbi-input-bg,#eee)}.npu-gauge-fill{height:100%;border-radius:inherit;background:var(--cbi-link-color,#0ea5e9);transition:width .3s}\
+.npu-dashboard .npu-frequency-chart{margin:16px 0;min-width:0}.npu-dashboard .npu-chart-header{display:flex;justify-content:space-between;gap:8px}.npu-dashboard .npu-frequency-chart svg{display:block;width:100%;height:200px;color:inherit}.npu-dashboard .npu-chart-caption{font-size:12px;text-align:center}.npu-dashboard .npu-chart-axis{stroke:currentColor;opacity:.3}.npu-dashboard .npu-chart-line{fill:none;stroke:currentColor;stroke-width:1.5}.npu-dashboard .npu-chart-point{fill:currentColor}\
 .npu-panel{padding:12px;margin:12px 0}.npu-panel-title{font-size:15px;font-weight:600;padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid var(--cbi-border-color,#ddd)}.npu-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}.npu-detail-group-title{margin:10px 0 2px}.npu-detail-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,.12))}.npu-detail-label{color:var(--cbi-muted-color,#666)}.npu-detail-value{text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
 @media(max-width:760px){.npu-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.npu-detail-grid{grid-template-columns:1fr}}@media(max-width:480px){.npu-summary-grid{grid-template-columns:1fr}.npu-summary-card{min-height:64px}.npu-panel{padding:10px}}\
 ';
@@ -20,7 +20,7 @@ var themeCSS = '\
 
 function text(value) { return value == null || value === '' ? _('Unknown') : String(value); }
 function nodeText(value) { return [text(value)]; }
-function frequency(value) { return typeof value === 'number' && value > 0 ? (value / 1000) + ' MHz' : _('Unknown'); }
+function frequency(value) { return typeof value === 'number' && isFinite(value) && value > 0 ? (value / 1000) + ' MHz' : _('Unknown'); }
 function governor(value) {
 	var labels = {
 		performance: _('Performance'),
@@ -52,6 +52,7 @@ return view.extend({
 		var info = data[0] || {};
 		var status = data[1] || {};
 		var flow = data[2] || {};
+		self.cleanup();
 		self.active = true;
 
 		var cards = {
@@ -69,8 +70,53 @@ return view.extend({
 			]);
 		}
 
-		var gaugeVal = E('span', { id: 'npu-gauge-val', 'class': 'npu-gauge-value' }, '—');
-		var gaugeFill = E('div', { id: 'npu-gauge-fill', 'class': 'npu-gauge-fill', 'style': 'width:0%' });
+		var samples = [], lastRequest = Date.now(), ceiling = 1000;
+		var chartValue = E('span', { id: 'npu-chart-value' }, '—');
+		function svgNode(tag, attrs, text) {
+			var node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+			Object.keys(attrs || {}).forEach(function(key) { node.setAttribute(key, attrs[key]); });
+			if (text != null) node.textContent = text;
+			return node;
+		}
+		var chart = svgNode('svg', { role: 'img', 'aria-label': _('CPU Frequency Changes') });
+		function drawChart() {
+			var now = Date.now();
+			samples = samples.filter(function(p) { return p.time >= now - 120000; });
+			var width = Math.max(280, chart.clientWidth || 600), left = 48, right = width - 16;
+			var top = 24, bottom = 168;
+			var max = Math.ceil(Math.max(ceiling, 100, ...samples.map(function(p) { return p.value || 0; })) / 100) * 100;
+			chart.setAttribute('viewBox', '0 0 ' + width + ' 200');
+			while (chart.firstChild) chart.removeChild(chart.firstChild);
+			chart.appendChild(svgNode('text', { x: left, y: 14, fill: 'currentColor', 'font-size': 11 }, 'MHz'));
+			[0, max / 2, max].forEach(function(value) {
+				var y = bottom - value / max * (bottom - top);
+				chart.appendChild(svgNode('line', { x1: left, x2: right, y1: y, y2: y, 'class': 'npu-chart-axis' }));
+				chart.appendChild(svgNode('text', { x: left - 8, y: y + 4, 'text-anchor': 'end', fill: 'currentColor', 'font-size': 11 }, value));
+			});
+			chart.appendChild(svgNode('line', { x1: left, x2: left, y1: top, y2: bottom, 'class': 'npu-chart-axis' }));
+			[-120, -60, 0].forEach(function(seconds) {
+				chart.appendChild(svgNode('text', { x: left + (seconds + 120) / 120 * (right - left), y: 190, 'text-anchor': 'middle', fill: 'currentColor', 'font-size': 11 }, seconds + ' s'));
+			});
+			var path = '', previous = null;
+			samples.forEach(function(p) {
+				if (p.value == null) { previous = null; return; }
+				var x = left + (p.time - (now - 120000)) / 120000 * (right - left);
+				var y = bottom - p.value / max * (bottom - top);
+				path += (previous && p.time - previous.time < 7500 ? ' L ' : ' M ') + x + ' ' + y;
+				chart.appendChild(svgNode('circle', { cx: x, cy: y, r: 2, 'class': 'npu-chart-point', 'data-time': p.time, 'data-mhz': p.value }));
+				previous = p;
+			});
+			chart.appendChild(svgNode('path', { d: path, 'class': 'npu-chart-line' }));
+		}
+		function sample(s) {
+			var value = s && s.cpu_cur_freq;
+			value = typeof value === 'number' && isFinite(value) && value > 0 ? value / 1000 : null;
+			if (s && typeof s.cpu_max_freq === 'number' && isFinite(s.cpu_max_freq) && s.cpu_max_freq > 0)
+				ceiling = s.cpu_max_freq / 1000;
+			samples.push({ time: Date.now(), value: value });
+			chartValue.textContent = value == null ? _('Unknown') : value + ' MHz';
+			drawChart();
+		}
 
 		var detailNodes = {
 			soc: E('span', { id: 'npu-soc', 'class': 'npu-detail-value' }, nodeText(info.soc_compat)),
@@ -107,14 +153,6 @@ return view.extend({
 			cards.flow.val.textContent = flowStr;
 			cards.flow.sub.textContent = _('Hardware flow offload');
 
-			var pct = 0;
-			if (typeof s.cpu_cur_freq === 'number' && typeof s.cpu_max_freq === 'number' && s.cpu_max_freq > 0) {
-				pct = Math.min(100, Math.max(5, Math.round((s.cpu_cur_freq / s.cpu_max_freq) * 100)));
-				gaugeVal.textContent = curFreqStr + ' / ' + maxFreqStr + ' (' + pct + '%)';
-			} else {
-				gaugeVal.textContent = '—';
-			}
-			gaugeFill.style.width = pct + '%';
 
 			detailNodes.online.textContent = text(s.cpu_count);
 			detailNodes.current.textContent = curFreqStr;
@@ -134,14 +172,12 @@ return view.extend({
 				summaryCard('npu', _('NPU Core'), cards.npu),
 				summaryCard('flow', _('Flow Offload'), cards.flow)
 			]),
-			E('div', { 'class': 'npu-gauge-card' }, [
-				E('div', { 'class': 'npu-gauge-row' }, [
-					E('span', { 'class': 'npu-gauge-label' }, _('CPU Frequency Scaling')),
-					gaugeVal
+			E('div', { 'class': 'npu-frequency-chart' }, [
+				E('div', { 'class': 'npu-chart-header' }, [
+					E('span', {}, _('CPU Frequency Changes')), chartValue
 				]),
-				E('div', { 'class': 'npu-gauge-track' }, [
-					gaugeFill
-				])
+				chart,
+				E('div', { 'class': 'npu-chart-caption' }, _('Last 120 seconds'))
 			]),
 			E('div', { 'class': 'npu-panel' }, [
 				E('div', { 'class': 'npu-panel-title' }, _('SoC & NPU Details')),
@@ -167,24 +203,27 @@ return view.extend({
 		]);
 
 		update(status, flow);
+		sample(status);
 
-		self.refresh = function() {
-			return Promise.all([getStatus(), getFlow()]).then(function(values) {
-				if (!self.active) return;
-				update(values[0], values[1]);
-			}).catch(function() {
-				if (!self.active) return;
-				update(null, null);
-			});
-		};
-
-		self.pollFn = function() { return self.refresh(); };
 		self.refreshing = false;
 		self.pollFn = function() {
-			if (self.refreshing) return Promise.resolve();
+			if (!self.active || !page.isConnected) return Promise.resolve();
+			drawChart();
+			if (self.refreshing || Date.now() - lastRequest < 5000) return Promise.resolve();
+			lastRequest = Date.now();
 			self.refreshing = true;
-			return self.refresh().finally(function() { self.refreshing = false; });
+			// Settle both transports before releasing the guard; a fast rejection
+			// must not overlap a still pending flow/status request on the next tick.
+			return Promise.all([getStatus(), getFlow()].map(function(p) {
+				return p.catch(function() { return null; });
+			})).then(function(values) {
+				if (!self.active || !page.isConnected) return;
+				update(values[0], values[1]);
+				sample(values[0]);
+			}).finally(function() { self.refreshing = false; });
 		};
+		// Age the window even if a transport stalls; no synthetic samples.
+		self.chartTimer = window.setInterval(drawChart, 1000);
 		self.onHide = self.cleanup.bind(self);
 		window.addEventListener('pagehide', self.onHide);
 
@@ -201,6 +240,8 @@ return view.extend({
 
 	cleanup: function() {
 		this.active = false;
+		if (this.chartTimer != null) window.clearInterval(this.chartTimer);
+		this.chartTimer = null;
 		if (this.pollFn) poll.remove(this.pollFn);
 		if (this.observer) this.observer.disconnect();
 		if (this.onHide) window.removeEventListener('pagehide', this.onHide);

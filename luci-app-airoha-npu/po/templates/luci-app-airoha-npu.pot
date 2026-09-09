@@ -13,7 +13,7 @@ msgstr ""
 msgid "Adjust CPU governor policy and maximum scaling frequency."
 msgstr ""
 
-msgid "Airoha SoC"
+msgid "Airoha SoC Status"
 msgstr ""
 
 msgid "Airoha SoC Settings"
@@ -31,7 +31,7 @@ msgstr ""
 msgid "CPU Frequency"
 msgstr ""
 
-msgid "CPU Frequency Scaling"
+msgid "CPU Frequency Changes"
 msgstr ""
 
 msgid "Clock Rate"
@@ -173,4 +173,7 @@ msgid "View real-time Airoha SoC frequency, NPU acceleration, and system status.
 msgstr ""
 
 msgid "Flow offloading state is unknown; refresh before changing it."
+msgstr ""
+
+msgid "Last 120 seconds"
 msgstr ""

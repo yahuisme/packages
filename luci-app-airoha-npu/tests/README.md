@@ -6,8 +6,11 @@ jsdom and a trusted upstream LuCI checkout:
 ```sh
 PYTHONDONTWRITEBYTECODE=1 UCI_BIN=/path/to/uci JSONFILTER_BIN=/path/to/jsonfilter \
   python3 -m unittest discover -s tests -v
-NODE_PATH=/path/to/node_modules LUCI_RPC=/path/to/luci/resources/rpc.js \
+NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci/resources \
   node tests/test_dom.js
+node tests/test_settings.js
+NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci/resources \
+  node tests/test_settings_form.js
 sh -n root/usr/libexec/rpcd/luci.airoha_npu
 ```
 
@@ -16,7 +19,17 @@ NPU_JSONFILTER, NPU_UCI and NPU_FIREWALL are process-environment test overrides,
 not RPC arguments. Firewall reload is a temporary executable; real services,
 network sysctls and hardware registers are never touched. /dev/null and
 /dev/full simulate readback/write failures. A copied helper simulates kernel
-clamping. DOM fixtures use upstream LuCI's real handleCallReply and jsdom.
+clamping. DOM fixtures use real upstream LuCI DOM, RPC and poll with jsdom.
+The status test uses a simulated clock to check 5-second sampling, the rolling
+120-second window, failure/invalid-reading gaps, expiry during stalled requests,
+no overlapping RPCs, and root-removal/pagehide cleanup. It never falls back to
+mock DOM nodes. `NPU_DOM_EXPORT=/tmp/npu.dom.html` optionally exports the rendered
+fixture for offline theme/browser checks (fixture readings are not hardware data).
+The settings form regression requires jsdom and real upstream `luci.js`, `cbi.js`,
+`validation.js`, `ui.js`, and `form.js`; it has no mock-form fallback. Optional
+`LUCI_FORM` selects a separate trusted upstream form.js. It verifies all three
+rendered widgets, RPC defaults, unchanged/changed saves, and unknown flow state.
+RPC transport and top-level page bootstrap remain isolated; no router is contacted.
 
 Limitations: fixtures do not prove target driver behavior or accelerated traffic.
 CPU changes are runtime-only. Flow settings persist and synchronously reload the

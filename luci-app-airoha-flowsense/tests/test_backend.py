@@ -72,6 +72,15 @@ fi
                              for key in ('target', 'enabled'))
 
             initial = persisted()
+            original_bytes = (d / 'config/npu-monitor').read_bytes()
+            subprocess.check_call([str(d / 'bin/uci'), 'set',
+                                   'npu-monitor.@jitter[0].target=staged.example'], env=env)
+            staged = subprocess.check_output([str(d / 'bin/uci'), 'changes', 'npu-monitor'], env=env)
+            self.assertEqual(call('setMonitor', {'target': 'example.com', 'enabled': 0})['error'], 'pending_changes')
+            self.assertEqual((d / 'config/npu-monitor').read_bytes(), original_bytes)
+            self.assertEqual(subprocess.check_output([str(d / 'bin/uci'), 'changes', 'npu-monitor'], env=env), staged)
+            self.assertFalse((d / 'restarts').exists())
+            subprocess.check_call([str(d / 'bin/uci'), 'revert', 'npu-monitor'], env=env)
             self.assertFalse(call('setMonitor', {'target': 'bad"target', 'enabled': 1})['success'])
             self.assertEqual(persisted(), initial)
             self.assertFalse((d / 'restarts').exists())

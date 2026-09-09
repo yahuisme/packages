@@ -17,6 +17,21 @@ valid_uint() { case "$1" in ''|*[!0-9]*|0[0-9]*|??????????*) return 1;; esac; re
 valid_sha256() { [ "${#1}" -eq 64 ] && case "$1" in *[!0123456789abcdefABCDEF]*) return 1;; esac; }
 valid_repo() { case "$1" in *[!A-Za-z0-9._/-]*) return 1;; esac; [ "${#1}" -le 200 ] && printf '%s\n' "$1" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$'; }
 valid_token() { [ -z "$1" ] || case "$1" in *[!A-Za-z0-9_=-]*) return 1;; esac; [ "${#1}" -le 512 ]; }
+new_candidate_id() {
+	[ -r /proc/sys/kernel/random/uuid ] || return 1
+	id=''
+	# Two fresh kernel UUIDs, excluding version/variant bits, retain 128
+	# random bits without the optional BusyBox od applet or a weak fallback.
+	for part in 1 2; do
+		IFS= read -r uuid < /proc/sys/kernel/random/uuid || return 1
+		case "$uuid" in ????????-????-4???-[89ab]???-????????????) ;; *) return 1;; esac
+		hex=$(printf '%s' "$uuid" | tr -d '-') || return 1
+		[ "${#hex}" -eq 32 ] || return 1
+		case "$hex" in *[!0-9a-f]*) return 1;; esac
+		id="$id${uuid%%-*}${uuid##*-}"
+	done
+	printf '%.32s\n' "$id"
+}
 validate_settings() {
 	valid_repo "$1" && valid_token "$2" && { [ "$3" = 0 ] || [ "$3" = 1 ]; }
 }
@@ -76,11 +91,38 @@ release_check() {
 	board=$(get_board_name); variant=$(detect_variant "$board"); repo=$(uci -q get firmwareupgrade.main.repository); [ -n "$repo" ] || repo=$(default_repo "$board")
 	valid_repo "$repo" || { printf '{"success":false,"error":"未配置有效的 GitHub 仓库"}\n'; return; }
 	token=$(uci -q get firmwareupgrade.main.token); valid_token "$token" || { printf '{"success":false,"error":"仓库设置无效"}\n'; return; }
-	tmp=$(mktemp /tmp/firmwareupgrade-release.XXXXXX) || return
-	assets=$(mktemp /tmp/firmwareupgrade-assets.XXXXXX) || { rm -f "$tmp"; return; }
+	tmp=$(mktemp /tmp/firmwareupgrade-release.XXXXXX) || { printf '{"success":false,"error":"无法创建 Release 临时文件"}\n'; return; }
+	assets=$(mktemp /tmp/firmwareupgrade-assets.XXXXXX) || { rm -f "$tmp"; printf '{"success":false,"error":"无法创建资源临时文件"}\n'; return; }
 	api="https://api.github.com/repos/$repo/releases/latest"
+	# This repository publishes ubi2 and ubi2-oc with IDENTICAL asset names.
+	# /latest is repository-wide; only a known release tag can identify the branch.
+	case "$repo:$board:$variant" in
+		yahuisme/w1700k-immortalwrt:*w1700k*:ubi2|yahuisme/w1700k-immortalwrt:*w1700k*:ubi2-oc)
+			api="https://api.github.com/repos/$repo/releases?per_page=20";;
+	esac
 	if [ -n "$token" ]; then curl --fail --silent --show-error --max-time 15 -H "Authorization: Bearer $token" -H 'Accept: application/vnd.github+json' -H 'User-Agent: OpenWrt-FirmwareUpgrade' "$api" > "$tmp"; else curl --fail --silent --show-error --max-time 15 -H 'Accept: application/vnd.github+json' -H 'User-Agent: OpenWrt-FirmwareUpgrade' "$api" > "$tmp"; fi || { rm -f "$tmp" "$assets"; printf '{"success":false,"error":"无法获取最新 Release"}\n'; return; }
 	[ -s "$tmp" ] || { rm -f "$tmp" "$assets"; printf '{"success":false,"error":"无法获取最新 Release"}\n'; return; }
+	case "$api" in *'releases?per_page=20')
+		# Inspect bounded stable releases; never fall back to the other variant.
+		jsonfilter -i "$tmp" -e '@[*]' > "$assets"
+		best_date=''; selected=''
+		while IFS= read -r release; do
+			[ "$(jsonfilter -s "$release" -e '@.draft')" = false ] && [ "$(jsonfilter -s "$release" -e '@.prerelease')" = false ] || continue
+			tag=$(jsonfilter -s "$release" -e '@.tag_name')
+			case "$variant:$tag" in
+				ubi2:W1700K-ImmortalWrt_*|ubi2-oc:W1700K-ImmortalWrt-OC_*) ;;
+				*) continue;;
+			esac
+			date=$(jsonfilter -s "$release" -e '@.published_at')
+			[ -n "$date" ] || continue
+			if [ -z "$best_date" ] || [ "$date" \> "$best_date" ]; then best_date=$date; selected=$release; fi
+		done < "$assets"
+		[ -n "$selected" ] || { rm -f "$tmp" "$assets"; printf '{"success":false,"error":"未找到可验证的匹配固件"}\n'; return; }
+		printf '%s\n' "$selected" > "$tmp"
+		# Both branches publish the canonical -ubi- image; the tag above
+		# has already enforced the actual device variant.
+		variant=ubi2
+	;; esac
 	tag=$(jsonfilter -i "$tmp" -e '@.tag_name'); published=$(jsonfilter -i "$tmp" -e '@.published_at'); body=$(jsonfilter -i "$tmp" -e '@.body'); [ -n "$tag" ] || { rm -f "$tmp" "$assets"; printf '{"success":false,"error":"Release 数据解析失败"}\n'; return; }
 	jsonfilter -i "$tmp" -e '@.assets[*]' | while IFS= read -r asset; do
 		name=$(printf '%s' "$asset" | jsonfilter -e '@.name'); size=$(printf '%s' "$asset" | jsonfilter -e '@.size'); digest=$(printf '%s' "$asset" | jsonfilter -e '@.digest'); url=$(printf '%s' "$asset" | jsonfilter -e '@.browser_download_url')
@@ -92,8 +134,8 @@ release_check() {
 $match
 EOF
 	sha=${digest#sha256:}; valid_sha256 "$sha" || { printf '{"success":false,"error":"固件缺少可信 SHA256"}\n'; return; }
-	candidate=$(mktemp /var/run/firmwareupgrade.candidate.XXXXXX) || return
-	id=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n'); [ "${#id}" -eq 32 ] || { rm -f "$candidate"; return; }
+	candidate=$(mktemp /var/run/firmwareupgrade.candidate.XXXXXX) || { printf '{"success":false,"error":"无法创建候选临时文件"}\n'; return; }
+	id=$(new_candidate_id) || { rm -f "$candidate"; printf '{"success":false,"error":"系统随机源不可用"}\n'; return; }
 	printf '%s\n%s\n%s\n%s\n%s\n' "$id" "$url" "$name" "$sha" "$size" > "$candidate" && chmod 600 "$candidate" && mv -f "$candidate" "$CANDIDATE_FILE" || { rm -f "$candidate"; printf '{"success":false,"error":"无法保存待升级固件信息"}\n'; return; }
 	printf '{"success":true,"candidate_id":'; quote "$id"; printf ',"tag_name":'; quote "$tag"; printf ',"published_at":'; quote "$published"; printf ',"body":'; quote "$body"; printf ',"asset_name":'; quote "$name"; printf ',"asset_size":%s,"sha256":' "$size"; quote "$sha"; printf '}\n'
 }

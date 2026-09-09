@@ -66,7 +66,8 @@ return view.extend({
 		var words = function(value) { return typeof value === 'string' ? value.trim().split(/\s+/).filter(Boolean) : []; };
 
 		var m, s, o;
-		m = new form.JSONMap({}, _('Airoha SoC Settings'),
+		// NamedSection renders only sections present in the JSON data model.
+		m = new form.JSONMap({ cpu: {}, firewall: {} }, _('Airoha SoC Settings'),
 			_('Configure CPU governor, maximum scaling frequency, and firewall flow offloading.'));
 
 		s = m.section(form.NamedSection, 'cpu', 'cpu', _('Kernel CPU Controls'),

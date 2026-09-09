@@ -12,6 +12,8 @@ node tests/mlo-runtime.cjs
 node tests/mlo-editor.cjs
 node tests/mlo-poll.cjs
 node tests/mlo-integration.cjs
+# 需要 gettext 的 msgfmt，以及 LuCI src/po2lmo（可用 PO2LMO 指定路径）
+node tests/mlo-localization.cjs
 node tests/view.test.js
 NATIVE_TEST=1 node tests/view.test.js
 MLO_TEST=1 node tests/view.test.js
@@ -23,8 +25,16 @@ READONLY_TEST=1 node tests/regression.test.js
 export LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/resources
 node tests/integration.cjs
 node tests/lazy-regression.cjs
+node tests/native-tabs.cjs
+# 可选：TAB_OUT 导出四页真实 DOM，使用外部 Playwright 和原始 Aurora 文件测量
+# TAB_OUT=/tmp/wifi7-tabs node tests/native-tabs.cjs
+# TAB_OUT=/tmp/wifi7-tabs AURORA_HTDOCS=/path/to/aurora/htdocs \
+# AURORA_HEADER=/path/to/aurora/ucode/template/themes/aurora/header.ut \
+# AURORA_SHELL=/path/to/static-aurora-shell.html node tests/native-tabs-aurora.cjs
 python3 tests/catalog.test.py
 python3 tests/probes.test.py
+python3 tests/test_summary_survey.py
+node tests/survey-dom.cjs
 ```
 
 覆盖 RPC 解包、MLO 链路、信号未知、计数边界、CAC 与占用率、表单校验、无变更保存、失败重试、国家变更刷新、只读权限及客户端节点保留。

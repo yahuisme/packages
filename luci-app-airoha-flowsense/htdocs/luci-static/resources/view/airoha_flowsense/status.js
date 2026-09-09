@@ -9,16 +9,20 @@ var getPpeEntries = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getP
 var setMonitor = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setMonitor', params: ['target', 'enabled'], reject: true });
 
 var css = `
-.flowsense-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:16px;margin:16px 0}
-.flowsense-card{padding:8px 0;min-width:0;box-sizing:border-box}
-.flowsense-label{font-size:inherit;font-weight:500;color:var(--cbi-muted-color,#666)}
-.flowsense-value{display:block;margin-top:8px;font-size:18px;font-weight:500;font-variant-numeric:tabular-nums}
-.flowsense-sub{color:var(--cbi-muted-color,#888)}
-.flowsense-status{font-size:inherit;color:inherit}
-.flowsense-section{margin:16px 0}.flowsense-section .cbi-value{padding:8px 0}
-.flowsense-port{margin:16px 0;padding:8px 0}.flowsense-port-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;font-weight:500}
-.flowsense-details{margin-top:16px}.flowsense-details summary{cursor:pointer;min-height:32px}
+.flowsense-dashboard{--flowsense-gap:16px;box-sizing:border-box}
+.flowsense-dashboard *{box-sizing:border-box}
+.flowsense-dashboard .flowsense-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--flowsense-gap);margin:16px 0}
+.flowsense-dashboard .flowsense-card{min-width:0;min-height:96px;padding:16px;border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px;background:var(--cbi-section-bg,transparent)}
+.flowsense-dashboard .flowsense-label{font-size:inherit;font-weight:500;color:var(--cbi-muted-color,#666)}
+.flowsense-dashboard .flowsense-value{display:block;margin-top:8px;font-size:18px;font-weight:500;font-variant-numeric:tabular-nums}
+.flowsense-dashboard .flowsense-sub{color:var(--cbi-muted-color,#888)}
+.flowsense-dashboard .flowsense-status{font-size:inherit;color:inherit}
+.flowsense-dashboard .flowsense-section{margin:16px 0}.flowsense-dashboard .flowsense-section .cbi-value{padding:8px 0}
+.flowsense-dashboard .flowsense-port{display:grid;grid-template-columns:minmax(80px,.7fr) repeat(3,minmax(120px,1fr));gap:16px;align-items:center;margin:0;padding:12px 0;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}
+.flowsense-dashboard .flowsense-port:last-child{border-bottom:0}.flowsense-dashboard .flowsense-port-title{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:500}.flowsense-dashboard .flowsense-port .cbi-value{padding:0;min-width:0;display:block}.flowsense-dashboard .flowsense-port .cbi-value-title{width:auto;min-width:0;display:block;float:none;overflow-wrap:anywhere}.flowsense-dashboard .flowsense-port .cbi-value-field{margin:0;min-width:0;overflow-wrap:anywhere}.flowsense-dashboard .flowsense-details{margin-top:16px}.flowsense-dashboard .flowsense-details summary{cursor:pointer;min-height:32px}
 .flowsense-dashboard .cbi-input-text,.flowsense-dashboard .cbi-button{min-height:32px;box-sizing:border-box}
+@media(max-width:899px){.flowsense-dashboard .flowsense-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.flowsense-dashboard .flowsense-port{grid-template-columns:1fr 1fr;gap:8px 16px}.flowsense-dashboard .flowsense-port-title{grid-column:1 / -1}}
+@media(max-width:520px){.flowsense-dashboard .flowsense-summary{grid-template-columns:1fr}.flowsense-dashboard .flowsense-port{grid-template-columns:1fr}.flowsense-dashboard .flowsense-port-title{grid-column:auto}}
 `;
 
 

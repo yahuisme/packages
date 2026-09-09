@@ -311,6 +311,13 @@ msgstr ""
 msgid "WPA3-SAE"
 msgstr ""
 
+msgid "Wi-Fi 7 (802.11be)  & Multi-Link Operation Settings"
+msgstr ""
+
+# LuCI _() collapses repeated whitespace before catalog lookup.
+msgid "Wi-Fi 7 (802.11be) & Multi-Link Operation Settings"
+msgstr ""
+
 msgid "Wi-Fi MLO"
 msgstr ""
 

@@ -13,8 +13,8 @@ msgstr ""
 msgid "Adjust CPU governor policy and maximum scaling frequency."
 msgstr "调节 CPU 调速策略与频率上限。"
 
-msgid "Airoha SoC"
-msgstr "Airoha SoC"
+msgid "Airoha SoC Status"
+msgstr "Airoha SoC 状态"
 
 msgid "Airoha SoC Settings"
 msgstr "Airoha SoC 设置"
@@ -31,8 +31,8 @@ msgstr "已绑定"
 msgid "CPU Frequency"
 msgstr "CPU 频率"
 
-msgid "CPU Frequency Scaling"
-msgstr "CPU 频率缩放刻度"
+msgid "CPU Frequency Changes"
+msgstr "CPU 频率变化"
 
 msgid "Clock Rate"
 msgstr "时钟频率"
@@ -174,3 +174,6 @@ msgstr "查看 Airoha SoC 实时频率、NPU 硬件加速与系统状态。"
 
 msgid "Flow offloading state is unknown; refresh before changing it."
 msgstr "流控状态未知，请刷新后重试。"
+
+msgid "Last 120 seconds"
+msgstr "最近 120 秒"

@@ -5,7 +5,7 @@
 'require view';
 
 var callInfo = rpc.declare({ object: 'luci.firmwareupgrade', method: 'getSystemInfo', expect: { '': {} } });
-var callCheck = rpc.declare({ object: 'luci.firmwareupgrade', method: 'checkUpdate', expect: { '': {} } });
+var callCheck = rpc.declare({ object: 'luci.firmwareupgrade', method: 'checkUpdate', reject: true, expect: { '': {} } });
 var callStatus = rpc.declare({ object: 'luci.firmwareupgrade', method: 'getStatus', expect: { '': {} } });
 var callStart = rpc.declare({ object: 'luci.firmwareupgrade', method: 'startUpgrade', params: [ 'keep_config', 'candidate_id' ], expect: { '': {} } });
 var callSave = rpc.declare({ object: 'luci.firmwareupgrade', method: 'saveSettings', params: [ 'repository', 'token', 'keep_config' ], expect: { '': {} } });
@@ -66,7 +66,7 @@ return view.extend({
 			details.appendChild(E('div', { class: 'fwup-actions' }, [ E('button', { class: 'cbi-button cbi-button-negative', click: ui.createHandlerFn(this, 'confirm', keep, notice, result.candidate_id) }, _('Upgrade firmware')) ]));
 			document.getElementById('fwup-notes').textContent = result.body || ''; detail.style.display = '';
 			message(notice, 'info', _('Release verified. Review the image before upgrading.'));
-		}, this)).catch(function() { button.disabled = false; button.textContent = _('Check update'); message(notice, 'error', _('Failed to check for updates.')); });
+		}, this)).catch(function(error) { button.disabled = false; button.textContent = _('Check update'); message(notice, 'error', _('Failed to check for updates.') + (error && error.message ? ' ' + error.message : '')); });
 	},
 	confirm: function(keep, notice, candidateId) {
 		ui.showModal(_('Confirm firmware upgrade'), [ E('p', {}, _('The verified image will be downloaded, checked again, and flashed.')), E('div', { class: 'right' }, [ E('button', { class: 'cbi-button', click: ui.hideModal }, _('Cancel')), ' ', E('button', { class: 'cbi-button cbi-button-negative', click: ui.createHandlerFn(this, 'start', keep.checked ? '1' : '0', notice, candidateId) }, _('Start upgrade')) ]) ]);

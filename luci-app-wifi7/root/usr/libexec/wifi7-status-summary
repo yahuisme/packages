@@ -8,6 +8,16 @@ probe() {
 	code=$?
 	printf '@@ %s %s %s\n%s\n' "$kind" "$name" "$code" "$data"
 }
+# Channel time is lightweight telemetry, not a per-station diagnostic. Keep it
+# available on Radio Status even when hostapd omits chan_util_avg.
+devices=$(iw dev 2>/dev/null)
+code=$?
+if [ "$code" -eq 0 ]; then
+	for iface in $(printf '%s\n' "$devices" | awk '$1 == "Interface" {print $2}'); do
+		case "$iface" in ''|*[!a-zA-Z0-9_.:-]*) continue;; esac
+		probe survey "$iface" iw dev "$iface" survey dump
+	done
+fi
 for socket in /var/run/hostapd/*; do
 	[ -S "$socket" ] || continue
 	iface=${socket##*/}

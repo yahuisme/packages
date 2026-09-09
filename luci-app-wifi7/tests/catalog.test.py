@@ -41,11 +41,19 @@ class CatalogTest(unittest.TestCase):
             strings.update(v['title'] for v in json.loads(path.read_text()).values())
         for path in (APP / 'root/usr/share/rpcd/acl.d').glob('*.json'):
             strings.update(v['description'] for v in json.loads(path.read_text()).values())
+        # Native LuCI _() normalizes whitespace; preserve the exact source entry
+        # and its runtime lookup alias for descriptions containing double spaces.
+        strings.update(re.sub(r'\s+', ' ', s).strip() for s in list(strings))
         po = catalog(APP / 'po/zh_Hans/wifi7.po')
         pot = catalog(APP / 'po/templates/wifi7.pot')
         self.assertEqual(set(po), strings)
         self.assertEqual(set(pot), strings)
         self.assertTrue(all(v.strip() for v in po.values()))
+        technical_names = {'BSSID', 'MLO', 'OWE', 'SSID', 'WPA2-PSK',
+                           'WPA3-SAE', 'Wi-Fi MLO', 'WiFi 7'}
+        self.assertEqual({k for k, v in po.items() if k == v}, technical_names)
+        for key, value in po.items():
+            self.assertEqual(re.findall(r'%[sdh]', key), re.findall(r'%[sdh]', value))
         self.assertTrue(all(k == k.strip() for k in strings))
 
 

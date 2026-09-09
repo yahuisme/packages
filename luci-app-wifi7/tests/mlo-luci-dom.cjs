@@ -6,10 +6,19 @@ const APP=process.env.MLO_JS||require('path').join(__dirname,'../htdocs/luci-sta
 const SOURCE=fs.readFileSync(APP,'utf8');
 async function boot({readonly=false,unknown=false,iface={}}={}) {
  const j=new JSDOM('<!doctype html><html><body><div id="maincontent"><div id="view"></div></div></body></html>',{url:'http://localhost/cgi-bin/luci/admin/network/mlo',runScripts:'outside-only',pretendToBeVisual:true});
- const w=j.window;const translations=process.env.MLO_TRANSLATIONS?JSON.parse(fs.readFileSync(process.env.MLO_TRANSLATIONS,'utf8')):{};w._=s=>translations[s]||s;w.N_=(n,a,b)=>n===1?a:b;w.scrollTo=()=>{};
+ const w=j.window;w.scrollTo=()=>{};
  let core=fs.readFileSync(ROOT+'luci.js','utf8');
  core=core.replace('window.LuCI = LuCI;','window.LuCI = LuCI; window.__classes=classes; window.__env=env;');
- w.eval(fs.readFileSync(ROOT+'cbi.js','utf8')); w.eval(core);const mods=w.__classes;const L=w.L=Object.create(w.LuCI.prototype);
+ w.eval(fs.readFileSync(ROOT+'cbi.js','utf8'));
+ // Use native cbi.js hash lookup, not an identity/string-map translation stub.
+ w.TR={};
+ if(process.env.MLO_TRANSLATIONS)for(const [key,value] of Object.entries(JSON.parse(fs.readFileSync(process.env.MLO_TRANSLATIONS,'utf8'))))w.TR[w.sfh(w.trimws(key))]=value;
+ if(process.env.MLO_LMO){
+  const data=fs.readFileSync(process.env.MLO_LMO),index=data.readUInt32BE(data.length-4);
+  assert(index<=data.length-4 && (data.length-4-index)%16===0,'invalid LMO index');
+  for(let p=index;p<data.length-4;p+=16){const key=data.readUInt32BE(p),offset=data.readUInt32BE(p+8),length=data.readUInt32BE(p+12);assert(offset+length<=index,'invalid LMO value');w.TR[key.toString(16).padStart(8,'0')]=data.subarray(offset,offset+length).toString('utf8');}
+ }
+ w.eval(core);const mods=w.__classes;const L=w.L=Object.create(w.LuCI.prototype);
  Object.assign(w.__env,{resource:'/luci-static/resources',media:'/luci-static/bootstrap',scriptname:'/cgi-bin/luci',requestpath:['admin','network','mlo'],sessionid:'fixture',apply_rollback:30});
  L.require=n=>Promise.resolve(mods[n]); L.hasViewPermission=()=>!readonly;w.E=mods.dom.create.bind(mods.dom);
  const db={wireless:{radio0:{'.name':'radio0','.type':'wifi-device',band:'5g',channel:'36'},radio1:{'.name':'radio1','.type':'wifi-device',band:'6g',channel:'37'},test:{'.name':'test','.type':'wifi-iface',mode:'ap',ssid:'Audit',mlo:'1',device:['radio0','radio1'],network:['lan'],encryption:'sae',key:'audit-password',ieee80211w:'2',...iface}},network:{lan:{'.name':'lan','.type':'interface'},wwan:{'.name':'wwan','.type':'interface'}},luci:{}};

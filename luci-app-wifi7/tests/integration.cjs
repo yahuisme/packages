@@ -12,7 +12,9 @@ async function boot({readonly=false,missing=false,frequencyFailure=false}={}) {
  const translations=process.env.WIFI7_TRANSLATIONS?JSON.parse(fs.readFileSync(process.env.WIFI7_TRANSLATIONS,'utf8')):{};
  w._=s=>translations[s]||s;w.N_=(n,a,b)=>n===1?a:b;w.scrollTo=()=>{};w.confirm=()=>true;
  let core=fs.readFileSync(ROOT+'/luci.js','utf8').replace('window.LuCI = LuCI;','window.LuCI = LuCI; window.__classes=classes; window.__env=env;');
- w.eval(fs.readFileSync(ROOT+'/cbi.js','utf8'));w.eval(core);
+ w.eval(fs.readFileSync(ROOT+'/cbi.js','utf8'));w.TR={};
+ for(const [key,value] of Object.entries(translations))w.TR[w.sfh(w.trimws(key))]=value;
+ w.eval(core);
  const mods=w.__classes,L=w.L=Object.create(w.LuCI.prototype);
  Object.assign(w.__env,{resource:'/luci-static/resources',media:'/luci-static/bootstrap',scriptname:'/cgi-bin/luci',requestpath:['admin','network','wifi7'],sessionid:'fixture',apply_rollback:30});
  L.require=n=>Promise.resolve(mods[n]);L.hasViewPermission=()=>!readonly;w.E=mods.dom.create.bind(mods.dom);
@@ -49,14 +51,14 @@ async function boot({readonly=false,missing=false,frequencyFailure=false}={}) {
  const applyRejections=[],realApply=mods.uci.apply;mods.uci.apply=function(...args){return realApply.apply(this,args).catch(e=>{applyRejections.push({type:typeof e,value:String(e)});throw e;});};
  mods.fs={};load('validation');load('ui');load('form');
  mods.ui.addNotification=(title,node,type)=>notifications.push({text:node.textContent,type});
- let poll;mods.poll.add=f=>{poll=f};L.loaded=true;
+ const polls=new Set();mods.poll.add=f=>polls.add(f);mods.poll.remove=f=>polls.delete(f);L.loaded=true;
  mods.network={flushCache:async()=>{},getWifiDevices:async()=>Object.keys(staged).map(id=>({getName:()=>id,isUp:()=>true})),getWifiNetworks:async()=>[{getIfname:()=>'ap-mld',getWifiDeviceName:()=>'radio1',getSSID:()=>'Fixture MLO'}]};
  load('wifi7.telemetry',TELEMETRY);load('wifi7.mlo',MLO);const app=load('app',SOURCE);
  const deadline=Date.now()+3000;while(!w.document.querySelector('.wifi7-map') && Date.now()<deadline)await tick();
  await tick();const node=w.document.querySelector('.wifi7-map');assert.ok(node,'real view constructor must mount parent');assert.equal(node.querySelectorAll('.cbi-tabmenu a').length,4);assert.equal(node.querySelectorAll('.mlo-map').length,0,'MLO must not auto-mount');
  const q=s=>node.querySelector(s),field=(id,key)=>q('#wifi7-'+id+'-'+key),save=q('.cbi-button-apply');
  async function clickSave(){save.click();await tick();const deadline=Date.now()+5000;while(save.disabled&&!readonly&&Date.now()<deadline)await new Promise(r=>setTimeout(r,25));await tick();assert.ok(!save.disabled||readonly,'save did not settle');assert.deepEqual(errors,[]);}
- return {j,w,node,q,field,save,calls,state,notifications,applyRejections,clickSave,poll:async()=>{await poll();await tick()},tab:async i=>{q('.cbi-tabmenu').children[i].querySelector('a').click();await tick()},db:()=>({staged,committed}),writes:()=>calls.filter(c=>c.object==='uci'&&['set','delete','apply','confirm'].includes(c.method))};
+ return {j,w,node,mods,polls,q,field,save,calls,state,notifications,applyRejections,clickSave,poll:async()=>{await Promise.all([...polls].map(f=>f()));await tick()},tab:async i=>{q('.cbi-tabmenu').children[i].querySelector('a').click();await tick()},db:()=>({staged,committed}),writes:()=>calls.filter(c=>c.object==='uci'&&['set','delete','apply','confirm'].includes(c.method))};
 }
 module.exports={boot};
 async function main(){if(OUT)fs.mkdirSync(OUT,{recursive:true});const results=[];
