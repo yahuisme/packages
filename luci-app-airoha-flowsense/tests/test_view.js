@@ -4,17 +4,17 @@ const document=dom.window.document;
 const window=dom.window;
 window.getComputedStyle = () => ({ getPropertyValue: () => '' });
 dom.window.HTMLCanvasElement.prototype.getContext = () => new Proxy({}, { get: () => () => {}, set: () => true });
-class MockResizeObserver {
+class MockObserver {
 	observe() {}
 	unobserve() {}
 	disconnect() {}
 }
 function E(t,a={},cs=[]){let n=document.createElement(t);Object.entries(a).forEach(([k,v])=>typeof v==='function'?n.addEventListener(k,v):n.setAttribute(k,v));(Array.isArray(cs)?cs:[cs]).forEach(c=>n.append(c));return n;}
-let frame,tick,fail=false,detailCalls=0;
+let frame,tick,removed=false,fail=false,detailCalls=0;
 const data={timestamp:1000,uptime:100,configured_hw:null,configured_sw:true,monitor:{target:'example.com',enabled:true},jitter:{last_ping:12,deviation:0,loss:0,received:10,samples:10},interfaces:[],ppe:{available:false}};
 // Synthetic fixtures: actual page behavior without network or hardware calls.
 const source=fs.readFileSync(require('path').join(__dirname,'../htdocs/luci-static/resources/view/airoha_flowsense/status.js'),'utf8');
-const app=new Function('view','rpc','poll','ui','document','window','ResizeObserver','E','_','requestAnimationFrame',source)({extend:x=>x},{declare:s=>()=>{if(fail)return Promise.reject(Error('offline'));if(s.method==='getPpeEntries'){detailCalls++;return Promise.resolve({available:true,total:0,entries:[]})}return Promise.resolve(data)}},{add:f=>tick=f},{},document,window,MockResizeObserver,E,x=>x,f=>frame=f);
+const app=new Function('view','rpc','poll','ui','document','window','ResizeObserver','MutationObserver','E','_','requestAnimationFrame',source)({extend:x=>x},{declare:s=>()=>{if(fail)return Promise.reject(Error('offline'));if(s.method==='getPpeEntries'){detailCalls++;return Promise.resolve({available:true,total:0,entries:[]})}return Promise.resolve(data)}},{add:f=>tick=f,remove:f=>{if(f===tick)removed=true;}},{},document,window,MockObserver,MockObserver,E,x=>x,f=>frame=f);
 const card = (id, part='value') => document.querySelector('#fs-summary-' + id + ' .fs-card-' + part).textContent;
 const port = (device, rx, tx) => ({device,ifindex:device==='wan'?1:2,carrier:true,speed:1000,stats:{rx_bytes:rx,tx_bytes:tx}});
 async function sample(ports) { data.uptime += 10; data.interfaces=ports; await tick(); }

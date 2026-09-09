@@ -20,23 +20,16 @@ var themeCSS = '\
 @media(prefers-color-scheme:dark){:root{--fs-canvas-bg:#161616;--fs-grid:rgba(255,255,255,.08);--fs-axis:#94a3b8}}\
 [data-theme="dark"],[data-dark="true"],[data-darkmode="true"],.dark-mode,:root[data-dark="true"]{--fs-canvas-bg:#161616;--fs-grid:rgba(255,255,255,.08);--fs-axis:#94a3b8}\
 .flowsense-dashboard{--fs-font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--fs-font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;font-family:var(--fs-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\
-.flowsense-dashboard .cbi-tabmenu{margin-bottom:16px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
-.fs-notice{font-size:12px;color:var(--cbi-muted-color,#888);margin:-4px 0 14px;min-height:18px;font-variant-numeric:tabular-nums}\
+.flowsense-dashboard .cbi-tabmenu{margin-bottom:14px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
+.flowsense-dashboard .cbi-map-descr{margin-bottom:14px;min-height:18px;font-variant-numeric:tabular-nums}\
 .fs-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:14px}\
-.fs-summary-card,.fs-card-neutral,.fs-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
+.fs-summary-card,.fs-card-neutral{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
 .fs-summary-card{padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center}\
 .fs-card-title{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
 .fs-card-value{font-size:18px;font-family:var(--fs-font-mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,inherit)}\
 .fs-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
-.fs-panel{padding:14px;margin:14px 0}\
-.fs-panel-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
-.fs-chart-panel{background:transparent;border:none;padding:0;margin:10px 0 0}\
-.fs-chart-title{font-size:11px;font-weight:500;color:var(--cbi-muted-color,#666);text-transform:uppercase;letter-spacing:.5px;padding-bottom:6px;margin-bottom:8px;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,0.12))}\
-.fs-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}\
-.fs-chart-card{background:transparent;border:none;padding:0;min-width:0}\
-.fs-chart-canvas{display:block;width:100%;height:100px;margin-top:4px;background:var(--fs-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
-.flowsense-dashboard .cbi-section{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:14px;margin:14px 0}\
-.flowsense-dashboard .cbi-section-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:8px;margin:0 0 12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
+.flowsense-dashboard .cbi-section{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:14px;margin:14px 0;box-sizing:border-box}\
+.flowsense-dashboard .cbi-section-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:8px;margin:0 0 12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0);display:flex;align-items:center;justify-content:space-between}\
 .flowsense-dashboard .cbi-section-descr{font-size:12px;color:var(--cbi-muted-color,#888);margin-bottom:12px}\
 .flowsense-dashboard .cbi-section-node{padding:12px 14px;margin-bottom:12px}\
 .flowsense-dashboard .cbi-value{display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,.08))}\
@@ -44,8 +37,13 @@ var themeCSS = '\
 .flowsense-dashboard .cbi-value-title{width:220px;flex:0 0 220px;margin:0;font-size:13px;font-weight:500;color:var(--cbi-muted-color,#666)}\
 .flowsense-dashboard .cbi-value-field{flex:1;display:flex;align-items:center;gap:8px;min-width:0;margin:0}\
 .flowsense-dashboard .cbi-value-field span{font-family:var(--fs-font-mono);font-variant-numeric:tabular-nums}\
-.flowsense-dashboard .cbi-input-text{height:32px;border-radius:4px;font-family:var(--fs-font-mono);font-variant-numeric:tabular-nums}\
+.flowsense-dashboard .cbi-input-text{height:32px;border-radius:4px;font-family:var(--fs-font-mono);font-variant-numeric:tabular-nums;width:100%;max-width:320px;box-sizing:border-box}\
 .flowsense-dashboard .cbi-button{height:32px;padding:0 16px;border-radius:4px;font-size:12px;font-weight:500;margin:0}\
+.fs-chart-panel{background:transparent;border:none;padding:0;margin:10px 0 0}\
+.fs-chart-title{font-size:11px;font-weight:500;color:var(--cbi-muted-color,#666);text-transform:uppercase;letter-spacing:.5px;padding-bottom:6px;margin-bottom:8px;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,0.12))}\
+.fs-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}\
+.fs-chart-card{background:transparent;border:none;padding:0;min-width:0}\
+.fs-chart-canvas{display:block;width:100%;height:100px;margin-top:4px;background:var(--fs-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
 .fs-iface-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,0.12))}\
 .fs-iface-title{display:flex;align-items:baseline;gap:8px}\
 .fs-iface-name{font-size:14px;font-weight:600;color:var(--cbi-text-color,inherit);font-family:var(--fs-font-mono)}\
@@ -55,7 +53,15 @@ var themeCSS = '\
 .fs-badge-down{border-color:var(--cbi-border-color,rgba(128,128,128,0.2));color:var(--cbi-muted-color,#888);background:rgba(128,128,128,0.08);opacity:0.8}\
 @media(max-width:1050px){.fs-summary-grid{grid-template-columns:repeat(2,minmax(150px,1fr))}}\
 @media(max-width:760px){.fs-chart-grid{grid-template-columns:1fr}}\
-@media(max-width:640px){.fs-summary-grid{grid-template-columns:1fr}.fs-summary-card{min-height:68px}.flowsense-dashboard .cbi-value{flex-direction:column;align-items:flex-start;gap:4px;padding:8px 0}.flowsense-dashboard .cbi-value-title{width:auto;flex:none}.flowsense-dashboard .cbi-value-field{width:100%;flex-wrap:wrap}}\
+@media(max-width:640px){\
+.fs-summary-grid{grid-template-columns:1fr}\
+.fs-summary-card{min-height:68px}\
+.flowsense-dashboard .cbi-section{padding:10px}\
+.flowsense-dashboard .cbi-value{flex-direction:column;align-items:flex-start;gap:4px;padding:8px 0}\
+.flowsense-dashboard .cbi-value-title{width:auto;flex:none}\
+.flowsense-dashboard .cbi-value-field{width:100%;flex-wrap:wrap}\
+.flowsense-dashboard .cbi-input-text{max-width:100%}\
+}\
 ';
 
 function injectCSS() {
@@ -215,33 +221,20 @@ function chartCard(label, canvasId) {
 	]);
 }
 
+function formatMbps(v) {
+	if (v == null || !isFinite(v)) return '—';
+	if (v === 0) return '0';
+	if (v < 0.1) return v.toFixed(3);
+	if (v < 1) return v.toFixed(2);
+	if (v < 10) return v.toFixed(1);
+	return v.toFixed(0);
+}
+
 function drawAllCharts() {
 	if (!history.length) return;
 	injectCSS();
 	drawChart(document.getElementById('fc-bnd'), history, 'bnd', { minMax: 10, step: 10, lineColor: '#10b981', fillColor: 'rgba(16,185,129,.08)', format: function(v) { return String(v); } });
 	drawChart(document.getElementById('fc-unb'), history, 'unb', { minMax: 10, step: 10, lineColor: '#f59e0b', fillColor: 'rgba(245,158,11,.08)', format: function(v) { return String(v); } });
-	
-	// 接口吞吐率：计算增量并转换为 Mbps
-	var interfaces = {};
-	if (history.length >= 2) {
-		var recent = history[history.length - 1];
-		var before = history[history.length - 2];
-		var dt = (recent.time - before.time) / 1000;
-		if (dt > 0) {
-			Object.keys(recent.interfaces || {}).forEach(function(iface) {
-				if (before.interfaces && before.interfaces[iface]) {
-					var rx_delta = recent.interfaces[iface].rx_bytes - before.interfaces[iface].rx_bytes;
-					var tx_delta = recent.interfaces[iface].tx_bytes - before.interfaces[iface].tx_bytes;
-					if (rx_delta >= 0 && tx_delta >= 0) {
-						interfaces[iface] = {
-							rx_mbps: rx_delta * 8 / dt / 1000000,
-							tx_mbps: tx_delta * 8 / dt / 1000000
-						};
-					}
-				}
-			});
-		}
-	}
 	
 	// 为所有已收集的物理网口绘制趋势图
 	var knownIfaces = {};
@@ -279,14 +272,6 @@ function drawAllCharts() {
 }
 
 function value(v, suffix) { return v == null ? '—' : v + (suffix || ''); }
-function formatMbps(v) {
-	if (v == null || !isFinite(v)) return '—';
-	if (v === 0) return '0';
-	if (v < 0.1) return v.toFixed(3);
-	if (v < 1) return v.toFixed(2);
-	if (v < 10) return v.toFixed(1);
-	return v.toFixed(0);
-}
 function enabled(v) { return v === true ? _('Enabled') : v === false ? _('Disabled') : _('Unknown'); }
 function metric(label, node) {
 	return E('div', { 'class': 'cbi-value' }, [ E('span', { 'class': 'cbi-value-title' }, label), E('div', { 'class': 'cbi-value-field' }, node) ]);
@@ -298,11 +283,12 @@ function change(current, previous, key, dt) {
 
 return view.extend({
 	load: function() { return Promise.resolve(); },
+
 	render: function() {
 		injectCSS();
 		restoreHistory();
 		var active = 0, paused = false, previous = null, dirty = false;
-		var message = E('div', { 'class': 'fs-notice' }, _('Waiting for data'));
+		var message = E('div', { 'class': 'cbi-map-descr' }, _('Waiting for data'));
 		var hw = E('span'), sw = E('span'), counts = E('span'), ip = E('span');
 		var ping = E('span'), deviation = E('span'), loss = E('span');
 		var interfaces = E('div');
@@ -329,11 +315,11 @@ return view.extend({
 			renderSummaryCard('quality', _('Network Quality'), summaryCards.quality)
 		]);
 
-		var target = E('input', { id: 'fs-target', name: 'fs-target', 'class': 'cbi-input-text', style: 'width:192px', maxlength: 253 });
-		var monitor = E('input', { id: 'fs-monitor', name: 'fs-monitor', type: 'checkbox' });
+		var target = E('input', { id: 'fs-target', name: 'fs-target', 'class': 'cbi-input-text', maxlength: 253, placeholder: '223.5.5.5' });
+		var monitor = E('input', { id: 'fs-monitor', name: 'fs-monitor', type: 'checkbox', 'class': 'cbi-input-checkbox' });
 		target.addEventListener('input', function() { dirty = true; });
 		monitor.addEventListener('change', function() { dirty = true; });
-		var button = E('button', { 'class': 'cbi-button cbi-button-apply', click: function() {
+		var button = E('button', { 'class': 'cbi-button cbi-button-action cbi-button-primary', click: function() {
 			if (!target.value.trim()) { target.focus(); return; }
 			button.disabled = true;
 			return saveMonitor(target.value.trim(), monitor.checked ? 1 : 0).then(function(result) {
@@ -346,20 +332,26 @@ return view.extend({
 		
 		var first = E('div', {}, [
 			summaryGrid,
-			E('div', { 'class': 'fs-panel' }, [
-				E('div', { 'class': 'fs-panel-title' }, _('PPE Flow Trends')),
+			E('div', { 'class': 'cbi-section' }, [
+				E('div', { 'class': 'cbi-section-title' }, [
+					E('span', {}, _('PPE Flow Trends'))
+				]),
 				E('div', { 'class': 'fs-chart-grid' }, [
 					chartCard(_('Bound Flows'), 'fc-bnd'),
 					chartCard(_('Unbound Flows'), 'fc-unb')
 				])
 			]),
 			E('div', { 'class': 'cbi-section' }, [
-				E('h3', { 'class': 'cbi-section-title' }, _('Ethernet links')),
+				E('h3', { 'class': 'cbi-section-title' }, [
+					E('span', {}, _('Ethernet links'))
+				]),
 				E('div', { 'class': 'cbi-section-descr' }, _('Real-time interface throughput rates and interval error increments.')),
 				interfaces
 			]),
 			E('div', { 'class': 'cbi-section' }, [
-				E('h3', { 'class': 'cbi-section-title' }, _('Link quality')),
+				E('h3', { 'class': 'cbi-section-title' }, [
+					E('span', {}, _('Link quality'))
+				]),
 				metric(_('Latest RTT'), ping),
 				metric(_('RTT mean absolute deviation'), deviation),
 				metric(_('Window packet loss'), loss),
@@ -368,21 +360,45 @@ return view.extend({
 				metric(_('IPv4 / IPv6 / Other'), ip),
 				E('div', { 'class': 'cbi-value' }, [E('label', { 'class': 'cbi-value-title', 'for': 'fs-target' }, _('IPv4 address or hostname')), E('div', { 'class': 'cbi-value-field' }, target)]),
 				E('div', { 'class': 'cbi-value' }, [E('label', { 'class': 'cbi-value-title', 'for': 'fs-monitor' }, _('Enable periodic probes')), E('div', { 'class': 'cbi-value-field' }, monitor)]),
-				E('div', { 'class': 'cbi-value' }, [E('div', { 'class': 'cbi-value-title' }), E('div', { 'class': 'cbi-value-field' }, button)])
+				E('div', { 'class': 'cbi-value', style: 'padding-top:10px;' }, [E('div', { 'class': 'cbi-value-title' }), E('div', { 'class': 'cbi-value-field' }, button)])
 			])
 		]);
+
 		var detail = E('div'), detailMessage = E('div', { 'class': 'cbi-section-descr' });
-		var pause = E('button', { 'class': 'cbi-button', click: function() { paused = !paused; pause.textContent = paused ? _('Resume') : _('Pause'); if (!paused) update(); } }, _('Pause'));
-		var second = E('div', { style: 'display:none' }, [pause, detailMessage, detail]);
+		var pause = E('button', { 'class': 'cbi-button', click: function() { 
+			paused = !paused; 
+			pause.textContent = paused ? _('Resume') : _('Pause'); 
+			if (!paused) update(); 
+		} }, _('Pause'));
+
+		var second = E('div', { style: 'display:none' }, [
+			E('div', { 'class': 'cbi-section' }, [
+				E('div', { 'class': 'cbi-section-title' }, [
+					E('span', {}, _('PPE Flow Offload')),
+					pause
+				]),
+				detailMessage,
+				detail
+			])
+		]);
+
 		var panes = [first, second], nav = E('ul', { 'class': 'cbi-tabmenu' });
 		[_('Overview & Quality'), _('PPE Flow Offload')].forEach(function(label, index) {
-			nav.appendChild(E('li', { 'class': index ? 'cbi-tab-disabled' : 'cbi-tab' }, E('a', { href: '#', click: function(event) {
-				event.preventDefault(); active = index;
-				panes.forEach(function(p, i) { p.style.display = i === active ? '' : 'none'; nav.children[i].className = i === active ? 'cbi-tab' : 'cbi-tab-disabled'; });
+			nav.appendChild(E('li', { 'class': index === 0 ? 'cbi-tab cbi-tab-active' : 'cbi-tab' }, E('a', { href: '#', click: function(event) {
+				if (event && event.preventDefault) event.preventDefault();
+				active = index;
+				panes.forEach(function(p, i) { 
+					p.style.display = i === active ? '' : 'none'; 
+					nav.children[i].className = i === active ? 'cbi-tab cbi-tab-active' : 'cbi-tab'; 
+				});
+				if (active === 0) {
+					requestAnimationFrame(drawAllCharts);
+				}
 				update();
 			} }, label)));
 		});
-		var root = E('div', { 'class': 'cbi-map flowsense-dashboard' }, [E('h2', {}, _('Airoha FlowSense')), message, nav, first, second]);
+
+		var root = E('div', { 'class': 'cbi-map flowsense-dashboard' }, [message, nav, first, second]);
 		var pending = null;
 		function update() {
 			if (pending) return pending;
@@ -499,10 +515,20 @@ return view.extend({
 			}).finally(function() { pending = null; });
 			return pending;
 		}
+
 		requestAnimationFrame(function() { 
 			if (!root.isConnected) return;
 			var resize = new ResizeObserver(drawAllCharts);
 			resize.observe(root);
+			if (typeof MutationObserver !== 'undefined') {
+				var removal = new MutationObserver(function() {
+					if (root.isConnected) return;
+					poll.remove(update);
+					resize.disconnect();
+					removal.disconnect();
+				});
+				removal.observe(document.body, { childList: true, subtree: true });
+			}
 			drawAllCharts();
 			update(); 
 			poll.add(update, 5); 
