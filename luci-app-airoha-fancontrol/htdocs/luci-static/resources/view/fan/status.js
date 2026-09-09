@@ -18,14 +18,14 @@ var HISTORY_KEY = 'airoha-fan-history-v1';
 var history = [];
 
 var themeCSS = '\
-:root{--fan-canvas-bg:#fbfcfd;--fan-grid:rgba(80,90,100,.18);--fan-axis:#555}\
-@media(prefers-color-scheme:dark){:root{--fan-canvas-bg:#191919;--fan-grid:rgba(255,255,255,.12);--fan-axis:#a0a0a0}}\
-[data-theme="dark"],[data-dark="true"],[data-darkmode="true"],.dark-mode,:root[data-dark="true"]{--fan-canvas-bg:#191919;--fan-grid:rgba(255,255,255,.12);--fan-axis:#a0a0a0}\
-.fan-dashboard{--fan-font-ui:system-ui,-apple-system,sans-serif;--fan-font-mono:ui-monospace,monospace;font-family:var(--fan-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit)}\
+:root{--fan-canvas-bg:#fbfcfd;--fan-grid:rgba(80,90,100,.14);--fan-axis:#64748b;--fan-track-bg:rgba(128,128,128,.14)}\
+@media(prefers-color-scheme:dark){:root{--fan-canvas-bg:#161616;--fan-grid:rgba(255,255,255,.08);--fan-axis:#94a3b8;--fan-track-bg:rgba(255,255,255,.10)}}\
+[data-theme="dark"],[data-dark="true"],[data-darkmode="true"],.dark-mode,:root[data-dark="true"]{--fan-canvas-bg:#161616;--fan-grid:rgba(255,255,255,.08);--fan-axis:#94a3b8;--fan-track-bg:rgba(255,255,255,.10)}\
+.fan-dashboard{--fan-font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--fan-font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;font-family:var(--fan-font-ui);font-size:13px;line-height:1.5;color:var(--cbi-text-color,inherit);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\
 .fan-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:10px;margin-bottom:14px}\
 .fan-summary-card,.fan-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
 .fan-summary-card{padding:10px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center}\
-.fan-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
+.fan-card-title{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--cbi-muted-color,#666);margin-bottom:4px}\
 .fan-card-value{font-size:18px;font-family:var(--fan-font-mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--cbi-text-color,inherit)}\
 .fan-card-sub{font-size:12px;color:var(--cbi-muted-color,#888);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\
 .fan-panel{padding:14px;margin:14px 0}\
@@ -35,13 +35,13 @@ var themeCSS = '\
 .fan-chart-canvas{display:block;width:100%;height:110px;margin-top:8px;background:var(--fan-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px}\
 .fan-temp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}\
 .fan-temp-group{min-width:0}\
-.fan-temp-group-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.2px;color:var(--cbi-muted-color,#666);margin:0 0 8px}\
+.fan-temp-group-title{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--cbi-muted-color,#666);margin:0 0 8px}\
 .fan-temp-list{display:grid;gap:6px}\
 .fan-temp-card{padding:8px 10px;min-width:0}\
 .fan-temp-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px}\
 .fan-temp-label{font-size:12px;color:var(--cbi-text-color,inherit);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
 .fan-temp-value{font-family:var(--fan-font-mono);font-variant-numeric:tabular-nums;font-size:14px;font-weight:600;color:var(--fan-temp-accent);white-space:nowrap}\
-.fan-temp-track{height:14px!important;min-height:14px;border-radius:999px;overflow:hidden;background:var(--cbi-border-color,#e0e0e0)}\
+.fan-temp-track{height:14px!important;min-height:14px;border-radius:999px;overflow:hidden;background:var(--fan-track-bg,rgba(128,128,128,.14))}\
 .fan-temp-fill{height:100%;border-radius:inherit;background:var(--fan-temp-accent);transition:width .3s,background .3s}\
 @media(max-width:1050px){.fan-summary-grid{grid-template-columns:repeat(2,minmax(160px,1fr))}.fan-chart-grid{grid-template-columns:1fr}}\
 @media(max-width:640px){.fan-summary-grid,.fan-temp-grid{grid-template-columns:1fr}.fan-panel{padding:10px}.fan-summary-card{min-height:68px}.fan-chart-canvas{height:100px}}\
@@ -215,7 +215,7 @@ function drawChart(canvas, hist, key, options) {
 	ctx.stroke();
 
 	ctx.fillStyle = axisColor;
-	ctx.font = '10px system-ui, sans-serif';
+	ctx.font = '10px var(--fan-font-mono, ui-monospace, monospace)';
 	ctx.textAlign = 'right';
 	ctx.textBaseline = 'top';
 	ctx.fillText(options.format(maximum), pad.left - 4, pad.top - 1);
@@ -315,7 +315,7 @@ return view.extend({
 				E('div', { 'class': 'fan-temp-grid' }, [
 					temperatureGroup(_('System'), [
 						createTempGauge(_('CPU'), status.temp_cpu, 'temp-cpu'),
-						createTempGauge(_('Board (Fan Curve)'), status.temp_board, 'temp-board'),
+						createTempGauge(_('Board'), status.temp_board, 'temp-board'),
 						createTempGauge('10G WAN', status.temp_phy2, 'temp-phy2'),
 						createTempGauge('10G LAN', status.temp_phy1, 'temp-phy1')
 					]),

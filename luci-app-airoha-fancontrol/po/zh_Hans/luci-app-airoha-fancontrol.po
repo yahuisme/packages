@@ -29,11 +29,11 @@ msgstr "自动（跟随曲线）"
 msgid "Balanced"
 msgstr "平衡"
 
-msgid "Balanced - Good mix of noise and cooling"
-msgstr "平衡 - 噪音和散热的良好平衡"
+msgid "Balanced - Balanced cooling"
+msgstr "平衡 - 均衡控温"
 
-msgid "Board (Fan Curve)"
-msgstr "主板（风扇曲线）"
+msgid "Board"
+msgstr "主板"
 
 msgid "Board Temperature"
 msgstr "主板温度"
@@ -42,7 +42,7 @@ msgid "CPU"
 msgstr "CPU 温度"
 
 msgid "Active fan curve profile"
-msgstr "生效的风扇曲线配置"
+msgstr "当前生效曲线"
 
 msgid "Configure fan control mode and speed curves."
 msgstr "配置风扇控制模式和速度曲线。"
@@ -62,8 +62,8 @@ msgstr "曲线预览"
 msgid "Custom"
 msgstr "自定义"
 
-msgid "Custom - Define your own curve"
-msgstr "自定义 - 定义你自己的曲线"
+msgid "Custom - User defined"
+msgstr "自定义 - 自定曲线"
 
 msgid "Custom Curve Editor"
 msgstr "自定义曲线编辑器"
@@ -116,8 +116,8 @@ msgstr "PWM 输出"
 msgid "Performance"
 msgstr "性能"
 
-msgid "Performance - Higher speeds, lower temps"
-msgstr "性能 - 更高转速，更低温度"
+msgid "Performance - Maximum cooling"
+msgstr "性能 - 强劲散热"
 
 msgid "Point %d PWM (0-255)"
 msgstr "第 %d 点 PWM（0-255）"
@@ -131,8 +131,8 @@ msgstr "预览"
 msgid "Quiet"
 msgstr "静音"
 
-msgid "Quiet - Lower speeds, higher temps"
-msgstr "静音 - 更低转速，更高温度"
+msgid "Quiet - Low noise priority"
+msgstr "静音 - 低噪优先"
 
 msgid "Read failed"
 msgstr "读取失败"

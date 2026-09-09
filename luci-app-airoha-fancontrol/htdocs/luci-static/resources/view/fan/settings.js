@@ -4,12 +4,14 @@
 'require uci';
 
 var settingsCSS = '\
-:root{--fan-canvas-bg:#fbfcfd;--fan-grid:rgba(80,90,100,.18);--fan-axis:#555}\
-@media(prefers-color-scheme:dark){:root{--fan-canvas-bg:#191919;--fan-grid:rgba(255,255,255,.12);--fan-axis:#a0a0a0}}\
-[data-theme="dark"],[data-dark="true"],[data-darkmode="true"],.dark-mode,:root[data-dark="true"]{--fan-canvas-bg:#191919;--fan-grid:rgba(255,255,255,.12);--fan-axis:#a0a0a0}\
-.fan-settings{--fan-font-ui:system-ui,-apple-system,sans-serif;--fan-font-mono:ui-monospace,monospace;width:100%;font-family:var(--fan-font-ui)}\
-.fan-curve-wrap{border:1px solid var(--cbi-border-color,#d0d0d0);border-radius:6px;padding:12px;background:var(--fan-canvas-bg,#fbfcfd);margin-top:8px}\
-.fan-curve-canvas{display:block;width:100%;height:300px;background:var(--fan-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px;box-sizing:border-box}\
+:root{--fan-canvas-bg:#fbfcfd;--fan-grid:rgba(80,90,100,.14);--fan-axis:#64748b}\
+@media(prefers-color-scheme:dark){:root{--fan-canvas-bg:#161616;--fan-grid:rgba(255,255,255,.08);--fan-axis:#94a3b8}}\
+[data-theme="dark"],[data-dark="true"],[data-darkmode="true"],.dark-mode,:root[data-dark="true"]{--fan-canvas-bg:#161616;--fan-grid:rgba(255,255,255,.08);--fan-axis:#94a3b8}\
+.fan-settings{--fan-font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--fan-font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;width:100%;font-family:var(--fan-font-ui);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\
+.fan-settings select,.fan-settings .cbi-input-select{max-width:320px}\
+.fan-curve-wrap{padding:0;margin-top:8px}\
+.fan-curve-canvas{display:block;width:100%;height:300px;background:var(--fan-canvas-bg,#fbfcfd);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;box-sizing:border-box}\
+.fan-settings .fan-control-section [data-name="manual_pwm"] input{width:96px!important;min-width:96px;max-width:96px;text-align:center;font-family:var(--fan-font-mono);font-variant-numeric:tabular-nums;font-weight:600}\
 .fan-settings .fan-curve-section .cbi-section-node{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px}\
 .fan-settings .fan-curve-section .cbi-value{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--cbi-border-color,#f0f0f0)}\
 .fan-settings .fan-curve-section .cbi-value-title{width:auto;margin:0;font-size:13px;font-weight:500}\
@@ -77,7 +79,7 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
 	ctx.stroke();
 
 	ctx.fillStyle = text;
-	ctx.font = '11px sans-serif';
+	ctx.font = '11px system-ui, -apple-system, sans-serif';
 	ctx.textAlign = 'center';
 	ctx.fillText(_('Temperature (°C)'), width / 2, height - 5);
 	ctx.save();
@@ -87,7 +89,7 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
 	ctx.restore();
 
 	ctx.fillStyle = text;
-	ctx.font = '9px sans-serif';
+	ctx.font = '10px var(--fan-font-mono, ui-monospace, monospace)';
 	ctx.textAlign = 'center';
 	for (var t = 0; t <= 100; t += 20) {
 		ctx.fillText(t, padding + (t / 100) * (width - 2 * padding), height - padding + 13);
@@ -98,10 +100,10 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
 	}
 
 	var colors = {
-		'quiet': '#28a745',
-		'balanced': '#007bff',
-		'performance': '#dc3545',
-		'custom': '#6f42c1'
+		'quiet': '#10b981',
+		'balanced': '#0ea5e9',
+		'performance': '#ef4444',
+		'custom': '#8b5cf6'
 	};
 
 	function drawLine(points, color, alpha, lineW, dots) {
@@ -135,11 +137,12 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
 
 	if (activePreset === 'custom' && !customPreview) {
 		ctx.fillStyle = text;
+		ctx.font = '12px system-ui, -apple-system, sans-serif';
 		ctx.textAlign = 'center';
 		ctx.fillText(_('Complete valid curve points to preview.'), width / 2, height / 2);
 	}
 	if (customPreview) {
-		drawLine(customPreview, '#ff6600', 1, 2.5, true);
+		drawLine(customPreview, '#f97316', 1, 2.5, true);
 	}
 
 	var legendLabels = {
@@ -155,15 +158,16 @@ function drawCurveCanvas(canvasId, curves, activePreset, customPreview) {
 		ctx.fillRect(width - 100, legendY, 12, 12);
 		ctx.globalAlpha = 1;
 		ctx.fillStyle = text;
-		ctx.font = '10px sans-serif';
+		ctx.font = '11px system-ui, -apple-system, sans-serif';
 		ctx.textAlign = 'left';
 		ctx.fillText(legendLabels[preset] || preset, width - 84, legendY + 10);
 		legendY += 17;
 	});
 	if (customPreview) {
-		ctx.fillStyle = '#ff6600';
+		ctx.fillStyle = '#f97316';
 		ctx.fillRect(width - 100, legendY, 12, 12);
 		ctx.fillStyle = text;
+		ctx.font = '11px system-ui, -apple-system, sans-serif';
 		ctx.fillText(_('Preview'), width - 84, legendY + 10);
 	}
 }
@@ -219,10 +223,10 @@ return view.extend({
 		o.rmempty = false;
 
 		o = s.option(form.ListValue, 'curve_preset', _('Fan Curve Preset'));
-		o.value('quiet', _('Quiet - Lower speeds, higher temps'));
-		o.value('balanced', _('Balanced - Good mix of noise and cooling'));
-		o.value('performance', _('Performance - Higher speeds, lower temps'));
-		o.value('custom', _('Custom - Define your own curve'));
+		o.value('quiet', _('Quiet - Low noise priority'));
+		o.value('balanced', _('Balanced - Balanced cooling'));
+		o.value('performance', _('Performance - Maximum cooling'));
+		o.value('custom', _('Custom - User defined'));
 		o.default = 'balanced';
 		o.retain = true;
 		o.depends('mode', 'auto');
