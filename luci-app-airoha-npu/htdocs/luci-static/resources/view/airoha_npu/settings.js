@@ -12,22 +12,9 @@ var setFrequency = rpc.declare({ object: 'luci.airoha_npu', method: 'setMaxFreq'
 var setFlow = rpc.declare({ object: 'luci.airoha_npu', method: 'setFlowOffload', params: ['enabled'], expect: { '': {} }, reject: true });
 
 var settingsCSS = '\
-.npu-settings{--npu-font-ui:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--npu-font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;width:100%;font-family:var(--npu-font-ui);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}\
-.npu-settings select,.npu-settings .cbi-input-select{max-width:280px;height:32px;border-radius:4px;font-family:var(--npu-font-mono);font-variant-numeric:tabular-nums;box-sizing:border-box}\
-.npu-settings .cbi-section{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:6px;padding:14px;margin:14px 0;box-sizing:border-box}\
-.npu-settings .cbi-section-title{font-size:15px;font-weight:600;color:var(--cbi-text-color,inherit);padding-bottom:8px;margin-bottom:12px;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}\
-.npu-settings .cbi-section-descr{font-size:12px;color:var(--cbi-muted-color,#888);margin-bottom:12px}\
-.npu-settings .cbi-value{display:flex;align-items:center;padding:8px 0;border-bottom:1px solid var(--cbi-border-color,rgba(128,128,128,.08))}\
-.npu-settings .cbi-value:last-child{border-bottom:none}\
-.npu-settings .cbi-value-title{width:220px;flex:0 0 220px;margin:0;font-size:13px;font-weight:500;color:var(--cbi-muted-color,#666)}\
-.npu-settings .cbi-value-field{flex:1;min-width:0;margin:0}\
-@media(max-width:640px){\
-.npu-settings .cbi-section{padding:10px}\
-.npu-settings .cbi-value{flex-direction:column;align-items:flex-start;gap:4px;padding:8px 0}\
-.npu-settings .cbi-value-title{width:auto;flex:none}\
-.npu-settings .cbi-value-field{width:100%}\
-.npu-settings select,.npu-settings .cbi-input-select{max-width:100%}\
-}\
+.npu-settings{font-size:13px;line-height:1.5}\
+.npu-settings select,.npu-settings .cbi-input-select{max-width:280px}\
+@media(max-width:640px){.npu-settings select,.npu-settings .cbi-input-select{max-width:100%}}\
 ';
 
 function injectCSS() {
@@ -120,31 +107,21 @@ return view.extend({
 			var formGov = getVal('governor', 'cpu');
 			var formFreq = getVal('frequency', 'cpu');
 			var formFlow = getVal('flow', 'firewall');
+			var tasks = [], applied = [];
 
-			var tasks = [];
+			function addTask(next, undo) { tasks.push({ next: next, undo: undo }); }
+
 			if (formGov && formGov !== String(status.cpu_governor || '')) {
-				tasks.push(function() {
-					return setGovernor(formGov).then(function(res) {
-						if (res && res.result === 'ok') status.cpu_governor = formGov;
-						return res;
-					});
-				});
+				var oldGov = String(status.cpu_governor || '');
+				addTask(function() { return setGovernor(formGov); }, function() { return oldGov ? setGovernor(oldGov) : Promise.resolve({ result: 'ok' }); });
 			}
 			if (formFreq && formFreq !== String(status.cpu_max_freq || '')) {
-				tasks.push(function() {
-					return setFrequency(formFreq).then(function(res) {
-						if (res && res.result === 'ok') status.cpu_max_freq = Number(formFreq);
-						return res;
-					});
-				});
+				var oldFreq = String(status.cpu_max_freq || '');
+				addTask(function() { return setFrequency(formFreq); }, function() { return oldFreq ? setFrequency(oldFreq) : Promise.resolve({ result: 'ok' }); });
 			}
 			if (formFlow != null && formFlow !== '' && formFlow !== String(flow.enabled ? '1' : '0')) {
-				tasks.push(function() {
-					return setFlow(formFlow).then(function(res) {
-						if (res && res.result === 'ok') flow.enabled = (formFlow === '1');
-						return res;
-					});
-				});
+				var oldFlow = flow.enabled === true ? '1' : '0';
+				addTask(function() { return setFlow(formFlow); }, function() { return setFlow(oldFlow); });
 			}
 
 			if (!tasks.length) {
@@ -154,17 +131,28 @@ return view.extend({
 
 			function executeSequence(idx) {
 				if (idx >= tasks.length) return Promise.resolve();
-				return tasks[idx]().then(function(res) {
-					if (res && res.result !== 'ok') throw new Error(message(res.error));
+				return tasks[idx].next().then(function(res) {
+					if (!res || res.result !== 'ok') throw new Error(message(res && res.error));
+					applied.push(tasks[idx]);
 					return executeSequence(idx + 1);
 				});
 			}
+			function rollback(idx) {
+				if (idx < 0) return Promise.resolve(true);
+				return applied[idx].undo().then(function(res) {
+					return res && res.result === 'ok' ? rollback(idx - 1) : false;
+				}, function() { return false; });
+			}
 
 			return executeSequence(0).then(function() {
+				if (formGov && formGov !== String(status.cpu_governor || '')) status.cpu_governor = formGov;
+				if (formFreq && formFreq !== String(status.cpu_max_freq || '')) status.cpu_max_freq = Number(formFreq);
+				if (formFlow != null && formFlow !== '') flow.enabled = formFlow === '1';
 				ui.addNotification(null, E('p', {}, _('Settings applied.')), 'info');
 			}).catch(function(err) {
-				ui.addNotification(null, E('p', {}, err.message || message()), 'error');
-				return Promise.reject(err);
+				return rollback(applied.length - 1).then(function(ok) {
+					ui.addNotification(null, E('p', {}, ok ? (err.message || message('write_failed')) : message('rollback_failed')), 'error');
+				});
 			});
 		};
 

@@ -46,10 +46,10 @@ set_cpu() {
 			argument freq && positive "$value" || { error invalid; return; }
 			field=scaling_max_freq; available=scaling_available_frequencies;;
 	esac
+	lock || { error busy; return; }
 	old=$(read_value "$POLICY/$field")
 	[ -n "$old" ] && [ -w "$POLICY/$field" ] || { error unavailable; return; }
 	contains "$value" "$(read_value "$POLICY/$available")" || { error invalid; return; }
-	lock || { error busy; return; }
 	if { printf '%s\n' "$value" > "$POLICY/$field"; } 2>/dev/null &&
 		[ "$(read_value "$POLICY/$field")" = "$value" ]; then
 		printf '{"result":"ok"}\n'
