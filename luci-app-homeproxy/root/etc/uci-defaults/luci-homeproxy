@@ -24,11 +24,6 @@ if ! uci -q batch <<-EOF >"/dev/null"
 	set firewall.homeproxy_input.position="chain-pre"
 	set firewall.homeproxy_input.chain="input"
 
-	delete firewall.homeproxy_post
-	set firewall.homeproxy_post=include
-	set firewall.homeproxy_post.type=nftables
-	set firewall.homeproxy_post.path="/var/run/homeproxy/fw4_post.nft"
-	set firewall.homeproxy_post.position="table-post"
 	commit firewall
 EOF
 then
