@@ -10,6 +10,6 @@ shell=[p for p in (ROOT/'root').rglob('*') if p.is_file() and p.read_bytes().sta
 for p in js: run('node','--check',p)
 for p in shell: run('bash','-n',p)
 for name in ['security.cjs','ports.cjs','ui.cjs','dom.cjs']: run('node',ROOT/'tests'/name)
-for name in ['resources.py','init.py','subscriptions.py','i18n.py']: run(sys.executable,ROOT/'tests'/name)
+for name in ['resources.py','init.py','subscriptions.py','i18n.py','maintenance-regressions.py','ruleset-migration.py']: run(sys.executable,ROOT/'tests'/name)
 run('git','-C',ROOT.parent,'diff','--check')
-print(f'PASS {len(js)} JavaScript syntax checks, {len(shell)} shell syntax checks, 8 fixture/audit suites')
+print(f'PASS {len(js)} JavaScript syntax checks, {len(shell)} shell syntax checks, 10 fixture/audit suites')

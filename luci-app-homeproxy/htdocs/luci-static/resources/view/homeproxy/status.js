@@ -128,6 +128,13 @@ const css = '				\
 	font-size: 12px;		\
 	font-weight: 500;		\
 }					\
+.homeproxy-status .hp-section-header { display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px; }\
+.homeproxy-status .hp-card-state.is-pending { color:var(--cbi-muted-color,#888); }\
+.homeproxy-status .hp-card-state.is-success { color:var(--cbi-success-color,#10b981); }\
+.homeproxy-status .hp-card-state.is-failed { color:var(--cbi-error-color,#ef4444); }\
+.homeproxy-status .hp-card-header,.homeproxy-status .hp-card-body { min-width:0; }\
+.homeproxy-status .hp-card-body > span { min-width:0;overflow-wrap:anywhere; }\
+\
 @media (max-width: 1050px) {		\
 	.homeproxy-status .hp-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }\
 }					\
@@ -159,7 +166,7 @@ function getConnectionStatus() {
 
 	const statusElements = {};
 	const grid = E('div', { 'class': 'hp-status-grid' }, connectionSites.map((site) => {
-		const state = E('span', { 'class': 'hp-card-state', 'style': 'color:var(--cbi-muted-color,#888);' }, '-');
+		const state = E('span', { 'class': 'hp-card-state is-pending' }, '-');
 		const latency = E('span', { 'class': 'hp-card-latency' }, '-');
 		statusElements[site.type] = { state, latency };
 
@@ -191,11 +198,11 @@ function getConnectionStatus() {
 			return;
 
 		if (result?.result) {
-			elements.state.style.color = 'var(--cbi-success-color, #10b981)';
+			elements.state.className = 'hp-card-state is-success';
 			dom.content(elements.state, _('Success'));
 			dom.content(elements.latency, result.latency_ms + ' ms');
 		} else {
-			elements.state.style.color = 'var(--cbi-error-color, #ef4444)';
+			elements.state.className = 'hp-card-state is-failed';
 			dom.content(elements.state, result?.timed_out ? _('Timed out') : _('Failed'));
 			dom.content(elements.latency, '-');
 		}
@@ -210,7 +217,7 @@ function getConnectionStatus() {
 		const currentGeneration = ++generation;
 		connectionSites.forEach((site) => {
 			const elements = statusElements[site.type];
-			elements.state.style.color = 'var(--cbi-muted-color, #888)';
+			elements.state.className = 'hp-card-state is-pending'
 			dom.content(elements.state, _('Testing...'));
 			dom.content(elements.latency, '-');
 		});
@@ -259,7 +266,7 @@ function getConnectionStatus() {
 	}, [ _('Test all') ]);
 
 	const view = E('div', { 'class': 'cbi-map homeproxy-status' }, [
-		E('h3', { 'name': 'content', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;' }, [
+		E('h3', { 'name': 'content', 'class': 'hp-section-header' }, [
 			_('Connection Status'),
 			testButton
 		]),
@@ -332,7 +339,7 @@ function getResources(o) {
 		}));
 
 		return E('div', { 'class': 'cbi-map homeproxy-status' }, [
-			E('h3', { 'name': 'content', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;' }, [
+			E('h3', { 'name': 'content', 'class': 'hp-section-header' }, [
 				_('Resource Management'),
 				E('button', {
 					'class': 'btn cbi-button cbi-button-action',
@@ -476,7 +483,7 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 	return E([
 		E('style', [ css ]),
 		E('div', {'class': 'cbi-map homeproxy-status'}, [
-			E('h3', {'name': 'content', 'style': 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;'}, [
+			E('h3', {'name': 'content', 'class': 'hp-section-header'}, [
 				_('%s Log').format(name),
 				E('div', {'style': 'display:flex;align-items:center;gap:6px;'}, [
 					log_level_el || '',

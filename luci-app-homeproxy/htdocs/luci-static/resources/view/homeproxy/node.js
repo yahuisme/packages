@@ -713,7 +713,9 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 	s.rowcolors = true;
 	s.sortable = true;
 	s.nodescriptions = true;
-	s.max_cols = 7;
+	/* Let the native LuCI table choose its columns responsively. A fixed
+	 * seven-column row makes node actions unusable on narrow screens. */
+	s.max_cols = 0;
 	s.modaltitle = L.bind(hp.loadModalTitle, this, _('Node'), _('Add a node'), data[0]);
 	s.sectiontitle = L.bind(hp.loadDefaultLabel, this, data[0]);
 	s.node_latency_row_state = node_latency_row_state;
@@ -731,11 +733,11 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 		let latency_id = 'cbi-%s-%s-_latency'.format(data[0], section_id);
 		let test_id = 'cbi-%s-%s-_test_latency'.format(data[0], section_id);
 
-		let status_widget = this.map.findElement('id', latency_id);
+		let status_widget = this.map?.findElement ? this.map.findElement('id', latency_id) : null;
 		if (status_widget)
 			status_widget.replaceChildren(renderNodeLatencyStatusNode(row_state));
 
-		let test_widget = this.map.findElement('id', test_id);
+		let test_widget = this.map?.findElement ? this.map.findElement('id', test_id) : null;
 		let test_button = test_widget ? test_widget.querySelector('button') : null;
 		if (test_button) {
 			test_button.textContent = getNodeLatencyActionTitle(row_state);

@@ -25,7 +25,7 @@ const CBIGenValue = form.Value.extend({
 		if (!this.password)
 			node.classList.add('control-group');
 
-		(node.querySelector('.control-group') || node).appendChild(E('button', {
+		(node?.querySelector?.('.control-group') || node).appendChild(E('button', {
 			class: 'cbi-button cbi-button-add',
 			title: _('Generate'),
 			click: ui.createHandlerFn(this, handleGenKey, this.hp_options || this.option)

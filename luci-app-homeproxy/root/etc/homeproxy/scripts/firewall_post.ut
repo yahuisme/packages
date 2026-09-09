@@ -51,11 +51,7 @@ const routing_mode = uci.get(cfgname, 'config', 'routing_mode') || 'bypass_mainl
 const proxy_domain_list = mainland_mode ?
       trim(readfile(resources_dir + '/proxy_list.txt') || '') : '',
       proxy_domain_keywords = filter(split(proxy_domain_list, /[\r\n]/),
-            (domain) => domain && !match(domain, /\./)),
-      dnsmasq_nftset = getenv('HOMEPROXY_DNSMASQ_NFTSET') !== '0',
-      fast_bypass_mainland = mainland_mode &&
-            (isEmpty(proxy_domain_list) ||
-             (isEmpty(proxy_domain_keywords) && dnsmasq_nftset));
+            (domain) => domain && !match(domain, /\./));
 
 let routing_port = uci.get(cfgname, 'config', 'routing_port');
 if (routing_port === 'common')
@@ -127,34 +123,6 @@ set homeproxy_local_addr_v6 {
 }
 {% endif %}
 
-{% if (fast_bypass_mainland): %}
-set homeproxy_mainland_addr_v4 {
-	type ipv4_addr
-	flags interval
-	auto-merge
-	elements = {
-		{% for (let cidr in split(trim(readfile(resources_dir + '/china_ip4.txt') || ''), /[\r\n]/)): %}
-		{% if (cidr): %}
-		{{ cidr }},
-		{% endif %}
-		{% endfor %}
-	}
-}
-
-{% if (ipv6_support === '1'): %}
-set homeproxy_mainland_addr_v6 {
-	type ipv6_addr
-	flags interval
-	auto-merge
-	elements = {
-		{% for (let cidr in split(trim(readfile(resources_dir + '/china_ip6.txt') || ''), /[\r\n]/)): %}
-		{% if (cidr): %}
-		{{ cidr }},
-		{% endif %}
-		{% endfor %}
-	}
-}
-{% endif %}
 {% endif %}
 
 {% if (routing_mode === 'bypass_mainland_china'): %}
@@ -241,12 +209,6 @@ chain homeproxy_mangle_policy {
 	{% if (ipv6_support === '1' && length(wan_direct_ipv6)): %}
 	ip6 daddr {{ array_to_nftarr(wan_direct_ipv6) }} counter return
 	{% endif %}
-	{% if (fast_bypass_mainland): %}
-	ip daddr @homeproxy_mainland_addr_v4 counter return
-	{% if (ipv6_support === '1'): %}
-	ip6 daddr @homeproxy_mainland_addr_v6 counter return
-	{% endif %}
-	{% endif %}
 
 	goto homeproxy_mangle_tproxy_port
 }
@@ -309,12 +271,6 @@ chain homeproxy_mangle_output {
 	{% endif %}
 	{% if (ipv6_support === '1' && length(wan_direct_ipv6)): %}
 	ip6 daddr {{ array_to_nftarr(wan_direct_ipv6) }} counter return
-	{% endif %}
-	{% if (fast_bypass_mainland): %}
-	ip daddr @homeproxy_mainland_addr_v4 counter return
-	{% if (ipv6_support === '1'): %}
-	ip6 daddr @homeproxy_mainland_addr_v6 counter return
-	{% endif %}
 	{% endif %}
 
 	{% if (length(routing_ports)): %}

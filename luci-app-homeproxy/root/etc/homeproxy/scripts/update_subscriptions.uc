@@ -1106,7 +1106,7 @@ function main() {
 		}
 	}
 
-	if (isEmpty(node_result)) {
+	if (isEmpty(node_result) && !isEmpty(subscription_urls)) {
 		log('Failed to update subscriptions: no valid node found.');
 
 		apply_updated_resources();
@@ -1215,12 +1215,11 @@ function main() {
 	log('Successfully updated subscriptions.');
 }
 
-if (!isEmpty(subscription_urls))
-	try {
-		if (call(main) === false)
-			exit(1);
-	} catch(e) {
-		log_error('[FATAL ERROR] An error occurred during updating subscriptions', e);
-		apply_updated_resources();
+try {
+	if (call(main) === false)
 		exit(1);
-	}
+} catch(e) {
+	log_error('[FATAL ERROR] An error occurred during updating subscriptions', e);
+	apply_updated_resources();
+	exit(1);
+}

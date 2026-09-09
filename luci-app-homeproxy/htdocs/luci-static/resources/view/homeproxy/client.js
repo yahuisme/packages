@@ -56,22 +56,26 @@ const callCurrentNode = rpc.declare({
 });
 
 function renderStatus(isRunning, version, currentNode) {
-	let badgeStyle = isRunning
-		? 'display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;background:rgba(16,185,129,0.10);color:var(--cbi-success-color,#10b981);border:1px solid rgba(16,185,129,0.30);margin-left:8px;'
-		: 'display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;background:rgba(239,68,68,0.10);color:var(--cbi-error-color,#ef4444);border:1px solid rgba(239,68,68,0.30);margin-left:8px;';
-	let dotStyle = 'display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:5px;';
 
-	return E('div', { 'style': 'display:flex;flex-direction:column;gap:4px;margin-bottom:8px;' }, [
-		E('div', { 'style': 'display:flex;align-items:center;flex-wrap:wrap;font-size:14px;font-weight:600;' }, [
+	return E('div', { 'class': 'homeproxy-service-status' }, [
+		E('div', { 'class': 'homeproxy-service-status-line' }, [
 			E('span', {}, [ _('HomeProxy') + ' (sing-box v' + (version || '?') + ')' ]),
-			E('span', { 'style': badgeStyle }, [
-				E('span', { 'style': dotStyle }),
+			E('span', { 'class': isRunning ? 'homeproxy-status-badge is-running' : 'homeproxy-status-badge is-stopped' }, [
+				E('span', { 'class': 'homeproxy-status-dot', 'aria-hidden': 'true' }),
 				isRunning ? _('RUNNING') : _('NOT RUNNING')
 			])
 		]),
-		currentNode ? E('div', { 'style': 'font-size:12px;color:var(--cbi-muted-color,#666);' }, [ currentNode ]) : ''
+		currentNode ? E('div', { 'class': 'homeproxy-current-node' }, [ currentNode ]) : ''
 	]);
 }
+
+const statusCss = `.homeproxy-service-status { margin: 0 0 8px; }
+.homeproxy-service-status-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 14px; font-weight: 600; }
+.homeproxy-status-badge { display: inline-flex; align-items: center; padding: 2px 8px; border: 1px solid transparent; border-radius: 4px; font-size: 12px; font-weight: 500; }
+.homeproxy-status-badge.is-running { color: var(--cbi-success-color, #10b981); background: rgba(16,185,129,.1); border-color: rgba(16,185,129,.3); }
+.homeproxy-status-badge.is-stopped { color: var(--cbi-error-color, #ef4444); background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.3); }
+.homeproxy-status-dot { width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: currentColor; }
+.homeproxy-current-node { margin-top: 4px; color: var(--cbi-muted-color, #666); font-size: 12px; overflow-wrap: anywhere; }`;
 
 let stubValidator = {
 	factory: validation,
@@ -1638,6 +1642,9 @@ return view.extend({
 		/* Direct domain list end */
 		/* ACL settings end */
 
-		return m.render();
+		return m.render().then((el) => {
+			el.prepend(E('style', { 'type': 'text/css' }, [ statusCss ]));
+			return el;
+		});
 	}
 });

@@ -18,7 +18,9 @@ assert "args: { filename: 'filename', temp: 'temp' }" in rpc
 assert 'CAP_SYS_PTRACE' not in caps
 assert "params: ['filename', 'temp']" in client
 assert 'sing-box-c.json.old' in init and 'sing-box-s.json.old' in init
-assert 'END { exit invalid }' in resources
+assert 'case "$release_version" in' in resources
+assert 'case "$version" in' in resources
+assert 'finish 4' in resources
 assert 'install -d -m 0750 -o root -g sing-box "$RUN_DIR"' in init
 assert 'chown -R sing-box:sing-box "$RUN_DIR"' not in init
 firewall = (root / 'root/etc/homeproxy/scripts/firewall_pre.uc').read_text()
