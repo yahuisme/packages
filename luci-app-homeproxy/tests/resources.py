@@ -9,7 +9,7 @@ with tempfile.TemporaryDirectory() as temp:
         (base / name).mkdir()
     (base/'dashboard/index.html').write_text('OLD')
     (base/'dashboard/dashboard.ver').write_text('old')
-    (base/'input/cncidr.txt').write_text('IP-CIDR,1.2.3.0/24\nIP-CIDR6,2001:db8::/32\n')
+    (base/'input/geoip.srs').write_bytes(b'SRS\x01geoip_fixture')
     (base/'input/geosite.srs').write_bytes(b'SRS\x01fixture')
     with zipfile.ZipFile(base/'input/dashboard.zip', 'w') as z:
         z.writestr('dashboard/index.html', 'NEW')
@@ -20,7 +20,7 @@ from pathlib import Path
 a=sys.argv[1:]; b=Path(os.environ['FIXTURE'])
 if '-w' in a: print('https://fixture/20260908',end=''); sys.exit(0)
 if a[-1].endswith('atom'): print('<updated>2026-09-08T00:00:00Z</updated>'); sys.exit(0)
-f='cncidr.txt' if 'cncidr' in a[-1] else ('dashboard.zip' if 'zip' in a[-1] else 'geosite.srs')
+f='geoip.srs' if 'sing-geoip' in a[-1] else ('dashboard.zip' if 'zip' in a[-1] else 'geosite.srs')
 shutil.copyfile(b/'input'/f,a[a.index('-o')+1])
 ''')
     curl.chmod(0o755)
@@ -46,5 +46,5 @@ exec /bin/mv "$@"
     result=subprocess.run(['sh',str(script)],env=env,capture_output=True,text=True)
     assert result.returncode==0,(result.returncode,result.stderr)
     assert (base/'dashboard/index.html').read_text()=='NEW'
-    assert (base/'resources/china_ip4.txt').read_text()=='1.2.3.0/24\n'
+    assert (base/'resources/geoip_cn.srs').read_bytes()==b'SRS\x01geoip_fixture'
     print('PASS updater: failed dashboard install preserves old directory; successful group install')

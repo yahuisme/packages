@@ -400,8 +400,8 @@ function add_mainland_rule_sets(rule_sets) {
 	push(rule_sets, {
 		type: 'local',
 		tag: 'geoip-cn',
-		format: 'source',
-		path: HP_DIR + '/resources/geoip_cn.json'
+		format: 'binary',
+		path: HP_DIR + '/resources/geoip_cn.srs'
 	});
 	push(rule_sets, {
 		type: 'local',

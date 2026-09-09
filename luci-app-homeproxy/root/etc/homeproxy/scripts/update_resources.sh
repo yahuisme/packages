@@ -10,20 +10,17 @@ DASHBOARD_DIR="${DASHBOARD_DIR:-/etc/$NAME/dashboard}"
 RUN_DIR="${RUN_DIR:-/var/run/$NAME}"
 LOG_PATH="$RUN_DIR/$NAME.log"
 RESULT_PATH="$RUN_DIR/update_resources.result"
-REPO_NAME="Loyalsoldier/surge-rules"
-REPO_BRANCH="release"
+GEOIP_SOURCE="${GEOIP_SOURCE:-https://cdn.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/geoip-cn.srs}"
+GEOIP_VERSION_URL="${GEOIP_VERSION_URL:-https://github.com/SagerNet/sing-geoip/releases/latest}"
 GEOSITE_REPO="SagerNet/sing-geosite"
 GEOSITE_BRANCH="rule-set"
-IP_RESOURCES="china_ip4 china_ip6"
-IP_RULESET="geoip_cn.json"
-SOURCE_BASE="${SOURCE_BASE:-https://cdn.jsdelivr.net/gh/$REPO_NAME@$REPO_BRANCH}"
 GEOSITE_SOURCE="${GEOSITE_SOURCE:-https://cdn.jsdelivr.net/gh/$GEOSITE_REPO@$GEOSITE_BRANCH/geosite-cn.srs}"
-IP_VERSION_URL="${IP_VERSION_URL:-https://github.com/$REPO_NAME/releases/latest}"
 GEOSITE_VERSION_URL="${GEOSITE_VERSION_URL:-https://github.com/$GEOSITE_REPO/releases/latest}"
 DASHBOARD_SOURCE="${DASHBOARD_SOURCE:-https://codeload.github.com/SagerNet/sing-box-dashboard/zip/refs/heads/gh-pages}"
 DASHBOARD_VERSION_URL="${DASHBOARD_VERSION_URL:-https://github.com/SagerNet/sing-box-dashboard/commits/gh-pages.atom}"
 USER_AGENT="HomeProxy resource updater"
 UPDATE_PROXY="${HOMEPROXY_UPDATE_PROXY:-}"
+SING_BOX="${SING_BOX:-/usr/bin/sing-box}"
 
 if ! mkdir -p "$RESOURCES_DIR" "$DASHBOARD_DIR" "$RUN_DIR"; then
 	printf '%s\n' "Failed to prepare HomeProxy resource directories." >&2
@@ -88,6 +85,14 @@ download() {
 		-o "$target_file" "$source_url" && [ -s "$target_file" ]
 }
 
+validate_rule_set() {
+	[ -s "$1" ] || return 1
+	[ "$(head -c 3 "$1" 2>/dev/null)" = "SRS" ] || return 1
+	if [ -x "$SING_BOX" ]; then
+		"$SING_BOX" rule-set match -f binary "$1" 192.0.2.1 >"/dev/null" 2>&1 || return 1
+	fi
+}
+
 fetch_release_version() {
 	local release_url="$1"
 	local effective_url
@@ -140,33 +145,31 @@ if [ -e "$DASHBOARD_DIR/.etag" ]; then
 	DASHBOARD_UPDATED=1
 fi
 
-IP_CURRENT=1
+GEOIP_CURRENT=1
 GEOSITE_CURRENT=1
 DASHBOARD_CURRENT=1
 
-if NEW_IP_VER="$(fetch_release_version "$IP_VERSION_URL")"; then
-	for RESOURCE in $IP_RESOURCES; do
-		OLD_VER="$(cat "$RESOURCES_DIR/$RESOURCE.ver" 2>/dev/null || echo "NOT FOUND")"
-		if [ -s "$RESOURCES_DIR/$RESOURCE.txt" ] && [ "$OLD_VER" = "$NEW_IP_VER" ]; then
-			log "[$RESOURCE] Current version: $NEW_IP_VER."
-		else
-			IP_CURRENT=0
-			log "[$RESOURCE] Local version: $OLD_VER, latest version: $NEW_IP_VER."
-		fi
-	done
-	if [ ! -s "$RESOURCES_DIR/$IP_RULESET" ]; then
-		IP_CURRENT=0
-		log "[geoip_cn] Local rule set is missing."
+if NEW_GEOIP_VER="$(fetch_release_version "$GEOIP_VERSION_URL")"; then
+	OLD_VER="$(cat "$RESOURCES_DIR/geoip_cn.ver" 2>/dev/null || echo "NOT FOUND")"
+	if [ -s "$RESOURCES_DIR/geoip_cn.srs" ] && \
+	   validate_rule_set "$RESOURCES_DIR/geoip_cn.srs" && \
+	   [ "$OLD_VER" = "$NEW_GEOIP_VER" ]; then
+		log "[geoip_cn] Current version: $NEW_GEOIP_VER."
+	else
+		GEOIP_CURRENT=0
+		log "[geoip_cn] Local version: $OLD_VER, latest version: $NEW_GEOIP_VER."
 	fi
 else
-	IP_CURRENT=-1
-	mark_failed "china_ip"
-	log "[china_ip] Failed to get the latest version; continuing with other resources."
+	GEOIP_CURRENT=-1
+	mark_failed "geoip_cn"
+	log "[geoip_cn] Failed to get the latest version; continuing with other resources."
 fi
 
 if NEW_GEOSITE_VER="$(fetch_release_version "$GEOSITE_VERSION_URL")"; then
 	OLD_VER="$(cat "$RESOURCES_DIR/geosite_cn.ver" 2>/dev/null || echo "NOT FOUND")"
-	if [ -s "$RESOURCES_DIR/geosite_cn.srs" ] && [ "$OLD_VER" = "$NEW_GEOSITE_VER" ]; then
+	if [ -s "$RESOURCES_DIR/geosite_cn.srs" ] && \
+	   validate_rule_set "$RESOURCES_DIR/geosite_cn.srs" && \
+	   [ "$OLD_VER" = "$NEW_GEOSITE_VER" ]; then
 		log "[geosite_cn] Current version: $NEW_GEOSITE_VER."
 	else
 		GEOSITE_CURRENT=0
@@ -192,7 +195,7 @@ else
 	log "[dashboard] Failed to get the latest version; continuing with other resources."
 fi
 
-if [ "$IP_CURRENT" -eq 1 ] && [ "$GEOSITE_CURRENT" -eq 1 ] && \
+if [ "$GEOIP_CURRENT" -eq 1 ] && [ "$GEOSITE_CURRENT" -eq 1 ] && \
 	[ "$DASHBOARD_CURRENT" -eq 1 ]; then
 	log "[RESOURCES] You're already at the latest version."
 	finish 3
@@ -224,81 +227,25 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 1' INT TERM
 
-if [ "$IP_CURRENT" -eq 0 ]; then
-	IP_READY=1
-	if ! download "$(versioned_url "$SOURCE_BASE/cncidr.txt" "$NEW_IP_VER")" "$TMP_DIR/cncidr.txt"; then
-		log "[china_ip] Update failed while downloading the source list."
-		IP_READY=0
-	elif ! awk -F, -v ipv4="$TMP_DIR/china_ip4.txt" -v ipv6="$TMP_DIR/china_ip6.txt" '
-		$1 == "IP-CIDR" && $2 ~ /^[0-9]+(\.[0-9]+){3}\/[0-9]+$/ { print $2 > ipv4; next }
-		$1 == "IP-CIDR6" && $2 ~ /^[0-9A-Fa-f:]+\/[0-9]+$/ { print $2 > ipv6; next }
-		$1 == "IP-CIDR" || $1 == "IP-CIDR6" { invalid = 1 }
-		END { exit invalid }
-	' "$TMP_DIR/cncidr.txt"; then
-		log "[china_ip] Update failed while processing the source list."
-		IP_READY=0
-	fi
-
-	if [ "$IP_READY" -eq 1 ]; then
-		for RESOURCE in $IP_RESOURCES; do
-			if [ ! -s "$TMP_DIR/$RESOURCE.txt" ] || \
-			   ! printf '%s\n' "$NEW_IP_VER" > "$TMP_DIR/$RESOURCE.ver"; then
-				log "[$RESOURCE] Update failed: empty or incomplete processed list."
-				IP_READY=0
-				break
-			fi
-		done
-	fi
-
-	if [ "$IP_READY" -eq 1 ] && ! awk '
-		BEGIN {
-			print "{\"version\":5,\"rules\":[{\"ip_cidr\":["
-			first = 1
-		}
-		NF {
-			printf "%s\"%s\"", first ? "" : ",", $0
-			first = 0
-		}
-		END { print "]}]}" }
-	' "$TMP_DIR/china_ip4.txt" "$TMP_DIR/china_ip6.txt" > "$TMP_DIR/$IP_RULESET"; then
-		log "[geoip_cn] Update failed while generating the source rule set."
-		IP_READY=0
-	elif [ "$IP_READY" -eq 1 ] && [ ! -s "$TMP_DIR/$IP_RULESET" ]; then
-		log "[geoip_cn] Update failed: empty generated rule set."
-		IP_READY=0
-	fi
-
-	if [ "$IP_READY" -eq 1 ]; then
-		if ! sing-box rule-set compile --output "$TMP_DIR/geoip-check.srs" "$TMP_DIR/$IP_RULESET" 2>>"$LOG_PATH"; then
-			IP_READY=0
-		elif ! cp -a "$RESOURCES_DIR" "$RESOURCE_STAGE"; then
-			IP_READY=0
-		else
-			for RESOURCE in $IP_RESOURCES; do
-				cp "$TMP_DIR/$RESOURCE.txt" "$RESOURCE_STAGE/$RESOURCE.txt" && \
-					cp "$TMP_DIR/$RESOURCE.ver" "$RESOURCE_STAGE/$RESOURCE.ver" || IP_READY=0
-			done
-			cp "$TMP_DIR/$IP_RULESET" "$RESOURCE_STAGE/$IP_RULESET" || IP_READY=0
-			chmod 0644 "$RESOURCE_STAGE"/china_ip*.txt "$RESOURCE_STAGE"/china_ip*.ver \
-				"$RESOURCE_STAGE/$IP_RULESET" || IP_READY=0
-			if [ "$IP_READY" -eq 1 ]; then
-				install_directory "$RESOURCE_STAGE" "$RESOURCES_DIR" || IP_READY=0
-			fi
-		fi
-		rm -rf "$RESOURCE_STAGE"
-		if [ "$IP_READY" -eq 1 ]; then
-			for RESOURCE in $IP_RESOURCES; do
-				log "[$RESOURCE] Successfully updated."
-			done
-			CORE_UPDATED=1
-			mark_updated "china_ip"
-		else
-			log "[china_ip] Update failed while installing generated files."
-		fi
-	fi
-
-	if [ "$IP_READY" -ne 1 ]; then
-		mark_failed "china_ip"
+if [ "$GEOIP_CURRENT" -eq 0 ]; then
+	if ! download "$(versioned_url "$GEOIP_SOURCE" "$NEW_GEOIP_VER")" "$TMP_DIR/geoip_cn.srs"; then
+		log "[geoip_cn] Update failed while downloading the IP rule set."
+		mark_failed "geoip_cn"
+	elif ! validate_rule_set "$TMP_DIR/geoip_cn.srs"; then
+		log "[geoip_cn] Update failed: invalid binary rule set."
+		mark_failed "geoip_cn"
+	elif ! cp -a "$RESOURCES_DIR" "$RESOURCE_STAGE" || \
+	     ! printf '%s\n' "$NEW_GEOIP_VER" > "$RESOURCE_STAGE/geoip_cn.ver" || \
+	     ! cp "$TMP_DIR/geoip_cn.srs" "$RESOURCE_STAGE/geoip_cn.srs" || \
+	     ! chmod 0644 "$RESOURCE_STAGE/geoip_cn.srs" "$RESOURCE_STAGE/geoip_cn.ver" || \
+	     ! install_directory "$RESOURCE_STAGE" "$RESOURCES_DIR"; then
+		log "[geoip_cn] Update failed while installing the IP rule set."
+		mark_failed "geoip_cn"
+	else
+		chmod 0644 "$RESOURCES_DIR/geoip_cn.srs" "$RESOURCES_DIR/geoip_cn.ver"
+		log "[geoip_cn] Successfully updated."
+		CORE_UPDATED=1
+		mark_updated "geoip_cn"
 	fi
 fi
 
@@ -306,7 +253,7 @@ if [ "$GEOSITE_CURRENT" -eq 0 ]; then
 	if ! download "$(versioned_url "$GEOSITE_SOURCE" "$NEW_GEOSITE_VER")" "$TMP_DIR/geosite_cn.srs"; then
 		log "[geosite_cn] Update failed while downloading the domain rule set."
 		mark_failed "geosite_cn"
-	elif ! sing-box rule-set decompile --output "$TMP_DIR/geosite-check.json" "$TMP_DIR/geosite_cn.srs" 2>>"$LOG_PATH" || \
+	elif ! validate_rule_set "$TMP_DIR/geosite_cn.srs" || \
 	     ! cp -a "$RESOURCES_DIR" "$RESOURCE_STAGE" || \
 	     ! printf '%s\n' "$NEW_GEOSITE_VER" > "$RESOURCE_STAGE/geosite_cn.ver" || \
 	     ! cp "$TMP_DIR/geosite_cn.srs" "$RESOURCE_STAGE/geosite_cn.srs" || \

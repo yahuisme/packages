@@ -19,7 +19,7 @@ console.log('PASS real LuCI DOM: untrusted version/node rendered as text');
 const status=fs.readFileSync(path.join(root,'status.js'),'utf8');
 w.L.resolveDefault=(promise,fallback)=>promise.catch(()=>fallback);
 w.rpc={declare:()=>()=>Promise.resolve({resources:[{
- type:'china_ip4',version:'<img src=x onerror=alert(1)>',source:'https://example.org/'
+ type:'geoip_cn',version:'<img src=x onerror=alert(1)>',source:'https://example.org/'
 }]})};
 w.ui={createHandlerFn:()=>()=>{}};
 const getResources=w.Function(status.slice(status.indexOf('const resources ='),status.indexOf('function getRuntimeLog'))+';return getResources')();

@@ -323,11 +323,7 @@ msgid "China DNS server"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:173
-msgid "China IPv4 list"
-msgstr ""
-
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:177
-msgid "China IPv6 list"
+msgid "China IP rule set"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:181

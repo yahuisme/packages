@@ -335,12 +335,8 @@ msgid "China DNS server"
 msgstr "国内 DNS 服务器"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:173
-msgid "China IPv4 list"
-msgstr "国内 IPv4 列表"
-
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:177
-msgid "China IPv6 list"
-msgstr "国内 IPv6 列表"
+msgid "China IP rule set"
+msgstr "国内 IP 规则集"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:181
 msgid "China domain rule set"
