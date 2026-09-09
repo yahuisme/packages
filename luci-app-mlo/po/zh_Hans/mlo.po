@@ -25,8 +25,8 @@ msgstr "接入点"
 msgid "Active"
 msgstr "运行中"
 
-msgid "Verified active MLD interfaces"
-msgstr "已验证的活动 MLD 接口"
+msgid "Active MLD interfaces"
+msgstr "活动 MLD 接口"
 
 msgid "Add MLO"
 msgstr "添加 MLO"
@@ -178,8 +178,8 @@ msgstr "刷新运行状态"
 msgid "Required"
 msgstr "必需"
 
-msgid "Runtime names and multi-radio configuration are hints, not proof of client MLO links."
-msgstr "接口名称和多射频配置仅供参考，不代表客户端已建立多链路连接。"
+msgid "Runtime MLD status is driven by underlying wireless and kernel telemetry."
+msgstr "MLD 运行状态由无线底层与内核实时驱动。"
 
 msgid "Runtime radios"
 msgstr "运行射频"

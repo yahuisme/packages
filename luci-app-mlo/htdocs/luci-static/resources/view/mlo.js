@@ -259,9 +259,9 @@ function renderSummaryStatus(runtime, radios) {
 		E('div', { 'class': 'mlo-summary-grid' }, [
 			renderSummaryCard(_('Configured radios'), String(radios.length), radioSub),
 			renderSummaryCard(_('MLO-enabled'), String(summary.mloIfaces), ifaceSub),
-			renderSummaryCard(_('Verified active MLD interfaces'), mldValue, mldSub)
+			renderSummaryCard(_('Active MLD interfaces'), mldValue, mldSub)
 		]),
-		E('div', { 'class': 'cbi-value-description mlo-hint' }, _('Runtime names and multi-radio configuration are hints, not proof of client MLO links.')),
+		E('div', { 'class': 'cbi-value-description mlo-hint' }, _('Runtime MLD status is driven by underlying wireless and kernel telemetry.')),
 		warningNodes.length ? E('div', { 'class': 'mlo-warnings' }, warningNodes) : null
 	]);
 }
@@ -610,35 +610,40 @@ return view.extend({
 		return m.render().then(function(nodes) {
 			nodes.classList.add('mlo-map');
 			nodes.appendChild(E('style', {}, `
-				.mlo-map { --mlo-border: var(--cbi-border-color, rgba(128,128,128,0.15)); --mlo-bg: var(--cbi-section-bg, rgba(128,128,128,0.03)); }
+				.mlo-map { --mlo-border: var(--cbi-border-color, rgba(128,128,128,0.15)); --mlo-bg: var(--cbi-section-bg, rgba(128,128,128,0.03)); --mlo-font-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; --mlo-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-family: var(--mlo-font-ui); font-size: 13px; line-height: 1.5; color: var(--cbi-text-color, inherit); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+				.mlo-map .cbi-section { background: var(--cbi-section-bg, transparent); border: 1px solid var(--cbi-border-color, #e0e0e0); border-radius: 6px; padding: 14px; margin: 14px 0; }
+				.mlo-map .cbi-section > h3 { font-size: 15px; font-weight: 600; color: var(--cbi-text-color, inherit); padding-bottom: 8px; margin: 0 0 12px; border-bottom: 1px solid var(--cbi-border-color, #e0e0e0); }
 				.mlo-map .mlo-header-bar { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
-				.mlo-map .mlo-header-bar > h3 { margin:0; }
+				.mlo-map .mlo-header-bar > h3 { margin:0; font-size:15px; font-weight:600; }
+				.mlo-map .mlo-header-bar .cbi-button { height:32px; padding:0 16px; border-radius:4px; font-size:12px; font-weight:500; margin:0; }
 				.mlo-map .mlo-summary-grid { display:grid; grid-template-columns:repeat(3, minmax(180px, 1fr)); gap:12px; margin-bottom:8px; }
 				.mlo-map .mlo-summary-card { background:var(--mlo-bg); border:1px solid var(--mlo-border); border-radius:6px; padding:10px 14px; min-height:76px; display:flex; flex-direction:column; justify-content:center; box-sizing:border-box; }
-				.mlo-map .mlo-card-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.3px; color:var(--cbi-muted-color, #666); margin-bottom:4px; }
-				.mlo-map .mlo-card-value { font-size:18px; font-weight:600; font-variant-numeric:tabular-nums; color:var(--cbi-text-color, inherit); }
+				.mlo-map .mlo-card-title { font-size:11px; font-weight:500; text-transform:uppercase; letter-spacing:.5px; color:var(--cbi-muted-color, #666); margin-bottom:4px; }
+				.mlo-map .mlo-card-value { font-size:18px; font-weight:600; font-family:var(--mlo-font-mono); font-variant-numeric:tabular-nums; color:var(--cbi-text-color, inherit); }
 				.mlo-map .mlo-card-sub { font-size:12px; color:var(--cbi-muted-color, #888); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 				.mlo-map .mlo-hint { margin:8px 0; font-size:12px; opacity:0.8; }
 				.mlo-map .mlo-warnings { margin:8px 0; display:flex; flex-direction:column; gap:4px; }
-				.mlo-map .mlo-warning-item { display:flex; align-items:flex-start; gap:6px; font-size:12px; color:var(--cbi-warning-color, #c08400); }
+				.mlo-map .mlo-warning-item { display:flex; align-items:flex-start; gap:6px; font-size:12px; color:var(--cbi-warning-color, #f59e0b); }
 				.mlo-map .mlo-warning-bullet { flex-shrink:0; font-weight:600; }
 				.mlo-map .mlo-details-cell { display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:stretch; padding:4px 0; }
 				.mlo-map .mlo-cell-divider { display:none; }
 				.mlo-map .mlo-panel { background:var(--mlo-bg); border:1px solid var(--mlo-border); border-radius:6px; padding:10px 12px; display:flex; flex-direction:column; gap:2px; box-sizing:border-box; }
 				.mlo-map .mlo-panel-header { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid var(--mlo-border); }
-				.mlo-map .mlo-badge { margin:0; padding:2px 6px; font-size:11px; font-weight:500; border-radius:4px; line-height:1.4; }
-				.mlo-map .mlo-badge-active { border-color:var(--cbi-success-color, #2ea44f); color:var(--cbi-success-color, #2ea44f); }
-				.mlo-map .mlo-badge-verified { border-color:var(--cbi-info-color, #0969da); color:var(--cbi-info-color, #0969da); }
-				.mlo-map .mlo-badge-disabled { opacity:0.6; }
+				.mlo-map .mlo-badge { margin:0; padding:2px 8px; font-size:11px; font-weight:600; border-radius:4px; border:1px solid var(--mlo-border); line-height:1.4; }
+				.mlo-map .mlo-badge-active { border-color:rgba(16,185,129,0.3); color:#10b981; background:rgba(16,185,129,0.10); }
+				.mlo-map .mlo-badge-verified { border-color:rgba(14,165,233,0.3); color:#0ea5e9; background:rgba(14,165,233,0.10); }
+				.mlo-map .mlo-badge-disabled { border-color:var(--cbi-border-color, rgba(128,128,128,0.2)); color:var(--cbi-muted-color, #888); background:rgba(128,128,128,0.08); opacity:0.8; }
 				.mlo-map .cbi-value.mlo-value { display:flex; align-items:baseline; padding:3px 0; margin:0; font-size:13px; min-height:auto; }
 				.mlo-map .cbi-value.mlo-value > .cbi-value-title { width:80px; flex:0 0 80px; text-align:left; padding:0; font-size:12px; font-weight:500; color:var(--cbi-muted-color, #666); }
-				.mlo-map .cbi-value.mlo-value > .cbi-value-field { flex:1; min-width:0; padding:0; overflow-wrap:anywhere; }
+				.mlo-map .cbi-value.mlo-value > .cbi-value-field { flex:1; min-width:0; padding:0; overflow-wrap:anywhere; font-family:var(--mlo-font-mono); font-variant-numeric:tabular-nums; }
 				.mlo-map .mlo-issues-box { margin-top:6px; padding-top:6px; border-top:1px dashed var(--mlo-border); }
-				.mlo-map .mlo-issue-item { font-size:12px; color:var(--cbi-warning-color, #c08400); margin-top:2px; }
+				.mlo-map .mlo-issue-item { font-size:12px; color:var(--cbi-warning-color, #f59e0b); margin-top:2px; }
 				.mlo-map .mlo-status-empty { font-size:12px; color:var(--cbi-muted-color, #888); padding:8px 0; }
 				.mlo-map .mlo-hint-text { margin-top:4px; opacity:0.85; }
 				.modal.cbi-modal { min-width:0; width:min(720px, calc(100vw - 32px)); max-width:calc(100vw - 32px); }
 				.modal.cbi-modal .cbi-value-field { min-width:0; }
+				.modal.cbi-modal select, .modal.cbi-modal input.cbi-input-text { max-width:320px; height:32px; border-radius:4px; }
+				.modal.cbi-modal .cbi-button { height:32px; padding:0 16px; border-radius:4px; font-size:12px; font-weight:500; }
 				@media (max-width: 860px) {
 					.mlo-map .mlo-summary-grid { grid-template-columns:1fr; }
 					.mlo-map .mlo-details-cell { grid-template-columns:1fr; gap:8px; }

@@ -23,7 +23,7 @@ msgstr ""
 msgid "Active"
 msgstr ""
 
-msgid "Verified active MLD interfaces"
+msgid "Active MLD interfaces"
 msgstr ""
 
 msgid "Add MLO"
@@ -176,7 +176,7 @@ msgstr ""
 msgid "Required"
 msgstr ""
 
-msgid "Runtime names and multi-radio configuration are hints, not proof of client MLO links."
+msgid "Runtime MLD status is driven by underlying wireless and kernel telemetry."
 msgstr ""
 
 msgid "Runtime radios"
