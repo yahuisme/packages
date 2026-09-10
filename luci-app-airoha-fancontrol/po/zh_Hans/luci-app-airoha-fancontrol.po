@@ -25,8 +25,8 @@ msgstr "5 GHz 无线"
 msgid "6 GHz Radio"
 msgstr "6 GHz 无线"
 
-msgid "Active fan curve profile"
-msgstr "当前生效曲线"
+msgid "Configured profile for automatic mode"
+msgstr "自动模式使用的配置曲线"
 
 msgid "Automatic"
 msgstr "自动"

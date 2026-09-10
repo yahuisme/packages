@@ -96,5 +96,45 @@ const settle = () => new Promise(r => setImmediate(r));
  reply = [0, { success: true, candidate_id: 'b'.repeat(32), tag_name: 'v2' }];
  await click(); assert.equal(root.querySelector('#fwup-latest').textContent, 'v2');
  assert.equal(rpcLogs.length, 3, 'real LuCI.raise handled all expected ubus failures');
+ // Terminal dialogs are dismissible only after the worker finishes.
+ for (const stage of ['error', 'complete']) {
+  reply = [0, { stage: 'flashing', percent: 100, message: 'flashing fixture' }];
+  app.progress(); await settle(); await settle();
+  assert.equal(w.document.querySelector('.fwup-modal button'), null);
+  mods.ui.cancelModal({ key: 'Escape' });
+  assert.ok(w.document.body.classList.contains('modal-overlay-active'));
+  reply = [0, { stage, percent: stage === 'complete' ? 100 : 0, message: stage + ' fixture' }];
+  await mods.poll.queue[0].fn();
+  assert.equal(mods.poll.queue.length, 0);
+  const close = w.document.querySelector('.fwup-modal .right button');
+  assert.ok(close, 'terminal modal needs Close');
+  assert.equal(close.textContent, 'Close');
+  assert.equal(w.document.querySelector('.fwup-modal h4').textContent, stage === 'error' ? 'Firmware upgrade failed' : 'Firmware upgrade complete');
+  if (stage === 'error') close.click(); else mods.ui.cancelModal({ key: 'Escape' });
+  assert.ok(!w.document.body.classList.contains('modal-overlay-active'));
+ }
+ // Status transport errors are not worker failures; keep polling for recovery.
+ reply = [0, { stage: 'downloading', percent: 37, message: 'download 37%' }];
+ app.progress(); await settle(); await settle();
+ for (const code of [6, 7, 4]) {
+  reply = [code]; await mods.poll.queue[0].fn();
+  assert.ok(w.document.querySelector('.fwup-modal p').textContent.includes('Unable to retrieve upgrade status.'));
+  assert.equal(w.document.querySelector('.fwup-modal button'), null);
+  assert.equal(mods.poll.queue.length, 1);
+ }
+ transportError = 'XHR request timed out'; await mods.poll.queue[0].fn();
+ assert.ok(w.document.querySelector('.fwup-modal p').textContent.includes('Unable to retrieve upgrade status.'));
+ transportError = null;
+ reply = [0, { stage: 'complete', percent: 100, message: 'recovered' }];
+ await mods.poll.queue[0].fn();
+ assert.equal(w.document.querySelector('.fwup-modal p').textContent, 'recovered');
+ w.document.querySelector('.fwup-modal button').click();
+ const hostile = '<img src=x onerror=alert(1)>';
+ const hostileRoot = app.render({ local_version: hostile });
+ assert.equal(hostileRoot.querySelector('img'), null, 'local version must be text');
+ reply = [0, { success: true, candidate_id: 'a'.repeat(32), asset_name: hostile, sha256: hostile }];
+ await click();
+ assert.equal(root.querySelector('#fwup-detail img'), null, 'asset metadata must be text');
+ assert.ok(root.querySelector('#fwup-detail').textContent.includes(hostile));
  console.log('PASS real LuCI RPC 20s default, actual UI/form clicks, ubus/transport diagnostics, text-only errors and retry');
 })().catch(e => { console.error(e); process.exitCode = 1; }).finally(() => w.close());

@@ -12,17 +12,17 @@ var css = `
 .flowsense-dashboard{--flowsense-gap:16px;box-sizing:border-box}
 .flowsense-dashboard *{box-sizing:border-box}
 .flowsense-dashboard .flowsense-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--flowsense-gap);margin:16px 0}
-.flowsense-dashboard .flowsense-card{min-width:0;min-height:96px;padding:16px;border:1px solid var(--cbi-border-color,#e0e0e0);border-radius:4px;background:var(--cbi-section-bg,transparent)}
-.flowsense-dashboard .flowsense-label{font-size:inherit;font-weight:500;color:var(--cbi-muted-color,#666)}
+.flowsense-dashboard .flowsense-card{min-width:0;min-height:96px;padding:16px;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:4px;background:var(--cbi-section-bg,transparent)}
+.flowsense-dashboard .flowsense-label{font-size:inherit;font-weight:500;color:var(--cbi-muted-color,var(--text-muted,#666))}
 .flowsense-dashboard .flowsense-value{display:block;margin-top:8px;font-size:18px;font-weight:500;font-variant-numeric:tabular-nums}
-.flowsense-dashboard .flowsense-sub{color:var(--cbi-muted-color,#888)}
+.flowsense-dashboard .flowsense-sub{color:var(--cbi-muted-color,var(--text-muted,#888))}
 .flowsense-dashboard .flowsense-status{display:inline-flex;align-items:center;gap:8px;font-size:inherit;color:inherit;white-space:nowrap}
-.flowsense-dashboard .flowsense-status-arrow{color:#222;font-weight:600}
+.flowsense-dashboard .flowsense-status-arrow{color:inherit;font-weight:600}
 .flowsense-dashboard .flowsense-up > span{color:#16a34a}
 .flowsense-dashboard .flowsense-port-name{font-size:1.125em;font-weight:600}
 .flowsense-dashboard .flowsense-section{margin:16px 0}.flowsense-dashboard .flowsense-section .cbi-value{padding:8px 0}
 .flowsense-dashboard .flowsense-ports{container-type:inline-size}
-.flowsense-dashboard .flowsense-port{display:grid;grid-template-columns:minmax(0,.7fr) repeat(3,minmax(0,1fr));gap:16px;align-items:start;margin:0;padding:16px 0;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}
+.flowsense-dashboard .flowsense-port{display:grid;grid-template-columns:minmax(0,.7fr) repeat(3,minmax(0,1fr));gap:16px;align-items:start;margin:0;padding:16px 0;border-bottom:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0))}
 .flowsense-dashboard .flowsense-port:last-child{border-bottom:0}.flowsense-dashboard .flowsense-port-title{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-weight:400;min-width:0;overflow-wrap:anywhere}
 .flowsense-dashboard .flowsense-port-metric{display:grid;gap:8px;min-width:0;margin:0;padding:0}
 .flowsense-dashboard .flowsense-port-metric dt,.flowsense-dashboard .flowsense-port-metric dd{margin:0;padding:0;min-width:0;font-weight:400;text-align:start;overflow-wrap:anywhere}
@@ -79,11 +79,11 @@ return view.extend({
 		target.addEventListener('input', function() { dirty = true; }); enabled.addEventListener('change', function() { dirty = true; });
 		apply.addEventListener('click', function() {
 			if (!validTarget(target.value)) { ui.addNotification(null, E('p', {}, _('Enter a valid IPv4 address or hostname.')), 'error'); target.focus(); return; }
-			apply.disabled = true;
+			target.disabled = enabled.disabled = apply.disabled = true;
 			setMonitor(target.value.trim(), enabled.checked ? 1 : 0).then(function(result) {
 				if (!result || result.success !== true) throw new Error(_('Unable to apply monitor settings.'));
 				dirty = false; return update();
-			}).catch(function(error) { ui.addNotification(null, E('p', {}, error.message), 'error'); }).finally(function() { apply.disabled = false; });
+			}).catch(function(error) { ui.addNotification(null, E('p', {}, error.message), 'error'); }).finally(function() { target.disabled = enabled.disabled = apply.disabled = false; });
 		});
 		var main = E('div', {}, [summary, E('div', { 'class': 'cbi-section' }, [E('h3', { 'class': 'cbi-section-title' }, _('Ethernet Links')), interfaces]), quality]);
 		var monitor = E('div', { 'class': 'cbi-section' }, [E('h3', { 'class': 'cbi-section-title' }, _('Probe Settings')), metric(_('IPv4 address or hostname'), target), metric(_('Enable periodic probes'), enabled), E('div', { 'class': 'cbi-value' }, [E('span', { 'class': 'cbi-value-title' }), E('div', { 'class': 'cbi-value-field' }, apply)])]);

@@ -6,7 +6,7 @@ String.prototype.format=function(...args){return w.String.prototype.format.apply
 const dom=w.mods.dom;w.E=(tag,attrs,children)=>dom.create(tag,w.Object.assign(new w.Object(),attrs||{}),Array.isArray(children)?w.Array.from(children):children);w._=s=>s;
 w.L={env:{pollinterval:5},resolveDefault:(p,d)=>p.catch(()=>d),bind:(f,c,...a)=>f.bind(c,...a)};
 let polls=[],text='alpha\nbeta\ngamma',err;
-const rpc={declare:()=>()=>Promise.resolve({})},poll={add:f=>polls.push(f)},ui={createHandlerFn:(_c,f)=>f},uci={get:()=> 'warn'};
+const rpc={declare:()=>()=>Promise.resolve({})},poll={add:f=>polls.push(f),remove:f=>{const i=polls.indexOf(f);if(i>=0)polls.splice(i,1);}},ui={createHandlerFn:(_c,f)=>f},uci={get:()=> 'warn'};
 let s=fs.readFileSync(__dirname+'/../htdocs/luci-static/resources/view/homeproxy/status.js','utf8');s=s.slice(0,s.indexOf('return view.extend'))+'\nreturn {getRuntimeLog,css};';
 const api=w.Function('dom','rpc','poll','fs','ui','uci',s)(dom,rpc,poll,{read_direct:()=>err?Promise.reject(err):Promise.resolve(text)},ui,uci);
 const o={option:'_sing-box-c_logview',cbid:()=> 'fixture',map:{save:()=>Promise.resolve()}};

@@ -32,6 +32,7 @@ async function boot() {
  }
  load('rpc');load('uci');mods.fs={read_direct:async()=>''};load('validation');load('ui');L.ui=mods.ui;load('form');
  mods.ui.addNotification=()=>{};mods.poll.add=f=>polls.push(f);
+ mods.poll.remove=f=>{const i=polls.indexOf(f);if(i>=0)polls.splice(i,1);};
  const app=load('app',fs.readFileSync(process.env.HOMEPROXY_STATUS_JS||__dirname+'/../htdocs/luci-static/resources/view/homeproxy/status.js','utf8'));
  for(let i=0;i<40&&!w.document.querySelector('.homeproxy-status');i++)await tick();await tick();
  const root=()=>w.document.querySelector('.homeproxy-status');assert(root(),'real view mounted');

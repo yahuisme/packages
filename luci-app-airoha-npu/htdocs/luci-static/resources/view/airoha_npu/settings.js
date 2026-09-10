@@ -143,6 +143,10 @@ return view.extend({
 				if (formGov && formGov !== String(status.cpu_governor || '')) status.cpu_governor = formGov;
 				if (formFreq && formFreq !== String(status.cpu_max_freq || '')) status.cpu_max_freq = Number(formFreq);
 				if (formFlow != null && formFlow !== '') flow.enabled = formFlow === '1';
+				// Native reset reloads option defaults from this confirmed baseline.
+				m.lookupOption('governor', 'cpu')[0].default = status.cpu_governor || '';
+				m.lookupOption('frequency', 'cpu')[0].default = status.cpu_max_freq ? String(status.cpu_max_freq) : '';
+				m.lookupOption('flow', 'firewall')[0].default = typeof flow.enabled === 'boolean' ? (flow.enabled ? '1' : '0') : '';
 				ui.addNotification(null, E('p', {}, _('Settings applied.')), 'info');
 			}).catch(function(err) {
 				return rollback(applied.length - 1, true).then(function(ok) {

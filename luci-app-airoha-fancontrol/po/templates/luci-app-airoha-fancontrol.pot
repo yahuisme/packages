@@ -25,7 +25,7 @@ msgstr ""
 msgid "6 GHz Radio"
 msgstr ""
 
-msgid "Active fan curve profile"
+msgid "Configured profile for automatic mode"
 msgstr ""
 
 msgid "Automatic"

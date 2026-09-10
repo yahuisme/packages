@@ -456,6 +456,19 @@ class Runtime(unittest.TestCase):
             self.assertFalse(self.rpc('saveSettings',dict(repository=repo,token='',keep_config='1'))['success'])
             self.assertEqual(self.cfg.read_bytes(),original)
 
+    def test_worker_download_timeout_cleans_private_state(self):
+        self.stub('curl', '#!/bin/sh\nprintf "%s\\n" "$@" > "$ROOT/curl-args"\nexit 28\n')
+        result = subprocess.run(['busybox', 'ash', str(self.worker), self.asset['browser_download_url'], self.asset['name'], self.asset['digest'][7:], '0', '5'], env=self.env, timeout=10)
+        args = (self.root / 'curl-args').read_text().splitlines()
+        for option, value in [('--connect-timeout', '30'), ('--speed-limit', '1'), ('--speed-time', '120')]:
+            self.assertIn(option, args)
+            self.assertEqual(args[args.index(option) + 1], value)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(json.loads((self.runtime / 'firmwareupgrade.status').read_text())['stage'], 'error')
+        self.assertFalse((self.root / 'flashes').exists())
+        self.assertFalse((self.runtime / 'firmwareupgrade.pid').exists())
+        self.assertFalse((self.runtime / 'firmwareupgrade.worker.lock').exists())
+
     def test_worker_success_is_terminal(self):
         self.stub('curl', '#!/bin/sh\nwhile [ "$1" != --output ]; do shift; done\nprintf image > "$2"\n')
         p=subprocess.run(['busybox','ash',str(self.worker),self.asset['browser_download_url'],self.asset['name'],self.asset['digest'][7:],'1','5'],env=self.env,timeout=10)

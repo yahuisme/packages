@@ -122,3 +122,16 @@ msgstr ""
 
 msgid "Save settings before checking."
 msgstr ""
+
+
+msgid "Firmware upgrade failed"
+msgstr ""
+
+msgid "Firmware upgrade complete"
+msgstr ""
+
+msgid "Close"
+msgstr ""
+
+msgid "Unable to retrieve upgrade status."
+msgstr ""

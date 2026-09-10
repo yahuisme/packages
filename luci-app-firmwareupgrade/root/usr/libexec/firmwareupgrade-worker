@@ -100,7 +100,8 @@ fi
 # The digest and original GitHub URL remain authoritative; no token is sent.
 FETCH_URL="$DOWNLOAD_URL"
 [ -z "$DOWNLOAD_PROXY" ] || FETCH_URL="${DOWNLOAD_PROXY%/}/$DOWNLOAD_URL"
-curl --fail --location --proto '=http,https' --proto-redir '=https' --tlsv1.2 --output "$TARGET_FILE" "$FETCH_URL" >/dev/null 2>&1 &
+# Bound connection setup and stalled transfers without limiting a progressing image.
+curl --fail --location --connect-timeout 30 --speed-limit 1 --speed-time 120 --proto '=http,https' --proto-redir '=https' --tlsv1.2 --output "$TARGET_FILE" "$FETCH_URL" >/dev/null 2>&1 &
 CURL_PID=$!
 while kill -0 "$CURL_PID" 2>/dev/null; do
 	if [ -s "$TARGET_FILE" ]; then

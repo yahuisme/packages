@@ -16,6 +16,18 @@ msgstr "固件升级"
 msgid "Firmware upgrade"
 msgstr "固件升级"
 
+msgid "Firmware upgrade failed"
+msgstr "固件升级失败"
+
+msgid "Firmware upgrade complete"
+msgstr "固件升级完成"
+
+msgid "Close"
+msgstr "关闭"
+
+msgid "Unable to retrieve upgrade status."
+msgstr "无法获取升级状态。"
+
 msgid "Check a verified GitHub Release image before upgrading."
 msgstr "检查已验证的 GitHub Release 固件后再升级。"
 

@@ -91,11 +91,21 @@ async function scenario(unknown = false) {
    assert.deepEqual(calls.filter(c => c[0].startsWith('set')), [['setGovernor', 'schedutil'], ['setMaxFreq', '800000'], ['setFlowOffload', '1']]);
    assert.equal(notices.at(-1), w._('Settings applied.'));
    exportDOM('.saved');
+   async function assertSavedReset() {
+    await map.reset();
+    for (const [name, section, value] of [['governor', 'cpu', 'schedutil'], ['frequency', 'cpu', '800000'], ['flow', 'firewall', '1']])
+     assert.equal(map.lookupOption(name, section)[0].formvalue(section), value, 'reset keeps last confirmed ' + name);
+   }
+   map.lookupOption('frequency', 'cpu')[0].getUIElement('cpu').setValue('1000000');
+   await assertSavedReset();
+   await saveClick();
+   assert.equal(calls.filter(c => c[0].startsWith('set')).length, 3, 'reset then save must not undo confirmed settings');
    w.document.querySelectorAll('.alert-message').forEach(n => n.remove());
    rejectSave = true; map.lookupOption('governor', 'cpu')[0].getUIElement('cpu').setValue('performance');
    await saveClick();
    assert.equal(notices.at(-1), w._('The change failed and recovery could not be verified. Check the system settings.'));
    exportDOM('.failed');
+   await assertSavedReset();
   }
   node.remove();
   assert.equal(w.document.querySelectorAll('style').length, 0, 'view removal cleans settings styles');

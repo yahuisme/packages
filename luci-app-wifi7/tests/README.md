@@ -35,6 +35,11 @@ python3 tests/catalog.test.py
 python3 tests/probes.test.py
 python3 tests/test_summary_survey.py
 node tests/survey-dom.cjs
+node tests/known-defects.cjs text
+node tests/known-defects.cjs lifecycle
+node tests/known-defects.cjs rpc
+# 原始 Aurora CSS + 外部 Playwright：明暗 fallback、绿色状态与窄屏回归
+# AURORA_HTDOCS=/path/to/aurora/htdocs node tests/theme-fallback.cjs
 ```
 
 覆盖 RPC 解包、MLO 链路、信号未知、计数边界、CAC 与占用率、表单校验、无变更保存、失败重试、国家变更刷新、只读权限及客户端节点保留。

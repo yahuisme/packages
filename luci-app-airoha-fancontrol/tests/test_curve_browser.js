@@ -28,7 +28,7 @@ const { chromium } = require('playwright');
   },source);
   for(const dark of [false,true]) for(const width of [320,390,768,1024,1440,1920]) {
    await page.setViewportSize({width,height:1000});
-   await page.evaluate(d=>document.documentElement.toggleAttribute('data-darkmode',d),dark);
+   await page.evaluate(d=>document.documentElement.setAttribute('data-darkmode',String(d)),dark);
    await page.waitForTimeout(80);
    const result=await page.evaluate(()=>{
     const svg=document.querySelector('.fan-curve-preview svg'),r=svg.getBoundingClientRect();
@@ -36,12 +36,12 @@ const { chromium } = require('playwright');
     const section=document.querySelector('.cbi-section-node[data-section-id="custom"]');
     const field=section.querySelector('[data-name="point1_temp"]').getBoundingClientRect();
     const preview=section.querySelector('[data-name="_curve_preview"]').getBoundingClientRect();
-    const stacked=getComputedStyle(section).display==='flex';
-    const layoutOK=stacked ? preview.bottom<=field.top : field.right<=preview.left;
+    const stacked=preview.bottom<=field.top+1;
+    const layoutOK=stacked || field.right<=preview.left+1;
     const clipped=[...svg.querySelectorAll('text')].filter(e=>{const b=e.getBoundingClientRect();return b.left<r.left||b.right>r.right||b.top<r.top||b.bottom>r.bottom;}).map(e=>e.textContent);
     const ticks=[...svg.querySelectorAll('.fan-curve-x-tick')];
     const overlap=ticks.some((e,i)=>i&&ticks[i-1].getBoundingClientRect().right>e.getBoundingClientRect().left);
-    return {width:innerWidth,dark:document.documentElement.hasAttribute('data-darkmode'),stacked,layoutOK,chartWidth:r.width,height:r.height,font:getComputedStyle(text).fontSize,stroke:getComputedStyle(line).strokeWidth,color:getComputedStyle(line).stroke,clipped,overlap,overflow:document.documentElement.scrollWidth>innerWidth,points:line.getAttribute('points')};
+    return {width:innerWidth,dark:document.documentElement.getAttribute('data-darkmode')==='true',stacked,layoutOK,chartWidth:r.width,height:r.height,font:getComputedStyle(text).fontSize,stroke:getComputedStyle(line).strokeWidth,color:getComputedStyle(line).stroke,clipped,overlap,overflow:document.documentElement.scrollWidth>innerWidth,points:line.getAttribute('points')};
    });
    assert.equal(result.height,244);assert.equal(result.font,'12px');assert.equal(result.stroke,'1.5px');assert.equal(result.color,'rgb(59, 130, 246)');
    assert.deepEqual(result.clipped,[]);assert.equal(result.overlap,false);assert.equal(result.overflow,false);

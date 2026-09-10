@@ -57,6 +57,15 @@ const renderer = source.slice(source.indexOf('\t\tfunction svgNode('), source.in
    await page.evaluate(async ({ dark, renderer }) => {
     document.documentElement.setAttribute('data-darkmode', String(dark));
     await document.fonts.ready;
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--text-muted)'; probe.style.borderColor = 'var(--hairline)';
+    document.body.append(probe);
+    const expected = getComputedStyle(probe);
+    for (const label of document.querySelectorAll('.npu-card-title,.npu-card-sub,.npu-detail-label'))
+     if (getComputedStyle(label).color !== expected.color) throw Error('muted label does not follow Aurora theme');
+    if (getComputedStyle(document.querySelector('.npu-summary-card')).borderColor !== expected.borderColor)
+     throw Error('card border does not follow Aurora hairline');
+    probe.remove();
     // Reuse exported fixture points, not invented readings; run the exact
     // production renderer with the actual browser-measured content width.
     const samples = [...document.querySelectorAll('.npu-chart-point')].map(p => ({ time: +p.dataset.time, value: +p.dataset.mhz }));

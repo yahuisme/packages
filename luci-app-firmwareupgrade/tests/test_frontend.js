@@ -22,6 +22,8 @@ const app=Function('rpc','view','ui','poll','E','_','L',source)(rpc,{extend:x=>x
  const upgrade=[...root.querySelectorAll('button')].find(x=>x.textContent==='Upgrade firmware');
  assert(detail.classList.contains('fwup-release'), 'release shares the operation alignment instead of a nested panel');
  const css=root.querySelector('style').textContent;
+ assert(css.includes('var(--text-muted,'), 'use theme muted fallback');
+ assert(css.includes('var(--hairline,'), 'use theme border fallback');
  assert(css.includes('flex-wrap:wrap;margin:16px 0'));
  assert(css.includes('height:32px;min-height:32px;margin:0'));
  assert(css.includes('.fwup-modal .fwup-progress{'), 'body-mounted modal progress must not depend on dashboard ancestry');

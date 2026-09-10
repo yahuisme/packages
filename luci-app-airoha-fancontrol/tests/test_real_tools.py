@@ -14,10 +14,10 @@ class RealTools(unittest.TestCase):
  def setUp(self):
   self.assertTrue(Path(os.environ['REAL_UCI']).is_file())
   self.tmp=tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup); self.d=Path(self.tmp.name)
-  for name in ('config','delta','bin'): (self.d/name).mkdir()
+  for name in ('config','delta','override','bin'): (self.d/name).mkdir()
   shutil.copy(ROOT/'root/etc/config/fan', self.d/'config/fan')
   wrapper='''#!/bin/sh
-exec "$REAL_UCI" -c "$TESTDIR/config" -P "$TESTDIR/delta" "$@"
+exec "$REAL_UCI" -c "$TESTDIR/config" -C "$TESTDIR/override" -t "$TESTDIR/delta" "$@"
 '''
   (self.d/'bin/uci').write_text(wrapper); (self.d/'bin/uci').chmod(0o755)
   self.env=dict(os.environ,TESTDIR=str(self.d),PATH=str(self.d/'bin')+':'+os.environ['PATH'])
@@ -30,7 +30,10 @@ exec "$REAL_UCI" -c "$TESTDIR/config" -P "$TESTDIR/delta" "$@"
  def test_status_reads_real_uci_without_mutating_it(self):
   self.uci('set','fan.settings.mode=manual')
   self.uci('set','fan.settings.manual_pwm=0')
-  self.uci('commit','fan')
+  self.assertEqual(self.uci('commit','fan').returncode,0)
+  committed=(self.d/'config/fan').read_bytes()
+  self.assertIn(b"option mode 'manual'",committed)
+  self.assertEqual(self.uci('changes','fan').stdout,'')
   before=self.uci('export','fan').stdout
   result=self.call('getStatus',{})
   self.assertEqual(result.returncode,0,result.stderr)
@@ -39,6 +42,7 @@ exec "$REAL_UCI" -c "$TESTDIR/config" -P "$TESTDIR/delta" "$@"
   self.assertEqual(data['uci_manual_pwm'],0)
   self.assertFalse(data['available'])
   self.assertEqual(self.uci('export','fan').stdout,before)
+  self.assertEqual((self.d/'config/fan').read_bytes(),committed)
   for method in ('setMode','setManualPwm','setPreset','setCustomCurve','getCurve','getAllCurves'):
    result=self.call(method,{'mode':'auto','pwm':255})
    self.assertNotEqual(result.returncode,0)
@@ -51,7 +55,7 @@ exec "$REAL_UCI" -c "$TESTDIR/config" -P "$TESTDIR/delta" "$@"
    (hw/f'pwm1_auto_point{i}_temp').write_text('0\n')
    if i<5: (hw/f'pwm1_auto_point{i}_pwm').write_text('0\n')
   script=self.d/'init'; script.write_text((ROOT/'root/etc/init.d/fan').read_text().replace('/sys/',str(self.d)+'/sys/'))
-  def run(): return subprocess.run(['busybox','ash','-c',f'. {script}; apply_settings'],env=self.env,text=True,capture_output=True)
+  def run(): return subprocess.run(['busybox','ash','-c',f'. {script}; logger() {{ :; }}; apply_settings'],env=self.env,text=True,capture_output=True)
   r=run(); self.assertEqual(r.returncode,0,r.stderr)
   self.assertEqual((hw/'pwm1_enable').read_text(),'2\n')
   self.assertEqual((hw/'pwm1_auto_point5_temp').read_text(),'80000\n')

@@ -10,14 +10,18 @@ w.eval(fs.readFileSync(path.join(resources,'luci.js'),'utf8').replace('window.Lu
 const mods=w.classes,L=w.L=Object.create(w.LuCI.prototype);
 Object.assign(w.environment,{resource:'/resources',scriptname:'/cgi-bin/luci',sessionid:'fixture'});
 L.loaded=true;L.require=n=>Promise.resolve(mods[n]);w.E=mods.dom.create.bind(mods.dom);
-const calls=[],polls=new Map();let overviewError=false,waitOverview=null,waitPpe=null;
+const calls=[],polls=new Map();let overviewError=false,waitOverview=null,waitPpe=null,waitSave=null,saveError=false;
 const sample={timestamp:1000,uptime:100,configured_hw:true,configured_sw:false,monitor:{target:'example.com',enabled:true},jitter:{last_ping:12,deviation:3,loss:4},interfaces:[{device:'lan1',speed:2500,carrier:1,stats:{rx_bytes:10,tx_bytes:20,rx_errors:7,tx_errors:9}}]};
 const ppeSample={available:true,total:1,entries:[{index:'abcd',state:'BND',type:'IPv4'}]};
 mods.request.post=async(url,req)=>{
  const method=req.params[2];calls.push(method);
  if(method==='getOverview'&&waitOverview)await waitOverview.promise;
  if(method==='getPpeEntries'&&waitPpe)await waitPpe.promise;
- const result=method==='getOverview'?(overviewError?[6]:[0,sample]):method==='getPpeEntries'?[0,ppeSample]:[6];
+ if(method==='setMonitor') {
+  if(waitSave)await waitSave.promise;
+  if(!saveError)sample.monitor={target:req.params[3].target,enabled:req.params[3].enabled===1};
+ }
+ const result=method==='getOverview'?(overviewError?[6]:[0,sample]):method==='getPpeEntries'?[0,ppeSample]:method==='setMonitor'?(saveError?[6]:[0,{success:true}]):[6];
  return {ok:true,status:200,json:()=>w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result}))};
 };
 function load(name,source){source=source||fs.readFileSync(path.join(resources,name+'.js'),'utf8');const deps=[...source.matchAll(/'require ([^';]+)';/g)].map(m=>m[1]);const C=w.Function(...deps,source)(...deps.map(n=>mods[n]));return mods[name]=new C();}
@@ -64,11 +68,23 @@ function count(name){return calls.filter(n=>n===name).length;}
  assert.deepEqual(sample.interfaces.map(p=>p.device),devices,'presentation must not mutate identifiers or source order');
  assert.deepEqual([...check.querySelectorAll('.flowsense-port')].map(n=>n.querySelectorAll('dd')[2].textContent),['3 / 3','2 / 2','5 / 5','0 / 0','1 / 1','4 / 4','6 / 6'],'metrics stay with real ports');
  const refresh=polls.get(5);
- for(const [carrier,label,color] of [[1,'↑Connected','rgb(22, 163, 74)'],[0,'↓Disconnected','rgb(34, 34, 34)'],[null,'—Unknown','rgb(34, 34, 34)'],[true,'↑Connected','rgb(22, 163, 74)'],[false,'↓Disconnected','rgb(34, 34, 34)']]) {
+ const target=check.querySelector('#flowsense-target'),enabled=check.querySelector('#flowsense-enabled'),apply=check.querySelector('button');
+ for(const fail of [false,true]) {
+  saveError=fail;waitSave=deferred();target.value=fail?'retry.example':'saved.example';
+  target.dispatchEvent(new w.Event('input'));enabled.checked=false;enabled.dispatchEvent(new w.Event('change'));
+  apply.click();await settle();
+  assert(target.disabled&&enabled.disabled&&apply.disabled,'freeze both editable controls until save settles');
+  const writes=count('setMonitor');apply.click();await settle();assert.equal(count('setMonitor'),writes,'no duplicate save');
+  waitSave.resolve();await settle();await settle();waitSave=null;
+  assert(!target.disabled&&!enabled.disabled&&!apply.disabled,'unlock after success or rejection');
+  assert.equal(target.value,fail?'retry.example':'saved.example','failed save retains edits');
+  assert.equal(enabled.checked,false);
+ }
+ for(const [carrier,label,color] of [[1,'↑Connected','rgb(22, 163, 74)'],[0,'↓Disconnected','rgb(51, 51, 51)'],[null,'—Unknown','rgb(51, 51, 51)'],[true,'↑Connected','rgb(22, 163, 74)'],[false,'↓Disconnected','rgb(51, 51, 51)']]) {
   sample.interfaces.forEach(p=>p.carrier=carrier);await refresh();
   for(const state of check.querySelectorAll('.flowsense-status')) {
    assert.equal(state.textContent,label);
-   assert.equal(w.getComputedStyle(state.firstChild).color,color);
+   assert.equal(computedColor(state.firstChild),color);
    assert.equal(computedColor(state.lastChild),carrier?'rgb(22, 163, 74)':'rgb(51, 51, 51)','label computed color');
    assert.equal(w.getComputedStyle(state.firstChild).fontWeight,'600');
    assert.equal(state.firstChild.getAttribute('aria-hidden'),'true');

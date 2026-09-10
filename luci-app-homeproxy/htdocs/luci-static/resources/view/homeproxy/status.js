@@ -367,8 +367,10 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 		'style': 'width:100%; font-family:monospace; white-space:pre; overflow:auto;'
 	}, [ _('Collecting data...') ]);
 
+	let active = true, mounted = false;
+
 	function updateLog(content) {
-		if (log_textarea.value === content)
+		if (!active || !log_textarea.isConnected || log_textarea.value === content)
 			return;
 		const focused = document.activeElement === log_textarea;
 		const start = log_textarea.selectionStart, end = log_textarea.selectionEnd;
@@ -381,7 +383,10 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 		log_textarea.scrollLeft = left;
 	}
 
-	poll.add(L.bind(() => {
+	const refreshLog = () => {
+		if (!active || !log_textarea.isConnected)
+			return Promise.resolve();
+
 		return fs.read_direct(String.format('%s/%s.log', hp_dir, filename), 'text')
 		.then((res) => {
 			updateLog(res || _('Log is empty.'));
@@ -391,7 +396,20 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 			else
 				updateLog(_('Unknown error: %s.').format(err));
 		});
-	}));
+	};
+
+	// Map.reset() replaces widgets without leaving the status view.
+	const observer = new MutationObserver(() => {
+		if (log_textarea.isConnected) {
+			mounted = true;
+		} else if (mounted) {
+			active = false;
+			poll.remove(refreshLog);
+			observer.disconnect();
+		}
+	});
+	observer.observe(document.documentElement, { childList: true, subtree: true });
+	poll.add(refreshLog);
 
 	return E([
 		E('div', {'class': 'cbi-map'}, [
