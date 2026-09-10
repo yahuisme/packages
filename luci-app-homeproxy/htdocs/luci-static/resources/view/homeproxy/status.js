@@ -63,10 +63,12 @@ const connectionSites = [
 const connectionTestTimeout = 10000;
 
 function getConnectionStatus() {
+	const session = this.connectionSession;
 	const callConnStat = rpc.declare({
 		object: 'luci.homeproxy',
 		method: 'connection_check',
 		params: ['site'],
+		reject: true,
 		expect: { '': {} }
 	});
 
@@ -98,8 +100,6 @@ function getConnectionStatus() {
 	});
 	cbi_update_table(table, rows);
 
-	let running = false;
-	let generation = 0;
 	let testButton;
 
 	const updateResult = (site, result) => {
@@ -117,55 +117,58 @@ function getConnectionStatus() {
 		}
 	};
 
-	const runAllTests = () => {
-		if (running)
-			return Promise.resolve();
-
-		running = true;
-		testButton.disabled = true;
-		const currentGeneration = ++generation;
+	// Keep the model on the view, not on widgets recreated by Map.reset().
+	const paint = () => {
+		testButton.disabled = session.running;
 		connectionSites.forEach((site) => {
-			const elements = statusElements[site.type];
-			elements.state.classList.remove('hp-connection-success');
-			dom.content(elements.state, _('Testing...'));
-			dom.content(elements.latency, '-');
-		});
-
-		return new Promise((resolve) => {
-			let settled = false;
-			const finish = (result) => {
-				if (settled)
-					return;
-
-				settled = true;
-				resolve(result);
-			};
-			const timer = window.setTimeout(() => finish({ timed_out: true }), connectionTestTimeout);
-
-			L.resolveDefault(callConnStat('all'), { results: [] }).then((result) => {
-				window.clearTimeout(timer);
-				finish(result);
-			});
-		}).then((result) => {
-			if (currentGeneration !== generation)
-				return;
-
-			const results = {};
-			(result.results || []).forEach((siteResult) => {
-				results[siteResult.site] = siteResult;
-			});
-			connectionSites.forEach((site) => {
-				updateResult(site.type, results[site.type] || {
-					result: false,
-					timed_out: !!result.timed_out
-				});
-			});
-		}).finally(() => {
-			if (currentGeneration === generation) {
-				running = false;
-				testButton.disabled = false;
+			if (session.running && !session.results) {
+				const elements = statusElements[site.type];
+				elements.state.classList.remove('hp-connection-success');
+				dom.content(elements.state, _('Testing...'));
+				dom.content(elements.latency, '-');
+			} else if (session.results) {
+				updateResult(site.type, session.results[site.type]);
 			}
 		});
+	};
+	const refresh = () => {
+		if (session.active && session.root?.isConnected)
+			session.paint();
+	};
+	const runAllTests = () => {
+		if (!session.active || !session.root?.isConnected || session.running)
+			return Promise.resolve();
+
+		session.running = true;
+		session.results = null;
+		refresh();
+		let settled = false;
+		const finish = (result) => {
+			if (settled || !session.active || !session.root.isConnected)
+				return;
+			settled = true;
+			window.clearTimeout(session.timer);
+			const results = Object.create(null);
+			(Array.isArray(result?.results) ? result.results : []).forEach((entry) => {
+				if (entry && typeof entry.site === 'string')
+					results[entry.site] = entry;
+			});
+			session.results = Object.create(null);
+			connectionSites.forEach((site) => {
+				session.results[site.type] = results[site.type] || {
+					result: false, timed_out: result?.timed_out === true
+				};
+			});
+			refresh();
+		};
+		session.timer = window.setTimeout(() => finish({ timed_out: true }), connectionTestTimeout);
+		// A UI timeout must not release single-flight while transport is pending.
+		return Promise.resolve().then(() => callConnStat('all'))
+			.then(finish, () => finish({})).finally(() => {
+				window.clearTimeout(session.timer);
+				session.running = false;
+				refresh();
+			});
 	};
 
 	testButton = E('button', {
@@ -181,6 +184,9 @@ function getConnectionStatus() {
 		E('div', { 'class': 'cbi-section' }, [ table ])
 	]);
 
+	session.paint = paint;
+	session.run = runAllTests;
+	paint();
 	return view;
 }
 
@@ -200,6 +206,7 @@ const resources = [
 ];
 
 function getResources(o) {
+	const session = this.connectionSession;
 	const callResStatus = rpc.declare({
 		object: 'luci.homeproxy',
 		method: 'resources_get',
@@ -250,6 +257,8 @@ function getResources(o) {
 					'class': 'btn cbi-button cbi-button-action',
 					'click': ui.createHandlerFn(this, () => {
 						return L.resolveDefault(callResUpdate(), {}).then((res) => {
+							if (!session.active || !session.root.isConnected)
+								return;
 							let message, severity = 'info';
 
 							if (res.apply_failed) {
@@ -408,6 +417,10 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 
 return view.extend({
 	render() {
+		if (this.statusRender && this.connectionSession.active)
+			return this.statusRender;
+
+		const session = this.connectionSession = { active: true, running: false, results: null };
 		let m, s, o;
 
 		m = new form.Map('homeproxy');
@@ -433,9 +446,26 @@ return view.extend({
 		o = s.option(form.DummyValue, '_sing-box-s_logview');
 		o.render = L.bind(getRuntimeLog, this, o, _('sing-box Server'));
 
-		return m.render().then((node) => E('div', { 'class': 'homeproxy-status' }, [
-			E('style', [ css ]), node
-		]));
+		return this.statusRender = m.render().then((node) => {
+			const root = session.root = E('div', { 'class': 'homeproxy-status' }, [
+				E('style', [ css ]), node
+			]);
+			let mounted = false;
+			const observer = new MutationObserver(() => {
+				if (root.isConnected) {
+					if (!mounted) {
+						mounted = true;
+						session.run();
+					}
+				} else if (mounted) {
+					session.active = false;
+					window.clearTimeout(session.timer);
+					observer.disconnect();
+				}
+			});
+			observer.observe(document.documentElement, { childList: true, subtree: true });
+			return root;
+		});
 	},
 
 	handleSaveApply: null,

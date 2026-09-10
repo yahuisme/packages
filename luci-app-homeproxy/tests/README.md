@@ -5,9 +5,12 @@ User direct/proxy/custom text lists live in `/etc/homeproxy/diversion/{id}.txt`;
 ```sh
 NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci-base/htdocs/luci-static/resources node tests/test_status_dom.cjs
 NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci-base/htdocs/luci-static/resources node tests/test_connection_dom.cjs
+NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci-base/htdocs/luci-static/resources node tests/test_connection_lifecycle.cjs
 UCODE_LIB_DIR=/root/.local/opt/homeproxy-ucode/lib/ucode python3 tests/test_resource_versions.py
 UCODE_LIB_DIR=/root/.local/opt/homeproxy-ucode/lib/ucode python3 tests/test_list_migration.py
 ```
+
+The connection lifecycle test mounts the actual LuCI view with real form.Map/reset, UI handlers, DOM and RPC parsing. It reproduces missing automatic testing and resource-reset loss (`--repro-reset`), then covers single-flight, malformed/failed replies, timeout/late reply, rerender and navigation. HTTP RPC and log reads are fixtures; no connection probe or resource download runs. Expected injected RPC errors may be logged by LuCI. After the 10-second display timeout, the button stays disabled until the outstanding RPC settles, preventing concurrent backend tests. Styles, labels and table structure are unchanged; jsdom is not multi-device browser or router acceptance.
 
 The DOM test executes upstream LuCI RPC and DOM with fixture transport. The updater test executes BusyBox ash, curl and ucode (fs/digest modules required), using local HTTP resources and harmless decoder/init stubs. On hosts with an out-of-tree digest module, set `UCODE_LIB_DIR` (wrapper expects `/usr/local/bin/ucode`). No proxy daemon is started.
 

@@ -16,7 +16,7 @@ const clean = s => s.replace(/{%[\s\S]*?%}/g, '').replace(/{{ hostname }}/g, 'Fi
 const header = clean(template.slice(template.indexOf('<header>'), template.indexOf("{% if (nav_type == 'mega-menu'): %}", template.indexOf('<header>')))) + '</header>';
 const sidebar = clean(template.slice(template.indexOf('<aside class="sidebar-panel"'), template.indexOf('</aside>') + 8));
 const html = '<!doctype html><html lang="' + (process.env.NPU_ZH ? 'zh-Hans' : 'en') + '"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/luci-static/aurora/main.css"><link rel="stylesheet" href="/luci-static/aurora/fonts/aurora-font.css"></head><body class="' + (process.env.NPU_ZH ? 'lang_zh_Hans' : 'lang_en') + '" data-nav-type="sidebar">' + header + sidebar + '<div id="maincontent"><div id="view">' + app + '</div></div></body></html>';
-const renderer = source.slice(source.indexOf('\t\tfunction svgNode('), source.indexOf('\t\tfunction sample(')).replace("var chart = svgNode('svg', { role: 'img', 'aria-label': _('CPU Frequency Changes') });", "var chart = document.querySelector('.npu-frequency-chart svg');");
+const renderer = source.slice(source.indexOf('\t\tfunction svgNode('), source.indexOf('\t\tfunction sample(')).replace(/var chart = svgNode\('svg', [^\n]+\);/, "var chart = document.querySelector('.npu-frequency-chart svg');");
 (async () => {
  const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
  const results = [];

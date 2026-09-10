@@ -31,6 +31,22 @@ The settings form regression requires jsdom and real upstream `luci.js`, `cbi.js
 rendered widgets, RPC defaults, unchanged/changed saves, and unknown flow state.
 RPC transport and top-level page bootstrap remain isolated; no router is contacted.
 
+The optional first-frame regression runs the complete production status render and
+mount/resize/cleanup callbacks in Chromium with real LuCI DOM and Aurora CSS:
+
+```sh
+NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci/resources \
+  AURORA_DIR=/path/to/luci-theme-aurora NPU_LAYOUT_DIR=/tmp/npu-mount \
+  node tests/test_chart_mount.js
+```
+
+It checks synchronous fallback geometry and the first three animation frames,
+re-entry, container/viewport resizing, the no-ResizeObserver fallback, and teardown.
+Intervals are held to ensure polling cannot conceal a first-frame regression.
+Screenshots, measurements and source hashes are written outside the repository.
+This is an English offline fixture with a simplified static theme shell, not a
+router lifecycle/RPC or Chinese translation acceptance test.
+
 Limitations: fixtures do not prove target driver behavior or accelerated traffic.
 CPU changes are runtime-only. Flow settings persist and synchronously reload the
 firewall; reload success is not an offload health test. Other tools do not share

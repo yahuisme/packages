@@ -78,7 +78,8 @@ return view.extend({
 			if (text != null) node.textContent = text;
 			return node;
 		}
-		var chart = svgNode('svg', { role: 'img', 'aria-label': _('CPU Frequency Changes') });
+		// The detached fallback viewBox must fill the viewport, not letterbox.
+		var chart = svgNode('svg', { role: 'img', 'aria-label': _('CPU Frequency Changes'), preserveAspectRatio: 'none' });
 		function drawChart() {
 			var now = Date.now();
 			samples = samples.filter(function(p) { return p.time >= now - 120000; });
@@ -249,10 +250,22 @@ return view.extend({
 
 		var mounted = false;
 		self.observer = new MutationObserver(function() {
-			if (page.isConnected) mounted = true;
-			else if (mounted) self.cleanup();
+			if (page.isConnected && !mounted) {
+				mounted = true;
+				drawChart();
+			}
+			else if (!page.isConnected && mounted) self.cleanup();
 		});
 		self.observer.observe(document.body, { childList: true, subtree: true });
+		// Container changes (including sidebar changes) need no telemetry tick.
+		self.onResize = function() {
+			if (self.active && page.isConnected) drawChart();
+		};
+		if (typeof ResizeObserver !== 'undefined') {
+			self.resizeObserver = new ResizeObserver(self.onResize);
+			self.resizeObserver.observe(chart);
+		}
+		else window.addEventListener('resize', self.onResize);
 
 		// Check the 3s CPU deadline each second; refresh firewall state at 6s.
 		// A slightly early tick must not skip a whole sampling slot.
@@ -266,6 +279,10 @@ return view.extend({
 		this.chartTimer = null;
 		if (this.pollFn) poll.remove(this.pollFn);
 		if (this.observer) this.observer.disconnect();
+		if (this.resizeObserver) this.resizeObserver.disconnect();
+		this.resizeObserver = null;
+		if (this.onResize) window.removeEventListener('resize', this.onResize);
+		this.onResize = null;
 		if (this.onHide) window.removeEventListener('pagehide', this.onHide);
 	},
 
