@@ -46,7 +46,7 @@ get_distribution() { [ -r /etc/openwrt_release ] && grep -qi immortalwrt /etc/op
 
 detect_variant() {
 	case "$1" in
-		*w1700k*) grep -q 'ubi2-oc' /etc/openwrt_version 2>/dev/null && printf ubi2-oc || printf ubi2;;
+		*w1700k*) grep -qx "DISTRIB_RELEASE='ubi2-oc'" /etc/openwrt_release 2>/dev/null && printf ubi2-oc || printf ubi2;;
 		*mx4200*v2*) printf v2;; *mx4200*) printf v1;; *) printf '';;
 	esac
 }
@@ -94,9 +94,10 @@ release_check() {
 	tmp=$(mktemp /tmp/firmwareupgrade-release.XXXXXX) || { printf '{"success":false,"error":"无法创建 Release 临时文件"}\n'; return; }
 	assets=$(mktemp /tmp/firmwareupgrade-assets.XXXXXX) || { rm -f "$tmp"; printf '{"success":false,"error":"无法创建资源临时文件"}\n'; return; }
 	api="https://api.github.com/repos/$repo/releases/latest"
-	# This repository publishes ubi2 and ubi2-oc with IDENTICAL asset names.
+	# These repositories publish ubi2 and ubi2-oc with IDENTICAL asset names.
 	# /latest is repository-wide; only a known release tag can identify the branch.
 	case "$repo:$board:$variant" in
+		yahuisme/w1700k-openwrt:*w1700k*:ubi2|yahuisme/w1700k-openwrt:*w1700k*:ubi2-oc|\
 		yahuisme/w1700k-immortalwrt:*w1700k*:ubi2|yahuisme/w1700k-immortalwrt:*w1700k*:ubi2-oc)
 			api="https://api.github.com/repos/$repo/releases?per_page=20";;
 	esac
@@ -109,8 +110,9 @@ release_check() {
 		while IFS= read -r release; do
 			[ "$(jsonfilter -s "$release" -e '@.draft')" = false ] && [ "$(jsonfilter -s "$release" -e '@.prerelease')" = false ] || continue
 			tag=$(jsonfilter -s "$release" -e '@.tag_name')
-			case "$variant:$tag" in
-				ubi2:W1700K-ImmortalWrt_*|ubi2-oc:W1700K-ImmortalWrt-OC_*) ;;
+			case "$repo:$variant:$tag" in
+				yahuisme/w1700k-openwrt:ubi2:W1700K-OpenWrt_*|yahuisme/w1700k-openwrt:ubi2-oc:W1700K-OpenWrt-OC_*|\
+				yahuisme/w1700k-immortalwrt:ubi2:W1700K-ImmortalWrt_*|yahuisme/w1700k-immortalwrt:ubi2-oc:W1700K-ImmortalWrt-OC_*) ;;
 				*) continue;;
 			esac
 			date=$(jsonfilter -s "$release" -e '@.published_at')

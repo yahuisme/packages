@@ -1,0 +1,14 @@
+{
+  "openwrt-ubi2": {
+    "openwrt_release": "DISTRIB_ID='OpenWrt'\nDISTRIB_RELEASE='ubi2'\nDISTRIB_REVISION='r36142-fce9c29437'\nDISTRIB_TARGET='airoha/an7581'\nDISTRIB_ARCH='aarch64_cortex-a53'\nDISTRIB_DESCRIPTION='OpenWrt ubi2 r36142-fce9c29437'\nDISTRIB_TAINTS='no-all busybox'\n",
+    "openwrt_version": "r36142-fce9c29437\n"
+  },
+  "openwrt-ubi2-oc": {
+    "openwrt_release": "DISTRIB_ID='OpenWrt'\nDISTRIB_RELEASE='ubi2-oc'\nDISTRIB_REVISION='r36143-707c436d78'\nDISTRIB_TARGET='airoha/an7581'\nDISTRIB_ARCH='aarch64_cortex-a53'\nDISTRIB_DESCRIPTION='OpenWrt ubi2-oc r36143-707c436d78'\nDISTRIB_TAINTS='no-all busybox'\n",
+    "openwrt_version": "r36143-707c436d78\n"
+  },
+  "immortalwrt-ubi2-oc": {
+    "openwrt_release": "DISTRIB_ID='ImmortalWrt'\nDISTRIB_RELEASE='ubi2-oc'\nDISTRIB_REVISION='r41057-8d9475a99f'\nDISTRIB_TARGET='airoha/an7581'\nDISTRIB_ARCH='aarch64_cortex-a53'\nDISTRIB_DESCRIPTION='ImmortalWrt ubi2-oc r41058-8d9475a99f'\nDISTRIB_TAINTS='no-all busybox'\n",
+    "openwrt_version": "r41058-8d9475a99f\n"
+  }
+}

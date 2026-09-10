@@ -237,6 +237,32 @@ class Runtime(unittest.TestCase):
                 self.assertFalse((self.runtime / 'firmwareupgrade.lock').exists())
                 self.assertFalse((self.root / 'launches').exists())
 
+    def use_version_files(self, sample):
+        # Byte-for-byte /etc files extracted from released sysupgrade rootfs.
+        fixtures = PACKAGE / 'tests/fixtures'
+        files = json.loads((fixtures / 'w1700k-version-files.json').read_text())[sample]
+        source = self.backend.read_text().replace('variant=ubi2', 'variant=$(detect_variant "$board")', 1)
+        for name, content in files.items():
+            path = self.root / name
+            path.write_text(content)
+            source = source.replace('/etc/' + name, str(path))
+        self.backend.write_text(source)
+
+    def test_real_rootfs_variant_detection(self):
+        original = self.backend.read_text()
+        for sample, variant, distribution in (
+                ('openwrt-ubi2', 'ubi2', 'OpenWrt'),
+                ('openwrt-ubi2-oc', 'ubi2-oc', 'OpenWrt'),
+                ('immortalwrt-ubi2-oc', 'ubi2-oc', 'ImmortalWrt')):
+            with self.subTest(sample=sample):
+                self.backend.write_text(original)
+                self.use_version_files(sample)
+                result = self.rpc('getSystemInfo')
+                self.assertEqual(result['variant'], variant)
+                self.assertEqual(result['distribution'], distribution)
+                self.assertEqual(result['default_repository'], 'yahuisme/w1700k-' + distribution.lower())
+                self.assertEqual(result['local_version'], (self.root / 'openwrt_version').read_text().strip())
+
     def test_real_w1700k_release_selects_variant_not_latest_oc(self):
         self.cfg.write_text("config firmwareupgrade 'main'\n option repository 'yahuisme/w1700k-immortalwrt'\n option token ''\n option keep_config '0'\n")
         fixtures = PACKAGE / 'tests/fixtures'
@@ -264,6 +290,40 @@ class Runtime(unittest.TestCase):
             (self.root / 'releases.json').write_text(json.dumps(rejected))
             self.assertFalse(self.rpc('checkUpdate')['success'])
             self.assertFalse((self.runtime / 'firmwareupgrade.candidate').exists())
+        self.assertFalse((self.root / 'launches').exists())
+        self.assertFalse((self.root / 'flashes').exists())
+
+    def test_both_w1700k_repositories_never_cross_release_variants(self):
+        fixtures = PACKAGE / 'tests/fixtures'
+        original = self.backend.read_text()
+        for distro, prefix in (('openwrt', 'OpenWrt'), ('immortalwrt', 'ImmortalWrt')):
+            releases = json.loads((fixtures / ('w1700k-' + distro + '-releases.json')).read_text())
+            other = 'immortalwrt' if distro == 'openwrt' else 'openwrt'
+            foreign = json.loads((fixtures / ('w1700k-' + other + '-releases.json')).read_text())
+            normal = next(r for r in releases if r['tag_name'].startswith('W1700K-' + prefix + '_'))
+            oc = next(r for r in releases if r['tag_name'].startswith('W1700K-' + prefix + '-OC_'))
+            self.cfg.write_text("config firmwareupgrade 'main'\n option repository 'yahuisme/w1700k-" + distro + "'\n option token ''\n option keep_config '0'\n")
+            self.release.write_text(json.dumps(oc))
+            self.stub('curl', '#!/bin/sh\nprintf "%s\\n" "$*" >> "$ROOT/requests"\ncase "$*" in *releases/latest*) cat "$ROOT/release.json";; *releases?per_page=20*) cat "$ROOT/releases.json";; *) exit 22;; esac\n')
+            for variant, expected, opposite in (('ubi2', normal, oc), ('ubi2-oc', oc, normal)):
+                with self.subTest(distro=distro, variant=variant):
+                    self.backend.write_text(original)
+                    # OpenWrt has captured rootfs for both variants; the OC
+                    # ImmortalWrt capture also exercises its real detector.
+                    sample = distro + '-' + variant if distro == 'openwrt' or variant == 'ubi2-oc' else 'openwrt-ubi2'
+                    self.use_version_files(sample)
+                    for ordered in (releases, list(reversed(releases))):
+                        (self.root / 'releases.json').write_text(json.dumps(ordered))
+                        result = self.rpc('checkUpdate')
+                        self.assertTrue(result['success'], result)
+                        self.assertEqual(result['tag_name'], expected['tag_name'])
+                        self.assertEqual(result['sha256'], expected['assets'][0]['digest'][7:])
+                        self.assertEqual((self.runtime / 'firmwareupgrade.candidate').read_text().splitlines()[1], expected['assets'][0]['browser_download_url'])
+                    for rejected in ([], [opposite], foreign, [dict(expected, draft=True)], [dict(expected, prerelease=True)]):
+                        (self.root / 'releases.json').write_text(json.dumps(rejected))
+                        self.assertFalse(self.rpc('checkUpdate')['success'])
+                        self.assertFalse((self.runtime / 'firmwareupgrade.candidate').exists())
+            self.assertNotIn('releases/latest', (self.root / 'requests').read_text())
         self.assertFalse((self.root / 'launches').exists())
         self.assertFalse((self.root / 'flashes').exists())
 
