@@ -52,6 +52,16 @@ try{
  if(stage.name.includes('custom'))await page.evaluate(({source,translations})=>{window._=s=>translations[s]||s;const helpers=source.slice(source.indexOf('function validPoints'),source.indexOf('\nreturn view.extend'));const setup=source.slice(source.indexOf('\t\t\tvar refresh ='),source.indexOf('\t\t\treturn node;'));new Function('node',helpers+'\n'+setup)(document.querySelector('.fan-settings'));},{source,translations});
  await page.waitForTimeout(30);
  const m=await page.evaluate(()=>{const visible=e=>e.getBoundingClientRect().width>0&&e.getBoundingClientRect().height>0;const controls=[...document.querySelectorAll('input:not([type=hidden]),select,button')].filter(visible);const cards=[...document.querySelectorAll('.fan-summary-card')].map(e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,width:r.width};});return {dark:document.documentElement.getAttribute('data-darkmode'),background:getComputedStyle(document.body).backgroundColor,overflow:document.documentElement.scrollWidth>innerWidth,controls:controls.map(e=>({tag:e.tagName,height:e.getBoundingClientRect().height})),cards,modal:!!document.querySelector('.modal')&&visible(document.querySelector('.modal')),text:document.querySelector('#view').textContent,clipped:[...document.querySelectorAll('.fan-card-value,.fan-card-sub,.fan-temp-label')].filter(e=>visible(e)&&e.scrollWidth>e.clientWidth).map(e=>e.textContent)};});
+ if(stage.name==='settings-custom' && width===768){
+  const pair=await page.evaluate(()=>['point1_temp','point1_pwm'].map(name=>{
+   const e=document.querySelector('[data-name="'+name+'"]'), label=e.querySelector('label'), input=e.querySelector('input');
+   return {top:e.getBoundingClientRect().top,labelX:label.getBoundingClientRect().x,inputX:input.getBoundingClientRect().x,labelHeight:label.getBoundingClientRect().height,gap:input.getBoundingClientRect().top-label.getBoundingClientRect().bottom};
+  }));
+  fs.writeFileSync(path.join(out,'tablet-pair.json'),JSON.stringify(pair));
+  assert(Math.abs(pair[0].top-pair[1].top)<1,'tablet temperature and PWM form a paired row');
+  assert(pair.every(p=>Math.abs(p.labelX-p.inputX)<1),'tablet labels align above controls');
+  assert(pair.every(p=>p.gap>=0&&p.gap<=12&&p.labelHeight<=48),'tablet labels stay close to their controls');
+ }
  assert.equal(m.dark,String(theme==='dark'));
  assert.equal(m.controls.length,stage.name==='settings-custom'?12:stage.name==='custom-invalid-modal'?13:stage.name==='manual-invalid-modal'?3:stage.name.startsWith('settings-')?2:0,'dependency visibility');
  assert.equal(m.modal,stage.name.endsWith('-modal'));
