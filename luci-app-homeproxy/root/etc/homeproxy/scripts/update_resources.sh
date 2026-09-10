@@ -63,7 +63,7 @@ fetch_version() {
 		let sha = m?.sha, date = m?.commit?.committer?.date;
 		if (type(sha) != "string" || !match(sha, /^[0-9a-f]{40}$/) ||
 		    type(date) != "string" || !match(date, /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$/)) exit(1);
-		print(substr(date, 0, 10), " ", sha, "\n");
+		print(replace(date, /[-:TZ]/g, ""), " ", sha, "\n");
 	' "$TMP_DIR/commit-metadata"
 }
 validate_rule_set() {

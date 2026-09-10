@@ -183,7 +183,7 @@ const methods = {
 					error: `domain ${conflict.left.value} conflicts with ${conflict.right.value}`
 				};
 
-			system(`mkdir -p ${HP_DIR}/resources/diversion`);
+			system(`mkdir -p ${HP_DIR}/diversion`);
 			let staged = [];
 			for (let id in keys(changes)) {
 				const file = domainListPath(id), temporary = file + '.new';
@@ -875,10 +875,10 @@ const methods = {
 			for (let resource_type in keys(RESOURCES)) {
 				const resource = RESOURCES[resource_type];
 				const stored = trim(readfile(resource.version) || '');
-				// New snapshots pair a UTC date with a commit; legacy date versions still work.
+				// Preserve available precision: UTC timestamp + commit, or legacy date/hash-only.
 				const date = match(stored, /^([0-9]{4}-[0-9]{2}-[0-9]{2})( [0-9a-f]{40})?$/);
-				const legacy = match(stored, /^([0-9]{4})([0-9]{2})([0-9]{2})[0-9]{6}$/);
-				const version = date ? date[1] : legacy ? `${legacy[1]}-${legacy[2]}-${legacy[3]}` : null;
+				const timestamp = match(stored, /^([0-9]{14})( [0-9a-f]{40})?$/);
+				const version = timestamp ? timestamp[1] : date ? date[1] : null;
 				push(resources, {
 					type: resource_type,
 					version: version || null,

@@ -121,7 +121,7 @@ return view.extend({
 		o = s.option(form.Flag, 'enabled', _('Enable'));
 		o.rmempty = false;
 
-		s = m.section(form.GridSection, 'server', _('Server Settings'));
+		s = hp.makeEditorResponsive(m.section(form.GridSection, 'server', _('Server Settings')));
 		s.addremove = true;
 		s.rowcolors = true;
 		s.sortable = true;

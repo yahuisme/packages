@@ -646,7 +646,7 @@ return view.extend({
 		ss.tab('diversion_list', _('Diversion List'));
 		so = ss.taboption('diversion_list', form.SectionValue, '_domain_routes',
 			form.GridSection, 'domain_route', null);
-		let domainRoutes = so.subsection;
+		let domainRoutes = hp.makeEditorResponsive(so.subsection);
 		domainRoutes.anonymous = true;
 		domainRoutes.addremove = true;
 		domainRoutes.addbtntitle = _('Add diversion group');

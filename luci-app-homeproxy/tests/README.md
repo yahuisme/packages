@@ -1,9 +1,12 @@
 # Focused regression checks
 
+User direct/proxy/custom text lists live in `/etc/homeproxy/diversion/{id}.txt`; public SRS and `.ver` snapshots remain in `/etc/homeproxy/resources/`. The upstream migration scans legacy files independently of UCI references, merges/deduplicates when both paths exist, and keeps old-only file bytes unchanged via rename. `test_list_migration.py` executes the complete migration and RPC with real ucode/fs in private fixtures (UCI/hostname validation boundaries stubbed), covering orphan preservation, repeated runs, short-write/read/rename/unlink failures and retry. The updater regression preserves both final-path lists and not-yet-migrated legacy lists through updates and rollback.
+
 ```sh
 NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci-base/htdocs/luci-static/resources node tests/test_status_dom.cjs
 NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci-base/htdocs/luci-static/resources node tests/test_connection_dom.cjs
 UCODE_LIB_DIR=/root/.local/opt/homeproxy-ucode/lib/ucode python3 tests/test_resource_versions.py
+UCODE_LIB_DIR=/root/.local/opt/homeproxy-ucode/lib/ucode python3 tests/test_list_migration.py
 ```
 
 The DOM test executes upstream LuCI RPC and DOM with fixture transport. The updater test executes BusyBox ash, curl and ucode (fs/digest modules required), using local HTTP resources and harmless decoder/init stubs. On hosts with an out-of-tree digest module, set `UCODE_LIB_DIR` (wrapper expects `/usr/local/bin/ucode`). No proxy daemon is started.
@@ -23,4 +26,4 @@ env -i PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/ucode -L /root/.local/op
 env -i PATH=/usr/local/bin:/usr/bin:/bin UCODE_LIB_DIR=/root/.local/opt/homeproxy-ucode/lib/ucode python3 /root/packages/luci-app-homeproxy/tests/test_resource_versions.py
 ```
 
-Resource versions use `YYYY-MM-DD COMMIT` in the existing `.ver` file so data and metadata stage/rollback together. The date is the UTC committer date from the same GitHub response as the immutable commit. RPC exposes only the date. Legacy 14-digit date versions remain readable; legacy commit-only versions display `-` until a successful update provides verified date metadata. The packaged dashboard retains its original date version because its bundled files differ from the upstream archive. Rule-set Actions and runtime downloads retain pinned blob verification and decoder checks.
+Resource versions use `YYYYMMDDHHmmss COMMIT` in the existing `.ver` file so data and metadata stage/rollback together. The timestamp is the real UTC committer timestamp from the same GitHub response as the immutable commit, not the updater's local clock. RPC exposes the full 14-digit timestamp, without the commit. Legacy `YYYY-MM-DD` (with or without commit) remains date-only: missing hours/minutes/seconds are never invented. Legacy 14-digit versions remain unchanged; commit-only records display `-` until verified metadata is available. The packaged dashboard retains its original 14-digit legacy version because its bundled files differ from the upstream archive; do not attach an unverified commit. Rule-set Actions and runtime downloads retain pinned blob verification and decoder checks.

@@ -226,7 +226,7 @@ function getResources(o) {
 		]);
 		const rows = resources.map((resource) => {
 			const resourceStatus = status[resource.type] || {};
-			const available = /^\d{4}-\d{2}-\d{2}$/.test(resourceStatus.version || '') ? resourceStatus.version : null;
+			const available = /^(?:\d{14}|\d{4}-\d{2}-\d{2})$/.test(resourceStatus.version || '') ? resourceStatus.version : null;
 			const source = /^https?:\/\//i.test(resourceStatus.source || '') ? resourceStatus.source : null;
 
 			return [

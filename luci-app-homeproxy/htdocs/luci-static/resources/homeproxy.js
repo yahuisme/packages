@@ -20,6 +20,23 @@ const callServiceList = rpc.declare({
 });
 
 return baseclass.extend({
+	// Keep theme width constraints local to HomeProxy editors, including subscriptions.
+	makeEditorResponsive: function(section) {
+		section.renderMoreOptionsModal = function() {
+			return form.GridSection.prototype.renderMoreOptionsModal.apply(this, arguments).then(function(result) {
+				const modal = document.querySelector('body.modal-overlay-active > #modal_overlay > .modal.cbi-modal');
+				if (modal) {
+					modal.classList.add('homeproxy-editor-modal');
+					modal.appendChild(E('style', { 'data-homeproxy-modal-style': '' }, [
+						'#modal_overlay > .homeproxy-editor-modal{max-width:calc(100vw - 32px)}'
+					]));
+				}
+				return result;
+			});
+		};
+		return section;
+	},
+
 	dns_strategy: {
 		'': _('Default'),
 		'prefer_ipv4': _('Prefer IPv4'),

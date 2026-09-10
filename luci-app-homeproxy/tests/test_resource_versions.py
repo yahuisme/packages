@@ -50,6 +50,10 @@ class Versions(unittest.TestCase):
                 url = f'http://127.0.0.1:{server.server_port}'
                 resources, dashboard = base/'resources', base/'dashboard'
                 resources.mkdir(); dashboard.mkdir()
+                diversion = base/'diversion'
+                diversion.mkdir()
+                for name in ['direct', 'proxy', 'orphan']:
+                    (diversion/f'{name}.txt').write_text(name+'.example\n')
                 (resources/'direct_list.txt').write_text('user.example\n')
                 (resources/'diversion').mkdir()
                 (resources/'diversion/orphan.txt').write_text('disabled-or-orphan.example\n')
@@ -74,11 +78,13 @@ class Versions(unittest.TestCase):
                 def run(code):
                     result = subprocess.run(['busybox', 'ash', str(APP/'root/etc/homeproxy/scripts/update_resources.sh')], env=env, capture_output=True, text=True)
                     self.assertEqual(result.returncode, code, result.stderr)
+                    for name in ['direct', 'proxy', 'orphan']:
+                        self.assertEqual((diversion/f'{name}.txt').read_text(), name+'.example\n')
                     self.assertEqual((resources/'direct_list.txt').read_text(), 'user.example\n')
                     self.assertEqual((resources/'diversion/orphan.txt').read_text(), 'disabled-or-orphan.example\n')
                 run(0)
                 for p in [resources/'geoip_cn.ver', resources/'geosite_cn.ver', dashboard/'dashboard.ver']:
-                    self.assertEqual(p.read_text(), '2024-02-03 '+sha+'\n')
+                    self.assertEqual(p.read_text(), '20240203040506 '+sha+'\n')
                 self.assertIn('/geoip/'+sha+'/geoip-cn.srs', paths)
                 self.assertIn('/geoip/digest?ref='+sha, paths)
                 run(3)

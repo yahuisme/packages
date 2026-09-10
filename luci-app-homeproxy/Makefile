@@ -31,9 +31,8 @@ define Package/luci-app-homeproxy/conffiles
 /etc/homeproxy/dashboard/
 /etc/homeproxy/ruleset/
 /etc/homeproxy/tailscale/
-/etc/homeproxy/resources/direct_list.txt
-/etc/homeproxy/resources/proxy_list.txt
-/etc/homeproxy/resources/diversion/
+/etc/homeproxy/resources/
+/etc/homeproxy/diversion/
 endef
 
 include $(TOPDIR)/feeds/luci/luci.mk

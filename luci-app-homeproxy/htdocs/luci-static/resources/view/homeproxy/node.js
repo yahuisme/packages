@@ -721,6 +721,7 @@ function createNodeLatencyRowStateModel() {
 }
 
 function renderNodeSettings(section, data, features, main_node, node_latency_row_state) {
+	hp.makeEditorResponsive(section);
 	let s = section, o;
 	if (typeof globalThis !== 'undefined') {
 		globalThis.__hpNodeLatencySections = globalThis.__hpNodeLatencySections || {};
