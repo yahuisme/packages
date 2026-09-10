@@ -44,7 +44,7 @@ jobs:
             sed -i "s/^PKG_HASH:=.*/PKG_HASH:=${HASH}/" sing-box/Makefile
             sed -i "s/^PKG_RELEASE:=.*/PKG_RELEASE:=1/" sing-box/Makefile
             git add sing-box/
-            git commit -m "chore: update sing-box to ${VERSION}"
+            git commit -m "chore: updated sing-box ${VERSION}"
             echo "sing-box updated to ${VERSION}"
           fi
 
@@ -69,6 +69,7 @@ jobs:
 
           # Match runtime: resolve rule-set to a commit, then fetch that commit.
           # Stage and decode BOTH resources before touching the package files.
+          RESOURCE_DATE=0
           for KIND in geoip geosite; do
             gh api "repos/SagerNet/sing-$KIND/commits/rule-set" > "$TMP_DIR/commit.json"
             VERSION=$(jq -er '.sha' "$TMP_DIR/commit.json")
@@ -83,13 +84,14 @@ jobs:
             [ "$(git hash-object --no-filters "$TMP_DIR/${KIND}_cn.srs")" = "$BLOB" ] || exit 1
             "$SING_BOX" rule-set match -f binary "$TMP_DIR/${KIND}_cn.srs" 192.0.2.1 >/dev/null
             printf '%s %s\n' "$DATE" "$VERSION" > "$TMP_DIR/${KIND}_cn.ver"
+            if [[ "$DATE" > "$RESOURCE_DATE" ]]; then RESOURCE_DATE="$DATE"; fi
           done
           cp "$TMP_DIR/geoip_cn.srs" "$TMP_DIR/geoip_cn.ver" \
              "$TMP_DIR/geosite_cn.srs" "$TMP_DIR/geosite_cn.ver" "$RES_DIR/"
 
           if ! git diff --quiet "$RES_DIR"; then
             git add "$RES_DIR"
-            git commit -m "chore: update HomeProxy rule-set snapshots"
+            git commit -m "chore: updated sources ${RESOURCE_DATE}"
             echo "HomeProxy resources updated."
           fi
 
