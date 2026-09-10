@@ -12,6 +12,7 @@ ImmortalWrt / OpenWrt 专属定制软件包源。
 | `luci-app-airoha-flowsense` | Airoha 硬件流控监控 |
 | `luci-app-airoha-fancontrol` | Airoha 温控与风扇调速面板 |
 | `luci-app-wifi7` | WiFi 7 射频、MLO 与运行状态管理面板 |
+| `luci-app-firmwareupgrade` | GitHub 固件在线升级，支持版本筛选与下载代理 |
 
 ## 使用方法
 
