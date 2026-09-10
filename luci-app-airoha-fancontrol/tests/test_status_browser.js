@@ -18,7 +18,7 @@ assert.equal(JSON.parse(fs.readFileSync(path.join(out,'sources.json')))[source],
   assert.equal(row.overflow,false);assert.deepEqual(row.clipped,[]);assert.equal(row.cards.length,4);
   assert(row.cards.every(r=>r.left>=row.grid.left-1&&r.right<=row.grid.right+1&&r.right<=width+1));
   if(width===768){assert.equal(row.sidebar.width,272);assert.equal(row.main.width,496);assert(row.cards[2].top>row.cards[0].top,'tablet cards wrap to second row');}
-  if(stage!=='status-unavailable')assert.equal(row.subtitle,'自动模式使用的配置曲线');
+  if(stage!=='status-unavailable')assert.equal(row.subtitle,'自动模式配置曲线');
   if(stage==='status-mismatch'&&[390,768,1440].includes(width))await page.screenshot({path:path.join(out,`sidebar-${width}-${dark?'dark':'light'}.png`),fullPage:true});
  }
  for(const width of [320,390,768,1024,1440,1920]){const pair=rows.filter(r=>r.width===width&&r.stage==='status-auto');assert.notEqual(pair[0].track,pair[1].track);assert.notEqual(pair[0].border,pair[1].border);}

@@ -309,6 +309,10 @@ export function strToInt(str) {
 	return !isEmpty(str) ? (int(str) || null) : null;
 };
 
+export function strToIntOrZero(str) {
+	return !isEmpty(str) ? int(str) : null;
+};
+
 export function strToTime(str) {
 	return !isEmpty(str) ? (str + 's') : null;
 };

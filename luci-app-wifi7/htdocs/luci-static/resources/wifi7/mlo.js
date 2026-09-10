@@ -124,7 +124,8 @@ function mloSections() {
 
 function summary(runtime, radios) {
 	let sections = mloSections();
-	let invalid = sections.filter(section => uniqueValues(section.device).length < 2).length;
+	let radioNames = new Set(radios.map(radio => radio['.name']));
+	let invalid = sections.filter(section => uniqueValues(section.device).filter(name => radioNames.has(name)).length < 2).length;
 	let state = runtime.unknown ? _('Unavailable') : runtime.activeMldIfnames.length ? _('Active') : _('Inactive');
 	let detail = runtime.unknown ? _('Runtime status unavailable') :
 		runtime.activeMldIfnames.length ? runtime.activeMldIfnames.join(', ') : _('No active MLD interface');
@@ -132,23 +133,19 @@ function summary(runtime, radios) {
 	return E('div', { class: 'mlo-summary', 'data-mlo-summary-status': '' }, [
 		E('div', { class: 'mlo-summary-item' }, [
 			E('span', { class: 'wifi7-label' }, _('MLO interfaces')),
-			E('strong', {}, String(sections.length))
+			E('strong', {}, String(sections.length)),
+			E('small', {}, _('%d incomplete').format(invalid))
 		]),
 		E('div', { class: 'mlo-summary-item' }, [
 			E('span', { class: 'wifi7-label' }, _('Active MLD')),
 			E('strong', { class: runtime.unknown ? 'mlo-muted' : runtime.activeMldIfnames.length ? 'mlo-active' : 'mlo-muted' }, state),
 			E('small', {}, [ detail ])
 		]),
-		invalid ? E('div', { class: 'mlo-summary-item mlo-warning' }, [
-			E('span', { class: 'wifi7-label' }, _('Needs attention')),
-			E('strong', {}, _('%d incomplete').format(invalid)),
-			E('small', {}, _('Each MLO interface needs at least two radios.'))
-		]) : null,
-		radios.length < 2 ? E('div', { class: 'mlo-summary-item mlo-warning' }, [
-			E('span', { class: 'wifi7-label' }, _('Radio availability')),
-			E('strong', {}, _('Limited')),
-			E('small', {}, _('MLO needs at least two radios.'))
-		]) : null
+		E('div', { class: 'mlo-summary-item' }, [
+			E('span', { class: 'wifi7-label' }, _('Configured radios')),
+			E('strong', {}, String(radios.length)),
+			E('small', {}, [ uniqueValues(radios.map(radio => radio.band).filter(Boolean)).join(' / ') || _('Unknown') ])
+		])
 	]);
 }
 
@@ -316,7 +313,7 @@ return baseclass.extend({
 		map.renderContents = function() {
 			return form.Map.prototype.renderContents.apply(this, arguments).then(function(nodes) {
 				nodes.classList.add('mlo-map');
-				nodes.appendChild(E('style', {}, '.mlo-map .mlo-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 16px}.mlo-map .mlo-summary-item{min-height:76px;padding:16px;box-sizing:border-box;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:6px;background:var(--cbi-section-bg,transparent);display:flex;flex-direction:column;justify-content:center}.mlo-map .mlo-summary-item small{color:var(--cbi-muted-color,var(--text-muted,#888));overflow-wrap:anywhere}.mlo-map .mlo-active{color:inherit}.mlo-map .mlo-muted{color:var(--cbi-muted-color,var(--text-muted,#888))}.mlo-map .mlo-warning strong{color:var(--cbi-warning-color,#b45309)}.mlo-map .mlo-overview{display:grid;gap:8px;min-width:0;overflow-wrap:anywhere}@media(max-width:760px){.mlo-map .mlo-summary{grid-template-columns:1fr}}'));
+				nodes.appendChild(E('style', {}, '.mlo-map .mlo-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 16px}.mlo-map .mlo-summary-item{min-width:0;min-height:96px;padding:8px 16px;gap:4px;line-height:1.5;overflow-wrap:anywhere;box-sizing:border-box;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:6px;background:var(--cbi-section-bg,transparent);display:flex;flex-direction:column;justify-content:center}.mlo-map .mlo-summary-item strong{font-size:1.125em;font-weight:600}.mlo-map .mlo-summary-item small{font-size:inherit;color:var(--cbi-muted-color,var(--text-muted,#888));overflow-wrap:anywhere}.mlo-map .mlo-active{color:inherit}.mlo-map .mlo-muted{color:var(--cbi-muted-color,var(--text-muted,#888))}.mlo-map .mlo-overview{display:grid;gap:8px;min-width:0;overflow-wrap:anywhere}@media(max-width:760px){.mlo-map .mlo-summary{grid-template-columns:1fr}}'));
 				let description = nodes.querySelector('.cbi-map-descr');
 				let status = summary(runtime, radios);
 				description && description.parentNode.insertBefore(status, description.nextSibling);

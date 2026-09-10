@@ -13,9 +13,9 @@ var callFanStatus = rpc.declare({
 var statusCSS = '\
 .fan-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px;margin-bottom:12px}\
 .fan-summary-card,.fan-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:6px;box-sizing:border-box}\
-.fan-summary-card{min-height:72px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center}\
+.fan-summary-card{min-width:0;min-height:96px;padding:8px 16px;display:flex;flex-direction:column;justify-content:center;gap:4px;line-height:1.5;overflow-wrap:anywhere}\
 .fan-card-title,.fan-group-title{color:var(--cbi-muted-color,var(--text-muted,#666));}\
-.fan-card-title{margin-bottom:3px}.fan-card-value{font-variant-numeric:tabular-nums}.fan-card-sub{color:var(--cbi-muted-color,var(--text-muted,#888));white-space:normal;overflow-wrap:anywhere}\
+.fan-card-value{font-size:1.125em;font-weight:600;font-variant-numeric:tabular-nums}.fan-card-sub{color:var(--cbi-muted-color,var(--text-muted,#888));white-space:normal;overflow-wrap:anywhere}\
 .fan-panel{padding:12px;margin:12px 0}.fan-panel-title{padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0))}\
 .fan-temp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}.fan-group-title{margin:10px 0 2px}.fan-temp-card{padding:8px 0;border-bottom:1px solid var(--cbi-border-color,var(--hairline,#f0f0f0))}\
 .fan-temp-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px}.fan-temp-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fan-temp-value{font-variant-numeric:tabular-nums;color:var(--fan-temp-accent)}\
@@ -123,6 +123,7 @@ return view.extend({
 		var status = data || {};
 		var viewEl = E('div', { 'class': 'cbi-map fan-dashboard' }, [
 			E('style', {}, statusCSS),
+			E('h2', {}, _('Airoha Fan Status')),
 			E('div', { 'class': 'cbi-map-descr' }, _('View fan speed and system temperatures.')),
 			renderSummary(status),
 			E('div', { 'class': 'fan-panel' }, [

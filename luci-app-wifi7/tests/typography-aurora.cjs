@@ -34,15 +34,23 @@ const {JSDOM}=require('jsdom'),{chromium}=require('playwright');
     sheets.forEach(e=>e.sheet.disabled=true);
     const native=elements.map(e=>[font(e),font(e,'::before'),font(e,'::after')]),after=ref();
     sheets.forEach(e=>e.sheet.disabled=false);
-    const nativeComparisons=elements.map((e,i)=>({tag:e.tagName,classes:e.className,text:e.textContent.slice(0,60),actual:actual[i],native:native[i]}));
+    const nativeComparisons=elements.map((e,i)=>({summaryException:!!e.closest('.mlo-summary-item'),tag:e.tagName,classes:e.className,text:e.textContent.slice(0,60),actual:actual[i],native:native[i]}));
     return {nativeComparisons,dark:document.documentElement.dataset.darkmode,documentWidth:document.documentElement.scrollWidth,referenceUnchanged:JSON.stringify(before)===JSON.stringify(after),body:all('.wifi7-map'),headings:all(root+' :is(h2,h3,h4,.wifi7-band-name)'),tables:all(root+' :is(table,.table)'),cells:all(root+' :is(td,.td)'),strong:all(root+' strong'),forms:all(root+' :is(input:not([type=hidden]),select,button,.cbi-button,.cbi-dropdown)'),labels:all(root+' :is(.cbi-value-title,.wifi7-info-label,th,.th)'),support:all(root+' :is(small,.cbi-value-description,.wifi7-label,.wifi7-device-tag)'),typography:all(root+' *'),themeFamily:getComputedStyle(document.querySelector('#view')).fontFamily,description:all(root+' .cbi-map-descr'),summary:all('.mlo-summary-item'),summaryLabels:all('.mlo-summary .wifi7-label'),summaryValues:all('.mlo-summary strong'),modal:all('.wifi7-modal'),tableRows:all('.mlo-map .cbi-section-table-row')};
    });
    results.push({state,width,theme,...result});
    assert.equal(result.dark,String(theme==='dark'));assert(result.referenceUnchanged,'no sibling typography changes');
    assert.equal(result.body.length,1);
    assert(result.nativeComparisons.length,'visible semantic components measured');
-   for(const e of result.nativeComparisons)assert.deepEqual(e.actual,e.native,`${state} ${width} ${e.tag} ${e.classes} ${e.text}: active-theme typography`);
-   if(state==='mlo-populated'){assert(result.tableRows.length);assert(result.summary.length);for(const e of result.summary)assert.equal(e.padding,'16px')}
+   for(const e of result.nativeComparisons){
+    if(!e.summaryException)assert.deepEqual(e.actual,e.native,`${state} ${width} ${e.tag} ${e.classes} ${e.text}: active-theme typography`);
+    else {
+     // Only summary line-height, value emphasis and small's inherited size differ.
+     for(let p=0;p<3;p++){assert.equal(e.actual[p][2],e.native[p][2],'summary keeps native family');assert.equal(e.actual[p][4],e.native[p][4],'summary keeps native tracking');}
+     if(e.tag==='STRONG'){assert.equal(e.actual[0][1],'600');}
+     else {assert.equal(e.actual[0][1],e.native[0][1]);if(e.tag!=='SMALL')assert.equal(e.actual[0][0],e.native[0][0]);}
+    }
+   }
+   if(state==='mlo-populated'){assert(result.tableRows.length);assert(result.summary.length);for(const e of result.summary)assert.equal(e.padding,'8px 16px')}
    if(state.startsWith('modal-')){assert.equal(result.modal.length,1);assert(result.forms.length);assert(result.modal[0].x>=0&&result.modal[0].right<=width+1,'modal within viewport');}
    assert(result.documentWidth<=width,'no document overflow');
    await p.evaluate(()=>document.querySelector('#unrelated').remove());

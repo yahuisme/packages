@@ -25,7 +25,7 @@ function curvePreview() {
 function curveAxes(svg) {
 	// Use CSS-pixel coordinates: resizing must not magnify text or markers.
 	var width = svg.clientWidth || 320, left = 40, right = width - 24;
-	var top = 28, bottom = 188, axes = svg.querySelector('.fan-curve-axes');
+	var top = 28, bottom = 284, axes = svg.querySelector('.fan-curve-axes');
 	function element(tag, attrs, text) {
 		var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
 		Object.keys(attrs).forEach(function(key) { el.setAttribute(key, attrs[key]); });
@@ -35,16 +35,17 @@ function curveAxes(svg) {
 	function x(temp) { return left + temp * (right - left) / 100; }
 	function y(pwm) { return bottom - pwm * (bottom - top) / 255; }
 	axes.textContent = '';
-	[0, 20, 40, 60, 80, 100].forEach(function(temp) {
+	// Preserve every 10-degree label; stagger on narrow plots instead of shrinking text.
+	[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].forEach(function(temp, index) {
 		element('line', { x1: x(temp), y1: top, x2: x(temp), y2: bottom });
-		element('text', { x: x(temp), y: bottom + 20, 'text-anchor': 'middle', 'class': 'fan-curve-x-tick' }, temp);
+		element('text', { x: x(temp), y: bottom + 20 + (right - left < 240 && index % 2 ? 16 : 0), 'text-anchor': 'middle', 'class': 'fan-curve-x-tick' }, temp);
 	});
-	[0, 64, 128, 192, 255].forEach(function(pwm) {
+	[0, 32, 64, 96, 128, 160, 192, 224, 255].forEach(function(pwm) {
 		element('line', { x1: left, y1: y(pwm), x2: right, y2: y(pwm) });
 		element('text', { x: left - 8, y: y(pwm) + 4, 'text-anchor': 'end', 'class': 'fan-curve-y-tick' }, pwm);
 	});
 	element('text', { x: left, y: 16 }, 'PWM');
-	element('text', { x: right, y: 232, 'text-anchor': 'end' }, '°C');
+	element('text', { x: right, y: 348, 'text-anchor': 'end' }, '°C');
 	return { x: x, y: y };
 }
 
@@ -81,7 +82,7 @@ var previewCSS = '\
 .fan-settings .cbi-section-node{box-sizing:border-box}\
 .fan-settings [data-name^="point"]{box-sizing:border-box}\
 .fan-settings .fan-curve-preview{max-width:none;margin:0;color:var(--cbi-text-color,currentColor)}\
-.fan-settings .fan-curve-preview svg{display:block;width:100%;height:244px;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:4px;background:var(--cbi-section-bg,transparent);box-sizing:border-box}\
+.fan-settings .fan-curve-preview svg{display:block;width:100%;height:360px;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:4px;background:var(--cbi-section-bg,transparent);box-sizing:border-box}\
 .fan-settings .fan-curve-dots{fill:#3b82f6}.fan-settings .fan-curve-axes text{font-size:12px;fill:currentColor}.fan-settings .fan-curve-axes line{stroke:currentColor;stroke-opacity:.1;stroke-width:1;vector-effect:non-scaling-stroke}\
 .fan-settings .fan-curve-message{display:block;margin-top:8px;color:var(--cbi-muted-color,var(--text-muted,#888));}\
 .fan-settings .cbi-section:has(>[data-section-id="custom"]){container-type:inline-size}\
@@ -106,7 +107,7 @@ return view.extend({
 	load: function() { return uci.load('fan'); },
 
 	render: function() {
-		var map = new form.Map('fan', null, _('Configure fan control mode and speed curves.'));
+		var map = new form.Map('fan', _('Airoha Fan Settings'), _('Configure fan control mode and speed curves.'));
 		var settings = map.section(form.NamedSection, 'settings', 'fancontrol', _('Control Mode'));
 		settings.anonymous = true;
 

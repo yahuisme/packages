@@ -98,8 +98,7 @@ return view.extend({
 		let m, s, o;
 		let features = data[1];
 
-		m = new form.Map('homeproxy', _('HomeProxy Server'),
-			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition'));
+		m = new form.Map('homeproxy', _('HomeProxy Server'));
 
 		s = m.section(form.TypedSection);
 		s.render = function() {

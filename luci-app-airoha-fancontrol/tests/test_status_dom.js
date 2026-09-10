@@ -39,6 +39,7 @@ vm.createContext(context);
 const view = vm.runInContext('(function(){'+source+'})()', context);
 (async () => {
  const node = view.render({}); document.body.append(node); frames.shift()();
+ assert.strictEqual(node.querySelector(':scope > h2').textContent, 'Airoha Fan Status');
  assert.strictEqual(polls[0].interval, 5);
  assert.strictEqual(node.querySelectorAll('.fan-summary-card').length, 4);
  assert.strictEqual(node.querySelectorAll('.fan-temp-card').length, 7);

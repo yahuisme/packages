@@ -37,6 +37,10 @@ function computedColor(node) {
 function count(name){return calls.filter(n=>n===name).length;}
 (async()=>{
  await settle();await settle();const root=w.document.querySelector('.flowsense-dashboard');assert(root);assert(polls.has(5));
+ assert.equal(root.querySelector(':scope > h2').textContent,'Airoha FlowSense');
+ assert.equal(root.querySelector(':scope > h2 + .cbi-map-descr').textContent,'View Ethernet traffic, link quality, and PPE flow entries.');
+ assert(root.querySelector(':scope > .flowsense-status-message'));
+ assert.equal(w.getComputedStyle(root.querySelector(':scope > .flowsense-status-message')).textAlign,'right');
  assert.equal(count('getOverview'),1,'load data reused without duplicate RPC');assert.equal(count('getPpeEntries'),0);
  assert(root.textContent.includes('12 ms'));assert.equal(root.querySelector('#flowsense-target').labels.length,1);assert.equal(root.querySelector('#flowsense-enabled').labels.length,1);
  const port=root.querySelector('.flowsense-port');

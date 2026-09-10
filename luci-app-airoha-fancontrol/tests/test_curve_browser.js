@@ -11,7 +11,12 @@ const { chromium } = require('playwright');
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.setContent(fs.readFileSync(process.env.FAN_DOM,'utf8'));
   if(process.env.AURORA_CSS) await page.addStyleTag({content:fs.readFileSync(process.env.AURORA_CSS,'utf8')});
-  await page.addStyleTag({content:'body{margin:0;padding:16px} #maincontent{margin:0} @media(min-width:900px){body{padding-left:256px}}'});
+  if(process.env.AURORA_DIR){
+   const header=fs.readFileSync(path.join(process.env.AURORA_DIR,'ucode/template/themes/aurora/header.ut'),'utf8');
+   const sidebar=header.slice(header.indexOf('<aside class="sidebar-panel"'),header.indexOf('</aside>')+8).replace(/{%[\s\S]*?%}/g,'').replace(/{{[^}]*}}/g,'');
+   // Trusted local Aurora template only; no user/runtime text in this sink.
+   await page.evaluate(html=>{document.body.dataset.navType='sidebar';document.body.insertAdjacentHTML('afterbegin',html);},sidebar);
+  }else await page.addStyleTag({content:'body{margin:0;padding:16px} #maincontent{margin:0} @media(min-width:900px){body{padding-left:256px}}'});
   const source=fs.readFileSync(path.join(__dirname,'../htdocs/luci-static/resources/view/fan/settings.js'),'utf8');
   // Execute unchanged production preview functions and render-time event/observer setup.
   await page.evaluate(source=>{
@@ -40,10 +45,13 @@ const { chromium } = require('playwright');
     const layoutOK=stacked || field.right<=preview.left+1;
     const clipped=[...svg.querySelectorAll('text')].filter(e=>{const b=e.getBoundingClientRect();return b.left<r.left||b.right>r.right||b.top<r.top||b.bottom>r.bottom;}).map(e=>e.textContent);
     const ticks=[...svg.querySelectorAll('.fan-curve-x-tick')];
-    const overlap=ticks.some((e,i)=>i&&ticks[i-1].getBoundingClientRect().right>e.getBoundingClientRect().left);
-    return {width:innerWidth,dark:document.documentElement.getAttribute('data-darkmode')==='true',stacked,layoutOK,chartWidth:r.width,height:r.height,font:getComputedStyle(text).fontSize,stroke:getComputedStyle(line).strokeWidth,color:getComputedStyle(line).stroke,clipped,overlap,overflow:document.documentElement.scrollWidth>innerWidth,points:line.getAttribute('points')};
+    const overlap=ticks.some((e,i)=>i&&ticks[i-1].getBoundingClientRect().right>e.getBoundingClientRect().left && ticks[i-1].getBoundingClientRect().top<e.getBoundingClientRect().bottom && e.getBoundingClientRect().top<ticks[i-1].getBoundingClientRect().bottom);
+    const yTicks=[...svg.querySelectorAll('.fan-curve-y-tick')];
+    const yOverlap=yTicks.some((e,i)=>i&&e.getBoundingClientRect().bottom>yTicks[i-1].getBoundingClientRect().top);
+    return {xTicks:ticks.map(e=>e.textContent),yTicks:yTicks.map(e=>e.textContent),yOverlap,width:innerWidth,dark:document.documentElement.getAttribute('data-darkmode')==='true',stacked,layoutOK,chartWidth:r.width,height:r.height,font:getComputedStyle(text).fontSize,stroke:getComputedStyle(line).strokeWidth,color:getComputedStyle(line).stroke,clipped,overlap,overflow:document.documentElement.scrollWidth>innerWidth,points:line.getAttribute('points')};
    });
-   assert.equal(result.height,244);assert.equal(result.font,'12px');assert.equal(result.stroke,'1.5px');assert.equal(result.color,'rgb(59, 130, 246)');
+   assert.equal(result.height,360);assert.equal(result.font,'12px');assert.equal(result.stroke,'1.5px');assert.equal(result.color,'rgb(59, 130, 246)');
+   assert.deepEqual(result.xTicks,['0','10','20','30','40','50','60','70','80','90','100']);assert.deepEqual(result.yTicks,['0','32','64','96','128','160','192','224','255']);assert.equal(result.yOverlap,false);
    assert.deepEqual(result.clipped,[]);assert.equal(result.overlap,false);assert.equal(result.overflow,false);
    assert.equal(result.layoutOK,true,'preview stacks above fields or sits alongside them without overlap');
    const x=Number(result.points.split(' ')[0].split(',')[0]);

@@ -11,10 +11,10 @@ msgstr ""
 "Plural-Forms: nplurals=1; plural=0;\n"
 
 msgid "10G LAN"
-msgstr "10G LAN 温度"
+msgstr "10G LAN"
 
 msgid "10G WAN"
-msgstr "10G WAN 温度"
+msgstr "10G WAN"
 
 msgid "2.4 GHz Radio"
 msgstr "2.4 GHz 无线"
@@ -26,7 +26,7 @@ msgid "6 GHz Radio"
 msgstr "6 GHz 无线"
 
 msgid "Configured profile for automatic mode"
-msgstr "自动模式使用的配置曲线"
+msgstr "自动模式配置曲线"
 
 msgid "Automatic"
 msgstr "自动"
@@ -44,7 +44,7 @@ msgid "Board"
 msgstr "主板"
 
 msgid "CPU"
-msgstr "CPU 温度"
+msgstr "CPU"
 
 msgid "Complete valid curve points to preview."
 msgstr "请完善有效的曲线参数以显示预览。"
@@ -165,3 +165,9 @@ msgstr "查看风扇转速与系统温度。"
 
 msgid "WiFi"
 msgstr "无线"
+
+msgid "Airoha Fan Status"
+msgstr "Airoha 风扇状态"
+
+msgid "Airoha Fan Settings"
+msgstr "Airoha 风扇设置"

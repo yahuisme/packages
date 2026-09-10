@@ -1902,13 +1902,6 @@ msgstr ""
 msgid "The minimum TLS version that is acceptable."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:171
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:113
-msgid ""
-"The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/"
-"TUN/AI Edition"
-msgstr ""
-
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:869
 msgid "The network interface to bind to."
 msgstr ""

@@ -165,3 +165,9 @@ msgstr ""
 
 msgid "WiFi"
 msgstr ""
+
+msgid "Airoha Fan Status"
+msgstr ""
+
+msgid "Airoha Fan Settings"
+msgstr ""

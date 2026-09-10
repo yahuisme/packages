@@ -2,12 +2,14 @@
 const fs = require('fs'), assert = require('assert/strict'), { JSDOM } = require('jsdom');
 const dir = process.env.LUCI_RESOURCE_DIR;
 const tick = () => new Promise(r => setImmediate(r));
-async function boot() {
+async function boot(resources = [], translations = {}) {
  const j = new JSDOM('<body><div id="view"></div></body>', { url:'http://localhost/', runScripts:'outside-only' }), w=j.window;
  // Do not let cbi.js request its unrelated startup module over the network.
  const add=w.document.addEventListener.bind(w.document);
  w.document.addEventListener=(type,...args)=>type==='DOMContentLoaded'?undefined:add(type,...args);
  w.eval(fs.readFileSync(dir+'/cbi.js','utf8'));
+ w.TR = {};
+ for(const [key,value] of Object.entries(translations)) w.TR[w.sfh(key.trim().replace(/\s+/g,' '))]=value;
  w.document.addEventListener=add;
  w.eval(fs.readFileSync(dir+'/luci.js','utf8').replace(/window\.LuCI\s*=\s*LuCI;/, 'window.LuCI = LuCI; window.mods=classes; window.env=env;'));
  const mods=w.mods, L=w.L=Object.create(w.LuCI.prototype);
@@ -19,7 +21,7 @@ async function boot() {
   if(object==='uci'&&method==='get')result=[0,{values:{config:{'.name':'config','.type':'homeproxy',log_level:'warn'},server:{'.name':'server','.type':'server'}}}];
   else if(object==='uci'&&method==='changes')result=[0,{changes:{}}];
   else if(object==='session')result=[0,{access:true}];
-  else if(method==='resources_get')result=[0,{resources:[]}];
+  else if(method==='resources_get')result=[0,{resources}];
   else if(method==='resources_update')result=[0,{status:3}];
   else if(method==='connection_check')result=await new Promise((resolve,reject)=>pending.push({resolve,reject}));
   else throw Error('Unexpected RPC '+object+'/'+method);
@@ -36,11 +38,12 @@ async function boot() {
  const app=load('app',fs.readFileSync(process.env.HOMEPROXY_STATUS_JS||__dirname+'/../htdocs/luci-static/resources/view/homeproxy/status.js','utf8'));
  for(let i=0;i<40&&!w.document.querySelector('.homeproxy-status');i++)await tick();await tick();
  const root=()=>w.document.querySelector('.homeproxy-status');assert(root(),'real view mounted');
- const button=text=>[...root().querySelectorAll('button')].find(x=>x.textContent===text);
+ const button=text=>[...root().querySelectorAll('button')].find(x=>x.textContent===w._(text));
  const row=()=>root().querySelector('table').rows[1];
  return {j,w,mods,app,polls,calls,pending,root,button,row,count:()=>calls.filter(x=>x.method==='connection_check').length,async settle(payload){pending.shift().resolve([0,payload]);await tick();await tick();}};
 }
-(async()=>{
+module.exports = { boot, tick };
+if (require.main === module) (async()=>{
  const h=await boot();try {
   if(process.argv.includes('--repro-reset')) {
    h.button('Test all').click();await tick();await h.settle({results:[{site:'baidu',result:true,latency_ms:18}]});

@@ -14,7 +14,7 @@ const {boot}=require('./integration.cjs'),{boot:mlo}=require('./mlo-luci-dom.cjs
   const result=await p.evaluate(()=>{
    const cs=s=>getComputedStyle(document.querySelector(s));
    const ref=document.createElement('div');ref.style.cssText='border:1px solid var(--hairline);color:var(--text-muted)';document.body.append(ref);
-   const r={expectedBorder:getComputedStyle(ref).borderTopColor,expectedMuted:getComputedStyle(ref).color,border:cs('.wifi7-card').borderTopColor,muted:cs('.wifi7-label').color,mloBorder:cs('.mlo-summary-item').borderTopColor,mloMuted:cs('.mlo-summary-label').color,green:cs('.wifi7-badge-up > span').color,overflow:document.documentElement.scrollWidth>innerWidth};ref.remove();return r;
+   const r={expectedBorder:getComputedStyle(ref).borderTopColor,expectedMuted:getComputedStyle(ref).color,border:cs('.wifi7-card').borderTopColor,muted:cs('.wifi7-label').color,mloBorder:cs('.mlo-summary-item').borderTopColor,mloMuted:cs('.mlo-summary .wifi7-label').color,green:cs('.wifi7-badge-up > span').color,overflow:document.documentElement.scrollWidth>innerWidth};ref.remove();return r;
   });results.push({dark,width,...result});
   assert.equal(result.border,result.expectedBorder);assert.equal(result.mloBorder,result.expectedBorder);
   assert.equal(result.muted,result.expectedMuted);assert.equal(result.mloMuted,result.expectedMuted);

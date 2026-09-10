@@ -1,5 +1,15 @@
 # Focused regression checks
 
+Value-only typography and description regression (real LuCI DOM/Map/reset, fixture transport):
+
+```sh
+NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci-base/htdocs/luci-static/resources node tests/test_value_typography.cjs
+# Optional Chromium matrix with actual Aurora assets; output is local evidence, not package content:
+NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci-base/htdocs/luci-static/resources AURORA_HTDOCS=/path/to/luci-theme-aurora/htdocs HP_TYPOGRAPHY_OUTPUT=/tmp/homeproxy-typography node tests/test_value_typography.cjs
+```
+
+The browser matrix uses native LuCI translation lookup populated from the Chinese PO, initial/resource-reset/fresh-mount DOM exports, five viewport widths and both themes. It checks the twelve targeted values, unchanged labels/unrelated siblings, link attributes, transparent backgrounds and long-URL wrapping. It saves source/DOM hashes, measurements and representative screenshots. Browser pages use a simplified Aurora shell; interactive lifecycle is separately exercised with real LuCI in jsdom, not router hardware or live RPC.
+
 User direct/proxy/custom text lists live in `/etc/homeproxy/diversion/{id}.txt`; public SRS and `.ver` snapshots remain in `/etc/homeproxy/resources/`. The upstream migration scans legacy files independently of UCI references, merges/deduplicates when both paths exist, and keeps old-only file bytes unchanged via rename. `test_list_migration.py` executes the complete migration and RPC with real ucode/fs in private fixtures (UCI/hostname validation boundaries stubbed), covering orphan preservation, repeated runs, short-write/read/rename/unlink failures and retry. The updater regression preserves both final-path lists and not-yet-migrated legacy lists through updates and rollback.
 
 ```sh

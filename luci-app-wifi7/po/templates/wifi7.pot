@@ -104,9 +104,6 @@ msgstr ""
 msgid "Down"
 msgstr ""
 
-msgid "Each MLO interface needs at least two radios."
-msgstr ""
-
 msgid "Edit MLO interface"
 msgstr ""
 
@@ -149,9 +146,6 @@ msgstr ""
 msgid "Legacy"
 msgstr ""
 
-msgid "Limited"
-msgstr ""
-
 msgid "Loading MLO configuration…"
 msgstr ""
 
@@ -170,9 +164,6 @@ msgstr ""
 msgid "MLO interfaces"
 msgstr ""
 
-msgid "MLO needs at least two radios."
-msgstr ""
-
 msgid "MLO requires at least two radio devices"
 msgstr ""
 
@@ -183,9 +174,6 @@ msgid "Manage in Wireless"
 msgstr ""
 
 msgid "Mode"
-msgstr ""
-
-msgid "Needs attention"
 msgstr ""
 
 msgid "No active MLD interface"
@@ -230,7 +218,7 @@ msgstr ""
 msgid "Radio Status"
 msgstr ""
 
-msgid "Radio availability"
+msgid "Configured radios"
 msgstr ""
 
 msgid "Radio devices"

@@ -11,10 +11,11 @@ var setMonitor = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setMoni
 var css = `
 .flowsense-dashboard{--flowsense-gap:16px;box-sizing:border-box}
 .flowsense-dashboard *{box-sizing:border-box}
+.flowsense-dashboard .flowsense-status-message{text-align:right}
 .flowsense-dashboard .flowsense-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--flowsense-gap);margin:16px 0}
-.flowsense-dashboard .flowsense-card{min-width:0;min-height:96px;padding:16px;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:4px;background:var(--cbi-section-bg,transparent)}
+.flowsense-dashboard .flowsense-card{min-width:0;min-height:96px;padding:8px 16px;display:flex;flex-direction:column;justify-content:center;gap:4px;line-height:1.5;overflow-wrap:anywhere;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:4px;background:var(--cbi-section-bg,transparent)}
 .flowsense-dashboard .flowsense-label{color:var(--cbi-muted-color,var(--text-muted,#666))}
-.flowsense-dashboard .flowsense-value{display:block;margin-top:8px;font-variant-numeric:tabular-nums}
+.flowsense-dashboard .flowsense-value{display:block;font-size:1.125em;font-weight:600;font-variant-numeric:tabular-nums}
 .flowsense-dashboard .flowsense-sub{color:var(--cbi-muted-color,var(--text-muted,#888))}
 .flowsense-dashboard .flowsense-status{display:inline-flex;align-items:center;gap:8px;color:inherit;white-space:nowrap}
 .flowsense-dashboard .flowsense-status-arrow{color:inherit;font-weight:600}
@@ -67,8 +68,12 @@ return view.extend({
 	load: function() { return getOverview().catch(function() { return null; }); },
 
 	render: function(initial) {
-		var root = E('div', { 'class': 'cbi-map flowsense-dashboard' }, [E('style', {}, css)]);
-		var message = E('div', { 'class': 'cbi-map-descr' }, _('Waiting for data'));
+		var root = E('div', { 'class': 'cbi-map flowsense-dashboard' }, [
+			E('style', {}, css),
+			E('h2', {}, _('Airoha FlowSense')),
+			E('div', { 'class': 'cbi-map-descr' }, _('View Ethernet traffic, link quality, and PPE flow entries.'))
+		]);
+		var message = E('div', { 'class': 'cbi-map-descr flowsense-status-message' }, _('Waiting for data'));
 		var summary = E('div', { 'class': 'flowsense-summary' });
 		var interfaces = E('div', { 'class': 'flowsense-ports' });
 		var quality = E('div', { 'class': 'flowsense-section cbi-section' });

@@ -11,7 +11,7 @@ msgid "%d client associations"
 msgstr "%d 个客户端关联"
 
 msgid "%d incomplete"
-msgstr "%d 个未完成"
+msgstr "%d 待完善"
 
 msgid "%d seconds remaining"
 msgstr "剩余 %d 秒"
@@ -106,9 +106,6 @@ msgstr "低 ACK 时断开关联"
 msgid "Down"
 msgstr "已停止"
 
-msgid "Each MLO interface needs at least two radios."
-msgstr "每个 MLO 接口至少需要两个射频。"
-
 msgid "Edit MLO interface"
 msgstr "编辑 MLO 接口"
 
@@ -151,9 +148,6 @@ msgstr "接口名称"
 msgid "Legacy"
 msgstr "传统协议"
 
-msgid "Limited"
-msgstr "受限"
-
 msgid "Loading MLO configuration…"
 msgstr "正在加载 MLO 配置…"
 
@@ -172,9 +166,6 @@ msgstr "MLO 配置不可用。"
 msgid "MLO interfaces"
 msgstr "MLO 接口"
 
-msgid "MLO needs at least two radios."
-msgstr "MLO 至少需要两个射频。"
-
 msgid "MLO requires at least two radio devices"
 msgstr "MLO 至少需要两个射频设备"
 
@@ -186,9 +177,6 @@ msgstr "在无线设置中管理"
 
 msgid "Mode"
 msgstr "模式"
-
-msgid "Needs attention"
-msgstr "需要处理"
 
 msgid "No active MLD interface"
 msgstr "没有活跃的 MLD 接口"
@@ -232,8 +220,8 @@ msgstr "射频参数设置"
 msgid "Radio Status"
 msgstr "射频状态"
 
-msgid "Radio availability"
-msgstr "射频可用性"
+msgid "Configured radios"
+msgstr "已配置射频"
 
 msgid "Radio devices"
 msgstr "射频设备"

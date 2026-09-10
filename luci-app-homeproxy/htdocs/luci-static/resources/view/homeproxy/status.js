@@ -30,6 +30,11 @@ const css = `
 }
 .homeproxy-status h3 select { width: auto; }
 .homeproxy-status .hp-connection-success { color: #16803c; }
+.homeproxy-status .hp-monospace-value {
+	font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
 .homeproxy-status .homeproxy-log {
 	box-sizing: border-box;
 	height: 256px;
@@ -90,7 +95,7 @@ function getConnectionStatus() {
 				'href': site.url,
 				'target': '_blank',
 				'rel': 'noreferrer noopener',
-				'style': 'word-break:break-all'
+				'class': 'hp-monospace-value'
 			}, site.url),
 			state,
 			latency
@@ -236,13 +241,13 @@ function getResources(o) {
 
 			return [
 				resource.name,
-				E('span', {},
+				E('span', { 'class': 'hp-monospace-value' },
 					[ available || '-' ]),
 				source ? E('a', {
 					'href': source,
 					'target': '_blank',
 					'rel': 'noreferrer noopener',
-					'style': 'word-break:break-all'
+					'class': 'hp-monospace-value'
 				}, [ source ]) : '-'
 			];
 		});

@@ -94,3 +94,6 @@ msgid "RTT mean absolute deviation"
 msgstr "延迟平均绝对偏差"
 msgid "FlowSense telemetry and probe settings"
 msgstr "FlowSense 遥测与探测设置"
+
+msgid "View Ethernet traffic, link quality, and PPE flow entries."
+msgstr "查看以太网流量、链路质量与 PPE 流表。"

@@ -54,6 +54,7 @@ async function tick(ms = 3000) {
  try {
   if (process.env.NPU_ZH) assert.equal(w._('Max limit:'), '上限:');
   let node = app.render(await app.load()); w.document.getElementById('view').append(node); await flush();
+  assert.equal(node.querySelector(':scope > h2').textContent, w._('Airoha SoC Status'));
   assert.equal(points().length, 1, 'only initial real reading');
   assert.equal(points()[0].getAttribute('data-mhz'), '500');
   assert.equal(mods.poll.queue.length, 1);

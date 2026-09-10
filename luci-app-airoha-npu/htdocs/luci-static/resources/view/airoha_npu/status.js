@@ -10,10 +10,10 @@ var getFlow = rpc.declare({ object: 'luci.airoha_npu', method: 'getFlowOffload',
 var themeCSS = '\
 .npu-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px;margin:12px 0}\
 .npu-summary-card,.npu-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,var(--hairline,#ddd));border-radius:6px;box-sizing:border-box}\
-.npu-summary-card{min-height:72px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center}.npu-card-title,.npu-detail-group-title{color:var(--cbi-muted-color,var(--text-muted,#666))}.npu-card-value{display:block;margin-top:3px;font-variant-numeric:tabular-nums}.npu-card-sub{color:var(--cbi-muted-color,var(--text-muted,#888))}\
+.npu-summary-card{min-width:0;min-height:96px;padding:8px 16px;display:flex;flex-direction:column;justify-content:center;gap:4px;line-height:1.5;overflow-wrap:anywhere}.npu-card-title,.npu-detail-group-title{color:var(--cbi-muted-color,var(--text-muted,#666))}.npu-card-value{display:block;font-size:1.125em;font-weight:600;font-variant-numeric:tabular-nums}.npu-card-sub{color:var(--cbi-muted-color,var(--text-muted,#888))}\
 .npu-dashboard .npu-frequency-chart{margin:16px 0;min-width:0}.npu-dashboard .npu-chart-header{display:flex;justify-content:space-between;gap:8px;}.npu-dashboard .npu-frequency-chart svg{display:block;width:100%;height:200px;color:inherit}.npu-dashboard .npu-chart-caption{text-align:center}.npu-dashboard .npu-chart-grid{stroke:currentColor;stroke-width:1;opacity:.12}.npu-dashboard .npu-chart-line{fill:none;stroke:#22a06b;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}.npu-dashboard .npu-chart-point{fill:#22a06b}.npu-dashboard .npu-chart-area{fill:#22a06b;fill-opacity:.10;stroke:none}\
 .npu-panel{padding:12px;margin:12px 0}.npu-panel-title{padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid var(--cbi-border-color,var(--hairline,#ddd))}.npu-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}.npu-detail-group-title{margin:10px 0 2px}.npu-detail-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--cbi-border-color,var(--hairline,rgba(128,128,128,.12)))}.npu-detail-label{color:var(--cbi-muted-color,var(--text-muted,#666))}.npu-detail-value{text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
-@media(max-width:760px){.npu-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.npu-detail-grid{grid-template-columns:1fr}}@media(max-width:480px){.npu-summary-grid{grid-template-columns:1fr}.npu-summary-card{min-height:64px}.npu-panel{padding:10px}}\
+@media(max-width:760px){.npu-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.npu-detail-grid{grid-template-columns:1fr}}@media(max-width:480px){.npu-summary-grid{grid-template-columns:1fr}.npu-panel{padding:10px}}\
 ';
 
 
@@ -182,6 +182,7 @@ return view.extend({
 
 		var page = E('div', { 'class': 'cbi-map npu-dashboard' }, [
 			E('style', {}, themeCSS),
+			E('h2', {}, _('Airoha SoC Status')),
 			E('div', { 'class': 'cbi-map-descr' }, _('View real-time Airoha SoC frequency, NPU acceleration, and system status.')),
 			E('div', { 'class': 'npu-summary-grid' }, [
 				summaryCard('freq', _('CPU Frequency'), cards.freq),

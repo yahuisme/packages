@@ -15,7 +15,7 @@ import {
 	addECHDNS, createNodeLabelRegistry, filterExistingNodes, findDomainGroupConflict,
 	hasForceProxyRules, isEmpty, normalizeDomainList, normalizeList, parseURL,
 	domainListPath, resolveLanPolicy, splitDomainList,
-	reserveUniqueLabel, strToBool, strToInt, strToTime,
+	reserveUniqueLabel, strToBool, strToInt, strToIntOrZero, strToTime,
 	removeBlankAttrs, renderEndpoint, renderOutbound, validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
 
@@ -684,7 +684,7 @@ if (!isEmpty(main_node)) {
 		if (!length(urltest_nodes))
 			die('Main URLTest group has no available nodes.');
 		const main_urltest_interval = uci.get(uciconfig, ucimain, 'main_urltest_interval') || '120';
-		const main_urltest_tolerance = uci.get(uciconfig, ucimain, 'main_urltest_tolerance');
+		const main_urltest_tolerance = uci.get(uciconfig, ucimain, 'main_urltest_tolerance') || '60';
 		const main_urltest_interrupt = uci.get(uciconfig, ucimain, 'main_urltest_interrupt_exist_connections') || '0';
 
 		push(config.outbounds, {
@@ -692,7 +692,7 @@ if (!isEmpty(main_node)) {
 			tag: 'main-out',
 			outbounds: map(urltest_nodes, (k) => get_node_outbound_tag(k)),
 			interval: strToTime(main_urltest_interval),
-			tolerance: strToInt(main_urltest_tolerance),
+			tolerance: strToIntOrZero(main_urltest_tolerance),
 			idle_timeout: (strToInt(main_urltest_interval) > 1800) ? `${main_urltest_interval * 2}s` : null,
 			interrupt_exist_connections: strToBool(main_urltest_interrupt)
 		});
