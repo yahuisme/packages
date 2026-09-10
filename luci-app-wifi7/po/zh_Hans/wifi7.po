@@ -317,9 +317,6 @@ msgstr "Wi-Fi 7 (802.11be) 和 MLO 设置"
 msgid "Wi-Fi 7 (802.11be) & Multi-Link Operation Settings"
 msgstr "Wi-Fi 7 (802.11be) 和 MLO 设置"
 
-msgid "Wi-Fi MLO"
-msgstr "Wi-Fi MLO"
-
 msgid "WiFi 7"
 msgstr "WiFi 7"
 

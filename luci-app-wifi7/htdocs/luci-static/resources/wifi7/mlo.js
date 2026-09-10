@@ -186,10 +186,17 @@ return baseclass.extend({
 		let radiosByName = radioMap(radios);
 		let inflight;
 		let refresh;
-		let map = new form.Map('wireless', _('Wi-Fi MLO'), _('Configure Wi-Fi 7 Multi-Link Operation interfaces.'));
+		let map = new form.Map('wireless', null, _('Configure Wi-Fi 7 Multi-Link Operation interfaces.'));
 		map.chain('network');
 
 		let section = map.section(form.GridSection, 'wifi-iface', _('MLO Interfaces'));
+		// This embedded section has the same heading level as the radio settings.
+		section.hidetitle = true;
+		section.renderContents = function() {
+			let node = form.GridSection.prototype.renderContents.apply(this, arguments);
+			node.prepend(E('h4', {}, this.title));
+			return node;
+		};
 		section.anonymous = true;
 		section.addremove = true;
 		section.sortable = true;

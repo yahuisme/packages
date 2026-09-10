@@ -1,8 +1,0 @@
-
-config settings 'main'
-	option repository ''
-	option token ''
-	option release_pattern ''
-	option asset_pattern ''
-	option download_proxy ''
-	option keep_config '0'

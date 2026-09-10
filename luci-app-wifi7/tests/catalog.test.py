@@ -50,7 +50,7 @@ class CatalogTest(unittest.TestCase):
         self.assertEqual(set(pot), strings)
         self.assertTrue(all(v.strip() for v in po.values()))
         technical_names = {'BSSID', 'MLO', 'OWE', 'SSID', 'WPA2-PSK',
-                           'WPA3-SAE', 'Wi-Fi MLO', 'WiFi 7'}
+                           'WPA3-SAE', 'WiFi 7'}
         self.assertEqual({k for k, v in po.items() if k == v}, technical_names)
         for key, value in po.items():
             self.assertEqual(re.findall(r'%[sdh]', key), re.findall(r'%[sdh]', value))
