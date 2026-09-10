@@ -20,7 +20,6 @@ const css = `
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 8px;
-	font-weight: 600;
 }
 .homeproxy-status h3 .cbi-button,
 .homeproxy-status h3 select {
@@ -28,7 +27,6 @@ const css = `
 	height: 32px;
 	min-height: 32px;
 	margin: 0;
-	font-weight: 400;
 }
 .homeproxy-status h3 select { width: auto; }
 .homeproxy-status .hp-connection-success { color: #16803c; }

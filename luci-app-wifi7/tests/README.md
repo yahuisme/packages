@@ -27,7 +27,8 @@ node tests/integration.cjs
 node tests/lazy-regression.cjs
 node tests/native-tabs.cjs
 node tests/typography.cjs
-# 可选：导出当前完整应用 DOM（含 MLO 表格和三个弹窗页签）并测量公共字体
+# 可选：导出当前完整应用 DOM（含 MLO 表格和三个弹窗页签）
+# 与禁用应用样式后的相同原生语义组件比较字号、字重、字体、行高及字距，含伪元素；不固定字体数值
 # TYPOGRAPHY_OUT=/tmp/wifi7-type node tests/typography.cjs
 # TYPOGRAPHY_OUT=/tmp/wifi7-type AURORA_HTDOCS=/path/to/aurora/htdocs \
 # AURORA_HEADER=/path/to/aurora/ucode/template/themes/aurora/header.ut \

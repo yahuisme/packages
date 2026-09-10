@@ -93,6 +93,7 @@ async function scenario(unknown = false) {
    exportDOM('.saved');
    async function assertSavedReset() {
     await map.reset();
+    assert.equal(node.querySelectorAll(':scope > style').length, 1, 'reset retains one responsive layout style');
     for (const [name, section, value] of [['governor', 'cpu', 'schedutil'], ['frequency', 'cpu', '800000'], ['flow', 'firewall', '1']])
      assert.equal(map.lookupOption(name, section)[0].formvalue(section), value, 'reset keeps last confirmed ' + name);
    }
@@ -108,7 +109,7 @@ async function scenario(unknown = false) {
    await assertSavedReset();
   }
   node.remove();
-  assert.equal(w.document.querySelectorAll('style').length, 0, 'view removal cleans settings styles');
+  assert.equal(w.document.querySelectorAll('style').length, 0, 'view removal cleans settings styles; notifications use native theme');
  } finally { w.close(); }
 }
 (async () => {

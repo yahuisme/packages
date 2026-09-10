@@ -22,9 +22,9 @@ const { chromium } = require('playwright');
     disconnect(){window.resizeDisconnects++;super.disconnect();}
    };
    const helpers=source.slice(source.indexOf('function validPoints'),source.indexOf('\nreturn view.extend'));
-   const setup=source.slice(source.indexOf('\t\t\tvar refresh ='),source.indexOf('\t\t\treturn node;'));
+   const setup=source.slice(source.indexOf('\t\t\tvar refresh ='),source.indexOf('\t\t\treturn node;',source.indexOf('\t\t\tvar refresh =')));
    // Trusted checked-out application source only; no user-supplied code.
-   new Function('node',helpers+'\n'+setup)(document.querySelector('.fan-settings'));
+   new Function('node',helpers+'\nvar resize;\n'+setup)(document.querySelector('.fan-settings'));
   },source);
   for(const dark of [false,true]) for(const width of [320,390,768,1024,1440,1920]) {
    await page.setViewportSize({width,height:1000});

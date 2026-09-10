@@ -24,6 +24,8 @@ const w = j.window;
   function load(n){const text=read(n),deps=[...text.matchAll(/'require ([^';]+)';/g)].map(m=>m[1]);const C=w.Function(...deps.map(d=>d.split(' as ')[1]||d.split('.').at(-1)),text)(...deps.map(d=>mods[d.split(' as ')[0]]));mods[n]=new C();}
   load('uci'); mods.fs={};load('validation');load('ui');load('form');
   const source=fs.readFileSync(path.join(__dirname,'../htdocs/luci-static/resources/view/fan/settings.js'),'utf8');
+  const observed=[];let disconnects=0;
+  w.ResizeObserver=class { observe(svg){observed.push(svg);} disconnect(){disconnects++;} };
   const C=w.Function('view','form','uci',source)(mods.view.extend({__init__(){}}),mods.form,mods.uci);
   const app=new C();await app.load();const node=await app.render();w.document.querySelector('#view').append(node);
   const section=node.querySelector('.cbi-section-node[data-section-id="custom"]');assert(section);
@@ -50,6 +52,21 @@ const w = j.window;
   input.value='40';input.dispatchEvent(new w.Event('input',{bubbles:true}));
   assert.equal(node.querySelectorAll(':scope > style').length,1);assert.equal(w.document.head.querySelectorAll('style').length,0);
   if(process.env.EXPORT_DOM){for(const e of node.querySelectorAll('input'))e.setAttribute('value',e.value);fs.writeFileSync(process.env.EXPORT_DOM,w.document.documentElement.outerHTML);}
+  await map.reset();
+  assert.equal(node.querySelectorAll(':scope > style').length,1,'reset retains responsive layout and preview styles');
+  const resetSVG=node.querySelector('.fan-curve-preview svg');
+  assert.notEqual(resetSVG,svg,'native reset replaces SVG');
+  assert.equal(observed.at(-1),resetSVG,'observer is rebound to replacement SVG');
+  assert.equal(disconnects,1,'old SVG observer disconnected on reset');
+  assert.equal(resetSVG.querySelectorAll('.fan-curve-dots circle').length,5,'reset redraws valid curve');
+  const resetInput=node.querySelector('[data-name="point1_temp"] input');
+  resetInput.value='90';resetInput.dispatchEvent(new w.Event('input',{bubbles:true}));
+  await assert.rejects(map.save());
+  assert(w.document.querySelector('.modal h4'),'native validation modal is visible');
+  assert.equal(w.document.querySelectorAll('.modal style').length,0,'validation modal uses native theme without typography injection');
+  mods.ui.hideModal();mods.ui.showModal('Unrelated',[w.E('p',{},['Independent modal'])]);
+  assert(!w.document.querySelector('.fan-settings-modal'),'next modal must not inherit fan styling');
+  mods.ui.hideModal();
   node.remove();assert.equal(w.document.querySelectorAll('.fan-settings style').length,0);
   console.log('PASS real LuCI settings: custom section, ten widgets, defaults, fixed PWM, live valid/invalid curve, local style cleanup');
  } finally {j.window.close();}

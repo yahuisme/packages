@@ -2021,10 +2021,6 @@ return view.extend({
 .homeproxy-nodes .cbi-section-table td:not(.cbi-section-table-titles) {
 	white-space: nowrap;
 }
-.homeproxy-nodes .cbi-section-table .cbi-section-table-titles,
-.homeproxy-nodes .cbi-section-table .cbi-section-table-descr {
-	font-weight: 500;
-}
 .homeproxy-nodes .cbi-section-table .cbi-section-table-titles:first-child {
 	max-width: 240px;
 	white-space: nowrap;

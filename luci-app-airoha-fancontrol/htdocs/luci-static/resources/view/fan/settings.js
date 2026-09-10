@@ -82,8 +82,8 @@ var previewCSS = '\
 .fan-settings [data-name^="point"]{box-sizing:border-box}\
 .fan-settings .fan-curve-preview{max-width:none;margin:0;color:var(--cbi-text-color,currentColor)}\
 .fan-settings .fan-curve-preview svg{display:block;width:100%;height:244px;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:4px;background:var(--cbi-section-bg,transparent);box-sizing:border-box}\
-.fan-settings .fan-curve-dots{fill:#3b82f6}.fan-settings .fan-curve-axes text{font-size:12px;font-weight:400;fill:currentColor}.fan-settings .fan-curve-axes line{stroke:currentColor;stroke-opacity:.1;stroke-width:1;vector-effect:non-scaling-stroke}\
-.fan-settings .fan-curve-message{display:block;margin-top:8px;color:var(--cbi-muted-color,var(--text-muted,#888));font-size:12px}\
+.fan-settings .fan-curve-dots{fill:#3b82f6}.fan-settings .fan-curve-axes text{font-size:12px;fill:currentColor}.fan-settings .fan-curve-axes line{stroke:currentColor;stroke-opacity:.1;stroke-width:1;vector-effect:non-scaling-stroke}\
+.fan-settings .fan-curve-message{display:block;margin-top:8px;color:var(--cbi-muted-color,var(--text-muted,#888));}\
 .fan-settings .cbi-section:has(>[data-section-id="custom"]){container-type:inline-size}\
 .fan-settings .cbi-section-node[data-section-id="custom"]>.cbi-value{min-width:0}\
 .fan-settings .cbi-section-node[data-section-id="custom"]>.cbi-value:not([data-name="_curve_preview"]){display:grid;grid-template-columns:minmax(0,1fr) minmax(80px,120px);gap:8px;align-items:center}\
@@ -186,16 +186,27 @@ return view.extend({
 		option.depends({ 'fan.settings.mode': 'auto', 'fan.settings.curve_preset': 'custom' });
 		option.rawhtml = true;
 		option.cfgvalue = curvePreview;
+		var resize, renderContents = map.renderContents;
+		map.renderContents = function() {
+			return renderContents.apply(this, arguments).then(function(node) {
+				node.classList.add('fan-settings');
+				injectCSS(node);
+				updateCurvePreview(node);
+				if (resize) {
+					resize.disconnect();
+					resize.observe(node.querySelector('.fan-curve-preview svg'));
+				}
+				return node;
+			});
+		};
 		return map.render().then(function(node) {
-			node.classList.add('fan-settings');
-			injectCSS(node);
 			var refresh = function() { updateCurvePreview(node); };
 			node.addEventListener('input', refresh);
 			node.addEventListener('change', refresh);
 			refresh();
 			if (typeof ResizeObserver !== 'undefined') {
 				var mounted = node.isConnected;
-				var resize = new ResizeObserver(refresh);
+				resize = new ResizeObserver(refresh);
 				resize.observe(node.querySelector('.fan-curve-preview svg'));
 				var lifecycle = new MutationObserver(function() {
 					if (node.isConnected) mounted = true;

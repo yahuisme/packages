@@ -6,7 +6,8 @@ const {boot}=require('./integration.cjs');
  if(out)fs.mkdirSync(out,{recursive:true});
  const save=name=>{if(!out)return;for(const e of h.w.document.querySelectorAll('input')){e.setAttribute('value',e.value);e.toggleAttribute('checked',e.checked)}for(const e of h.w.document.querySelectorAll('option'))e.toggleAttribute('selected',e.selected);fs.writeFileSync(path.join(out,name+'.dom.html'),h.j.serialize());};
  try{
-  for(let i=0;i<4;i++){await h.tab(i);await h.poll();save('tab'+i);}
+  assert(!/font-size|font-weight|font-family|letter-spacing/.test(h.q('.wifi7-map style').textContent),'application leaves typography to the theme');
+  for(let i=0;i<4;i++){await h.tab(i);await h.poll();if(i===3)for(const detail of h.node.querySelectorAll('details'))detail.open=true;save('tab'+i);}
   await h.tab(2);
   const map=h.mods.dom.findClassInstance(h.q('.mlo-map')),section=map.children[0];
   const id=h.mods.uci.add('wireless','wifi-iface');
@@ -23,9 +24,9 @@ const {boot}=require('./integration.cjs');
   assert(modal.classList.contains('wifi7-modal'));
   for(const tab of ['general','security','advanced']){modal.querySelector(`.cbi-tabmenu li[data-tab="${tab}"] a`).click();save('modal-'+tab);}
   h.mods.ui.showModal('Unrelated',[]);
-  assert(!modal.classList.contains('wifi7-modal'),'native reuse removes application typography scope');
+  assert(!modal.classList.contains('wifi7-modal'),'native reuse removes application modal scope');
   h.mods.ui.hideModal();await section.renderMoreOptionsModal(id);
-  assert(modal.classList.contains('wifi7-modal'),'reopening restores shared typography');
+  assert(modal.classList.contains('wifi7-modal'),'reopening restores modal ownership');
   h.mods.ui.hideModal();h.node.remove();await new Promise(r=>setImmediate(r));assert.equal(h.polls.size,0);
   assert(!h.w.document.querySelector('.wifi7-map style'),'common stylesheet removed with view');
   console.log('PASS full-app typography ownership, populated native MLO grid/reset, three modal tabs, unrelated modal isolation/reopen, teardown');

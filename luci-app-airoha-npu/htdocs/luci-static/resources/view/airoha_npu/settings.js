@@ -12,7 +12,6 @@ var setFrequency = rpc.declare({ object: 'luci.airoha_npu', method: 'setMaxFreq'
 var setFlow = rpc.declare({ object: 'luci.airoha_npu', method: 'setFlowOffload', params: ['enabled'], expect: { '': {} }, reject: true });
 
 var settingsCSS = '\
-.npu-settings{font-size:13px;line-height:1.5}\
 .npu-settings select,.npu-settings .cbi-input-select{max-width:280px}\
 @media(max-width:640px){.npu-settings select,.npu-settings .cbi-input-select{max-width:100%}}\
 ';
@@ -41,6 +40,7 @@ function message(code) {
 	};
 	return errors[code] || _('The operation failed. Refresh the page and try again.');
 }
+
 
 return view.extend({
 	load: function() {
@@ -163,10 +163,14 @@ return view.extend({
 			});
 		};
 
-		return m.render().then(function(node) {
-			node.classList.add('npu-settings');
-			node.prepend(E('style', {}, settingsCSS));
-			return node;
-		});
+		var renderContents = m.renderContents;
+		m.renderContents = function() {
+			return renderContents.apply(this, arguments).then(function(node) {
+				node.classList.add('npu-settings');
+				node.prepend(E('style', {}, settingsCSS));
+				return node;
+			});
+		};
+		return m.render();
 	}
 });

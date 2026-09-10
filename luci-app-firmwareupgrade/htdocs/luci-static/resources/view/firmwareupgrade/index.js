@@ -11,11 +11,10 @@ var callStart = rpc.declare({ object: 'luci.firmwareupgrade', method: 'startUpgr
 var callSave = rpc.declare({ object: 'luci.firmwareupgrade', method: 'saveSettings', params: [ 'repository', 'token', 'keep_config', 'release_pattern', 'asset_pattern', 'download_proxy' ], expect: { '': {} } });
 
 var css = '\
-.fwup-dashboard{font-size:13px;line-height:1.5}\
 .fwup-dashboard .fwup-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}\
 .fwup-dashboard .fwup-card,.fwup-dashboard .fwup-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:6px;box-sizing:border-box}\
-.fwup-dashboard .fwup-card{min-height:72px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center}.fwup-dashboard .fwup-label{font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--cbi-muted-color,var(--text-muted,#666));margin-bottom:3px}.fwup-dashboard .fwup-value{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fwup-dashboard .fwup-sub{font-size:12px;color:var(--cbi-muted-color,var(--text-muted,#888));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
-.fwup-dashboard .fwup-panel{padding:12px;margin:12px 0}.fwup-dashboard .fwup-panel-title{font-size:15px;font-weight:600;padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0))}.fwup-dashboard .fwup-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--cbi-border-color,var(--hairline,#f0f0f0))}.fwup-dashboard .fwup-row:last-child{border-bottom:0}.fwup-dashboard .fwup-key{flex:0 0 176px;color:var(--cbi-muted-color,var(--text-muted,#666));font-weight:500}.fwup-dashboard .fwup-data{min-width:0;overflow-wrap:anywhere}.fwup-dashboard .fwup-input{width:min(100%,380px);min-width:0;max-width:100%;height:32px;box-sizing:border-box}.fwup-dashboard .fwup-actions{display:flex;gap:8px;align-items:center;justify-content:flex-start;flex-wrap:wrap;margin:16px 0}.fwup-dashboard .fwup-actions>.cbi-button{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;height:32px;min-height:32px;margin:0;padding:0 12px}.fwup-dashboard .fwup-release{display:flow-root}.modal.fwup-modal{box-sizing:border-box;width:560px;min-width:0;max-width:min(560px,calc(100vw - 32px))}.fwup-modal .fwup-progress{height:6px;border-radius:3px;overflow:hidden;background:var(--cbi-input-bg,#eee)}.fwup-modal .fwup-progress>i{display:block;height:100%;background:var(--cbi-link-color,#0ea5e9);transition:width .25s}\
+.fwup-dashboard .fwup-card{min-height:72px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center}.fwup-dashboard .fwup-label{color:var(--cbi-muted-color,var(--text-muted,#666));margin-bottom:3px}.fwup-dashboard .fwup-value{font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fwup-dashboard .fwup-sub{color:var(--cbi-muted-color,var(--text-muted,#888));overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\
+.fwup-dashboard .fwup-panel{padding:12px;margin:12px 0}.fwup-dashboard .fwup-panel-title{padding-bottom:8px;margin-bottom:4px;border-bottom:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0))}.fwup-dashboard .fwup-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--cbi-border-color,var(--hairline,#f0f0f0))}.fwup-dashboard .fwup-row:last-child{border-bottom:0}.fwup-dashboard .fwup-key{flex:0 0 176px;color:var(--cbi-muted-color,var(--text-muted,#666));}.fwup-dashboard .fwup-data{min-width:0;overflow-wrap:anywhere}.fwup-dashboard .fwup-input{width:min(100%,380px);min-width:0;max-width:100%;height:32px;box-sizing:border-box}.fwup-dashboard .fwup-actions{display:flex;gap:8px;align-items:center;justify-content:flex-start;flex-wrap:wrap;margin:16px 0}.fwup-dashboard .fwup-actions>.cbi-button{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;height:32px;min-height:32px;margin:0;padding:0 12px}.fwup-dashboard .fwup-release{display:flow-root}.modal.fwup-modal{box-sizing:border-box;width:560px;min-width:0;max-width:min(560px,calc(100vw - 32px))}.fwup-modal .fwup-progress{height:6px;border-radius:3px;overflow:hidden;background:var(--cbi-input-bg,#eee)}.fwup-modal .fwup-progress>i{display:block;height:100%;background:var(--cbi-link-color,#0ea5e9);transition:width .25s}\
 @media(max-width:760px){.fwup-dashboard .fwup-summary{grid-template-columns:minmax(0,1fr)}.fwup-dashboard .fwup-panel{padding:10px}.fwup-dashboard .fwup-row{align-items:flex-start;flex-direction:column;gap:8px}.fwup-dashboard .fwup-key{flex:none}.fwup-dashboard .fwup-input{width:100%}}\
 ';
 
@@ -39,20 +38,20 @@ return view.extend({
 		var root = E('div', { class: 'cbi-map fwup-dashboard' }, [ E('style', {}, css) ]);
 		var notice = E('div', { style: 'display:none' });
 		var latest = E('div', { class: 'fwup-value', id: 'fwup-latest' }, _('Not checked'));
-		var detail = E('div', { class: 'fwup-release', style: 'display:none' }, [ E('div', { class: 'fwup-panel-title' }, _('Release details')), E('div', { id: 'fwup-detail' }) ]);
+		var detail = E('div', { class: 'fwup-release', style: 'display:none' }, [ E('h3', { class: 'fwup-panel-title' }, _('Release details')), E('div', { id: 'fwup-detail' }) ]);
 		root.appendChild(E('div', { class: 'cbi-map-descr' }, _('Check a verified GitHub Release image before upgrading.')));
 		root.appendChild(E('div', { class: 'fwup-summary' }, [
-			E('div', { class: 'fwup-card' }, [ E('div', { class: 'fwup-label' }, _('Current firmware')), E('div', { class: 'fwup-value' }, [ this.info.local_version || '—' ]), E('div', { class: 'fwup-sub' }, [ this.info.distribution || 'OpenWrt', this.info.variant ? ' · ' + this.info.variant : '' ]) ]),
-			E('div', { class: 'fwup-card' }, [ E('div', { class: 'fwup-label' }, _('Latest release')), latest, E('div', { class: 'fwup-sub', id: 'fwup-release-date', title: 'Asia/Shanghai (UTC+08:00)' }, _('Not checked')) ])
+			E('div', { class: 'fwup-card' }, [ E('div', { class: 'fwup-label cbi-value-description' }, _('Current firmware')), E('div', { class: 'fwup-value' }, [ this.info.local_version || '—' ]), E('div', { class: 'fwup-sub cbi-value-description' }, [ this.info.distribution || 'OpenWrt', this.info.variant ? ' · ' + this.info.variant : '' ]) ]),
+			E('div', { class: 'fwup-card' }, [ E('div', { class: 'fwup-label cbi-value-description' }, _('Latest release')), latest, E('div', { class: 'fwup-sub cbi-value-description', id: 'fwup-release-date', title: 'Asia/Shanghai (UTC+08:00)' }, _('Not checked')) ])
 		]));
 		root.appendChild(E('div', { class: 'fwup-panel' }, [
-			E('div', { class: 'fwup-panel-title' }, _('Firmware upgrade')),
+			E('h3', { class: 'fwup-panel-title' }, _('Firmware upgrade')),
 			notice,
 			E('div', { class: 'fwup-actions' }, [ E('button', { class: 'cbi-button cbi-button-action', click: ui.createHandlerFn(this, 'check', notice, latest, detail) }, _('Check update')) ]),
 			detail
 		]));
 		root.appendChild(E('div', { class: 'fwup-panel' }, [
-			E('div', { class: 'fwup-panel-title' }, _('Repository settings')),
+			E('h3', { class: 'fwup-panel-title' }, _('Repository settings')),
 			field(_('GitHub repository'), 'fwup-repo', this.info.repository, 'text', this.info.default_repository || 'owner/repository'),
 			field(_('Release tag pattern'), 'fwup-release-pattern', this.info.release_pattern),
 			field(_('Firmware file pattern'), 'fwup-asset-pattern', this.info.asset_pattern),
