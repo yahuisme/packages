@@ -22,12 +22,28 @@ const {boot}=require('./integration.cjs');
   generation=0;await h.poll();assert.deepEqual(values(),['—','—','—']);
   assert.equal(h.calls.filter(c=>c.method==='assoclist'||c.params.command==='/usr/libexec/wifi7-status').length,0);
   const states=()=>[...h.node.querySelectorAll('.wifi7-status-badge')];
-  assert(states().every(n=>n.textContent==='↑Enabled'));
-  assert.equal(h.w.getComputedStyle(states()[0].firstChild).color,'rgb(22, 163, 74)');
+  h.node.style.color='#333'; // Explicit theme baseline for unchanged neutral labels.
+  function computedColor(node) {
+   // jsdom leaves explicit `inherit` unresolved; follow the CSS inheritance chain.
+   const color=h.w.getComputedStyle(node).color;
+   return color==='inherit'||color===''?computedColor(node.parentElement):color;
+  }
+  function assertStates(labels) {
+   assert.deepEqual(states().map(n=>n.textContent),labels);
+   for(const state of states()) {
+    const up=state.textContent==='↑Enabled';
+    assert.equal(h.w.getComputedStyle(state.firstChild).color,up?'rgb(22, 163, 74)':'rgb(34, 34, 34)');
+    assert.equal(computedColor(state.lastChild),up?'rgb(22, 163, 74)':'rgb(51, 51, 51)','label computed color');
+    assert.equal(h.w.getComputedStyle(state.firstChild).fontWeight,'600');
+    assert.equal(state.firstChild.getAttribute('aria-hidden'),'true');
+   }
+  }
+  const getDevices=h.mods.network.getWifiDevices;
+  assertStates(['↑Enabled','↑Enabled','↑Enabled']);
   h.mods.network.getWifiDevices=async()=>[{getName:()=>'radio0',isUp:()=>false}];
-  await h.poll();
-  assert.deepEqual(states().map(n=>n.textContent),['↓Disabled','—Unknown','—Unknown']);
-  assert.equal(h.w.getComputedStyle(states()[0].firstChild).color,'rgb(34, 34, 34)');
+  await h.poll();assertStates(['↓Disabled','—Unknown','—Unknown']);
+  h.mods.network.getWifiDevices=getDevices;
+  await h.poll();assertStates(['↑Enabled','↑Enabled','↑Enabled']);
   console.log('PASS three-band summary-only surveys, zero busy, delta units, reset/outage, no station scans');
  }finally{h.w.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});

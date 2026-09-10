@@ -423,7 +423,7 @@ return view.extend({
 			.wifi7-status-wrap { display:flex; align-items:center; gap:8px; }
 			.wifi7-status-badge { display:inline-flex; align-items:center; gap:8px; font-size:12px; font-weight:500; color:inherit; white-space:nowrap; }
 			.wifi7-status-arrow { color:#222; font-weight:600; }
-			.wifi7-badge-up .wifi7-status-arrow { color:#16a34a; }
+			.wifi7-map .wifi7-badge-up > span { color:#16a34a; }
 			.wifi7-card-body { display:flex; flex-direction:column; }
 			.wifi7-row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:8px 0; font-size:13px; }
 			.wifi7-value { text-align:right; font-weight:500; font-variant-numeric:tabular-nums; }

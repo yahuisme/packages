@@ -18,7 +18,7 @@ var css = `
 .flowsense-dashboard .flowsense-sub{color:var(--cbi-muted-color,#888)}
 .flowsense-dashboard .flowsense-status{display:inline-flex;align-items:center;gap:8px;font-size:inherit;color:inherit;white-space:nowrap}
 .flowsense-dashboard .flowsense-status-arrow{color:#222;font-weight:600}
-.flowsense-dashboard .flowsense-up .flowsense-status-arrow{color:#16a34a}
+.flowsense-dashboard .flowsense-up > span{color:#16a34a}
 .flowsense-dashboard .flowsense-port-name{font-size:1.125em;font-weight:600}
 .flowsense-dashboard .flowsense-section{margin:16px 0}.flowsense-dashboard .flowsense-section .cbi-value{padding:8px 0}
 .flowsense-dashboard .flowsense-ports{container-type:inline-size}
@@ -108,6 +108,11 @@ return view.extend({
 				data = data && typeof data === 'object' ? data : {};
 				var jitter = data.jitter && typeof data.jitter === 'object' ? data.jitter : null;
 				var ports = Array.isArray(data.interfaces) ? data.interfaces.filter(function(port) { return port && typeof port.device === 'string' && port.device !== 'eth0' && port.stats && typeof port.stats === 'object'; }) : [];
+				var priority = ['wan', 'lan2', 'lan3', 'lan4'];
+				ports.sort(function(a, b) {
+					var ai = priority.indexOf(a.device), bi = priority.indexOf(b.device);
+					return (ai < 0 ? priority.length : ai) - (bi < 0 ? priority.length : bi);
+				});
 				if (!dirty) { target.value = text(data.monitor && data.monitor.target); enabled.checked = data.monitor && data.monitor.enabled === true; }
 				var seconds = previous && number(data.uptime, 0, Number.MAX_SAFE_INTEGER) - previous.time;
 				var totalRx = 0, totalTx = 0, rxOk = 0, txOk = 0;
@@ -115,7 +120,7 @@ return view.extend({
 				ports.forEach(function(port) {
 					var old = previous && previous.ports[port.device], rx = rate(port.stats.rx_bytes, old && old.rx_bytes, seconds), tx = rate(port.stats.tx_bytes, old && old.tx_bytes, seconds);
 					if (rx != null) { totalRx += rx; rxOk++; } if (tx != null) { totalTx += tx; txOk++; }
-					interfaces.appendChild(E('div', { 'class': 'flowsense-port' }, [E('div', { 'class': 'flowsense-port-title' }, [E('span', { 'class': 'flowsense-port-name' }, port.device), statusBadge(port.carrier)]), portMetric(_('Speed'), number(port.speed, 0, 1000000) == null ? '—' : port.speed + ' Mbit/s'), portMetric(_('RX / TX rate'), formatRate(rx) + ' / ' + formatRate(tx)), portMetric(_('RX / TX errors'), (number(port.stats.rx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : port.stats.rx_errors) + ' / ' + (number(port.stats.tx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : port.stats.tx_errors))]));
+					interfaces.appendChild(E('div', { 'class': 'flowsense-port' }, [E('div', { 'class': 'flowsense-port-title' }, [E('span', { 'class': 'flowsense-port-name' }, [port.device.toUpperCase()]), statusBadge(port.carrier)]), portMetric(_('Speed'), number(port.speed, 0, 1000000) == null ? '—' : port.speed + ' Mbit/s'), portMetric(_('RX / TX rate'), formatRate(rx) + ' / ' + formatRate(tx)), portMetric(_('RX / TX errors'), (number(port.stats.rx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : port.stats.rx_errors) + ' / ' + (number(port.stats.tx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : port.stats.tx_errors))]));
 				});
 				summary.replaceChildren(card(_('Total Port Receive Rate'), rxOk === ports.length && ports.length ? formatRate(totalRx) : '—', rxOk + ' / ' + ports.length), card(_('Total Port Transmit Rate'), txOk === ports.length && ports.length ? formatRate(totalTx) : '—', txOk + ' / ' + ports.length), card(_('PPE Flow Engine'), data.configured_hw === true ? _('Enabled') : data.configured_hw === false ? _('Disabled') : _('Unknown'), _('Hardware flow offload')), card(_('Network Quality'), jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : '—', jitter && number(jitter.loss, 0, 100) != null ? _('Loss') + ': ' + jitter.loss + '%' : _('Probe data unavailable')));
 				quality.replaceChildren(E('h3', { 'class': 'cbi-section-title' }, _('Link Quality')), metric(_('Latest RTT'), jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : _('Probe data unavailable')), metric(_('RTT mean absolute deviation'), jitter && number(jitter.deviation, 0, 60000) != null ? jitter.deviation + ' ms' : '—'), metric(_('Window packet loss'), jitter && number(jitter.loss, 0, 100) != null ? jitter.loss + '%' : '—'), metric(_('Hardware flow offload'), data.configured_hw === true ? _('Enabled') : data.configured_hw === false ? _('Disabled') : _('Unknown')), metric(_('Software flow offload'), data.configured_sw === true ? _('Enabled') : data.configured_sw === false ? _('Disabled') : _('Unknown')));

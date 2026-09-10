@@ -4,6 +4,7 @@ const resources = process.env.LUCI_RESOURCE_DIR;
 if (!resources) throw Error('Set LUCI_RESOURCE_DIR to local upstream LuCI resources');
 const dom = new JSDOM('<body><div id="maincontent"><div id="view"></div></div></body>', {url:'http://router.invalid/',runScripts:'outside-only',pretendToBeVisual:true});
 const w=dom.window;w._=s=>s;w.N_=(n,a,b)=>n===1?a:b;
+w.document.body.style.color='#333'; // Explicit theme baseline for neutral labels.
 w.eval(fs.readFileSync(path.join(resources,'cbi.js'),'utf8'));
 w.eval(fs.readFileSync(path.join(resources,'luci.js'),'utf8').replace('window.LuCI = LuCI;','window.LuCI = LuCI; window.classes=classes; window.environment=env;'));
 const mods=w.classes,L=w.L=Object.create(w.LuCI.prototype);
@@ -24,6 +25,11 @@ load('rpc');mods.ui={addNotification:()=>{}};mods.poll.add=(fn,seconds)=>polls.s
 load('app',fs.readFileSync(path.join(__dirname,'../htdocs/luci-static/resources/view/airoha_flowsense/status.js'),'utf8'));
 const settle=()=>new Promise(r=>setTimeout(r,25));
 function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};}
+function computedColor(node) {
+ // jsdom leaves explicit `inherit` unresolved; follow the CSS inheritance chain.
+ const color=w.getComputedStyle(node).color;
+ return color==='inherit'||color===''?computedColor(node.parentElement):color;
+}
 function count(name){return calls.filter(n=>n===name).length;}
 (async()=>{
  await settle();await settle();const root=w.document.querySelector('.flowsense-dashboard');assert(root);assert(polls.has(5));
@@ -41,7 +47,7 @@ function count(name){return calls.filter(n=>n===name).length;}
  waitPpe=deferred();details.open=true;await settle();const p1=ppePoll(),p2=ppePoll();assert.equal(count('getPpeEntries'),1,'toggle and poll share PPE request');
  await overview();assert.equal(count('getOverview'),2,'overview independent of blocked PPE');
  overviewError=true;await overview();assert(root.textContent.includes('previous readings cleared'));
- for(const old of ['12 ms','3 ms','4%','2500 Mbit/s','lan1'])assert(!root.textContent.includes(old),'stale '+old);
+ for(const old of ['12 ms','3 ms','4%','2500 Mbit/s','LAN1'])assert(!root.textContent.includes(old),'stale '+old);
  assert.equal(root.querySelector('.flowsense-summary').children.length,0);
  waitPpe.resolve();await Promise.all([p1,p2]);waitPpe=null;assert(!root.textContent.includes('abcd'),'late PPE must not resurrect cleared values');
  overviewError=false;await overview();await ppePoll();assert(root.textContent.includes('abcd'));
@@ -50,10 +56,26 @@ function count(name){return calls.filter(n=>n===name).length;}
  waitOverview=deferred();const o1=overview(),o2=overview();assert.equal(count('getOverview'),5,'overview requests single-flight');
  waitPpe=deferred();details.open=true;await settle();const pendingPpe=ppePoll();root.remove();await settle();assert.equal(polls.size,0,'removal unregisters both pollers');const html=root.innerHTML;
  waitOverview.resolve();waitPpe.resolve();await Promise.all([o1,o2,pendingPpe]);assert.equal(root.innerHTML,html,'detached replies cannot mutate DOM');
- for(const [carrier,label,color] of [[0,'↓Disconnected','rgb(34, 34, 34)'],[null,'—Unknown','rgb(34, 34, 34)'],[true,'↑Connected','rgb(22, 163, 74)']]) {
-  sample.interfaces[0].carrier=carrier; const check=mods.app.render(sample);w.document.body.append(check);await settle();
-  assert.equal(check.querySelector('.flowsense-status').textContent,label);
-  assert.equal(w.getComputedStyle(check.querySelector('.flowsense-status-arrow')).color,color);check.remove();await settle();
+ const devices=['lan4','usb9','lan2','wan','lan1','lan3','usb2'];
+ sample.interfaces=devices.map((device,i)=>({...sample.interfaces[0],device,stats:{rx_bytes:100+i,tx_bytes:200+i,rx_errors:i,tx_errors:i}}));
+ const check=mods.app.render(sample);w.document.body.append(check);await settle();
+ const names=()=>[...check.querySelectorAll('.flowsense-port-name')].map(n=>n.textContent);
+ assert.deepEqual(names(),['WAN','LAN2','LAN3','LAN4','USB9','LAN1','USB2'],'fixed priority, stable extra ports');
+ assert.deepEqual(sample.interfaces.map(p=>p.device),devices,'presentation must not mutate identifiers or source order');
+ assert.deepEqual([...check.querySelectorAll('.flowsense-port')].map(n=>n.querySelectorAll('dd')[2].textContent),['3 / 3','2 / 2','5 / 5','0 / 0','1 / 1','4 / 4','6 / 6'],'metrics stay with real ports');
+ const refresh=polls.get(5);
+ for(const [carrier,label,color] of [[1,'↑Connected','rgb(22, 163, 74)'],[0,'↓Disconnected','rgb(34, 34, 34)'],[null,'—Unknown','rgb(34, 34, 34)'],[true,'↑Connected','rgb(22, 163, 74)'],[false,'↓Disconnected','rgb(34, 34, 34)']]) {
+  sample.interfaces.forEach(p=>p.carrier=carrier);await refresh();
+  for(const state of check.querySelectorAll('.flowsense-status')) {
+   assert.equal(state.textContent,label);
+   assert.equal(w.getComputedStyle(state.firstChild).color,color);
+   assert.equal(computedColor(state.lastChild),carrier?'rgb(22, 163, 74)':'rgb(51, 51, 51)','label computed color');
+   assert.equal(w.getComputedStyle(state.firstChild).fontWeight,'600');
+   assert.equal(state.firstChild.getAttribute('aria-hidden'),'true');
+  }
  }
+ sample.interfaces=[sample.interfaces[4],sample.interfaces[1]];await refresh();
+ assert.deepEqual(names(),['LAN1','USB9'],'no fabricated priority ports when absent');
+ check.remove();await settle();
  console.log('PASS real view/RPC errors, initial reuse, all stale metrics cleared, labels, independent single-flight, closed and detached late replies');dom.window.close();
 })().catch(e=>{console.error(e);dom.window.close();process.exitCode=1});
