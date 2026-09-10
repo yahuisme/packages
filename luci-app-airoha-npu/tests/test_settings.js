@@ -7,7 +7,7 @@ async function scenario(unknown, undoFailure) {
  let map, options = {}, calls = [], notices = [];
  const state = { cpu_governor: 'performance', cpu_max_freq: 1000000 };
  const flow = unknown ? {} : { enabled: false };
- function Map() { map = this; this.section = () => ({ option: (_, name) => options[name] = { value() {}, formvalue() { return ({ governor: 'schedutil', frequency: '800000', flow: '1' })[name]; } } }); this.lookupOption = n => [options[n]]; this.render = () => Promise.resolve({ classList: { add() {} } }); }
+ function Map() { map = this; this.section = () => ({ option: (_, name) => options[name] = { value() {}, formvalue() { return ({ governor: 'schedutil', frequency: '800000', flow: '1' })[name]; } } }); this.lookupOption = n => [options[n]]; this.render = () => Promise.resolve({ classList: { add() {} }, prepend() {} }); }
  const rpc = { declare: spec => (...args) => {
   calls.push([spec.method, ...args]);
   if (spec.method === 'getStatus') return Promise.resolve({...state});

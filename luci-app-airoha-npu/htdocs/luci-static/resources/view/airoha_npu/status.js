@@ -3,7 +3,7 @@
 'require rpc';
 'require poll';
 
-var getStatus = rpc.declare({ object: 'luci.airoha_npu', method: 'getStatus', expect: { '': {} }, reject: true });
+var getStatus = rpc.declare({ object: 'luci.airoha_npu', method: 'getStatus', expect: { '': {} }, reject: true, nobatch: true });
 var getInfo = rpc.declare({ object: 'luci.airoha_npu', method: 'getInfo', expect: { '': {} }, reject: true });
 var getFlow = rpc.declare({ object: 'luci.airoha_npu', method: 'getFlowOffload', expect: { '': {} }, reject: true });
 
@@ -222,28 +222,25 @@ return view.extend({
 		update(status, flow);
 		sample(status);
 
-		self.refreshing = false;
+		var statusPending = false, flowPending = false;
 		self.pollFn = function() {
 			if (!self.active || !page.isConnected) return Promise.resolve();
 			drawChart();
-			if (self.refreshing || Date.now() - lastRequest < 3000) return Promise.resolve();
-			lastRequest = Date.now();
-			self.refreshing = true;
-			// Settle both transports before releasing the guard; a fast rejection
-			// must not overlap a still pending flow/status request on the next tick.
-			var refreshFlow = Date.now() - lastFlowRequest >= 6000;
-			if (refreshFlow) lastFlowRequest = Date.now();
-			var statusRequest = getStatus().catch(function() { return null; }).then(function(s) {
-				if (self.active && page.isConnected) { update(s, flow); sample(s); }
-				return s;
-			});
-			return Promise.all([statusRequest, refreshFlow ? getFlow() : Promise.resolve(flow)].map(function(p) {
-				return p.catch(function() { return null; });
-			})).then(function(values) {
+			// Firewall state has its own single-flight guard. Do not return its
+			// promise to LuCI poll: a held sibling must not suspend CPU sampling.
+			if (!flowPending && Date.now() - lastFlowRequest >= 6000) {
+				lastFlowRequest = Date.now(); flowPending = true;
+				getFlow().catch(function() { return null; }).then(function(f) {
+					if (!self.active || !page.isConnected) return;
+					flow = f; update(status, flow);
+				}).finally(function() { flowPending = false; });
+			}
+			if (statusPending || Date.now() - lastRequest < 3000) return Promise.resolve();
+			lastRequest = Date.now(); statusPending = true;
+			return getStatus().catch(function() { return null; }).then(function(s) {
 				if (!self.active || !page.isConnected) return;
-				flow = values[1];
-				update(values[0], flow);
-			}).finally(function() { self.refreshing = false; });
+				status = s; update(status, flow); sample(status);
+			}).finally(function() { statusPending = false; });
 		};
 		// Age the window even if a transport stalls; no synthetic samples.
 		self.chartTimer = window.setInterval(drawChart, 1000);

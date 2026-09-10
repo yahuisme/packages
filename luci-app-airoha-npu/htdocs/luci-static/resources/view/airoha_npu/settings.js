@@ -17,14 +17,6 @@ var settingsCSS = '\
 @media(max-width:640px){.npu-settings select,.npu-settings .cbi-input-select{max-width:100%}}\
 ';
 
-function injectCSS() {
-	if (document.getElementById('npu-settings-theme-css')) return;
-	var el = document.createElement('style');
-	el.id = 'npu-settings-theme-css';
-	el.textContent = settingsCSS;
-	document.head.appendChild(el);
-}
-
 function frequency(value) { return typeof value === 'number' && value > 0 ? (value / 1000) + ' MHz' : _('Unknown'); }
 function governorLabel(value) {
 	var labels = {
@@ -58,7 +50,6 @@ return view.extend({
 	},
 
 	render: function(data) {
-		injectCSS();
 		var info = data[0] || {};
 		var status = data[1] || {};
 		var flow = data[2] || {};
@@ -170,6 +161,7 @@ return view.extend({
 
 		return m.render().then(function(node) {
 			node.classList.add('npu-settings');
+			node.prepend(E('style', {}, settingsCSS));
 			return node;
 		});
 	}

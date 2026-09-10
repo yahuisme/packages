@@ -56,6 +56,8 @@ async function scenario(unknown = false) {
   const app = new C(), node = await app.render(await app.load());
   w.document.getElementById('view').append(node);
   w.document.getElementById('view').append(app.addFooter());
+  assert(node.querySelector('style'), 'settings style belongs to view root');
+  assert.equal(w.document.head.querySelectorAll('style').length, 0, 'no persistent head styles');
   const map = mods.dom.findClassInstance(node);
   function exportDOM(suffix) {
    if (!process.env.NPU_SETTINGS_EXPORT) return;
@@ -95,6 +97,8 @@ async function scenario(unknown = false) {
    assert.equal(notices.at(-1), w._('The change failed and recovery could not be verified. Check the system settings.'));
    exportDOM('.failed');
   }
+  node.remove();
+  assert.equal(w.document.querySelectorAll('style').length, 0, 'view removal cleans settings styles');
  } finally { w.close(); }
 }
 (async () => {

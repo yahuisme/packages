@@ -20,12 +20,14 @@ let now = 0, timers = new Map(), next = 0;
 w.Date.now = () => now;
 w.setInterval = fn => { timers.set(++next, fn); return next; };
 w.clearInterval = id => timers.delete(id);
-let fail = false, flowFail = false, held = false, release, calls = 0;
+let fail = false, flowFail = false, held = false, release, statusHeld = false, releaseStatus, calls = 0;
 const methodCalls = [];
 let value = 500000;
 const status = () => ({ cpu_cur_freq: value, cpu_max_freq: 1200000, cpu_count: 2, cpu_governor: 'schedutil', npu_bound: true });
-mods.request.post = async (url, req) => {
- const method = req.params[2]; calls++; methodCalls.push({ method, time: now });
+mods.request.post = async (url, req, options) => {
+ const method = req.params[2];
+ if (method === 'getStatus') { assert.equal(options.nobatch, true, 'CPU request bypasses unrelated RPC batches'); if (statusHeld) await new Promise(r => { releaseStatus = r; }); }
+ calls++; methodCalls.push({ method, time: now });
  if (held && method === 'getFlowOffload') await new Promise(r => { release = r; });
  const failure = (method === 'getStatus' && fail) || (method === 'getFlowOffload' && flowFail);
  const payload = method === 'getStatus' ? status() : method === 'getInfo' ? { soc_compat: 'airoha,test' } : { enabled: true };
@@ -67,6 +69,22 @@ async function tick(ms = 3000) {
   assert.equal(segments(), 1, 'healthy jittered samples stay connected');
   assert.equal(methodCalls.filter(c => c.method === 'getStatus').length, 3);
   assert.equal(methodCalls.filter(c => c.method === 'getFlowOffload').length, 2, 'flow is not accelerated to CPU cadence');
+  // A held firewall request must not block the independent CPU sampler.
+  held = true; now += 6000; mods.poll.step(); await flush();
+  const heldCalls = methodCalls.filter(c => c.method === 'getFlowOffload').length;
+  const cpuCalls = methodCalls.filter(c => c.method === 'getStatus').length;
+  for (let i = 0; i < 9; i++) { now += 1000; mods.poll.step(); await flush(); }
+  assert.equal(methodCalls.filter(c => c.method === 'getStatus').length, cpuCalls + 3, 'held flow must not starve CPU');
+  assert.equal(methodCalls.filter(c => c.method === 'getFlowOffload').length, heldCalls, 'flow remains single flight');
+  assert.equal(points().at(-1).dataset.time, String(now), 'CPU still records actual replies');
+  held = false; release(); await flush();
+  const beforeSlow = points().length;
+  statusHeld = true; now += 3000; mods.poll.step(); await flush();
+  for (let i=0;i<8;i++) { now+=1000; mods.poll.step(); await flush(); }
+  assert.equal(points().length,beforeSlow,'slow CPU creates no replacement samples');
+  statusHeld=false; releaseStatus(); await flush();
+  assert.equal(points().length,beforeSlow+1,'slow CPU publishes only its actual reply');
+  assert(segments()>1,'slow CPU still breaks a genuine long gap');
   now = 0;
   const reset = app.render(await app.load()); node.replaceWith(reset); await flush();
   // Keep the remaining lifecycle assertions attached to the current root.
@@ -112,13 +130,13 @@ async function tick(ms = 3000) {
   assert.equal(points().length, 41); assert(points().every(p => +p.getAttribute('data-time') >= now - 120000));
   if (process.env.NPU_DOM_EXPORT) fs.writeFileSync(process.env.NPU_DOM_EXPORT, w.document.documentElement.outerHTML);
   held = true; fail = true; now += 6000; const pending = app.pollFn(); await flush(); const inFlight = calls;
-  await tick(); assert.equal(calls, inFlight, 'rejected status cannot overlap pending flow');
+  await tick(); assert.equal(calls, inFlight + 1, 'status retries independently while flow stays pending');
   now += 121000; for (const fn of [...timers.values()]) fn(); assert.equal(points().length, 0, 'stalled RPC still expires history');
   assert.equal(node.querySelector('.npu-chart-area').getAttribute('d'), '', 'outage expires filled history');
   assert.equal(node.querySelector('#npu-summary-freq .npu-card-value').textContent, w._('Unknown'));
-  node.remove(); await flush(); assert.equal(mods.poll.queue.length, 0); assert.equal(timers.size, 0);
+  const beforeDetach = calls; node.remove(); await flush(); assert.equal(mods.poll.queue.length, 0); assert.equal(timers.size, 0);
   const old = node.innerHTML; release(); await pending; assert.equal(node.innerHTML, old, 'detached reply ignored');
-  await app.pollFn(); assert.equal(calls, inFlight);
+  await app.pollFn(); assert.equal(calls, beforeDetach);
   held = false; fail = false;
   const again = app.render(await app.load()); w.document.body.append(again); await flush();
   w.dispatchEvent(new w.Event('pagehide')); assert.equal(mods.poll.queue.length, 0); assert.equal(timers.size, 0);
