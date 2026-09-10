@@ -16,7 +16,10 @@ var css = `
 .flowsense-dashboard .flowsense-label{font-size:inherit;font-weight:500;color:var(--cbi-muted-color,#666)}
 .flowsense-dashboard .flowsense-value{display:block;margin-top:8px;font-size:18px;font-weight:500;font-variant-numeric:tabular-nums}
 .flowsense-dashboard .flowsense-sub{color:var(--cbi-muted-color,#888)}
-.flowsense-dashboard .flowsense-status{font-size:inherit;color:inherit}
+.flowsense-dashboard .flowsense-status{display:inline-flex;align-items:center;gap:8px;font-size:inherit;color:inherit;white-space:nowrap}
+.flowsense-dashboard .flowsense-status-arrow{color:#222;font-weight:600}
+.flowsense-dashboard .flowsense-up .flowsense-status-arrow{color:#16a34a}
+.flowsense-dashboard .flowsense-port-name{font-size:1.125em;font-weight:600}
 .flowsense-dashboard .flowsense-section{margin:16px 0}.flowsense-dashboard .flowsense-section .cbi-value{padding:8px 0}
 .flowsense-dashboard .flowsense-ports{container-type:inline-size}
 .flowsense-dashboard .flowsense-port{display:grid;grid-template-columns:minmax(0,.7fr) repeat(3,minmax(0,1fr));gap:16px;align-items:start;margin:0;padding:16px 0;border-bottom:1px solid var(--cbi-border-color,#e0e0e0)}
@@ -44,7 +47,7 @@ function metric(label, value) { return E('div', { 'class': 'cbi-value' }, [E(val
 function portMetric(label, value) { return E('dl', { 'class': 'flowsense-port-metric' }, [E('dt', {}, [label]), E('dd', {}, [value])]); }
 function statusBadge(carrier) {
 	var up = carrier === 1 || carrier === true, down = carrier === 0 || carrier === false;
-	return E('span', { 'class': 'flowsense-status' + (up ? ' flowsense-up' : down ? ' flowsense-down' : '') }, up ? _('Up') : down ? _('Down') : _('Unknown'));
+	return E('span', { 'class': 'flowsense-status' + (up ? ' flowsense-up' : down ? ' flowsense-down' : '') }, [E('span', { 'class': 'flowsense-status-arrow', 'aria-hidden': 'true' }, [up ? '↑' : down ? '↓' : '—']), E('span', {}, [up ? _('Connected') : down ? _('Disconnected') : _('Unknown')])]);
 }
 function validTarget(value) {
 	value = text(value).trim();

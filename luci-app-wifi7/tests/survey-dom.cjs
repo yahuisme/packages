@@ -21,6 +21,13 @@ const {boot}=require('./integration.cjs');
   generation++;await h.poll();assert.deepEqual(values(),['0%','20%','50%']);
   generation=0;await h.poll();assert.deepEqual(values(),['—','—','—']);
   assert.equal(h.calls.filter(c=>c.method==='assoclist'||c.params.command==='/usr/libexec/wifi7-status').length,0);
+  const states=()=>[...h.node.querySelectorAll('.wifi7-status-badge')];
+  assert(states().every(n=>n.textContent==='↑Enabled'));
+  assert.equal(h.w.getComputedStyle(states()[0].firstChild).color,'rgb(22, 163, 74)');
+  h.mods.network.getWifiDevices=async()=>[{getName:()=>'radio0',isUp:()=>false}];
+  await h.poll();
+  assert.deepEqual(states().map(n=>n.textContent),['↓Disabled','—Unknown','—Unknown']);
+  assert.equal(h.w.getComputedStyle(states()[0].firstChild).color,'rgb(34, 34, 34)');
   console.log('PASS three-band summary-only surveys, zero busy, delta units, reset/outage, no station scans');
  }finally{h.w.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -296,9 +296,6 @@ msgstr ""
 msgid "Unnamed network"
 msgstr ""
 
-msgid "Up"
-msgstr ""
-
 msgid "WPA/WPA2 mixed PSK"
 msgstr ""
 

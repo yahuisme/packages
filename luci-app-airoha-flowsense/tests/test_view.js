@@ -30,6 +30,9 @@ function count(name){return calls.filter(n=>n===name).length;}
  assert.equal(count('getOverview'),1,'load data reused without duplicate RPC');assert.equal(count('getPpeEntries'),0);
  assert(root.textContent.includes('12 ms'));assert.equal(root.querySelector('#flowsense-target').labels.length,1);assert.equal(root.querySelector('#flowsense-enabled').labels.length,1);
  const port=root.querySelector('.flowsense-port');
+ assert.equal(port.querySelector('.flowsense-status').textContent,'↑Connected');
+ assert.equal(w.getComputedStyle(port.querySelector('.flowsense-status-arrow')).color,'rgb(22, 163, 74)');
+ assert.equal(w.getComputedStyle(port.querySelector('.flowsense-port-name')).fontWeight,'600');
  assert.equal(port.querySelectorAll('.cbi-value,.cbi-value-title,.cbi-value-field').length,0,'port telemetry must not inherit Aurora form-row margins and right-aligned labels');
  assert.deepEqual([...port.querySelectorAll('dt')].map(n=>n.textContent),['Speed','RX / TX rate','RX / TX errors']);
  assert.deepEqual([...port.querySelectorAll('dd')].map(n=>n.textContent),['2500 Mbit/s','— / —','7 / 9']);
@@ -47,5 +50,10 @@ function count(name){return calls.filter(n=>n===name).length;}
  waitOverview=deferred();const o1=overview(),o2=overview();assert.equal(count('getOverview'),5,'overview requests single-flight');
  waitPpe=deferred();details.open=true;await settle();const pendingPpe=ppePoll();root.remove();await settle();assert.equal(polls.size,0,'removal unregisters both pollers');const html=root.innerHTML;
  waitOverview.resolve();waitPpe.resolve();await Promise.all([o1,o2,pendingPpe]);assert.equal(root.innerHTML,html,'detached replies cannot mutate DOM');
+ for(const [carrier,label,color] of [[0,'↓Disconnected','rgb(34, 34, 34)'],[null,'—Unknown','rgb(34, 34, 34)'],[true,'↑Connected','rgb(22, 163, 74)']]) {
+  sample.interfaces[0].carrier=carrier; const check=mods.app.render(sample);w.document.body.append(check);await settle();
+  assert.equal(check.querySelector('.flowsense-status').textContent,label);
+  assert.equal(w.getComputedStyle(check.querySelector('.flowsense-status-arrow')).color,color);check.remove();await settle();
+ }
  console.log('PASS real view/RPC errors, initial reuse, all stale metrics cleared, labels, independent single-flight, closed and detached late replies');dom.window.close();
 })().catch(e=>{console.error(e);dom.window.close();process.exitCode=1});

@@ -341,7 +341,7 @@ return view.extend({
 					var id = r['.name'], s = stats[id], c = cells[id], d = runtimeRadios[id];
 					var isUp = d && d.isUp();
 					var isDis = d && !d.isUp();
-					c.state.textContent = d ? (isUp ? _('Up') : _('Disabled')) : _('Unknown');
+					c.state.replaceChildren(E('span', { 'class': 'wifi7-status-arrow', 'aria-hidden': 'true' }, [d ? (isUp ? '↑' : '↓') : '—']), E('span', {}, [d ? (isUp ? _('Enabled') : _('Disabled')) : _('Unknown')]));
 					c.state.className = 'wifi7-status-badge' + (isUp ? ' wifi7-badge-up' : isDis ? ' wifi7-badge-disabled' : '');
 					c.util.textContent = s.util == null ? '—' : s.util + '%';
 					c.channel.textContent = s.current && s.current.channel ? s.current.channel + ' / ' + (s.current.width || '—') : '—';
@@ -421,9 +421,9 @@ return view.extend({
 			.wifi7-device-tag,.wifi7-status-label,.wifi7-label { font-size:12px; color:var(--cbi-muted-color,#666); }
 			.wifi7-device-tag { font-size:11px; }
 			.wifi7-status-wrap { display:flex; align-items:center; gap:8px; }
-			.wifi7-status-badge { font-size:12px; font-weight:500; color:var(--cbi-muted-color,#666); }
-			.wifi7-badge-up { color:inherit; }
-			.wifi7-badge-disabled { color:var(--cbi-muted-color,#888); }
+			.wifi7-status-badge { display:inline-flex; align-items:center; gap:8px; font-size:12px; font-weight:500; color:inherit; white-space:nowrap; }
+			.wifi7-status-arrow { color:#222; font-weight:600; }
+			.wifi7-badge-up .wifi7-status-arrow { color:#16a34a; }
 			.wifi7-card-body { display:flex; flex-direction:column; }
 			.wifi7-row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:8px 0; font-size:13px; }
 			.wifi7-value { text-align:right; font-weight:500; font-variant-numeric:tabular-nums; }

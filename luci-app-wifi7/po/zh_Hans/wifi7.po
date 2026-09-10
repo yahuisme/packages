@@ -298,9 +298,6 @@ msgstr "未知"
 msgid "Unnamed network"
 msgstr "未命名网络"
 
-msgid "Up"
-msgstr "运行中"
-
 msgid "WPA/WPA2 mixed PSK"
 msgstr "WPA/WPA2 混合 PSK"
 
