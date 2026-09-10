@@ -27,7 +27,7 @@ class Runtime(unittest.TestCase):
         self.stub('jsonfilter', f'#!/bin/sh\nexec {JSONFILTER} "$@"\n')
         self.stub('curl', '#!/bin/sh\ncat "$ROOT/release.json"\nexit "${CURL_FAIL:-0}"\n')
         self.stub('sysupgrade', '#!/bin/sh\nprintf "%s\\n" "$*" >> "$ROOT/flashes"\n[ "$1" = -T ] && exit "${TEST_FAIL:-0}"\nexit "${FLASH_FAIL:-0}"\n')
-        self.stub('worker-stub', '#!/bin/sh\nprintf "%s\\n" "$*" >> "$ROOT/launches"\n')
+        self.stub('worker-stub', '#!/bin/sh\nprintf "%s\\n" "$*" >> "$ROOT/launches"\nprintf ready > "$6/ready"\nwhile [ ! -d "$6/go" ]; do sleep .01; done\nrm -rf "$6"\n')
         self.backend = self.root / 'backend'
         source = (PACKAGE / 'root/usr/libexec/rpcd/luci.firmwareupgrade').read_text()
         source = source.replace('/var/run/', str(self.runtime) + '/').replace('/etc/config', str(self.config))
@@ -54,6 +54,115 @@ class Runtime(unittest.TestCase):
     def uci(self,*args):
         return subprocess.check_output([str(self.bin/'uci'),*args],env=self.env,text=True).strip()
 
+    def test_timeout_boundary_never_starts_download(self):
+        # Pause immediately after the launcher's final negative ready check.
+        # Let the real worker publish ready before the timeout branch resumes.
+        identity=self.rpc('checkUpdate')['candidate_id']
+        self.stub('worker-stub', '#!/bin/sh\nwhile [ ! -f "$ROOT/release-worker" ]; do /bin/sleep .01; done\nexec busybox ash "'+str(self.worker)+'" "$@"\n')
+        self.stub('curl', '#!/bin/sh\nprintf download >> "$ROOT/downloads"\nexit 22\n')
+        source=self.backend.read_text().replace('[ "$tries" -lt 50 ]', '[ "$tries" -lt 0 ]')
+        marker='\t\t\t# No go was granted: the worker cannot have started any download.'
+        self.assertIn(marker, source)
+        source=source.replace(marker, marker + '\n\t\t\ttouch "$ROOT/release-worker"\n\t\t\tsleep 0.3')
+        self.backend.write_text(source)
+        result=self.rpc('startUpgrade',dict(keep_config='0',candidate_id=identity))
+        self.assertFalse(result['success'])
+        self.assertFalse((self.root/'downloads').exists(), 'timeout must not reject an already downloading worker')
+        self.assertFalse((self.root/'flashes').exists())
+        self.assertEqual(self.rpc('getStatus')['stage'], 'error')
+
+    def test_ready_at_deadline_is_accepted_and_flash_not_overwritten(self):
+        identity=self.rpc('checkUpdate')['candidate_id']
+        self.stub('worker-stub', '#!/bin/sh\nexec busybox ash "'+str(self.worker)+'" "$@"\n')
+        self.stub('curl', '#!/bin/sh\nwhile [ "$1" != --output ]; do shift; done\nprintf image > "$2"\n')
+        # Hold the RPC after go until the real worker reaches a terminal state.
+        source=self.backend.read_text().replace('[ "$tries" -lt 50 ]', '[ "$tries" -lt 0 ]')
+        source=source.replace('\n\t\tif [ -f "$handshake/ready" ]', '\n\t\tsleep .3\n\t\tif [ -f "$handshake/ready" ]')
+        source=source.replace('# After granting go, never kill the worker or overwrite its status.',
+            '# After granting go, never kill the worker or overwrite its status.\n\t\t\tsleep 2')
+        self.backend.write_text(source)
+        result=self.rpc('startUpgrade',dict(keep_config='0',candidate_id=identity))
+        self.assertTrue(result['success'])
+        self.assertEqual(self.rpc('getStatus')['stage'], 'complete')
+        self.assertEqual(len((self.root/'flashes').read_text().splitlines()), 2)
+        self.assertFalse((self.runtime/'firmwareupgrade.worker.lock').exists())
+        self.assertFalse(list(self.runtime.glob('firmwareupgrade-start.*')))
+        self.assertFalse(self.rpc('startUpgrade',dict(keep_config='0',candidate_id=identity))['success'])
+
+    def test_real_five_second_timeout_never_downloads(self):
+        identity=self.rpc('checkUpdate')['candidate_id']
+        self.stub('worker-stub', '#!/bin/sh\nexec busybox ash "'+str(self.worker)+'" "$@"\n')
+        self.worker.write_text(self.worker.read_text().replace('if [ -n "$6" ]; then', 'if [ -n "$6" ]; then\n\twhile :; do sleep .1; done'))
+        self.stub('curl', '#!/bin/sh\nprintf download > "$ROOT/downloads"\nexit 22\n')
+        self.assertEqual(self.rpc('startUpgrade',dict(keep_config='0',candidate_id=identity)),
+                         dict(success=False,error='升级程序启动失败'))
+        self.assertFalse((self.root/'downloads').exists())
+        self.assertFalse((self.root/'flashes').exists())
+        self.assertFalse((self.runtime/'firmwareupgrade.worker.lock').exists())
+        self.assertFalse(list(self.runtime.glob('firmwareupgrade-start.*')))
+
+    def test_go_publish_failure_never_downloads(self):
+        identity=self.rpc('checkUpdate')['candidate_id']
+        self.stub('worker-stub', '#!/bin/sh\nexec busybox ash "'+str(self.worker)+'" "$@"\n')
+        self.stub('curl', '#!/bin/sh\nprintf download > "$ROOT/downloads"\nexit 22\n')
+        self.stub('mkdir', '#!/bin/sh\ncase "$1" in */go) exit 1;; esac\nexec /bin/mkdir "$@"\n')
+        self.assertFalse(self.rpc('startUpgrade',dict(keep_config='0',candidate_id=identity))['success'])
+        self.assertFalse((self.root/'downloads').exists())
+        self.assertFalse((self.root/'flashes').exists())
+        self.assertFalse(list(self.runtime.glob('firmwareupgrade-start.*')))
+        self.assertEqual(self.rpc('getStatus')['stage'], 'error')
+
+    def test_new_start_resets_old_terminal_status(self):
+        (self.runtime/'firmwareupgrade.status').write_text('{"stage":"complete","percent":100,"message":"previous job"}')
+        identity=self.rpc('checkUpdate')['candidate_id']
+        self.assertTrue(self.rpc('startUpgrade',dict(keep_config='0',candidate_id=identity))['success'])
+        self.assertNotEqual(self.rpc('getStatus')['stage'], 'complete')
+
+    def test_new_start_messages_are_chinese(self):
+        identity=self.rpc('checkUpdate')['candidate_id']
+        (self.bin/'worker-stub').unlink()
+        self.assertEqual(self.rpc('startUpgrade',dict(keep_config='0',candidate_id=identity))['error'], '升级程序不可用')
+        source=self.backend.read_text()
+        for message in ('Starting upgrade', 'Upgrade worker unavailable', 'Unable to initialize upgrade status', 'Upgrade worker failed to start', 'Unable to consume candidate'):
+            self.assertNotIn(message, source)
+
+    def test_missing_worker_is_not_success(self):
+        (self.bin/'worker-stub').unlink()
+        identity=self.rpc('checkUpdate')['candidate_id']
+        self.assertFalse(self.rpc('startUpgrade',dict(keep_config='0',candidate_id=identity))['success'])
+        self.assertTrue((self.runtime/'firmwareupgrade.candidate').exists())
+
+    def test_bad_interpreter_is_not_success(self):
+        self.stub('worker-stub', '#!/no/such/interpreter\n')
+        identity=self.rpc('checkUpdate')['candidate_id']
+        self.assertFalse(self.rpc('startUpgrade',dict(keep_config='0',candidate_id=identity))['success'])
+        self.assertEqual(self.rpc('getStatus')['stage'], 'error')
+
+    def test_status_publish_failure_preserves_candidate(self):
+        identity=self.rpc('checkUpdate')['candidate_id']
+        self.stub('mv', '#!/bin/sh\ncase "$*" in *firmwareupgrade.status*) exit 1;; esac\nexec /bin/mv "$@"\n')
+        self.assertFalse(self.rpc('startUpgrade',dict(keep_config='0',candidate_id=identity))['success'])
+        self.assertTrue((self.runtime/'firmwareupgrade.candidate').exists())
+        self.assertFalse((self.root/'launches').exists())
+        self.assertFalse((self.runtime/'firmwareupgrade.lock').exists())
+
+    def test_real_worker_acknowledges_before_download_failure(self):
+        identity=self.rpc('checkUpdate')['candidate_id']
+        self.stub('worker-stub', '#!/bin/sh\nexec busybox ash "'+str(self.worker)+'" "$@"\n')
+        self.stub('curl', '#!/bin/sh\nexit 22\n')
+        (self.runtime/'firmwareupgrade.status').write_text('{"stage":"complete","percent":100,"message":"previous job"}')
+        self.assertTrue(self.rpc('startUpgrade',dict(keep_config='0',candidate_id=identity))['success'])
+        import time
+        state={}
+        for _ in range(30):
+            state=self.rpc('getStatus')
+            if state['stage']=='error': break
+            time.sleep(.1)
+        self.assertEqual(state['stage'],'error')
+        self.assertNotEqual(state['message'],'previous job')
+        self.assertFalse((self.root/'flashes').exists())
+        self.assertFalse((self.runtime/'firmwareupgrade.lock').exists())
+
     def test_release_returns_identity_and_four_column_producer_matches(self):
         result=self.rpc('checkUpdate')
         self.assertTrue(result['success'])
@@ -63,7 +172,7 @@ class Runtime(unittest.TestCase):
     def openwrt_path(self):
         # Explicit BusyBox applet allowlist: host /usr/bin must not supply od.
         for name in ('busybox', 'awk', 'cat', 'chmod', 'grep', 'mkdir', 'mktemp',
-                     'mv', 'rm', 'rmdir', 'tr', 'uname'):
+                     'mv', 'rm', 'rmdir', 'tr', 'uname', 'sleep'):
             (self.bin / name).symlink_to('/usr/bin/busybox')
         self.env['PATH'] = str(self.bin)
         probe = subprocess.run(['busybox', 'ash', '-c', 'command -v od'],
@@ -251,6 +360,7 @@ class Runtime(unittest.TestCase):
         self.stub('rm', '#!/bin/sh\ncase "$*" in *firmwareupgrade.candidate*) exit 1;; esac\nexec /bin/rm "$@"\n')
         self.assertFalse(self.rpc('startUpgrade',dict(keep_config='0',candidate_id=identity))['success'])
         self.assertFalse((self.root/'launches').exists())
+        self.assertNotEqual(self.rpc('getStatus')['stage'], 'starting', 'rejected consume is not an active job')
 
     def test_worker_integrity_failure_never_flashes(self):
         self.stub('curl', '#!/bin/sh\nwhile [ "$1" != --output ]; do shift; done\nprintf wrong > "$2"\n')
@@ -270,7 +380,7 @@ class Runtime(unittest.TestCase):
 
     def test_concurrent_start_launches_one_worker(self):
         identity=self.rpc('checkUpdate')['candidate_id']
-        self.stub('worker-stub', '#!/bin/sh\nprintf launched >> "$ROOT/launches"\n')
+        self.stub('worker-stub', '#!/bin/sh\nprintf launched >> "$ROOT/launches"\nprintf ready > "$6/ready"\nwhile [ ! -d "$6/go" ]; do sleep .01; done\nrm -rf "$6"\n')
         data=json.dumps(dict(keep_config='0',candidate_id=identity))
         procs=[subprocess.Popen(['busybox','ash',str(self.backend),'call','startUpgrade'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,env=self.env) for _ in range(2)]
         results=[json.loads(p.communicate(data,timeout=10)[0]) for p in procs]

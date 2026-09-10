@@ -153,9 +153,40 @@ start_upgrade() {
 	{ IFS= read -r id; IFS= read -r url; IFS= read -r name; IFS= read -r sha; IFS= read -r size; } < "$CANDIDATE_FILE"
 	[ "${#id}" -eq 32 ] && [ "$requested" = "$id" ] && case "$id" in *[!0-9a-f]*) false;; *) true;; esac || { rm -f "$CANDIDATE_FILE"; printf '{"success":false,"error":"候选固件已更新，请重新检查"}\n'; return; }
 	valid_url "$url" && valid_asset_name "$name" && valid_sha256 "$sha" && valid_uint "$size" && [ "$size" -gt 0 ] || { rm -f "$CANDIDATE_FILE"; printf '{"success":false,"error":"Invalid upgrade request: 待升级信息无效"}\n'; return; }
-	rm -f "$CANDIDATE_FILE" && [ ! -e "$CANDIDATE_FILE" ] || { printf '{"success":false,"error":"Unable to consume candidate"}\n'; return; }
-	"$WORKER_SCRIPT" "$url" "$name" "$sha" "$keep" "$size" >/dev/null 2>&1 & echo "$!" > "$PID_FILE"
-	printf '{"success":true}\n'
+	[ -f "$WORKER_SCRIPT" ] && [ -x "$WORKER_SCRIPT" ] || { printf '{"success":false,"error":"升级程序不可用"}\n'; return; }
+	# Publish a fresh nonterminal status before the worker can be observed.
+	printf '{"stage":"starting","percent":0,"message":"正在启动固件升级"}\n' > "$STATUS_FILE.$$" && mv -f "$STATUS_FILE.$$" "$STATUS_FILE" || {
+		rm -f "$STATUS_FILE.$$"
+		printf '{"success":false,"error":"无法初始化升级状态"}\n'; return
+	}
+	rm -f "$CANDIDATE_FILE" && [ ! -e "$CANDIDATE_FILE" ] || {
+		printf '{"stage":"error","percent":0,"message":"无法消费候选固件信息"}\n' > "$STATUS_FILE.$$" && mv -f "$STATUS_FILE.$$" "$STATUS_FILE"
+		printf '{"success":false,"error":"无法消费候选固件信息"}\n'; return
+	}
+	# A unique private handshake cannot be reused by a later launch.
+	handshake=$(mktemp -d /var/run/firmwareupgrade-start.XXXXXX)
+	if [ -n "$handshake" ]; then
+		"$WORKER_SCRIPT" "$url" "$name" "$sha" "$keep" "$size" "$handshake" >/dev/null 2>&1 &
+		pid=$!
+		tries=0
+		while [ ! -f "$handshake/ready" ] && kill -0 "$pid" 2>/dev/null && [ "$tries" -lt 50 ]; do
+			sleep 0.1
+			tries=$((tries + 1))
+		done
+		if [ -f "$handshake/ready" ] && mkdir "$handshake/go" 2>/dev/null; then
+			# After granting go, never kill the worker or overwrite its status.
+			# The worker owns handshake cleanup, independently of the RPC lock.
+			printf '{"success":true}\n'
+			return
+		else
+			# No go was granted: the worker cannot have started any download.
+			kill "$pid" 2>/dev/null
+			wait "$pid" 2>/dev/null
+			rm -rf "$handshake"
+		fi
+	fi
+	printf '{"stage":"error","percent":0,"message":"升级程序启动失败"}\n' > "$STATUS_FILE.$$" && mv -f "$STATUS_FILE.$$" "$STATUS_FILE"
+	printf '{"success":false,"error":"升级程序启动失败"}\n'
 }
 
 save_settings() {

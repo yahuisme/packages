@@ -78,7 +78,16 @@ TMP_DIR=$(mktemp -d /tmp/firmwareupgrade.XXXXXX) || {
 }
 TARGET_FILE="$TMP_DIR/$ASSET_NAME"
 
-set_status downloading 5 '正在连接服务器下载固件...'
+set_status downloading 5 '正在连接服务器下载固件...' || exit 1
+printf '%s\n' "$$" > "$PID_FILE" || exit 1
+# Two-phase handshake: ready is not permission to download or flash.
+# Only the launcher can grant go; timeout may kill only a waiting worker.
+if [ -n "$6" ]; then
+	printf '%s\n' "$$" > "$6/ready" || exit 1
+	while [ ! -d "$6/go" ]; do sleep 0.1; done
+	rm -f "$6/ready"
+	rmdir "$6/go" "$6"
+fi
 curl --fail --location --proto '=https' --tlsv1.2 --output "$TARGET_FILE" "$DOWNLOAD_URL" >/dev/null 2>&1 &
 CURL_PID=$!
 while kill -0 "$CURL_PID" 2>/dev/null; do
