@@ -26,6 +26,12 @@ export LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/reso
 node tests/integration.cjs
 node tests/lazy-regression.cjs
 node tests/native-tabs.cjs
+node tests/typography.cjs
+# 可选：导出当前完整应用 DOM（含 MLO 表格和三个弹窗页签）并测量公共字体
+# TYPOGRAPHY_OUT=/tmp/wifi7-type node tests/typography.cjs
+# TYPOGRAPHY_OUT=/tmp/wifi7-type AURORA_HTDOCS=/path/to/aurora/htdocs \
+# AURORA_HEADER=/path/to/aurora/ucode/template/themes/aurora/header.ut \
+# AURORA_SHELL=/path/to/static-aurora-shell.html node tests/typography-aurora.cjs
 # 可选：TAB_OUT 导出四页真实 DOM，使用外部 Playwright 和原始 Aurora 文件测量
 # TAB_OUT=/tmp/wifi7-tabs node tests/native-tabs.cjs
 # TAB_OUT=/tmp/wifi7-tabs AURORA_HTDOCS=/path/to/aurora/htdocs \

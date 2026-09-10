@@ -131,21 +131,21 @@ function summary(runtime, radios) {
 
 	return E('div', { class: 'mlo-summary', 'data-mlo-summary-status': '' }, [
 		E('div', { class: 'mlo-summary-item' }, [
-			E('span', { class: 'mlo-summary-label' }, _('MLO interfaces')),
+			E('span', { class: 'wifi7-label' }, _('MLO interfaces')),
 			E('strong', {}, String(sections.length))
 		]),
 		E('div', { class: 'mlo-summary-item' }, [
-			E('span', { class: 'mlo-summary-label' }, _('Active MLD')),
+			E('span', { class: 'wifi7-label' }, _('Active MLD')),
 			E('strong', { class: runtime.unknown ? 'mlo-muted' : runtime.activeMldIfnames.length ? 'mlo-active' : 'mlo-muted' }, state),
 			E('small', {}, [ detail ])
 		]),
 		invalid ? E('div', { class: 'mlo-summary-item mlo-warning' }, [
-			E('span', { class: 'mlo-summary-label' }, _('Needs attention')),
+			E('span', { class: 'wifi7-label' }, _('Needs attention')),
 			E('strong', {}, _('%d incomplete').format(invalid)),
 			E('small', {}, _('Each MLO interface needs at least two radios.'))
 		]) : null,
 		radios.length < 2 ? E('div', { class: 'mlo-summary-item mlo-warning' }, [
-			E('span', { class: 'mlo-summary-label' }, _('Radio availability')),
+			E('span', { class: 'wifi7-label' }, _('Radio availability')),
 			E('strong', {}, _('Limited')),
 			E('small', {}, _('MLO needs at least two radios.'))
 		]) : null
@@ -228,7 +228,7 @@ return baseclass.extend({
 			return form.GridSection.prototype.renderMoreOptionsModal.call(this, sectionId, event).then(function(result) {
 				let modal = document.querySelector('body.modal-overlay-active > #modal_overlay > .modal.cbi-modal');
 				if (modal) {
-					modal.classList.add('wifi7-mlo-modal');
+					modal.classList.add('wifi7-mlo-modal', 'wifi7-modal');
 					if (!modal.querySelector('[data-wifi7-modal-style]'))
 						modal.appendChild(E('style', { 'data-wifi7-modal-style': '' }, '#modal_overlay > .wifi7-mlo-modal{max-width:calc(100vw - 32px)}.wifi7-mlo-modal input:not([type="checkbox"]),.wifi7-mlo-modal select,.wifi7-mlo-modal .cbi-button{height:32px}.wifi7-mlo-modal .cbi-button{padding-top:0;padding-bottom:0}'));
 				}
@@ -309,7 +309,7 @@ return baseclass.extend({
 		map.renderContents = function() {
 			return form.Map.prototype.renderContents.apply(this, arguments).then(function(nodes) {
 				nodes.classList.add('mlo-map');
-				nodes.appendChild(E('style', {}, '.mlo-map .mlo-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:8px 0 16px}.mlo-map .mlo-summary-item{min-height:80px;padding:16px;box-sizing:border-box;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:6px;background:var(--cbi-section-bg,transparent);display:flex;flex-direction:column;justify-content:center}.mlo-map .mlo-summary-label{font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--cbi-muted-color,var(--text-muted,#666))}.mlo-map .mlo-summary-item strong{font-size:16px;font-weight:500;line-height:1.4}.mlo-map .mlo-summary-item small{font-size:12px;color:var(--cbi-muted-color,var(--text-muted,#888));overflow-wrap:anywhere}.mlo-map .mlo-active{color:inherit}.mlo-map .mlo-muted{color:var(--cbi-muted-color,var(--text-muted,#888))}.mlo-map .mlo-warning strong{color:var(--cbi-warning-color,#b45309)}.mlo-map .mlo-overview{display:grid;gap:8px;min-width:180px;overflow-wrap:anywhere}.mlo-map .mlo-overview-primary{font-weight:500}.mlo-map .mlo-overview span:not(.mlo-overview-primary){font-size:12px;color:var(--cbi-muted-color,var(--text-muted,#666))}@media(max-width:760px){.mlo-map .mlo-summary{grid-template-columns:1fr}.mlo-map .mlo-overview{min-width:0}}'));
+				nodes.appendChild(E('style', {}, '.mlo-map .mlo-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 16px}.mlo-map .mlo-summary-item{min-height:76px;padding:16px;box-sizing:border-box;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:6px;background:var(--cbi-section-bg,transparent);display:flex;flex-direction:column;justify-content:center}.mlo-map .mlo-summary-item small{color:var(--cbi-muted-color,var(--text-muted,#888));overflow-wrap:anywhere}.mlo-map .mlo-active{color:inherit}.mlo-map .mlo-muted{color:var(--cbi-muted-color,var(--text-muted,#888))}.mlo-map .mlo-warning strong{color:var(--cbi-warning-color,#b45309)}.mlo-map .mlo-overview{display:grid;gap:8px;min-width:0;overflow-wrap:anywhere}@media(max-width:760px){.mlo-map .mlo-summary{grid-template-columns:1fr}}'));
 				let description = nodes.querySelector('.cbi-map-descr');
 				let status = summary(runtime, radios);
 				description && description.parentNode.insertBefore(status, description.nextSibling);
