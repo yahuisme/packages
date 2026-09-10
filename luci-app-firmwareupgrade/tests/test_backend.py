@@ -27,7 +27,7 @@ class FirmwareUpgradeTest(unittest.TestCase):
         data = json.loads(self.run_backend('list'))
         self.assertEqual(set(data), {'getSystemInfo', 'checkUpdate', 'getStatus', 'startUpgrade', 'saveSettings'})
         self.assertEqual(set(data['startUpgrade']), {'keep_config', 'candidate_id'})
-        self.assertEqual(set(data['saveSettings']), {'repository', 'token', 'keep_config'})
+        self.assertEqual(set(data['saveSettings']), {'repository', 'token', 'keep_config', 'release_pattern', 'asset_pattern', 'download_proxy'})
 
     def test_asset_matching_requires_exact_known_device_and_variant(self):
         assets = self.root / 'assets.tsv'
@@ -36,10 +36,10 @@ class FirmwareUpgradeTest(unittest.TestCase):
             'openwrt-airoha-an7581-gemtek_w1700k-ubi2-oc-squashfs-sysupgrade.itb\t17474367\tsha256:' + 'b' * 64 + '\thttps://example.com/ubi2-oc.itb\n'
             'immortalwrt-qualcommax-ipq807x-linksys_mx4200v1-squashfs-sysupgrade.bin\t38000000\tsha256:' + 'c' * 64 + '\thttps://example.com/v1.bin\n'
         )
-        self.assertIn('w1700k-ubi-squashfs', self.run_backend('test_match', str(assets), 'gemtek,w1700k', 'ubi2'))
-        self.assertIn('w1700k-ubi2-oc', self.run_backend('test_match', str(assets), 'gemtek,w1700k', 'ubi2-oc'))
-        self.assertIn('mx4200v1', self.run_backend('test_match', str(assets), 'linksys,mx4200-v1', 'v1'))
-        self.assertEqual(self.run_backend('test_match', str(assets), 'unknown,device', ''), '')
+        self.assertIn('w1700k-ubi-squashfs', self.run_backend('test_match', str(assets), '*w1700k-ubi-squashfs*'))
+        self.assertIn('w1700k-ubi2-oc', self.run_backend('test_match', str(assets), '*w1700k-ubi2-oc*'))
+        self.assertIn('mx4200v1', self.run_backend('test_match', str(assets), '*mx4200v1*'))
+        self.assertEqual(self.run_backend('test_match', str(assets), '*unknown*'), '')
 
     def test_rejects_unsafe_values_before_worker_starts(self):
         stub_dir = self.root / 'bin'
@@ -54,11 +54,11 @@ class FirmwareUpgradeTest(unittest.TestCase):
                     ['sh', str(self.backend), 'test_start'], input=json.dumps(payload), text=True, env=environment
                 )
                 self.assertFalse(json.loads(result)['success'])
-                self.assertIn('Invalid upgrade request', json.loads(result)['error'])
+                self.assertIn('升级请求无效', json.loads(result)['error'])
 
         result = subprocess.check_output(['sh', str(self.backend), 'test_start'], input='{}', text=True, env=environment)
         self.assertFalse(json.loads(result)['success'])
-        self.assertIn('Invalid upgrade request', json.loads(result)['error'])
+        self.assertIn('升级请求无效', json.loads(result)['error'])
 
     def test_worker_rejects_missing_or_invalid_checksum_before_sysupgrade(self):
         for sha256 in ('', 'not-a-hash'):
@@ -98,7 +98,7 @@ class FirmwareUpgradeTest(unittest.TestCase):
             if path.is_file() and 'tests' not in path.parts
         )
         self.assertNotIn('cancelUpgrade', package_text)
-        self.assertNotIn('proxy', package_text.lower())
+        self.assertNotIn('cancelUpgrade', package_text)
 
     def test_candidate_download_url_is_revalidated_before_worker_launch(self):
         backend = BACKEND.read_text()

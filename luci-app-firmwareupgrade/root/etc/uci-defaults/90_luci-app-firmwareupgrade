@@ -5,6 +5,9 @@ uci -q get firmwareupgrade.main >/dev/null || {
 		set firmwareupgrade.main=settings
 		set firmwareupgrade.main.repository=''
 		set firmwareupgrade.main.token=''
+		set firmwareupgrade.main.release_pattern=''
+		set firmwareupgrade.main.asset_pattern=''
+		set firmwareupgrade.main.download_proxy=''
 		set firmwareupgrade.main.keep_config='0'
 		commit firmwareupgrade
 	EOF

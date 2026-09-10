@@ -5,6 +5,7 @@
 umask 077
 
 DOWNLOAD_URL="$1"
+DOWNLOAD_PROXY="$7"
 ASSET_NAME="$2"
 EXPECTED_SHA256="$3"
 KEEP_CONFIG="$4"
@@ -35,8 +36,16 @@ valid_url() {
 	return 1
 }
 
+valid_download_proxy() {
+	[ -z "$1" ] && return 0
+	[ "${#1}" -le 200 ] || return 1
+	case "$1" in http://*|https://*) ;; *) return 1;; esac
+	case "$1" in *[!A-Za-z0-9.:/_-]*) return 1;; esac
+	printf '%s\n' "$1" | grep -Eq '^https?://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?(/[A-Za-z0-9._/-]*)?$'
+}
+
 validate_input() {
-	valid_url "$DOWNLOAD_URL" && valid_asset_name "$ASSET_NAME" && valid_sha256 "$EXPECTED_SHA256" &&
+	valid_download_proxy "$DOWNLOAD_PROXY" && valid_url "$DOWNLOAD_URL" && valid_asset_name "$ASSET_NAME" && valid_sha256 "$EXPECTED_SHA256" &&
 		{ [ "$KEEP_CONFIG" = 0 ] || [ "$KEEP_CONFIG" = 1 ]; } && valid_uint "$TOTAL_SIZE" && [ "$TOTAL_SIZE" -gt 0 ]
 }
 
@@ -65,15 +74,15 @@ fi
 WORKER_LOCK='/var/run/firmwareupgrade.worker.lock'
 mkdir "$WORKER_LOCK" 2>/dev/null || exit 1
 trap cleanup EXIT
-trap 'set_status error 0 "Upgrade interrupted"; exit 1' INT TERM
+trap 'set_status error 0 "升级已中断"; exit 1' INT TERM
 
 if ! validate_input; then
-	set_status error 0 'Invalid verified upgrade request'
+	set_status error 0 '已验证的升级请求无效'
 	exit 1
 fi
 
 TMP_DIR=$(mktemp -d /tmp/firmwareupgrade.XXXXXX) || {
-	set_status error 0 'Unable to create private temporary directory'
+	set_status error 0 '无法创建私有临时目录'
 	exit 1
 }
 TARGET_FILE="$TMP_DIR/$ASSET_NAME"
@@ -88,7 +97,10 @@ if [ -n "$6" ]; then
 	rm -f "$6/ready"
 	rmdir "$6/go" "$6"
 fi
-curl --fail --location --proto '=https' --tlsv1.2 --output "$TARGET_FILE" "$DOWNLOAD_URL" >/dev/null 2>&1 &
+# The digest and original GitHub URL remain authoritative; no token is sent.
+FETCH_URL="$DOWNLOAD_URL"
+[ -z "$DOWNLOAD_PROXY" ] || FETCH_URL="${DOWNLOAD_PROXY%/}/$DOWNLOAD_URL"
+curl --fail --location --proto '=http,https' --proto-redir '=https' --tlsv1.2 --output "$TARGET_FILE" "$FETCH_URL" >/dev/null 2>&1 &
 CURL_PID=$!
 while kill -0 "$CURL_PID" 2>/dev/null; do
 	if [ -s "$TARGET_FILE" ]; then

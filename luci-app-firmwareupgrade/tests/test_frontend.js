@@ -3,7 +3,9 @@ const fs = require('fs'), assert = require('assert'), { JSDOM } = require('jsdom
 const dom = new JSDOM('<html><head></head><body></body></html>');
 global.window = dom.window; global.document = window.document; global.MutationObserver = window.MutationObserver;
 const calls = []; let checked = { success: true, candidate_id: 'a'.repeat(32), tag_name: 'v1' }, rejectCheck = false;
-const rpc = { declare: d => (...args) => { calls.push([d.method, args]); if (d.method === 'checkUpdate') return rejectCheck ? Promise.reject(Error('offline')) : Promise.resolve(checked); return Promise.resolve({ success: true }); } };
+const pending = {};
+const defer = method => { let resolve, reject; const promise = new Promise((yes,no) => { resolve=yes; reject=no; }); pending[method]=promise; return {resolve,reject}; };
+const rpc = { declare: d => (...args) => { calls.push([d.method, args]); if (pending[d.method]) { const promise=pending[d.method]; delete pending[d.method]; return promise; } if (d.method === 'checkUpdate') return rejectCheck ? Promise.reject(Error('offline')) : Promise.resolve(checked); return Promise.resolve({ success: true }); } };
 const E = (tag, attrs = {}, children = []) => { const n = document.createElement(tag); Object.entries(attrs).forEach(([k,v]) => { if (k === 'click') n.addEventListener('click',v); else if (k === 'checked') n.checked = v; else n.setAttribute(k,v); }); (Array.isArray(children) ? children : [children]).forEach(c => n.append(c && c.nodeType ? c : String(c))); return n; };
 let modal;
 const ui = { createHandlerFn: (ctx, name, ...args) => ev => ctx[name](...args,ev), showModal: (title, nodes) => { modal=E('div',{},nodes); document.body.append(modal); }, hideModal: () => modal && modal.remove() };
@@ -13,6 +15,8 @@ const app=Function('rpc','view','ui','poll','E','_','L',source)(rpc,{extend:x=>x
 (async()=>{
  document.body.append(app.render({repository:'owner/repo'}));
  const root=document.querySelector('.fwup-dashboard'), notice=root.querySelector('[style="display:none"]'), latest=document.querySelector('#fwup-latest'), detail=document.querySelector('#fwup-detail').parentNode;
+ assert(document.getElementById('fwup-release-pattern'), 'release rule field');
+ assert(document.getElementById('fwup-asset-pattern'), 'asset rule field');
  const button=[...root.querySelectorAll('button')].find(x=>x.textContent==='Check update');
  await app.check(notice,latest,detail,{currentTarget:button});
  const upgrade=[...root.querySelectorAll('button')].find(x=>x.textContent==='Upgrade firmware');
@@ -32,5 +36,51 @@ const app=Function('rpc','view','ui','poll','E','_','L',source)(rpc,{extend:x=>x
  rejectCheck=true; await app.check(notice,latest,detail,{currentTarget:button});
  assert.strictEqual(detail.style.display,'none'); assert.strictEqual(document.querySelector('#fwup-detail').textContent,'');
  assert.strictEqual(latest.textContent,'Not checked');
- console.log('PASS: actual view confirmation binds candidate identity; RPC failure clears stale release controls');
+ document.getElementById('fwup-repo').value='another/repo';
+ document.getElementById('fwup-repo').dispatchEvent(new window.Event('input'));
+ assert.strictEqual(document.getElementById('fwup-release-pattern').value,'');
+ assert.strictEqual(document.getElementById('fwup-asset-pattern').value,'');
+ const before=calls.length; await app.check(notice,latest,detail,{currentTarget:button});
+ assert.strictEqual(calls.length,before,'unsaved rules must not check old repository');
+ const saveButton=[...root.querySelectorAll('button')].find(x=>x.textContent==='Save settings');
+ await app.save(notice,{currentTarget:saveButton});
+ rejectCheck=false;
+ const delayed=defer('checkUpdate');
+ const checking=app.check(notice,latest,detail,{currentTarget:button});
+ document.getElementById('fwup-repo').value='edited/during-check';
+ document.getElementById('fwup-repo').dispatchEvent(new window.Event('input'));
+ delayed.resolve(checked); await checking;
+ assert.strictEqual(detail.style.display,'none','old check must not restore upgrade controls after editing');
+ assert.strictEqual(latest.textContent,'Not checked');
+ assert.strictEqual(app.settingsDirty,true);
+ const savingReply=defer('saveSettings');
+ const saving=app.save(notice,{currentTarget:saveButton});
+ document.getElementById('fwup-repo').value='edited/during-save';
+ document.getElementById('fwup-repo').dispatchEvent(new window.Event('input'));
+ savingReply.resolve({success:true}); await saving;
+ assert.strictEqual(app.settingsDirty,true,'old save must not mark newer edits saved');
+ const afterSave=calls.length; await app.check(notice,latest,detail,{currentTarget:button});
+ assert.strictEqual(calls.length,afterSave,'new edits still block checking after old save success');
+ await app.save(notice,{currentTarget:saveButton});
+ assert.strictEqual(app.settingsDirty,false,'saving current revision clears dirty state');
+ await app.check(notice,latest,detail,{currentTarget:button});
+ assert.strictEqual(detail.style.display,'');
+ // One in-flight settings operation: no duplicate or cross-method races.
+ for (const method of ['checkUpdate','saveSettings']) {
+  const reply=defer(method);
+  const operation=method==='checkUpdate' ? app.check(notice,latest,detail,{currentTarget:button}) : app.save(notice,{currentTarget:saveButton});
+  const count=calls.length;
+  await app.check(notice,latest,detail,{currentTarget:button});
+  await app.save(notice,{currentTarget:saveButton});
+  assert.strictEqual(calls.length,count,'check/save requests must not overlap');
+  reply.resolve(method==='checkUpdate' ? checked : {success:true}); await operation;
+ }
+ for (const id of ['fwup-token','fwup-keep']) {
+  const reply=defer('saveSettings'); const operation=app.save(notice,{currentTarget:saveButton});
+  document.getElementById(id).dispatchEvent(new window.Event('input'));
+  reply.resolve({success:true}); await operation;
+  assert.strictEqual(app.settingsDirty,true,id+' edits during save remain dirty');
+  await app.save(notice,{currentTarget:saveButton});
+ }
+ console.log('PASS: actual view confirmation, failures, edit revisions and serialized check/save regressions');
 })().catch(e=>{console.error(e);process.exitCode=1;});

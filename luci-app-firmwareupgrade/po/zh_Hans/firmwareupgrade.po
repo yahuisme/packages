@@ -104,3 +104,21 @@ msgstr "正在准备升级…"
 
 msgid "Grant access to firmware upgrade procedures and checks"
 msgstr "允许访问固件升级流程与检查接口"
+
+msgid "Release tag pattern"
+msgstr "Release 标签通配符"
+
+msgid "Firmware file pattern"
+msgstr "固件文件通配符"
+
+msgid "Patterns are case-sensitive: * matches any text, ? matches one character. Save before checking. Changing repository clears both rules."
+msgstr "规则区分大小写：* 匹配任意文本，? 匹配单个字符。请先保存再检查；修改仓库会清空两项规则。"
+
+msgid "GitHub download proxy"
+msgstr "GitHub 下载代理"
+
+msgid "Optional; blank connects directly. Only image downloads use this prefix; release checks connect to GitHub directly. Prefer HTTPS."
+msgstr "选填，留空直连。仅镜像下载使用此前缀，检查发布仍直连 GitHub。建议使用 HTTPS。"
+
+msgid "Save settings before checking."
+msgstr "请先保存设置再检查更新。"

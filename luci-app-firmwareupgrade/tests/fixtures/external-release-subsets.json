@@ -1,0 +1,59 @@
+[
+  {
+    "repository": "ZqinKing/wrt_release",
+    "release_pattern": "*_linksys_mx4x00_immwrt",
+    "asset_pattern": "*linksys_mx4200v2-squashfs-sysupgrade.bin",
+    "release": {
+      "tag_name": "25.11.19_11.19.29_linksys_mx4x00_immwrt",
+      "published_at": "2025-11-19T04:08:21Z",
+      "draft": false,
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "immortalwrt-qualcommax-ipq807x-linksys_mx4200v2-squashfs-sysupgrade.bin",
+          "size": 83886884,
+          "digest": "sha256:2fd29b35c495241d4a64980da7bb625662aab34180f6ba36622453d8f726b3c3",
+          "browser_download_url": "https://github.com/ZqinKing/wrt_release/releases/download/25.11.19_11.19.29_linksys_mx4x00_immwrt/immortalwrt-qualcommax-ipq807x-linksys_mx4200v2-squashfs-sysupgrade.bin"
+        }
+      ]
+    }
+  },
+  {
+    "repository": "breeze303/openwrt-ci",
+    "release_pattern": "IPQ60XX-6.12-NOWIFI",
+    "asset_pattern": "*jdcloud_re-cs-02-squashfs-sysupgrade.bin",
+    "release": {
+      "tag_name": "IPQ60XX-6.12-NOWIFI",
+      "published_at": "2025-01-07T06:19:58Z",
+      "draft": false,
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "libwrt-qualcommax-ipq60xx-jdcloud_re-cs-02-squashfs-sysupgrade.bin",
+          "size": 32491787,
+          "digest": "sha256:5965b962ffd1241051ffe32c615974492524208d7dfb6a99ceecc309c409d951",
+          "browser_download_url": "https://github.com/breeze303/openwrt-ci/releases/download/IPQ60XX-6.12-NOWIFI/libwrt-qualcommax-ipq60xx-jdcloud_re-cs-02-squashfs-sysupgrade.bin"
+        }
+      ]
+    }
+  },
+  {
+    "repository": "breeze303/openwrt-ci",
+    "release_pattern": "IPQ60XX-6.12-WIFI",
+    "asset_pattern": "*jdcloud_re-cs-02-squashfs-sysupgrade.bin",
+    "release": {
+      "tag_name": "IPQ60XX-6.12-WIFI",
+      "published_at": "2025-01-07T07:09:15Z",
+      "draft": false,
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "libwrt-qualcommax-ipq60xx-jdcloud_re-cs-02-squashfs-sysupgrade.bin",
+          "size": 38502667,
+          "digest": "sha256:c41f89ca887ed982cc3f9e9bb66d9828d4b8a8694a09fba9c790623e855b59d9",
+          "browser_download_url": "https://github.com/breeze303/openwrt-ci/releases/download/IPQ60XX-6.12-WIFI/libwrt-qualcommax-ipq60xx-jdcloud_re-cs-02-squashfs-sysupgrade.bin"
+        }
+      ]
+    }
+  }
+]

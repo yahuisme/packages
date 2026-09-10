@@ -1,43 +1,25 @@
-# Firmware upgrade regression tests
-
-Run from the repository root:
+# 固件升级回归测试
 
 ```sh
-PYTHONDONTWRITEBYTECODE=1 UCI_BIN=/path/to/uci JSONFILTER_BIN=/path/to/jsonfilter python3 -m unittest discover -s luci-app-firmwareupgrade/tests -v
+PYTHONDONTWRITEBYTECODE=1 UCI_BIN=/tmp/packages-fan-upgrade-audit/uci JSONFILTER_BIN=/tmp/packages-final-jsonfilter/jsonpath python3 -m unittest discover -s luci-app-firmwareupgrade/tests -v
 NODE_PATH=/usr/local/lib/node_modules node luci-app-firmwareupgrade/tests/test_frontend.js
-NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/tmp/mlo-luci/modules/luci-base/htdocs/luci-static/resources node luci-app-firmwareupgrade/tests/test_rpc.js
+NODE_PATH=/usr/local/lib/node_modules LUCI_RESOURCE_DIR=/tmp/mlo-luci/modules/luci-base/htdocs/luci-static/resources node luci-app-firmwareupgrade/tests/test_rpc.js
+NODE_PATH=/usr/local/lib/node_modules AURORA_CSS=/tmp/packages-fix-aurora/htdocs/luci-static/aurora/main.css node luci-app-firmwareupgrade/tests/test_layout.js
 ```
 
-Runtime tests execute the package's actual shell entrypoints under BusyBox ash. UCI and jsonfilter are real binaries; curl, sysupgrade and worker-launch boundaries are harmless local fixtures. Tests rewrite only absolute runtime/config paths in temporary copies, keeping all configuration, staging, locks and status below private temporary directories. No test performs a real download, flash, sysfs write or live UCI change. Missing real binaries fail rather than skip.
+运行时使用真实 BusyBox ash、UCI、jsonfilter；临时副本仅改写绝对路径，curl/sysupgrade 为隔离边界，不进行真实刷写。通用规则覆盖分页（后页发布时间更新）、HTTP 中途失败、空镜像发布回退、歧义、未知设备、非法镜像、设置持久化、候选与规则/代理绑定；原有 SHA256、大小、预检、锁、握手、一次消费及 UCI 回滚测试保留。
 
-Coverage includes real release-to-four-column-TSV discovery, failed HTTP bodies, candidate identity and one-shot consumption, concurrent launch, lock contenders, private UCI save/commit, pre-existing deltas, blank secrets, absent options, verification/rollback failure, size/hash/preflight/final-flash failures and terminal success. The jsdom test executes actual view callbacks and proves confirmation captures the displayed candidate, not a mutable later discovery.
+正文 Tab 回归逐字节验证 JSON 输出 `\t` 并解析真实隔离 RPC 响应。前端 jsdom 执行实际视图回调，以延迟 Promise 覆盖检查/保存期间编辑、旧响应丢弃、重复及交叉请求串行、当前版本保存恢复；RPC 测试加载真实 LuCI 模块。布局测试使用实际视图生成的 DOM 与未改动 Aurora main.css，Chromium 测量 320/375/768/1024/1440 宽度、明暗属性共十种状态，断言页面/输入不溢出及输入高度 32px。结果与截图在 `/root/fwup-layout`，可用 `LAYOUT_OUT` 改写。此为离线简化页面外壳，未覆盖真实路由器菜单、网络、权限、完整主题切换脚本或刷写兼容性。依赖可持久安装 `npm install -g jsdom playwright` 与 `playwright install chromium`，无需每次安装。
 
-Settings save rejects pre-existing pending UCI edits and uses a private transaction; it never commits or reverts shared staging. Application operations share a lock. An unrelated process that ignores this lock can still race the final filesystem publish; this is not a system-wide UCI transaction guarantee.
+## 真实 fixtures
 
-These fixtures do not establish hardware flashing compatibility, router-side GitHub availability, full LuCI theme rendering or an OpenWrt package build.
+已有 yahuisme 两个 W1700K Release 列表与解包版本文件沿用此前真实 API/镜像捕获，验证同名文件标准/OC 不串线。新增 `w1700k-builds-releases.json` 来自 2026-09-10 `/repos/w1700k/builds/releases?per_page=20`，仅保留 tag_name/published_at/draft/prerelease/assets 及资源 name/size/digest/browser_download_url；实际捕获三条发布，标准/OC 测试验证各自真实摘要。
 
-## Check-button diagnostics and timeout evidence
 
-`test_rpc.js` loads real LuCI `rpc.js`, `ui.js`, `form.js` and DOM helpers from `LUCI_RESOURCE_DIR`, with only HTTP transport and page bootstrap isolated. It clicks the actual view button, separately verifies the native form button `(event, section_id)` signature, and checks ACL/menu linkage, retry, stale-release clearing and text-only diagnostics. The firmware view itself does not use `form.Button`.
+代理实测：`https://gh-proxy.com/https://api.github.com/repos/w1700k/builds/releases?per_page=1` HTTP 200 有效 JSON；对捕获的 W1700K GitHub 原始镜像 URL 加此前缀、Range `0-31` 得到 HTTP 206 与 32 字节。未发送 Token，未下载完整固件。应用明确只让 worker 镜像下载使用代理，Release 检查仍直连 API。
 
-Before the fix, a real RPC reply `[6]` (Permission denied) became `{}` through `expect`, and the page displayed only “Failed to check for updates.” Transport exceptions were also discarded. The regression failed on that exact missing diagnostic. `checkUpdate` now declares `reject: true` and preserves the exception message in the existing text-only notice. Backend error messages remain unchanged. This fixes swallowed diagnostics, not a proven router-side transport failure.
+ACL 已有 saveSettings 写权限与 firmwareupgrade UCI 权限覆盖新增字段；新增字段在 RPC list schema 中明确列出，无需扩张 ACL。未知板型规则不替代 sysupgrade -T 的最终判断。没有进行包构建或实机刷写。
 
-The inspected LuCI `rpc.js:38` uses `(L.env.rpctimeout ?? 20) * 1000`: default **20 seconds**, not 5. `rpc.declare()` does not implement a per-call `timeout` option. The backend curl limit is 15 seconds; parsing comes afterward, so it is not a bound on total method time. On this host, private-path discovery using real BusyBox/UCI/jsonfilter took **0.061 s** with the captured release list and **0.395 s** with real public GitHub curl (empty token); both selected standard r41057. These are host measurements, not router timings. No timeout was changed. Upstream rpcd `include/rpcd/exec.h` currently defines a 120-second exec default, but the installed router rpcd/uhttpd settings and `L.env.rpctimeout` remain unverified.
+`ones20250-ax6600-releases.json` 为 GitHub API 捕获的前四条发布的必要字段，包含 PURE/PLUS 及 factory/sysupgrade；验证两系列最新镜像及候选地址、大小、摘要。该精简样本不用于分页覆盖。
 
-The packaged ACL grants `checkUpdate` in `read.ubus.luci.firmwareupgrade`; the menu depends on the same ACL group. `luci-base`, curl, ca-bundle and jsonfilter are package dependencies. No missing static check permission was found. Actual installed ACL, session grants, RPC object registration, package dependencies and router connectivity still require device-side evidence. Capture the newly visible error, the browser `checkUpdate` HTTP/JSON-RPC response and elapsed time, and router `ubus -v list luci.firmwareupgrade`/rpcd logs before attributing the failure to ACL, timeout or GitHub. A root CLI call alone does not verify the browser session ACL.
-
-## Confirmed missing-od root cause
-
-The user subsequently confirmed router `checkUpdate` returned “No response” in 0.83 seconds and direct execution printed `od: not found`. This supersedes the earlier uncertainty below: the candidate generator piped missing `od` into successful `tr`, produced an empty ID, then returned without JSON. This is not a curl timeout or the separate standard/OC selection bug. A private copy restoring that exact old generator, with an explicit BusyBox applet PATH lacking `od`, reproduced empty stdout and `od: not found`.
-
-The replacement reads `/proc/sys/kernel/random/uuid` using shell `read`. Linux documents a fresh UUID on each read (not the fixed `boot_id`): https://docs.kernel.org/admin-guide/sysctl/kernel.html#random . Each UUID is strictly checked as lowercase UUIDv4. A single UUID has fixed version/variant bits, so two reads supply 32 hex characters taken only from random fields, preserving the previous 128 random bits without adding dependencies. No clock, PID or weak fallback is used. The existing candidate lock, private permissions and consume-before-launch contract are unchanged. This proc entry was exercised on the Linux host; installation on the actual router still needs retesting.
-
-The real BusyBox/UCI/jsonfilter regression verifies successful no-od discovery, distinct IDs, mode 0600 and single consumption. Fault injection checks release/assets/candidate mktemp, absent/empty/malformed random input, tr failure, candidate write, chmod and rename failures all produce explicit failure JSON without publishing or launching. UCI `/tmp/packages-fan-upgrade-audit/uci` and jsonfilter `/tmp/packages-final-jsonfilter/jsonpath` were available and executed, not skipped. All network/flash boundaries remain harmless.
-
-## W1700K release regression
-
-`fixtures/w1700k-immortalwrt-latest.json` and `fixtures/w1700k-immortalwrt-releases.json` are unmodified public GitHub API responses captured from `/repos/yahuisme/w1700k-immortalwrt/releases/latest` and `/repos/yahuisme/w1700k-immortalwrt/releases?per_page=10` on 2026-09-09. The repository-wide latest response is OC r41058, while the standard release is r41057. Both publish the identical `immortalwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb` filename, with different digests. Filename-only matching cannot distinguish them.
-
-The regression replays both responses through the actual RPC shell entrypoint, real jsonfilter and real private UCI, with an empty token. It checks correct standard/OC selection and rejects missing variants, drafts, prereleases, absent digests, zero sizes and non-HTTPS URLs. Production discovery examines the latest 20 releases for this exact known repository, selects the newest published stable tag for the requested branch and fails closed if absent; other repositories retain their existing behavior. It never falls back across variants.
-
-A separate live check with real curl, private runtime paths and an empty token returned standard r41057, size 18477891, SHA256 `0ecbb61557fa2e4746624f1d4a615f1565bb1552c89ea78dceb71c88176db9a8`. No image was downloaded and no worker was started. Importantly, the original local code did **not** reproduce an always-failing ubi2 check: it returned success with the wrong OC release. Router-side transport/rpcd failures remain unverified without the actual router error/response; the local fixture must not be represented as proof of that symptom's cause.
+`external-release-subsets.json` 从本次真实 API 捕获的 `ZqinKing/wrt_release` 与 `breeze303/openwrt-ci` 列表精简，仅保留 MX4200v2、京东云 NOWIFI/WIFI 各一条发布及一个镜像的必要原始字段（2331 字节）；明确不是完整分页样本。分页回归独立合成 20 条发布 + `[]`（含 JSON 空白），验证保留前页候选；第一页空数组返回无匹配并清候选。非法 JSON、对象、尾随垃圾、非法空白及 HTTP 失败不得作为分页结束或保留候选。真实 jsonfilter 的 `@[*]` 对 `[]` 返回 1，不能单凭退出码将合法空页判为解析失败。

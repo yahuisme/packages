@@ -21,7 +21,7 @@ class Runtime(unittest.TestCase):
         self.config = self.root / 'config'; self.config.mkdir()
         self.delta = self.root / 'delta'; self.delta.mkdir()
         self.cfg = self.config / 'firmwareupgrade'
-        self.cfg.write_text("config firmwareupgrade 'main'\n option repository 'owner/repo'\n option token 'secret'\n option keep_config '0'\n")
+        self.cfg.write_text("config firmwareupgrade 'main'\n option repository 'owner/repo'\n option token 'secret'\n option keep_config '0'\n option release_pattern '*'\n option asset_pattern '*w1700k*sysupgrade.itb'\n")
         self.env = dict(os.environ, PATH=f'{self.bin}:/usr/bin:/bin', ROOT=str(self.root))
         self.stub('uci', f'#!/bin/sh\nexec {UCI} -c {self.config} -C {self.runtime} -t {self.delta} "$@"\n')
         self.stub('jsonfilter', f'#!/bin/sh\nexec {JSONFILTER} "$@"\n')
@@ -38,7 +38,7 @@ class Runtime(unittest.TestCase):
         self.worker.write_text((PACKAGE / 'root/usr/libexec/firmwareupgrade-worker').read_text().replace('/var/run/', str(self.runtime) + '/'))
         self.asset = dict(name='openwrt-w1700k-ubi-sysupgrade.itb', size=5, digest='sha256:'+hashlib.sha256(b'image').hexdigest(), browser_download_url='https://github.com/owner/repo/releases/download/v1/image.itb')
         self.release = self.root / 'release.json'
-        self.release.write_text(json.dumps(dict(tag_name='v1', assets=[self.asset])))
+        self.release.write_text(json.dumps([dict(tag_name='v1', published_at='2026-01-01T00:00:00Z', draft=False, prerelease=False, assets=[self.asset])]))
 
     def stub(self, name, text):
         path=self.bin/name
@@ -48,6 +48,8 @@ class Runtime(unittest.TestCase):
         path.write_text(text); path.chmod(0o755)
 
     def rpc(self, method, data=None):
+        if method == 'saveSettings':
+            data = {'release_pattern': '*', 'asset_pattern': '*sysupgrade.itb', **(data or {})}
         result=subprocess.run(['busybox','ash',str(self.backend),'call',method],input=json.dumps(data or {}),capture_output=True,text=True,env=self.env,timeout=15)
         return json.loads(result.stdout)
 
@@ -172,7 +174,7 @@ class Runtime(unittest.TestCase):
     def openwrt_path(self):
         # Explicit BusyBox applet allowlist: host /usr/bin must not supply od.
         for name in ('busybox', 'awk', 'cat', 'chmod', 'grep', 'mkdir', 'mktemp',
-                     'mv', 'rm', 'rmdir', 'tr', 'uname', 'sleep'):
+                     'mv', 'rm', 'rmdir', 'tr', 'uname', 'sleep', 'wc'):
             (self.bin / name).symlink_to('/usr/bin/busybox')
         self.env['PATH'] = str(self.bin)
         probe = subprocess.run(['busybox', 'ash', '-c', 'command -v od'],
@@ -194,7 +196,8 @@ class Runtime(unittest.TestCase):
         self.backend.write_text(self.backend.read_text().replace('board=gemtek,w1700k', 'board=linksys,mx4200v2').replace('variant=ubi2', 'variant=v2', 1))
         asset = dict(self.asset, name='immortalwrt-qualcommax-ipq807x-linksys_mx4200v2-squashfs-sysupgrade.bin')
         wrong = dict(asset, name=asset['name'].replace('mx4200v2', 'mx4200v1'))
-        self.release.write_text(json.dumps(dict(tag_name='v2-release', assets=[wrong, asset])))
+        self.release.write_text(json.dumps([dict(tag_name='v2-release', published_at='2026-01-01T00:00:00Z', draft=False, prerelease=False, assets=[wrong, asset])]))
+        self.uci('set', 'firmwareupgrade.main.asset_pattern=*linksys_mx4200v2-squashfs-sysupgrade.bin')
         result = self.rpc('checkUpdate')
         self.assertTrue(result['success'], result)
         self.assertEqual(result['asset_name'], asset['name'])
@@ -395,13 +398,13 @@ class Runtime(unittest.TestCase):
         self.stub('mv', '#!/bin/sh\n/bin/mv "$@" || exit $?\ncase "$2" in */.firmwareupgrade.*/firmwareupgrade) printf "broken\\n" > "$3";; esac\n')
         result=self.rpc('saveSettings',dict(repository='new/repo',token='',keep_config='1'))
         self.assertFalse(result['success'])
-        self.assertIn('restored original',result['error'])
+        self.assertIn('已恢复原配置',result['error'])
         self.assertEqual(self.cfg.read_bytes(),original)
 
     def test_save_failed_rollback_is_explicit(self):
         self.stub('mv', '#!/bin/sh\ncase "$2" in */restore) exit 1;; esac\n/bin/mv "$@" || exit $?\ncase "$2" in */.firmwareupgrade.*/firmwareupgrade) printf "broken\\n" > "$3";; esac\n')
         result=self.rpc('saveSettings',dict(repository='new/repo',token='',keep_config='1'))
-        self.assertFalse(result['success']); self.assertIn('rollback failed',result['error'])
+        self.assertFalse(result['success']); self.assertIn('回滚失败',result['error'])
 
     def test_empty_candidate_identity_never_authorizes(self):
         candidate=self.runtime/'firmwareupgrade.candidate'

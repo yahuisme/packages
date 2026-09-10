@@ -1,0 +1,44 @@
+[
+  {
+    "tag_name": "ubi2_2026.09.10_r36178-2b0b873c6a",
+    "published_at": "2026-09-10T02:24:51Z",
+    "draft": false,
+    "prerelease": false,
+    "assets": [
+      {
+        "name": "openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb",
+        "size": 22119231,
+        "digest": "sha256:91afac7bfba519e52c544cb9e9acc7c65651a5c19462054864d74b7a9fb82dd8",
+        "browser_download_url": "https://github.com/w1700k/builds/releases/download/ubi2_2026.09.10_r36178-2b0b873c6a/openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb"
+      }
+    ]
+  },
+  {
+    "tag_name": "ubi2-oc_2026.09.10_r36179-b1ffa1229d",
+    "published_at": "2026-09-10T02:24:16Z",
+    "draft": false,
+    "prerelease": false,
+    "assets": [
+      {
+        "name": "openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb",
+        "size": 22119234,
+        "digest": "sha256:a0a12aa8b05d60300803ee392b808484b429042ddf71cc38ed22deb19cb6e2e1",
+        "browser_download_url": "https://github.com/w1700k/builds/releases/download/ubi2-oc_2026.09.10_r36179-b1ffa1229d/openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb"
+      }
+    ]
+  },
+  {
+    "tag_name": "SNAPSHOT_2026.09.10_r36161-1a637db227",
+    "published_at": "2026-09-10T02:22:30Z",
+    "draft": false,
+    "prerelease": false,
+    "assets": [
+      {
+        "name": "openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb",
+        "size": 14193475,
+        "digest": "sha256:c3ee8e9eff2fc4c9d231da04f80d425429d0bd522ee9c56d5fc615db4e07187f",
+        "browser_download_url": "https://github.com/w1700k/builds/releases/download/SNAPSHOT_2026.09.10_r36161-1a637db227/openwrt-airoha-an7581-gemtek_w1700k-ubi-squashfs-sysupgrade.itb"
+      }
+    ]
+  }
+]
