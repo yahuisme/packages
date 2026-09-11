@@ -18,10 +18,11 @@ async function scenario(unknown, undoFailure) {
   return Promise.resolve({ result:'ok' });
  } };
  const document = { getElementById: () => true };
- const view = new Function('view','form','rpc','ui','document','_','E',source)({extend:x=>x},{JSONMap:Map},rpc,{addNotification:(_,node)=>notices.push(node)},document,x=>x,(_,__,text)=>text);
+ // Compile only the trusted checked-out LuCI source; no user input is code.
+ const view = new Function('L','view','form','rpc','ui','document','_','E',source)({hasViewPermission:()=>true},{extend:x=>x},{JSONMap:Map},rpc,{addNotification:(_,node)=>notices.push(node)},document,x=>x,(_,__,text)=>text);
  await view.render([{governors:'performance schedutil',frequencies:'1000000 800000'}, {...state}, flow]);
  if (unknown) { assert.strictEqual(options.flow.readonly, true, 'unknown flow must be read-only'); return; }
- await map.save();
+ await assert.rejects(map.save(), /Previous settings were restored/);
  assert(calls.some(c=>c[0]==='setGovernor' && c[1]==='performance'), 'must attempt all undo operations');
  assert(calls.some(c=>c[0]==='getStatus'), 'rollback must read back actual state');
  assert(calls.some(c=>c[0]==='getFlowOffload'), 'rollback must read back flow');

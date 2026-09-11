@@ -18,10 +18,11 @@ node tests/test_log_lifecycle.cjs
 node tests/test_page_lifecycle.cjs
 node tests/test_resource_status.cjs
 node tests/test_status_dom.cjs
+python3 tests/test_domainlist_write.py
 python3 tests/test_list_migration.py
 python3 tests/test_resource_display.py
 python3 tests/test_resource_versions.py
 python3 tests/test_urltest_defaults.py
 ```
 
-Requires BusyBox, curl, unzip and real ucode with fs/digest modules. Set `UCODE_LIB_DIR=/path/to/compatible/ucode/modules` when not on the default search path; the updater fixture wrapper currently uses `/usr/local/bin/ucode`. The LuCI checkout must include `applications/luci-app-firewall`. Updater/migration/generator tests use private paths, loopback HTTP and harmless decoder/init/UCI/ubus boundaries; no proxy is started. DOM tests cover safe text/link attributes, resource display, real Map.reset, single-flight polling, timeout/recovery and removal. Expected injected RPC failures may be logged.
+Requires BusyBox, curl, unzip and real ucode with fs/digest modules. Set `UCODE_LIB_DIR=/path/to/compatible/ucode/modules` when not on the default search path; the updater fixture wrapper currently uses `/usr/local/bin/ucode`. The LuCI checkout must include `applications/luci-app-firewall`. Updater/migration/generator tests use private paths, loopback HTTP and harmless decoder/init/UCI/ubus boundaries; no proxy is started. DOM tests cover safe text/link attributes, resource display, real Map.reset, single-flight polling, timeout/recovery and removal. Expected injected RPC failures may be logged. `test_domainlist_write.py` executes the full RPC method with real ucode/fs and private UCI/hostname-validation fixtures. It covers normal/empty writes, actual positive short writes, zero/null failures at each of three staging positions, unchanged old files, temporary-file cleanup and retry; it does not simulate physical disk exhaustion or rollback after an install-time rename failure.

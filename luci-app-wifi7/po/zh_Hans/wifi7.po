@@ -319,3 +319,18 @@ msgstr "WiFi 7 管理"
 
 msgid "channel %s"
 msgstr "信道 %s"
+
+msgid "Apply staged changes"
+msgstr "应用暂存更改"
+
+msgid "Reset wireless changes"
+msgstr "复位无线更改"
+
+msgid "Discard all staged wireless changes?"
+msgstr "丢弃所有已暂存的无线配置更改？"
+
+msgid "Apply all staged configuration changes? Wireless connections may be interrupted."
+msgstr "应用所有已暂存的配置更改？无线连接可能会中断。"
+
+msgid "Failed to update configuration: %s"
+msgstr "更新配置失败：%s"

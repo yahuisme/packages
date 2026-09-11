@@ -12,6 +12,8 @@ var callWirelessDevices = rpc.declare({
 	reject: true
 });
 
+var revertWireless = rpc.declare({ object: 'uci', method: 'revert', params: ['config'], reject: true });
+
 var mloRefresh = null;
 var mloActive = true;
 
@@ -185,6 +187,30 @@ return baseclass.extend({
 		let refresh;
 		let map = new form.Map('wireless', null, _('Configure Wi-Fi 7 Multi-Link Operation interfaces.'));
 		map.chain('network');
+		let actionPending = false, actionRoot;
+		function lockActions() {
+			let node = actionRoot;
+			if (node) node.querySelectorAll('[data-mlo-action]').forEach(button => {
+				button.disabled = actionPending || !L.hasViewPermission() || map.readonly;
+			});
+		}
+		function runAction(reset) {
+			lockActions();
+			if (actionPending || !L.hasViewPermission() || map.readonly) return;
+			if (!window.confirm(reset
+				? _('Discard all staged wireless changes?')
+				: _('Apply all staged configuration changes? Wireless connections may be interrupted.'))) return;
+			actionPending = true;
+			lockActions();
+			return Promise.resolve().then(function() {
+				return reset ? revertWireless('wireless') : map.save().then(function() { return uci.apply(); });
+			}).then(function() {
+				uci.unload('wireless');
+				return uci.load('wireless');
+			}).then(function() { return map.reset(); }).catch(function(error) {
+				ui.addNotification(null, E('p', {}, [ _('Failed to update configuration: %s').format(error && error.message != null ? error.message : String(error)) ]), 'error');
+			}).finally(function() { actionPending = false; lockActions(); });
+		}
 
 		let section = map.section(form.GridSection, 'wifi-iface', _('MLO Interfaces'));
 		// This embedded section has the same heading level as the radio settings.
@@ -313,7 +339,12 @@ return baseclass.extend({
 		map.renderContents = function() {
 			return form.Map.prototype.renderContents.apply(this, arguments).then(function(nodes) {
 				nodes.classList.add('mlo-map');
-				nodes.appendChild(E('style', {}, '.mlo-map .mlo-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 16px}.mlo-map .mlo-summary-item{min-width:0;min-height:96px;padding:8px 16px;gap:4px;line-height:1.5;overflow-wrap:anywhere;box-sizing:border-box;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:6px;background:var(--cbi-section-bg,transparent);display:flex;flex-direction:column;justify-content:center}.mlo-map .mlo-summary-item strong{font-size:1.125em;font-weight:600}.mlo-map .mlo-summary-item small{font-size:inherit;color:var(--cbi-muted-color,var(--text-muted,#888));overflow-wrap:anywhere}.mlo-map .mlo-active{color:inherit}.mlo-map .mlo-muted{color:var(--cbi-muted-color,var(--text-muted,#888))}.mlo-map .mlo-overview{display:grid;gap:8px;min-width:0;overflow-wrap:anywhere}@media(max-width:760px){.mlo-map .mlo-summary{grid-template-columns:1fr}}'));
+				actionRoot = nodes;
+				nodes.appendChild(E('style', {}, '.mlo-map .mlo-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 16px}.mlo-map .mlo-summary-item{min-width:0;min-height:96px;padding:8px 16px;gap:4px;line-height:1.5;overflow-wrap:anywhere;box-sizing:border-box;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:6px;background:var(--cbi-section-bg,transparent);display:flex;flex-direction:column;justify-content:center}.mlo-map .mlo-summary-item strong{font-size:1.125em;font-weight:600}.mlo-map .mlo-summary-item small{font-size:inherit;color:var(--cbi-muted-color,var(--text-muted,#888));overflow-wrap:anywhere}.mlo-map .mlo-active{color:inherit}.mlo-map .mlo-muted{color:var(--cbi-muted-color,var(--text-muted,#888))}.mlo-map{container-type:inline-size}.mlo-map .wifi7-save-bar{gap:8px;flex-wrap:wrap}@container(max-width:600px){.mlo-map .cbi-section-table-titles .th:first-child,.mlo-map .cbi-section-table-row > .td:first-child{min-width:104px;width:30%}.mlo-map .cbi-section-actions > div{display:flex;flex-direction:column;gap:8px}.mlo-map .cbi-section-actions .cbi-button{margin:0}.mlo-map .mlo-overview [data-mlo-runtime-section]{white-space:nowrap}}.mlo-map .mlo-overview{display:grid;gap:8px;min-width:0;overflow-wrap:break-word;word-break:keep-all}@media(max-width:760px){.mlo-map .mlo-summary{grid-template-columns:1fr}}'));
+				nodes.appendChild(E('div', { class: 'wifi7-save-bar' }, [
+					E('button', { class: 'cbi-button cbi-button-apply', 'data-mlo-action': 'apply', disabled: actionPending || map.readonly || !L.hasViewPermission() ? true : null, click: function() { return runAction(false); } }, _('Apply staged changes')),
+					E('button', { class: 'cbi-button cbi-button-reset', 'data-mlo-action': 'reset', disabled: actionPending || map.readonly || !L.hasViewPermission() ? true : null, click: function() { return runAction(true); } }, _('Reset wireless changes'))
+				]));
 				let description = nodes.querySelector('.cbi-map-descr');
 				let status = summary(runtime, radios);
 				description && description.parentNode.insertBefore(status, description.nextSibling);
@@ -351,6 +382,7 @@ return baseclass.extend({
 				if (nodes.isConnected)
 					return;
 				poll.remove(refresh);
+				if (mloRefresh === refresh) mloRefresh = null;
 				observer.disconnect();
 			});
 			observer.observe(document.body, { childList: true, subtree: true });

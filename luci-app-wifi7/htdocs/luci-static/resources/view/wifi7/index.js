@@ -70,7 +70,7 @@ return view.extend({
 		var radios = uci.sections('wireless', 'wifi-device');
 		var cells = {}, controls = [], previous = {}, busy = false, channelLists = {}, clientNodes = {};
 		var activeTab = 0, clientCache = { rows: [], empty: _('Client data unavailable') };
-		var saving = false, readonly = !L.hasViewPermission();
+		var saving = false;
 		(data[0] || []).forEach(function(item) { channelLists[item.id] = item; });
 		var notice = E('div', { 'class': 'wifi7-notice', role: 'status' });
 		var grid = E('div', { 'class': 'wifi7-grid' });
@@ -168,7 +168,8 @@ return view.extend({
 							mloLoaded = true;
 							node.classList.add('wifi7-mlo-content');
 							mlo.replaceChildren(node);
-							if (activeTab !== 2) mloView.pause();
+							if (activeTab === 2) mloView.resume();
+							else mloView.pause();
 						}, function() {
 							if (!root.isConnected) return;
 							mlo.replaceChildren(E('div', { 'class': 'cbi-section-descr' }, _('MLO configuration is unavailable.')));
@@ -188,7 +189,8 @@ return view.extend({
 			} }, label)));
 		});
 		var save = E('button', { 'class': 'cbi-button cbi-button-apply', click: function() {
-			if (saving || readonly) return;
+			lockControls();
+			if (saving || !L.hasViewPermission()) return;
 			if (controls.some(function(c) { return !c.channel.reportValidity() || !c.power.reportValidity() || !c.country.reportValidity(); })) return;
 			var changes = [];
 			controls.forEach(function(c) {
@@ -253,6 +255,7 @@ return view.extend({
 		} }, _('Save & Apply'));
 		settings.appendChild(E('div', { 'class': 'wifi7-save-bar' }, save));
 		function lockControls() {
+			var readonly = !L.hasViewPermission();
 			save.disabled = saving || readonly;
 			controls.forEach(function(c) {
 				['enabled', 'channel', 'width', 'power', 'country', 'radar'].forEach(function(key) { if (c[key]) c[key].disabled = saving || readonly || c.missing; });

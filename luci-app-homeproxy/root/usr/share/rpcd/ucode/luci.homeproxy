@@ -187,7 +187,8 @@ const methods = {
 			let staged = [];
 			for (let id in keys(changes)) {
 				const file = domainListPath(id), temporary = file + '.new';
-				if (writefile(temporary, changes[id]) === null) {
+				if (writefile(temporary, changes[id]) !== length(changes[id])) {
+					unlink(temporary);
 					for (let path in staged)
 						unlink(path.temporary);
 					return { result: false, error: 'failed to write domain list' };

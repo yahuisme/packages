@@ -9,7 +9,7 @@ if (!root) throw new Error('Set LUCI_RESOURCE_DIR to trusted upstream LuCI resou
 const source = fs.readFileSync(process.env.NPU_SETTINGS_JS || path.join(__dirname,
  '../htdocs/luci-static/resources/view/airoha_npu/settings.js'), 'utf8');
 
-async function scenario(unknown = false) {
+async function scenario(unknown = false, readonly = false) {
  const j = new JSDOM('<!doctype html><div id="maincontent"><div id="view"></div></div>',
   { url: 'http://localhost/cgi-bin/luci/admin/system/npu', runScripts: 'outside-only' });
  const w = j.window;
@@ -27,7 +27,7 @@ async function scenario(unknown = false) {
   const mods = w.__classes, L = w.L = Object.create(w.LuCI.prototype);
   Object.assign(w.__env, { resource: '/luci-static/resources', media: '/luci-static/bootstrap',
    scriptname: '/cgi-bin/luci', requestpath: ['admin', 'system', 'npu'], sessionid: 'fixture' });
-  L.require = n => Promise.resolve(mods[n]); L.hasViewPermission = () => true;
+  L.require = n => Promise.resolve(mods[n]); L.hasViewPermission = () => !readonly;
   w.E = mods.dom.create.bind(mods.dom);
   mods.uci = { load: async () => {}, loadPackage: async () => {}, get: () => null };
   const calls = [], notices = []; let rejectSave = false;
@@ -77,6 +77,16 @@ async function scenario(unknown = false) {
    assert.equal(option.formvalue(section), expected, `${name} must show the RPC value`);
    assert.ok(option.getUIElement(section), `${name} needs a real LuCI widget`);
   }
+  if (readonly) {
+   assert.equal(map.readonly, true, 'JSONMap must respect view read-only permission');
+   for (const [name, section] of [['governor', 'cpu'], ['frequency', 'cpu'], ['flow', 'firewall']])
+    assert.equal(map.lookupOption(name, section)[0].getUIElement(section).options.disabled, true);
+   assert.equal(w.document.querySelector('.cbi-button-save').disabled, true);
+   map.lookupOption('governor', 'cpu')[0].getUIElement('cpu').setValue('schedutil');
+   await map.save();
+   assert.equal(calls.filter(c => c[0].startsWith('set')).length, 0, 'forced readonly save must not write');
+   return;
+  }
   exportDOM(unknown ? '.unknown' : '');
   if (unknown) {
    assert.equal(map.lookupOption('flow', 'firewall')[0].getUIElement('firewall').options.disabled, true);
@@ -103,16 +113,31 @@ async function scenario(unknown = false) {
    assert.equal(calls.filter(c => c[0].startsWith('set')).length, 3, 'reset then save must not undo confirmed settings');
    w.document.querySelectorAll('.alert-message').forEach(n => n.remove());
    rejectSave = true; map.lookupOption('governor', 'cpu')[0].getUIElement('cpu').setValue('performance');
-   await saveClick();
+   let globalApply = 0;
+   mods.ui.changes.apply = () => { globalApply++; };
+   await assert.rejects(app.handleSaveApply(new w.Event('click'), '0'), /./,
+    'failed direct RPC save must remain rejected through native Save & Apply');
+   assert.equal(globalApply, 0, 'failed save must never apply unrelated global changes');
    assert.equal(notices.at(-1), w._('The change failed and recovery could not be verified. Check the system settings.'));
    exportDOM('.failed');
+   rejectSave = false;
+   await app.handleSaveApply(new w.Event('click'), '0');
+   assert.equal(globalApply, 0, 'direct RPC success also must not apply unrelated global changes');
+   map.lookupOption('governor', 'cpu')[0].getUIElement('cpu').setValue('schedutil');
+   await map.save();
    await assertSavedReset();
+   const writes = calls.filter(c => c[0].startsWith('set')).length;
+   L.hasViewPermission = () => false;
+   map.lookupOption('governor', 'cpu')[0].getUIElement('cpu').setValue('performance');
+   await map.save();
+   assert.equal(calls.filter(c => c[0].startsWith('set')).length, writes,
+    'permission revoked after render blocks further writes');
   }
   node.remove();
   assert.equal(w.document.querySelectorAll('style').length, 0, 'view removal cleans settings styles; notifications use native theme');
  } finally { w.close(); }
 }
 (async () => {
- await scenario(); await scenario(true);
+ await scenario(false, true); await scenario(); await scenario(true);
  console.log('PASS real LuCI form: three controls, RPC defaults, no-op/save and unknown read-only');
 })().catch(e => { console.error(e); process.exitCode = 1; });

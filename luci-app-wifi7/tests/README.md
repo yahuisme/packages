@@ -13,6 +13,8 @@ Fixtures do not connect to a router or run host services. These checks are not f
 ```sh
 node tests/error-text.cjs
 node tests/integration.cjs
+node tests/mlo-actions.cjs
+for mode in revoked pending reentry; do node tests/permissions-reentry.cjs "$mode"; done
 node tests/lazy-regression.cjs
 node tests/lifecycle.test.js
 node tests/mlo-editor.cjs

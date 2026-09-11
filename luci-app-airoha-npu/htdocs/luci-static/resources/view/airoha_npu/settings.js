@@ -43,6 +43,11 @@ function message(code) {
 
 
 return view.extend({
+	handleSaveApply: function(ev) {
+		// These RPC setters apply immediately; do not apply other UCI changes.
+		return this.handleSave(ev);
+	},
+
 	load: function() {
 		return Promise.all([getInfo(), getStatus(), getFlow()].map(function(p) {
 			return p.catch(function() { return null; });
@@ -60,6 +65,7 @@ return view.extend({
 		// NamedSection renders only sections present in the JSON data model.
 		m = new form.JSONMap({ cpu: {}, firewall: {} }, _('Airoha SoC Settings'),
 			_('Configure CPU governor, maximum scaling frequency, and firewall flow offloading.'));
+		m.readonly = !L.hasViewPermission();
 
 		s = m.section(form.NamedSection, 'cpu', 'cpu', _('Kernel CPU Controls'),
 			_('Adjust CPU governor policy and maximum scaling frequency.'));
@@ -89,8 +95,8 @@ return view.extend({
 		o.value('0', _('Disabled'));
 		o.value('1', _('Enabled'));
 		o.default = typeof flow.enabled === 'boolean' ? (flow.enabled ? '1' : '0') : '';
-		o.readonly = typeof flow.enabled !== 'boolean';
-		if (o.readonly) o.value('', _('Unknown'));
+		o.readonly = m.readonly || typeof flow.enabled !== 'boolean';
+		if (typeof flow.enabled !== 'boolean') o.value('', _('Unknown'));
 
 		function getVal(name, section) {
 			var opt = m.lookupOption(name, section);
@@ -98,6 +104,7 @@ return view.extend({
 		}
 
 		m.save = function() {
+			if (m.readonly || !L.hasViewPermission()) return Promise.resolve();
 			var formGov = getVal('governor', 'cpu');
 			var formFreq = getVal('frequency', 'cpu');
 			var formFlow = getVal('flow', 'firewall');
@@ -159,7 +166,7 @@ return view.extend({
 					}, function() {
 						ui.addNotification(null, E('p', {}, message('rollback_failed')), 'error');
 					});
-				});
+				}).then(function() { throw err; });
 			});
 		};
 

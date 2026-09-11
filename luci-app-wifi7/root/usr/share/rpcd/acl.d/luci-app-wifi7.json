@@ -11,7 +11,7 @@
             "uci": [ "wireless", "network" ]
         },
         "write": {
-            "ubus": { "uci": [ "set", "delete", "apply", "confirm", "changes" ] },
+            "ubus": { "uci": [ "set", "delete", "apply", "confirm", "changes", "revert" ] },
             "uci": [ "wireless" ]
         }
     }

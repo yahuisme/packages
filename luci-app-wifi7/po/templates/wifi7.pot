@@ -314,3 +314,18 @@ msgstr ""
 
 msgid "channel %s"
 msgstr ""
+
+msgid "Apply staged changes"
+msgstr ""
+
+msgid "Reset wireless changes"
+msgstr ""
+
+msgid "Discard all staged wireless changes?"
+msgstr ""
+
+msgid "Apply all staged configuration changes? Wireless connections may be interrupted."
+msgstr ""
+
+msgid "Failed to update configuration: %s"
+msgstr ""
