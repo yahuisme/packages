@@ -14,7 +14,16 @@ assert.equal(JSON.parse(fs.readFileSync(path.join(out,'sources.json')))[source],
   await page.evaluate(d=>{document.documentElement.setAttribute('data-darkmode',String(d));document.body.dataset.navType='sidebar';document.body.insertAdjacentHTML('afterbegin','<aside class="sidebar-panel" id="sidebar-panel" aria-label="导航"><nav class="sidebar-panel-inner"><div class="sidebar-head"><a class="sidebar-brand">离线验证</a></div><ul class="sidebar-list" id="sidebar-list"><li>状态</li><li>设置</li></ul><div class="sidebar-footer"></div></nav></aside>');},dark);
   await page.waitForTimeout(40);
   const row=await page.evaluate(()=>{const rect=e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width};};return {main:rect(document.querySelector('#maincontent')),sidebar:rect(document.querySelector('aside')),grid:rect(document.querySelector('.fan-summary-grid')),cards:[...document.querySelectorAll('.fan-summary-card')].map(rect),overflow:document.documentElement.scrollWidth>innerWidth,clipped:[...document.querySelectorAll('.fan-card-value,.fan-card-sub')].filter(e=>e.scrollWidth>e.clientWidth).map(e=>e.textContent),track:getComputedStyle(document.querySelector('.fan-temp-track')).backgroundColor,border:getComputedStyle(document.querySelector('.fan-temp-card')).borderBottomColor,subtitle:document.querySelector('#fan-summary-preset .fan-card-sub').textContent};});
-  rows.push({stage,width,dark,...row});fs.writeFileSync(path.join(out,'sidebar-results.json'),JSON.stringify(rows,null,2));
+  const details=await page.evaluate(()=>{
+   const panel=getComputedStyle(document.querySelector('.fan-panel'));
+   const cards=[...document.querySelectorAll('.fan-summary-card')].map(e=>{const s=getComputedStyle(e);return {height:e.getBoundingClientRect().height,padding:s.padding,gap:s.gap};});
+   const rows=[...document.querySelectorAll('.fan-temp-row')].map(e=>{const label=e.querySelector('.fan-temp-label'),value=e.querySelector('.fan-temp-value'),track=e.nextElementSibling;return {labelRight:label.getBoundingClientRect().right,valueLeft:value.getBoundingClientRect().left,clipped:label.scrollWidth>label.clientWidth,trackGap:track.getBoundingClientRect().top-e.getBoundingClientRect().bottom};});
+   return {panelPadding:panel.padding,cards,rows};
+  });
+  assert.equal(details.panelPadding,width<=480?'8px':'16px');
+  assert(details.cards.every(c=>c.height>=96 && c.padding==='8px 16px' && c.gap==='4px'));
+  assert(details.rows.every(r=>!r.clipped && r.labelRight<=r.valueLeft && Math.abs(r.trackGap-8)<1),'temperature text and tracks stay separated');
+  rows.push({stage,width,dark,...row,details});fs.writeFileSync(path.join(out,'sidebar-results.json'),JSON.stringify(rows,null,2));
   assert.equal(row.overflow,false);assert.deepEqual(row.clipped,[]);assert.equal(row.cards.length,4);
   assert(row.cards.every(r=>r.left>=row.grid.left-1&&r.right<=row.grid.right+1&&r.right<=width+1));
   if(width===768){assert.equal(row.sidebar.width,272);assert.equal(row.main.width,496);assert(row.cards[2].top>row.cards[0].top,'tablet cards wrap to second row');}

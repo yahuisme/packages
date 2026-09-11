@@ -8,6 +8,7 @@
 'require baseclass';
 'require form';
 'require fs';
+'require poll';
 'require rpc';
 'require uci';
 'require ui';
@@ -20,6 +21,35 @@ const callServiceList = rpc.declare({
 });
 
 return baseclass.extend({
+	// Keep requests single-flight even while reset replaces their DOM owner.
+	pollElement: function(node, key, read, write, interval, immediate) {
+		const pending = this._pendingPolls || (this._pendingPolls = {});
+		let mounted = false, disposed = false;
+		const refresh = () => {
+			if (disposed || !node.isConnected || pending[key])
+				return;
+			pending[key] = Promise.resolve().then(read).then((value) => {
+				if (!disposed && node.isConnected)
+					write(value);
+			}).finally(() => { delete pending[key]; });
+			return pending[key];
+		};
+		const observer = new MutationObserver(() => {
+			if (node.isConnected && !mounted) {
+				mounted = true;
+				poll.add(refresh, interval);
+				if (immediate)
+					refresh();
+			} else if (mounted && !node.isConnected) {
+				disposed = true;
+				poll.remove(refresh);
+				observer.disconnect();
+			}
+		});
+		observer.observe(document.documentElement, { childList: true, subtree: true });
+		return node;
+	},
+
 	// Keep theme width constraints local to HomeProxy editors, including subscriptions.
 	makeEditorResponsive: function(section) {
 		section.renderMoreOptionsModal = function() {
@@ -130,7 +160,7 @@ return baseclass.extend({
 		const state = isRunning === true ? 'running' : isRunning === false ? 'stopped' : 'unknown';
 		return E('span', { class: 'hp-service-status' }, [
 			E('style', [
-				'.hp-service-status{font-weight:500;overflow-wrap:anywhere}' +
+				'.hp-service-status{overflow-wrap:anywhere}' +
 				'.hp-service-status .hp-service-state{display:inline-flex;align-items:center;gap:8px;margin-inline-start:8px}' +
 				'.hp-service-status .hp-service-state.running{color:#16803c}' +
 				'.hp-service-status .hp-service-state.stopped{color:#dc2626}' +

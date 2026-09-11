@@ -42,7 +42,7 @@ const renderer = source.slice(source.indexOf('\t\tfunction svgNode('), source.in
    await page.goto('http://fixture/', { waitUntil: 'networkidle' });
    if (scenario !== 'status') {
     await page.evaluate(async dark => { document.documentElement.setAttribute('data-darkmode', String(dark)); await document.fonts.ready; }, dark);
-    const row = await page.evaluate(() => ({ documentWidth: document.documentElement.scrollWidth, controls: [...document.querySelectorAll('.cbi-value')].map(e => { const r = e.getBoundingClientRect(); return { width: r.width, height: r.height, right: r.right }; }), text: document.querySelector('.npu-settings').textContent, buttons: [...document.querySelectorAll('.cbi-page-actions button, .cbi-page-actions .cbi-button-apply, .alert-message button')].map(e => { const r = e.getBoundingClientRect(); return { text: e.textContent, x: r.x, right: r.right, width: r.width, height: r.height }; }), notices: [...document.querySelectorAll('.alert-message')].map(e => ({ text: e.textContent, width: e.getBoundingClientRect().width, right: e.getBoundingClientRect().right })) }));
+    const row = await page.evaluate(() => ({ documentWidth: document.documentElement.scrollWidth, controls: [...document.querySelectorAll('.npu-settings select')].map(e => { const r = e.getBoundingClientRect(); return { width: r.width, height: r.height, right: r.right }; }), text: document.querySelector('.npu-settings').textContent, buttons: [...document.querySelectorAll('.cbi-page-actions button, .cbi-page-actions .cbi-button-apply, .alert-message button')].map(e => { const r = e.getBoundingClientRect(); return { text: e.textContent, x: r.x, right: r.right, width: r.width, height: r.height }; }), notices: [...document.querySelectorAll('.alert-message')].map(e => ({ text: e.textContent, width: e.getBoundingClientRect().width, right: e.getBoundingClientRect().right })) }));
     assert.equal(errors.length, 0, errors.join('\n'));
     assert(row.documentWidth <= width && row.controls.length === 3 && row.controls.every(r => r.width > 0 && r.height > 0 && r.right <= width), JSON.stringify(row));
     assert(row.buttons.length >= 2 && row.buttons.every(b => b.width > 0 && b.height > 0 && b.x >= 0 && b.right <= width), JSON.stringify(row));
@@ -66,6 +66,54 @@ const renderer = source.slice(source.indexOf('\t\tfunction svgNode('), source.in
     if (getComputedStyle(document.querySelector('.npu-summary-card')).borderColor !== expected.borderColor)
      throw Error('card border does not follow Aurora hairline');
     probe.remove();
+    const root = document.querySelector('.npu-dashboard');
+    const localStyle = root.querySelector('style');
+    function scoped(rules) {
+     for (const rule of rules) {
+      if (rule.selectorText) assertScope(rule.selectorText);
+      if (rule.cssRules) scoped(rule.cssRules);
+     }
+    }
+    function assertScope(selector) {
+     if (!selector.split(',').every(s => s.trim().startsWith('.npu-dashboard ')))
+      throw Error('unscoped status selector: ' + selector);
+    }
+    scoped(localStyle.sheet.cssRules);
+    const sibling = document.createElement('div');
+    // Trusted constant fixture, not RPC or user-provided HTML.
+    sibling.innerHTML = '<div class="npu-panel"><div class="npu-detail-row">Unrelated sibling</div></div>';
+    document.body.append(sibling);
+    const siblingStyle = () => [...sibling.querySelectorAll('*')].map(e => {
+     const c = getComputedStyle(e); return [c.display, c.padding, c.margin, c.border, c.gap];
+    });
+    const styled = JSON.stringify(siblingStyle());
+    localStyle.sheet.disabled = true;
+    const native = JSON.stringify(siblingStyle());
+    localStyle.sheet.disabled = false;
+    sibling.remove();
+    if (styled !== native) throw Error('status style leaked into sibling');
+    const css = selector => getComputedStyle(root.querySelector(selector));
+    const checks = [
+     [css('.npu-summary-grid').marginTop, '16px'],
+     [css('.npu-panel').paddingTop, innerWidth <= 480 ? '8px' : '16px'],
+     [css('.npu-panel').marginTop, '16px'],
+     [css('.npu-panel-title').marginBottom, '8px'],
+     [css('.npu-detail-group-title').marginBottom, '8px'],
+     [css('.npu-detail-row').paddingTop, '8px'],
+     [css('.npu-detail-row').gap, '16px'],
+     [css('.npu-summary-card').minHeight, '96px'],
+     [css('.npu-summary-card').padding, '8px 16px'],
+     [css('.npu-summary-card').gap, '4px'],
+     [css('.npu-card-value').fontWeight, '600']
+    ];
+    if (checks.some(([actual, expected]) => actual !== expected))
+     throw Error('spacing/card regression: ' + JSON.stringify(checks));
+    for (const card of root.querySelectorAll('.npu-summary-card')) {
+     const r = card.getBoundingClientRect();
+     if (r.height < 96 || r.left < 0 || r.right > innerWidth) throw Error('card geometry');
+    }
+    for (const value of root.querySelectorAll('.npu-detail-value'))
+     if (value.scrollWidth > value.clientWidth) throw Error('fixture detail is truncated: ' + value.textContent);
     // Reuse exported fixture points, not invented readings; run the exact
     // production renderer with the actual browser-measured content width.
     const samples = [...document.querySelectorAll('.npu-chart-point')].map(p => ({ time: +p.dataset.time, value: +p.dataset.mhz }));

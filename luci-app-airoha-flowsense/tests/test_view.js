@@ -9,7 +9,11 @@ w.eval(fs.readFileSync(path.join(resources,'cbi.js'),'utf8'));
 w.eval(fs.readFileSync(path.join(resources,'luci.js'),'utf8').replace('window.LuCI = LuCI;','window.LuCI = LuCI; window.classes=classes; window.environment=env;'));
 const mods=w.classes,L=w.L=Object.create(w.LuCI.prototype);
 Object.assign(w.environment,{resource:'/resources',scriptname:'/cgi-bin/luci',sessionid:'fixture'});
+let writable = process.env.READONLY_TEST !== '1';
+L.hasViewPermission=()=>writable;
 L.loaded=true;L.require=n=>Promise.resolve(mods[n]);w.E=mods.dom.create.bind(mods.dom);
+const hostile='<img src=x onerror="window.auditXss=1"><svg onload="window.auditXss=2"></svg>&';
+let notification;
 const calls=[],polls=new Map();let overviewError=false,waitOverview=null,waitPpe=null,waitSave=null,saveError=false;
 const sample={timestamp:1000,uptime:100,configured_hw:true,configured_sw:false,monitor:{target:'example.com',enabled:true},jitter:{last_ping:12,deviation:3,loss:4},interfaces:[{device:'lan1',speed:2500,carrier:1,stats:{rx_bytes:10,tx_bytes:20,rx_errors:7,tx_errors:9}}]};
 const ppeSample={available:true,total:1,entries:[{index:'abcd',state:'BND',type:'IPv4'}]};
@@ -22,10 +26,12 @@ mods.request.post=async(url,req)=>{
   if(!saveError)sample.monitor={target:req.params[3].target,enabled:req.params[3].enabled===1};
  }
  const result=method==='getOverview'?(overviewError?[6]:[0,sample]):method==='getPpeEntries'?[0,ppeSample]:method==='setMonitor'?(saveError?[6]:[0,{success:true}]):[6];
+ if(method==='setMonitor' && process.env.ERROR_TEXT_TEST==='1')
+  return {ok:true,status:200,json:()=>w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,error:{code:-32000,message:hostile}}))};
  return {ok:true,status:200,json:()=>w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result}))};
 };
 function load(name,source){source=source||fs.readFileSync(path.join(resources,name+'.js'),'utf8');const deps=[...source.matchAll(/'require ([^';]+)';/g)].map(m=>m[1]);const C=w.Function(...deps,source)(...deps.map(n=>mods[n]));return mods[name]=new C();}
-load('rpc');mods.ui={addNotification:()=>{}};mods.poll.add=(fn,seconds)=>polls.set(seconds,fn);mods.poll.remove=fn=>{for(const [key,value] of polls)if(value===fn)polls.delete(key)};
+load('rpc');mods.ui={addNotification:(title,node)=>{notification=node;w.document.body.append(node)}};mods.poll.add=(fn,seconds)=>polls.set(seconds,fn);mods.poll.remove=fn=>{for(const [key,value] of polls)if(value===fn)polls.delete(key)};
 load('app',fs.readFileSync(path.join(__dirname,'../htdocs/luci-static/resources/view/airoha_flowsense/status.js'),'utf8'));
 const settle=()=>new Promise(r=>setTimeout(r,25));
 function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};}
@@ -37,8 +43,26 @@ function computedColor(node) {
 function count(name){return calls.filter(n=>n===name).length;}
 (async()=>{
  await settle();await settle();const root=w.document.querySelector('.flowsense-dashboard');assert(root);assert(polls.has(5));
+ if(process.env.ERROR_TEXT_TEST==='1') {
+  root.querySelector('button').click();await settle();await settle();
+  assert(notification,'RPC rejection notification');
+  assert(notification.textContent.includes(hostile),'hostile error preserved literally');
+  assert.equal(notification.querySelectorAll('*').length,0,'error contains text only');
+  assert.equal(w.auditXss,undefined);
+  console.log('PASS FlowSense real RPC error text contains no elements');w.close();return;
+ }
+ if (!writable) {
+  const controls=[...root.querySelectorAll('input,button')];
+  assert(controls.every(n=>n.disabled),'readonly controls disabled');
+  const button=root.querySelector('button');button.click();
+  button.dispatchEvent(new w.Event('click'));await settle();
+  assert.equal(count('setMonitor'),0,'readonly synthetic handler must not dispatch setter');
+  await polls.get(5)();assert(controls.every(n=>n.disabled),'refresh preserves readonly');
+  console.log('PASS readonly controls, native/synthetic clicks, refresh: zero setters');w.close();return;
+ }
  assert.equal(root.querySelector(':scope > h2').textContent,'Airoha FlowSense');
  assert.equal(root.querySelector(':scope > h2 + .cbi-map-descr').textContent,'View Ethernet traffic, link quality, and PPE flow entries.');
+ assert.equal(w.getComputedStyle(root.querySelector('.flowsense-section .cbi-value')).marginTop,'0px','compact app metric spacing');
  assert(root.querySelector(':scope > .flowsense-status-message'));
  assert.equal(w.getComputedStyle(root.querySelector(':scope > .flowsense-status-message')).textAlign,'right');
  assert.equal(count('getOverview'),1,'load data reused without duplicate RPC');assert.equal(count('getPpeEntries'),0);
@@ -78,12 +102,19 @@ function count(name){return calls.filter(n=>n===name).length;}
   target.dispatchEvent(new w.Event('input'));enabled.checked=false;enabled.dispatchEvent(new w.Event('change'));
   apply.click();await settle();
   assert(target.disabled&&enabled.disabled&&apply.disabled,'freeze both editable controls until save settles');
-  const writes=count('setMonitor');apply.click();await settle();assert.equal(count('setMonitor'),writes,'no duplicate save');
+  const writes=count('setMonitor');apply.click();apply.dispatchEvent(new w.Event('click'));await settle();assert.equal(count('setMonitor'),writes,'no duplicate save');
   waitSave.resolve();await settle();await settle();waitSave=null;
   assert(!target.disabled&&!enabled.disabled&&!apply.disabled,'unlock after success or rejection');
   assert.equal(target.value,fail?'retry.example':'saved.example','failed save retains edits');
   assert.equal(enabled.checked,false);
  }
+ // Permission revoked while a write is pending must stay locked in finally.
+ waitSave=deferred();apply.click();await settle();writable=false;
+ waitSave.resolve();await settle();await settle();waitSave=null;
+ assert(target.disabled&&enabled.disabled&&apply.disabled,'readonly finally stays locked');
+ const writes=count('setMonitor');apply.dispatchEvent(new w.Event('click'));await settle();
+ assert.equal(count('setMonitor'),writes,'revoked permission blocks handler');
+ writable=true;
  for(const [carrier,label,color] of [[1,'↑Connected','rgb(22, 163, 74)'],[0,'↓Disconnected','rgb(51, 51, 51)'],[null,'—Unknown','rgb(51, 51, 51)'],[true,'↑Connected','rgb(22, 163, 74)'],[false,'↓Disconnected','rgb(51, 51, 51)']]) {
   sample.interfaces.forEach(p=>p.carrier=carrier);await refresh();
   for(const state of check.querySelectorAll('.flowsense-status')) {

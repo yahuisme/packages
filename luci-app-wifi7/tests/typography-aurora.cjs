@@ -42,10 +42,17 @@ const {JSDOM}=require('jsdom'),{chromium}=require('playwright');
    assert.equal(result.body.length,1);
    assert(result.nativeComparisons.length,'visible semantic components measured');
    for(const e of result.nativeComparisons){
-    if(!e.summaryException)assert.deepEqual(e.actual,e.native,`${state} ${width} ${e.tag} ${e.classes} ${e.text}: active-theme typography`);
+    if(e.classes==='wifi7-status-arrow') {
+     assert.equal(e.actual[0][1],'600','approved status arrow weight');
+     for(let p=0;p<3;p++)for(const k of [0,2,3,4])assert.equal(e.actual[p][k],e.native[p][k],'arrow otherwise native');
+    } else if(!e.summaryException)assert.deepEqual(e.actual,e.native,`${state} ${width} ${e.tag} ${e.classes} ${e.text}: active-theme typography`);
     else {
      // Only summary line-height, value emphasis and small's inherited size differ.
-     for(let p=0;p<3;p++){assert.equal(e.actual[p][2],e.native[p][2],'summary keeps native family');assert.equal(e.actual[p][4],e.native[p][4],'summary keeps native tracking');}
+     for(let p=0;p<3;p++){assert.equal(e.actual[p][2],e.native[p][2],'summary keeps native family');if(e.tag==='STRONG' && e.native[p][4]!=='normal') {
+      // Aurora uses em tracking: approved 1.125em value scales its pixel result.
+      const expected=parseFloat(e.native[p][4])*parseFloat(e.actual[p][0])/parseFloat(e.native[p][0]);
+      assert(Math.abs(parseFloat(e.actual[p][4])-expected)<0.00001,'summary keeps theme-relative tracking');
+     } else assert.equal(e.actual[p][4],e.native[p][4],'summary keeps native tracking');}
      if(e.tag==='STRONG'){assert.equal(e.actual[0][1],'600');}
      else {assert.equal(e.actual[0][1],e.native[0][1]);if(e.tag!=='SMALL')assert.equal(e.actual[0][0],e.native[0][0]);}
     }

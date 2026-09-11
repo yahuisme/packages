@@ -2,6 +2,7 @@
 'require view';
 'require form';
 'require uci';
+'require ui';
 
 function validPoints(points) {
 	var previousTemp = -1, previousPwm = 0;
@@ -79,6 +80,7 @@ function updateCurvePreview(node) {
 }
 
 var previewCSS = '\
+.modal.fan-settings-modal{max-width:calc(100vw - 32px);box-sizing:border-box}\
 .fan-settings .cbi-section-node{box-sizing:border-box}\
 .fan-settings [data-name^="point"]{box-sizing:border-box}\
 .fan-settings .fan-curve-preview{max-width:none;margin:0;color:var(--cbi-text-color,currentColor)}\
@@ -108,6 +110,20 @@ return view.extend({
 
 	render: function() {
 		var map = new form.Map('fan', _('Airoha Fan Settings'), _('Configure fan control mode and speed curves.'));
+		var save = map.save;
+		map.save = function(cb, silent) {
+			// Own only this map's error dialog; keep native validation and rejection.
+			return save.call(this, cb, true).catch(function(error) {
+				if (!silent) ui.showModal(_('Save error'), [
+					E('p', {}, [ _('An error occurred while saving the form:') ]),
+					E('p', {}, [ E('em', { 'style': 'white-space:pre-wrap' }, [ error.message ]) ]),
+					E('div', { 'class': 'right' }, [
+						E('button', { 'class': 'cbi-button', 'click': ui.hideModal }, [ _('Dismiss') ])
+					])
+				], 'fan-settings-modal');
+				throw error;
+			});
+		};
 		var settings = map.section(form.NamedSection, 'settings', 'fancontrol', _('Control Mode'));
 		settings.anonymous = true;
 

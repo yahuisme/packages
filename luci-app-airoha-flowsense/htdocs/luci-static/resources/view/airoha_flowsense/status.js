@@ -21,7 +21,7 @@ var css = `
 .flowsense-dashboard .flowsense-status-arrow{color:inherit;font-weight:600}
 .flowsense-dashboard .flowsense-up > span{color:#16a34a}
 .flowsense-dashboard .flowsense-port-name{font-size:1.125em;font-weight:600}
-.flowsense-dashboard .flowsense-section{margin:16px 0}.flowsense-dashboard .flowsense-section .cbi-value{padding:8px 0}
+.flowsense-dashboard .flowsense-section{margin:16px 0}.flowsense-dashboard .flowsense-section .cbi-value{margin:0;padding:8px 0}
 .flowsense-dashboard .flowsense-ports{container-type:inline-size}
 .flowsense-dashboard .flowsense-port{display:grid;grid-template-columns:minmax(0,.7fr) repeat(3,minmax(0,1fr));gap:16px;align-items:start;margin:0;padding:16px 0;border-bottom:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0))}
 .flowsense-dashboard .flowsense-port:last-child{border-bottom:0}.flowsense-dashboard .flowsense-port-title{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;overflow-wrap:anywhere}
@@ -83,13 +83,15 @@ return view.extend({
 		var apply = E('button', { 'class': 'cbi-button cbi-button-action cbi-button-primary' }, _('Save & Apply'));
 		var previous = null, dirty = false, pending = null, ppePending = null, generation = 0, online = false;
 		target.addEventListener('input', function() { dirty = true; }); enabled.addEventListener('change', function() { dirty = true; });
+		target.disabled = enabled.disabled = apply.disabled = !L.hasViewPermission();
 		apply.addEventListener('click', function() {
+			if (!L.hasViewPermission() || apply.disabled) return;
 			if (!validTarget(target.value)) { ui.addNotification(null, E('p', {}, _('Enter a valid IPv4 address or hostname.')), 'error'); target.focus(); return; }
 			target.disabled = enabled.disabled = apply.disabled = true;
 			setMonitor(target.value.trim(), enabled.checked ? 1 : 0).then(function(result) {
 				if (!result || result.success !== true) throw new Error(_('Unable to apply monitor settings.'));
 				dirty = false; return update();
-			}).catch(function(error) { ui.addNotification(null, E('p', {}, error.message), 'error'); }).finally(function() { target.disabled = enabled.disabled = apply.disabled = false; });
+			}).catch(function(error) { ui.addNotification(null, E('p', {}, [error.message]), 'error'); }).finally(function() { target.disabled = enabled.disabled = apply.disabled = !L.hasViewPermission(); });
 		});
 		var main = E('div', {}, [summary, E('div', { 'class': 'cbi-section' }, [E('h3', { 'class': 'cbi-section-title' }, _('Ethernet Links')), interfaces]), quality]);
 		var monitor = E('div', { 'class': 'cbi-section' }, [E('h3', { 'class': 'cbi-section-title' }, _('Probe Settings')), metric(_('IPv4 address or hostname'), target), metric(_('Enable periodic probes'), enabled), E('div', { 'class': 'cbi-value' }, [E('span', { 'class': 'cbi-value-title' }), E('div', { 'class': 'cbi-value-field' }, apply)])]);

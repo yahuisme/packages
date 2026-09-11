@@ -6,7 +6,6 @@
 
 'use strict';
 'require form';
-'require poll';
 'require rpc';
 'require uci';
 'require ui';
@@ -102,18 +101,12 @@ return view.extend({
 
 		s = m.section(form.TypedSection);
 		s.render = function() {
-			poll.add(() => {
-				return hp.getServiceStatus('sing-box-s').then((res) => {
-					let view = document.getElementById('service_status');
-					if (view)
-						view.replaceChildren(hp.renderServiceStatus(res, _('HomeProxy Server'), features.version));
-				});
+			const status = E('p', { id: 'service_status' }, _('Collecting data...'));
+			hp.pollElement(status, 'server', () => hp.getServiceStatus('sing-box-s'), (res) => {
+				status.replaceChildren(hp.renderServiceStatus(res, _('HomeProxy Server'), features.version));
 			});
-
-			return E('div', { class: 'cbi-section', id: 'status_bar' }, [
-					E('p', { id: 'service_status' }, _('Collecting data...'))
-			]);
-		}
+			return E('div', { class: 'cbi-section', id: 'status_bar' }, [ status ]);
+		};
 
 		s = m.section(form.NamedSection, 'server', 'homeproxy', _('Global Settings'));
 

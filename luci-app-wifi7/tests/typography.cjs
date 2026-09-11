@@ -13,7 +13,7 @@ const {boot}=require('./integration.cjs');
  };
  const save=name=>{if(!out)return;for(const e of h.w.document.querySelectorAll('input')){e.setAttribute('value',e.value);e.toggleAttribute('checked',e.checked)}for(const e of h.w.document.querySelectorAll('option'))e.toggleAttribute('selected',e.selected);fs.writeFileSync(path.join(out,name+'.dom.html'),h.j.serialize());};
  try{
-  assert(!/font-size|font-weight|font-family|letter-spacing/.test(h.q('.wifi7-map style').textContent),'application leaves typography to the theme');
+  assert(!/font-size|font-weight|font-family|letter-spacing/.test(h.q('.wifi7-map style').textContent.replace(/\.wifi7-map \.wifi7-status-arrow\s*\{[^}]*\}/, '')),'application leaves typography to the theme');
   for(let i=0;i<4;i++){await h.tab(i);await h.poll();if(i===3)for(const detail of h.node.querySelectorAll('details'))detail.open=true;save('tab'+i);}
   await h.tab(2);
   assertMloHierarchy();

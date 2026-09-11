@@ -26,7 +26,7 @@ const w = j.window;
   const source=fs.readFileSync(path.join(__dirname,'../htdocs/luci-static/resources/view/fan/settings.js'),'utf8');
   const observed=[];let disconnects=0;
   w.ResizeObserver=class { observe(svg){observed.push(svg);} disconnect(){disconnects++;} };
-  const C=w.Function('view','form','uci',source)(mods.view.extend({__init__(){}}),mods.form,mods.uci);
+  const C=w.Function('view','form','uci','ui',source)(mods.view.extend({__init__(){}}),mods.form,mods.uci,mods.ui);
   const app=new C();await app.load();const node=await app.render();w.document.querySelector('#view').append(node);
   assert.equal(node.querySelector(':scope > h2').textContent, 'Airoha Fan Settings');
   const section=node.querySelector('.cbi-section-node[data-section-id="custom"]');assert(section);
@@ -66,12 +66,35 @@ const w = j.window;
   assert.equal(resetSVG.querySelectorAll('.fan-curve-axes line').length,20,'all tick gridlines remain after reset');
   const resetInput=node.querySelector('[data-name="point1_temp"] input');
   resetInput.value='90';resetInput.dispatchEvent(new w.Event('input',{bubbles:true}));
-  await assert.rejects(map.save());
-  assert(w.document.querySelector('.modal h4'),'native validation modal is visible');
-  assert.equal(w.document.querySelectorAll('.modal style').length,0,'validation modal uses native theme without typography injection');
-  mods.ui.hideModal();mods.ui.showModal('Unrelated',[w.E('p',{},['Independent modal'])]);
-  assert(!w.document.querySelector('.fan-settings-modal'),'next modal must not inherit fan styling');
-  mods.ui.hideModal();
+  const originalShowModal=mods.ui.showModal, originalMapSave=mods.form.Map.prototype.save;
+  const modal=()=>w.document.querySelector('#modal_overlay .modal');
+  const active=()=>w.document.body.classList.contains('modal-overlay-active');
+  for(const kind of ['curve','manual']) {
+   if(kind==='manual') {
+    map.lookupOption('mode','settings')[0].getUIElement('settings').setValue('manual');map.checkDepends();
+    map.lookupOption('manual_pwm','settings')[0].getUIElement('settings').setValue('999');
+   }
+   let callbackCalled=false;
+   await assert.rejects(map.save(()=>{callbackCalled=true;}));
+   assert.equal(callbackCalled,false,'invalid parse never calls save callback');
+   assert(active());assert(modal().classList.contains('fan-settings-modal'));
+   assert.equal(modal().querySelector('h4').textContent,'Save error');
+   assert.equal(modal().querySelectorAll('style').length,0,'no typography injection');
+   modal().querySelector('button').click();assert(!active(),'native dismissal works');
+   await assert.rejects(map.save());assert(active(),'invalid save reopens');
+   w.document.querySelector('#modal_overlay').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+   assert(!active(),'native Escape dismisses');
+   mods.ui.showModal('Unrelated',[w.E('p',{},['Independent modal'])]);
+   assert(!modal().classList.contains('fan-settings-modal'),'next modal does not inherit fan styling');
+   await assert.rejects(map.save(null,true));
+   assert.equal(modal().querySelector('h4').textContent,'Unrelated','silent failure preserves unrelated modal');
+   mods.ui.hideModal();
+  }
+  assert.equal(mods.ui.showModal,originalShowModal,'no global UI monkey patch');
+  assert.equal(mods.form.Map.prototype.save,originalMapSave,'no global Map monkey patch');
+  map.lookupOption('manual_pwm','settings')[0].getUIElement('settings').setValue('128');
+  let callbackCalled=false;await map.save(()=>{callbackCalled=true;});
+  assert(callbackCalled,'valid save forwards callback');assert(!active(),'valid save has no modal');
   node.remove();assert.equal(w.document.querySelectorAll('.fan-settings style').length,0);
   console.log('PASS real LuCI settings: custom section, ten widgets, defaults, fixed PWM, live valid/invalid curve, local style cleanup');
  } finally {j.window.close();}

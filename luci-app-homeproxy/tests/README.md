@@ -1,5 +1,20 @@
 # Focused regression checks
 
+Client/server lifecycle and node import modal (full production views, real LuCI Map/reset/UI/RPC/poll):
+
+```sh
+export NODE_PATH=/usr/local/lib/node_modules
+export LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/resources
+export AURORA_HTDOCS=/path/to/luci-theme-aurora/htdocs
+node tests/test_page_lifecycle.cjs
+HP_MODAL_OUTPUT=/tmp/homeproxy-modal node tests/test_import_modal.cjs
+HP_LAYOUT_OUTPUT=/tmp/homeproxy-layout node tests/test_page_layout.cjs
+```
+
+The LuCI checkout must also include `applications/luci-app-firewall` and the base Chinese PO. These reuse the connection lifecycle boot fixture and execute complete client/node/server modules, not extracted render snippets. Lifecycle assertions cover actual repeated Map.reset, queue removal before the next tick, held RPC single-flight across reset/reentry, stale success/error rejection, failed-transport recovery and poll stop/start. A watchdog rejects accidentally unresolved test promises; expected injected transport failures are logged by real LuCI RPC.
+
+Chromium uses freshly exported translated DOM and unmodified Aurora assets at 390/768/1440 in light/dark mode, recording measurements/source hashes/screenshots. The import test compares unrelated native modals before and after real ui.showModal reuse. The page/tab matrix checks overflow and native inherited service-status weight. These static browser fixtures do not reconstruct the router sidebar or run backend services; interactive lifecycle runs separately in jsdom.
+
 Value-only typography and description regression (real LuCI DOM/Map/reset, fixture transport):
 
 ```sh

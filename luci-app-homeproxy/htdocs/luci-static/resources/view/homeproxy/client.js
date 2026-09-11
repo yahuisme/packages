@@ -8,7 +8,6 @@
 'require form';
 'require dom';
 'require network';
-'require poll';
 'require rpc';
 'require uci';
 'require ui';
@@ -256,32 +255,26 @@ return view.extend({
 		};
 
 		s = m.section(form.TypedSection);
-		s.render = function () {
-			poll.add(function () {
-				return Promise.all([
-					hp.getServiceStatus('sing-box-c'),
-					L.resolveDefault(callCurrentNode(), null)
-				]).then((res) => {
-					let isRunning = res[0],
-					    current = res[1],
-					    current_label = null;
+		s.render = function() {
+			const status = E('p', { id: 'service_status' }, _('Collecting data...'));
+			hp.pollElement(status, 'client', () => Promise.all([
+				hp.getServiceStatus('sing-box-c'),
+				L.resolveDefault(callCurrentNode(), null)
+			]), (res) => {
+				let isRunning = res[0],
+				    current = res[1],
+				    current_label = null;
 
-					if (current?.mode === 'urltest') {
-						let active = current.active || {};
-						let nodeName = (active?.id && active.id !== 'urltest') ? (proxy_nodes[active.id] || active.label || active.id) : _('Invalid node');
+				if (current?.mode === 'urltest') {
+					let active = current.active || {};
+					let nodeName = (active?.id && active.id !== 'urltest') ? (proxy_nodes[active.id] || active.label || active.id) : _('Invalid node');
 
-						current_label = _('URLTest: %s').format(nodeName);
-					}
-					let view = document.getElementById('service_status');
-					if (view)
-						view.replaceChildren(hp.renderServiceStatus(isRunning, _('HomeProxy'), features.version, current_label));
-				});
+					current_label = _('URLTest: %s').format(nodeName);
+				}
+				status.replaceChildren(hp.renderServiceStatus(isRunning, _('HomeProxy'), features.version, current_label));
 			});
-
-			return E('div', { class: 'cbi-section', id: 'status_bar' }, [
-				E('p', { id: 'service_status' }, _('Collecting data...'))
-			]);
-		}
+			return E('div', { class: 'cbi-section', id: 'status_bar' }, [ status ]);
+		};
 
 		s = m.section(form.NamedSection, 'config', 'homeproxy');
 
@@ -745,11 +738,9 @@ return view.extend({
 		so.depends('enabled', '1');
 		so.renderWidget = function() {
 			const container = E('div', {}, _('Collecting data...'));
-			const refresh = () => L.resolveDefault(callTailscaleStatus(), {}).then((status) => {
+			hp.pollElement(container, 'tailscale', () => L.resolveDefault(callTailscaleStatus(), {}), (status) => {
 				dom.content(container, renderTailscaleStatus(status));
-			});
-			poll.add(refresh, 5);
-			refresh();
+			}, 5, true);
 			return container;
 		};
 

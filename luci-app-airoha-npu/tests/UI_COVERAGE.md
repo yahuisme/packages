@@ -1,44 +1,52 @@
 # NPU UI 覆盖清单
 
-## 最终覆盖与改动
+## 当前界面与样式
 
-- Status：四个摘要、CPU 频率图、SoC/NPU 详情；Settings：三个真实 LuCI 控件、未知流控只读、原生页脚保存/保存并应用/复位，以及无修改、成功、恢复无法验证三种原生 notification。
-- 真实包内 PO 与上游中文 base.po 经 `po2lmo` 编译，加载 LMO 哈希索引到 `window.TR`，在 `cbi.js` 后使用原生 `_()`。发现 `Max limit: ` 尾空格被原生 lookup 规范化而漏译；同步源码/PO/POT 改为无尾空格 key，最终截图为“上限: 1200 MHz”。不是字符串替身翻译。
-- 最终中英各 60 个组合：6 个独立页面状态 × 320/390/768/1024/1440px × 明暗主题，共 120 个真实 Aurora CSS/字体/侧栏模板 + LuCI DOM + Chromium 几何案例。无文档横向溢出，无 page/resource error；三个控件和页脚按钮有非零尺寸且在视口内；中文通知、关闭按钮正常换行。
-- CPU 图高 200px、刻度 12px、细线 1.5px；绿色 `#22a06b` 阶梯与同色 0.10 透明面积，无渐变。填充位于网格下方，每段各自闭合到零基线；null/漏采样不跨段填充。普通点半径 1，孤立真实点半径 2。图表/详情标题统一 14px、500 字重；保持原页面结构。
-- 已通过 vision 查看最终中文 390px 浅色、1440px 暗色阶梯图，以及 320px 失败通知/保存按钮：无明显错位或截断。未增加页面大标题或装饰。
+- Status：原生页面标题/说明、四个摘要、CPU 频率图和 SoC/NPU 详情。Settings：原生页面标题/说明、三个真实 LuCI 控件、未知流控只读、原生页脚和无修改/成功/恢复无法验证通知。
+- 状态 CSS 全部限定于 `.npu-dashboard`，包括逗号分组与 media 规则；style 随根节点移除。摘要外间距、详情面板外间距/桌面内边距及行间横向间距为 16px；详情行内边距、分组标题间距和手机面板内边距为 8px。详情网格按实际可用宽度自适应，避免 Aurora 平板侧栏下两列挤压完整状态。
+- 保留摘要 96px 最小高度、8px 16px padding、4px gap、1.125em/600 中值的既定例外；保留 6px 圆角、1px 边框及图表坐标，不把这些非布局值机械改成 8 的倍数。标题与普通文本跟随主题，无独立 14px/500 标题规则。
+- CPU 图高 200px、刻度 12px、线宽 1.5px；绿色 `#22a06b` 阶梯与同色 0.10 透明面积。null/漏采样分段，不跨段填充。字体/坐标/真实数据行为不因布局收敛改变。
+- 中文使用真实包内 PO 与上游 base.po，经现有 `po2lmo` 编译为 LMO，加载哈希索引到 `window.TR`，在 `cbi.js` 后使用原生 `_()`，不是字符串替身翻译。
 
-## 采样与行为边界
+## 行为覆盖
 
-用户后续明确授权 CPU 从 5 秒改为 3 秒；保留此前每秒检查 deadline 的调度抖动修复，CPU RPC 最快 3 秒一次，firewall/offload 最快 6 秒一次（没有跟随 CPU 提频），`getInfo` 仅加载时调用。真实 LuCI scheduler 夹具验证首轮加载加两次 CPU 刷新期间 getStatus 共 3 次、getFlowOffload 共 2 次。
+- CPU 最快 3 秒请求一次；每秒检查 deadline，firewall/offload 最快 6 秒一次，`getInfo` 仅初始加载。CPU RPC 设置 `nobatch: true`，CPU 与 flow 使用独立 single-flight guard；poll 不返回 flow promise。真实 LuCI `poll.step()` 验证挂起 flow 时 CPU 仍连续采样、flow 不重复请求；挂起 CPU 本身不生成替代样本。
+- 前值阶梯绘制仅表示有效读数之间的保持；最新有效值最多向当前时间保持 3 秒，不新增 samples。null、无效读数和间隔 >=4.5 秒断线/断面积；120 秒历史在请求挂起时仍过期。detach/pagehide 清理 poll、计时器和观察器。
+- `test_dom.js` 使用真实 LuCI DOM/RPC/poll，覆盖提前 1ms 的 scheduler、3s/6s 次数、失败/未知、短暂保持、null/漏采样分段、独立挂起、过期和清理。故意注入 RPCError 是负例，不代表整套测试失败；以最终 PASS 和退出码为准。
+- `test_settings_form.js` 使用真实 LuCI form/widget/footer Save click，覆盖初始三个值、未知流控只读、无修改不写、成功和失败通知。真实 `Map.reset()` 在成功/失败后保持最近确认基线，保留唯一局部 style；reset 后再 Save 不会撤销成功设置。`test_settings.js` 另覆盖完整 undo、读回验证与恢复失败区分（该测试使用轻量 form stub）。
+- `test_chart_mount.js` 在 Chromium 执行实际状态视图 render/生命周期和 LuCI DOM，冻结 interval，覆盖首帧、重新进入、容器/视口 resize、无 ResizeObserver fallback、detach/pagehide。共 30 条测量记录，并非 30 个独立页面。
 
-审查后端 `get_status()`：只读若干 sysfs/debugfs 字段、在线 CPU 列表 awk 计数与 NPU 驱动 symlink glob；无 PPE 表扫描、UCI、固件 strings 或防火墙 reload。未改后端，未测真机 RPC 用时/CPU 开销。
+## Aurora 矩阵与复现
 
-正常有效读数之间按前值阶梯绘制；最新有效值最多向当前时间保持 3 秒，仅改路径不添加 samples。超过 3 秒停止延展；null、无效读数和间隔 >=4.5 秒断线、面积断开。CPU 回包立即采样/清空失败指标，不等待挂起的 flow；整组传输 settle 前仍不释放防重叠 guard，所以长期挂起 flow 可能阻止后续 CPU 请求，这是诚实缺口而非伪造连续。120 秒历史保留，3 秒夹具满窗最多 41 个真实读数；挂起期间照常过期至空，离开根节点/pagehide 清理计时器与 poll。
+`test_chart_layout.js` 每种语言覆盖 6 个状态 × 5 个宽度（320/390/768/1024/1440）× 明暗主题，共 60 个组合：status、settings、settings-unknown、settings-saved、settings-noop、settings-failed。
 
-行为测试覆盖：真实 scheduler 提前 1ms、3s/6s RPC 次数、阶梯路径、无伪造样本、短暂保持及超时、RPC 失败未知、null/漏采样面积断段、流控失败不丢 CPU、挂起 transport 无重叠、120s 过期、detach/pagehide。设置使用真实 form/widget/footer click 执行保存，覆盖无修改、成功、恢复失败通知；原有完整 rollback/readback 行为回归保留。
-
-## 复现与证据
+验证实际 Aurora CSS/字体/侧栏模板和当前源码导出的 DOM；断言浏览器/资源无错误、无文档横向溢出、三个 **select 控件本身** 和原生页脚按钮有尺寸且在视口内、通知与关闭按钮容纳、图表刻度及线宽、局部 CSS 作用域与无关同名 sibling 不受影响、8pt 间距/摘要例外，以及 fixture 详情值没有省略截断。不是仅检查 `.cbi-value` 行高度。
 
 ```sh
 cd /root/packages/luci-app-airoha-npu
-export NODE_PATH=$(npm root -g)
+export NODE_PATH=/usr/local/lib/node_modules
 export LUCI_RESOURCE_DIR=/tmp/mlo-luci/modules/luci-base/htdocs/luci-static/resources
 export AURORA_DIR=/tmp/packages-fix-aurora
-export PLAYWRIGHT_MODULE=/tmp/packages-browser-qa/node_modules/playwright
+# 如果 playwright 不在 NODE_PATH，设置 PLAYWRIGHT_MODULE 为其实际模块路径。
 export NPU_ZH=1
-mkdir -p /tmp/npu-zh-verified
-NPU_DOM_EXPORT=/tmp/npu-zh-verified/npu.dom.html node tests/test_dom.js
-NPU_SETTINGS_EXPORT=/tmp/npu-zh-verified/settings node tests/test_settings_form.js
-NPU_LAYOUT_DIR=/tmp/npu-zh-verified node tests/test_chart_layout.js
+export NPU_LAYOUT_DIR=/tmp/npu-zh-verified
+mkdir -p "$NPU_LAYOUT_DIR"
+NPU_DOM_EXPORT="$NPU_LAYOUT_DIR/npu.dom.html" node tests/test_dom.js
+NPU_SETTINGS_EXPORT="$NPU_LAYOUT_DIR/settings" node tests/test_settings_form.js
+node tests/test_chart_layout.js
+# mount 专项为英文/浅色、隔离传输与定时器，不属于中文明暗矩阵。
+unset NPU_ZH
 node tests/test_settings.js
+node tests/test_chart_mount.js
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
-msgfmt --check -o /tmp/npu-zh-verified/catalog.mo po/zh_Hans/luci-app-airoha-npu.po
-node --check htdocs/luci-static/resources/view/airoha_npu/status.js
-sh -n root/usr/libexec/rpcd/luci.airoha_npu
-git diff --check
+msgfmt --check -o /dev/null po/zh_Hans/luci-app-airoha-npu.po
+git diff --check -- .
 ```
 
-英文同样运行，unset NPU_ZH，输出到 `/tmp/npu-en-verified`。两目录分别含 `layout-results.json`、源码/DOM/CSS/PO 哈希 `manifest.json`、60 张截图及行为日志。RPCError 日志属于故意注入失败，最终 PASS 才是结果。
+英文布局需在 unset NPU_ZH 后重新导出至不同目录，再运行 chart_layout。每目录的 `layout-results.json`、`manifest.json` 和截图绑定源码/DOM/CSS/PO；任何源代码修改后必须重新导出并重跑，不能沿用旧证据。最近一次最小样式修正的仓库外证据在 `/root/packages-fix-npu-evidence/`，运行记录见 `runs.json`，确切结果/边界见 `/root/packages-fix-npu-report.md`。
 
-边界：离线真实 DOM/CSS/原生翻译/浏览器几何和 jsdom 交互，不是部署到真机；浏览器导出不保留事件，实际保存 click 在真实 LuCI jsdom 中执行。下拉展开、复位/保存并应用执行、完整导航/浏览器 LuCI 生命周期未验证。Python 六项测试使用隔离 UCI/jsonfilter 夹具，不声称真实 OpenWrt 工具链/硬件验证。未提交、推送或构建，未修改其它包。
+## 验证边界
+
+离线真实 DOM/CSS/原生中文翻译/浏览器几何及 jsdom 保存/reset 交互，不是部署到真机。导出 HTML 不保留事件；浏览器布局矩阵不能代替真实 form 测试。浏览器原生下拉展开、Save & Apply/强制应用执行、Reset 页脚按钮 click、完整导航和设备写入未验证（`Map.reset()` 已实际执行，不再列为未测）。状态矩阵使用明确 fixture，并非硬件历史或所有未知/错误状态的独立截图；长任意固件路径仍使用已有省略策略。
+
+后端测试使用临时 NPU_ROOT、UCI/jsonfilter 工具或 fixture、firewall reload stub；没有实际硬件读写/防火墙应用验证。未测真机 RPC 成本、驱动、加速流量、设备级并发/断电恢复。不提交、推送或构建。

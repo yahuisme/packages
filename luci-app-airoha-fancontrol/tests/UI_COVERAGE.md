@@ -20,7 +20,15 @@
 | 状态：不一致 | 完整中文“配置模式与硬件状态不一致” |
 | 状态：不可用 | 缺失值显示破折号/读取失败，不编造零值 |
 
-应用没有内部 Tab 或自定义新增/编辑弹窗；两个入口是独立状态和设置页面。弹窗来自 LuCI 原生表单验证，并非手工仿制 HTML。
+应用没有内部 Tab 或自定义新增/编辑弹窗；两个入口是独立状态和设置页面。错误由真实 LuCI 表单验证产生；本应用 Map 以 silent 模式调用原生 save，再用原生 ui.showModal 展示同一错误内容并传入专属 fan-settings-modal 类，不伪造验证或全局修改 UI。
+
+### 保存错误弹窗回归
+
+- 在修改生产代码前，新增几何断言真实失败：768px 下 modal left=-128、right=896、width=1024，document 并不溢出。
+- 专项 16 项：两类错误 × 390/768/1024/1440 × 明暗，真实 272px 平板 sidebar；检查弹窗、正文、关闭按钮矩形均在视口，保存 modal-geometry.json 与截图。
+- 另 8 项比较无关原生 modal 开启/移除应用 CSS 前后的矩形、字号、字体、padding、max-width，完全相同。
+- test_settings_form.js 用真实 LuCI 验证两类错误、关闭/重开、Escape、silent 不替换无关弹窗、有效保存及 callback 转发，无全局 showModal/Map.save 修改。
+- 状态页布局间距归整到 8pt，保留 96px 摘要最小高、8/16px padding、4px 行 gap；全部状态 CSS 限于 .fan-dashboard，图表尺寸/颜色/字号不改。48 项状态侧栏回归还检查真实 padding、温度标签和值分离、文字不裁切及 track 间距。
 
 ## 主题与视觉结果
 

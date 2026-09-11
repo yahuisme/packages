@@ -25,6 +25,14 @@ const status = fs.readFileSync(base + 'status.js', 'utf8');
 const statusContext = { _: s => s, view: { extend: x => x }, rpc: { declare: () => () => {} }, poll: {}, L: {} };
 vm.createContext(statusContext);
 vm.runInContext('(function(){' + status + '})();', statusContext);
+vm.runInContext(status.slice(status.indexOf('var statusCSS'),status.indexOf('function validNumber'))+';this.css=statusCSS;',statusContext);
+for(const rule of statusContext.css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+ if(rule[1].startsWith('@'))continue;
+ for(const selector of rule[1].split(','))assert(selector.trim().startsWith('.fan-dashboard '),'status CSS must be scoped: '+selector);
+ for(const spacing of rule[2].matchAll(/(?:padding|margin|gap)(?:-[\w]+)?:([^;]+)/g)) {
+  for(const number of spacing[1].matchAll(/(\d+)px/g))assert(Number(number[1])%8===0 || (rule[1].trim()==='.fan-dashboard .fan-summary-card' && spacing[0]==='gap:4px'),'8pt layout spacing: '+spacing[0]);
+ }
+}
 vm.runInContext(status.slice(status.indexOf('function validNumber'), status.indexOf('function presetInfo')), statusContext);
 assert.strictEqual(statusContext.validTemp(50), true);
 assert.strictEqual(statusContext.validTemp(151), false);

@@ -1807,8 +1807,11 @@ return view.extend({
 							}
 						})
 					}, [ _('Import') ])
+				]),
+				E('style', { 'data-homeproxy-modal-style': '' }, [
+					'#modal_overlay > .homeproxy-import-modal{max-width:calc(100vw - 32px)}'
 				])
-			])
+			], 'homeproxy-import-modal');
 		}
 		ss.renderSectionAdd = function(/* ... */) {
 			let el = form.GridSection.prototype.renderSectionAdd.apply(this, arguments),
