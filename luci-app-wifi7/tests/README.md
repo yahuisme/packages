@@ -1,58 +1,40 @@
-# 本地回归测试
+# Core regression tests
 
-测试使用隔离协议数据，不连接路由器、不修改宿主网络。Node.js 测试需要外部安装的 jsdom 和目标 LuCI 源码。
+Run from this package directory. Dependencies are installed outside the repository:
 
 ```sh
-export NODE_PATH=/path/to/node_modules
+export NODE_PATH="$(npm root -g)"
 export LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/resources
-export LUCI_RPC="$LUCI_RESOURCE_DIR/rpc.js"
-node tests/telemetry.test.js
-node tests/lifecycle.test.js
-node tests/mlo-runtime.cjs
-node tests/mlo-editor.cjs
-node tests/mlo-poll.cjs
-node tests/mlo-integration.cjs
-# 需要 gettext 的 msgfmt，以及 LuCI src/po2lmo（可用 PO2LMO 指定路径）
-node tests/mlo-localization.cjs
-node tests/view.test.js
-NATIVE_TEST=1 node tests/view.test.js
-MLO_TEST=1 node tests/view.test.js
-DENIED_TEST=1 node tests/view.test.js
-node tests/regression.test.js
-NATIVE_TEST=1 node tests/regression.test.js
-MLO_TEST=1 node tests/regression.test.js
-READONLY_TEST=1 node tests/regression.test.js
-export LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/resources
+export PYTHONDONTWRITEBYTECODE=1
+```
+
+Fixtures do not connect to a router or run host services. These checks are not firmware builds or hardware acceptance. Theme/screenshot matrices and historical visual reports are maintained separately in the external `packages-ui-audit-tools` workspace; they are not package dependencies.
+
+```sh
+node tests/error-text.cjs
 node tests/integration.cjs
 node tests/lazy-regression.cjs
+node tests/lifecycle.test.js
+node tests/mlo-editor.cjs
+node tests/mlo-integration.cjs
+node tests/mlo-localization.cjs
+node tests/mlo-modal-layout.cjs
+node tests/mlo-poll.cjs
+node tests/mlo-runtime.cjs
 node tests/native-tabs.cjs
+node tests/regression.test.js
+node tests/style-scope.cjs
+node tests/summary-cards.cjs
+node tests/survey-dom.cjs
+node tests/telemetry.test.js
 node tests/typography.cjs
-# 可选：导出当前完整应用 DOM（含 MLO 表格和三个弹窗页签）
-# 与禁用应用样式后的相同原生语义组件比较字号、字重、字体、行高及字距，含伪元素；不固定字体数值
-# TYPOGRAPHY_OUT=/tmp/wifi7-type node tests/typography.cjs
-# TYPOGRAPHY_OUT=/tmp/wifi7-type AURORA_HTDOCS=/path/to/aurora/htdocs \
-# AURORA_HEADER=/path/to/aurora/ucode/template/themes/aurora/header.ut \
-# AURORA_SHELL=/path/to/static-aurora-shell.html node tests/typography-aurora.cjs
-# 可选：TAB_OUT 导出四页真实 DOM，使用外部 Playwright 和原始 Aurora 文件测量
-# TAB_OUT=/tmp/wifi7-tabs node tests/native-tabs.cjs
-# TAB_OUT=/tmp/wifi7-tabs AURORA_HTDOCS=/path/to/aurora/htdocs \
-# AURORA_HEADER=/path/to/aurora/ucode/template/themes/aurora/header.ut \
-# AURORA_SHELL=/path/to/static-aurora-shell.html node tests/native-tabs-aurora.cjs
+node tests/view.test.js
+for mode in text lifecycle rpc; do node tests/known-defects.cjs "$mode"; done
+for mode in NATIVE_TEST MLO_TEST DENIED_TEST; do env "$mode=1" node tests/view.test.js; done
+for mode in NATIVE_TEST MLO_TEST READONLY_TEST MISSING_MODE_TEST; do env "$mode=1" node tests/regression.test.js; done
 python3 tests/catalog.test.py
 python3 tests/probes.test.py
 python3 tests/test_summary_survey.py
-node tests/survey-dom.cjs
-node tests/known-defects.cjs text
-node tests/known-defects.cjs lifecycle
-node tests/known-defects.cjs rpc
-# 原始 Aurora CSS + 外部 Playwright：明暗 fallback、绿色状态与窄屏回归
-# AURORA_HTDOCS=/path/to/aurora/htdocs node tests/theme-fallback.cjs
 ```
 
-覆盖 RPC 解包、MLO 链路、信号未知、计数边界、CAC 与占用率、表单校验、无变更保存、失败重试、国家变更刷新、只读权限及客户端节点保留。
-
-采集测试用临时命令替身验证固定脚本拒绝参数、固件文本长度和周期采集不读取内核日志。翻译测试验证全部 JS 字符串、菜单和权限描述的 PO/POT 一致性。
-
-集成测试保留真实顶层 `view` 自动构造/挂载生命周期，并以 `baseclass` 加载嵌入式 MLO，断言父页和四个页签未被覆盖；同时加载真实 LuCI `uci.js`、`rpc.js` 和 DOM 实现，仅以隔离 HTTP 数据替代路由器，覆盖 apply/confirm、数字错误码、失败后恢复旧值再提交等路径。预期权限失败用例可能输出 LuCI 的 RPCError 日志，以最终断言及退出码为准。
-
-这些测试不替代固件构建、实机无线应用、客户端协商与真实性能测量。
+Requires BusyBox and gettext `msgfmt`; localization additionally requires LuCI `src/po2lmo` (or `PO2LMO`). `harness.js` and `mlo-luci-dom.cjs` are support modules, not test entrypoints. `integration.cjs` is both a harness and executable test. Typography-named DOM checks stay because they also assert real Map.reset, scoped modal ownership/reopen and teardown; `native-tabs.cjs` checks actual tab/poll behavior. All collector commands use temporary boundary fixtures.

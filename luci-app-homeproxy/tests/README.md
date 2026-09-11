@@ -1,57 +1,27 @@
-# Focused regression checks
+# Core regression tests
 
-Client/server lifecycle and node import modal (full production views, real LuCI Map/reset/UI/RPC/poll):
+Run from this package directory. Dependencies are installed outside the repository:
 
 ```sh
-export NODE_PATH=/usr/local/lib/node_modules
+export NODE_PATH="$(npm root -g)"
 export LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/resources
-export AURORA_HTDOCS=/path/to/luci-theme-aurora/htdocs
+export PYTHONDONTWRITEBYTECODE=1
+```
+
+Fixtures do not connect to a router or run host services. These checks are not firmware builds or hardware acceptance. Theme/screenshot matrices and historical visual reports are maintained separately in the external `packages-ui-audit-tools` workspace; they are not package dependencies.
+
+```sh
+node tests/test_connection_dom.cjs
+node tests/test_connection_lifecycle.cjs
+node tests/test_followup_dom.cjs
+node tests/test_log_lifecycle.cjs
 node tests/test_page_lifecycle.cjs
-HP_MODAL_OUTPUT=/tmp/homeproxy-modal node tests/test_import_modal.cjs
-HP_LAYOUT_OUTPUT=/tmp/homeproxy-layout node tests/test_page_layout.cjs
+node tests/test_resource_status.cjs
+node tests/test_status_dom.cjs
+python3 tests/test_list_migration.py
+python3 tests/test_resource_display.py
+python3 tests/test_resource_versions.py
+python3 tests/test_urltest_defaults.py
 ```
 
-The LuCI checkout must also include `applications/luci-app-firewall` and the base Chinese PO. These reuse the connection lifecycle boot fixture and execute complete client/node/server modules, not extracted render snippets. Lifecycle assertions cover actual repeated Map.reset, queue removal before the next tick, held RPC single-flight across reset/reentry, stale success/error rejection, failed-transport recovery and poll stop/start. A watchdog rejects accidentally unresolved test promises; expected injected transport failures are logged by real LuCI RPC.
-
-Chromium uses freshly exported translated DOM and unmodified Aurora assets at 390/768/1440 in light/dark mode, recording measurements/source hashes/screenshots. The import test compares unrelated native modals before and after real ui.showModal reuse. The page/tab matrix checks overflow and native inherited service-status weight. These static browser fixtures do not reconstruct the router sidebar or run backend services; interactive lifecycle runs separately in jsdom.
-
-Value-only typography and description regression (real LuCI DOM/Map/reset, fixture transport):
-
-```sh
-NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci-base/htdocs/luci-static/resources node tests/test_value_typography.cjs
-# Optional Chromium matrix with actual Aurora assets; output is local evidence, not package content:
-NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci-base/htdocs/luci-static/resources AURORA_HTDOCS=/path/to/luci-theme-aurora/htdocs HP_TYPOGRAPHY_OUTPUT=/tmp/homeproxy-typography node tests/test_value_typography.cjs
-```
-
-The browser matrix uses native LuCI translation lookup populated from the Chinese PO, initial/resource-reset/fresh-mount DOM exports, five viewport widths and both themes. It checks the twelve targeted values, unchanged labels/unrelated siblings, link attributes, transparent backgrounds and long-URL wrapping. It saves source/DOM hashes, measurements and representative screenshots. Browser pages use a simplified Aurora shell; interactive lifecycle is separately exercised with real LuCI in jsdom, not router hardware or live RPC.
-
-User direct/proxy/custom text lists live in `/etc/homeproxy/diversion/{id}.txt`; public SRS and `.ver` snapshots remain in `/etc/homeproxy/resources/`. The upstream migration scans legacy files independently of UCI references, merges/deduplicates when both paths exist, and keeps old-only file bytes unchanged via rename. `test_list_migration.py` executes the complete migration and RPC with real ucode/fs in private fixtures (UCI/hostname validation boundaries stubbed), covering orphan preservation, repeated runs, short-write/read/rename/unlink failures and retry. The updater regression preserves both final-path lists and not-yet-migrated legacy lists through updates and rollback.
-
-```sh
-NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci-base/htdocs/luci-static/resources node tests/test_status_dom.cjs
-NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci-base/htdocs/luci-static/resources node tests/test_connection_dom.cjs
-NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci-base/htdocs/luci-static/resources node tests/test_connection_lifecycle.cjs
-UCODE_LIB_DIR=/root/.local/opt/homeproxy-ucode/lib/ucode python3 tests/test_resource_versions.py
-UCODE_LIB_DIR=/root/.local/opt/homeproxy-ucode/lib/ucode python3 tests/test_list_migration.py
-```
-
-The connection lifecycle test mounts the actual LuCI view with real form.Map/reset, UI handlers, DOM and RPC parsing. It reproduces missing automatic testing and resource-reset loss (`--repro-reset`), then covers single-flight, malformed/failed replies, timeout/late reply, rerender and navigation. HTTP RPC and log reads are fixtures; no connection probe or resource download runs. Expected injected RPC errors may be logged by LuCI. After the 10-second display timeout, the button stays disabled until the outstanding RPC settles, preventing concurrent backend tests. Styles, labels and table structure are unchanged; jsdom is not multi-device browser or router acceptance.
-
-The DOM test executes upstream LuCI RPC and DOM with fixture transport. The updater test executes BusyBox ash, curl and ucode (fs/digest modules required), using local HTTP resources and harmless decoder/init stubs. On hosts with an out-of-tree digest module, set `UCODE_LIB_DIR` (wrapper expects `/usr/local/bin/ucode`). No proxy daemon is started.
-
-The command above uses this host's persistent module installation; on another host, use its own compatible module directory, or omit `UCODE_LIB_DIR` if digest is installed in ucode's default search path. This host retains the upstream ucode source at `/root/.local/opt/homeproxy-ucode/src` (commit `64cf18aa55c67e73b9acd0262a44d50b41774ed8`), with build output and installed `lib/ucode/digest.so` under the same prefix. It does not depend on a temporary module directory. Build prerequisites are CMake, a C compiler, pkg-config, json-c development headers and libmd development headers (Debian: `cmake build-essential pkg-config libjson-c-dev libmd-dev`). To rebuild from that retained source:
-
-```sh
-cmake -S /root/.local/opt/homeproxy-ucode/src -B /root/.local/opt/homeproxy-ucode/build -DCMAKE_INSTALL_PREFIX=/root/.local/opt/homeproxy-ucode -DDIGEST_SUPPORT=ON -DDIGEST_SUPPORT_EXTENDED=ON
-cmake --build /root/.local/opt/homeproxy-ucode/build --target digest_lib -j2
-install -m 0755 /root/.local/opt/homeproxy-ucode/build/digest.so /root/.local/opt/homeproxy-ucode/lib/ucode/digest.so
-```
-
-Clean-environment verification, runnable from any working directory:
-
-```sh
-env -i PATH=/usr/local/bin:/usr/bin:/bin /usr/local/bin/ucode -L /root/.local/opt/homeproxy-ucode/lib/ucode -e 'import { sha1 } from "digest"; import { readfile } from "fs"; assert(sha1("abc") == "a9993e364706816aba3e25717850c26c9cd0d89d"); assert(length(readfile("/root/packages/luci-app-homeproxy/tests/test_resource_versions.py")) > 0); print("fs/digest OK\n");'
-env -i PATH=/usr/local/bin:/usr/bin:/bin UCODE_LIB_DIR=/root/.local/opt/homeproxy-ucode/lib/ucode python3 /root/packages/luci-app-homeproxy/tests/test_resource_versions.py
-```
-
-Resource versions use `YYYYMMDDHHmmss COMMIT` in the existing `.ver` file so data and metadata stage/rollback together. The timestamp is the real UTC committer timestamp from the same GitHub response as the immutable commit, not the updater's local clock. RPC exposes the full 14-digit timestamp, without the commit. Legacy `YYYY-MM-DD` (with or without commit) remains date-only: missing hours/minutes/seconds are never invented. Legacy 14-digit versions remain unchanged; commit-only records display `-` until verified metadata is available. The packaged dashboard retains its original 14-digit legacy version because its bundled files differ from the upstream archive; do not attach an unverified commit. Rule-set Actions and runtime downloads retain pinned blob verification and decoder checks.
+Requires BusyBox, curl, unzip and real ucode with fs/digest modules. Set `UCODE_LIB_DIR=/path/to/compatible/ucode/modules` when not on the default search path; the updater fixture wrapper currently uses `/usr/local/bin/ucode`. The LuCI checkout must include `applications/luci-app-firewall`. Updater/migration/generator tests use private paths, loopback HTTP and harmless decoder/init/UCI/ubus boundaries; no proxy is started. DOM tests cover safe text/link attributes, resource display, real Map.reset, single-flight polling, timeout/recovery and removal. Expected injected RPC failures may be logged.

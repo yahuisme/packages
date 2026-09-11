@@ -57,6 +57,12 @@ if (require.main === module) (async()=>{
   h.button('Update all').click();await tick();await tick();assert.match(h.row().textContent,/Success0 ms/);assert.equal(h.count(),1);
   const map=h.mods.dom.findClassInstance(h.root().querySelector('#cbi-homeproxy'));
   await map.reset();await map.reset();assert.match(h.row().textContent,/Success0 ms/);assert.equal(h.count(),1);
+  const links=h.root().querySelectorAll('table a');
+  assert(links.length>0,'resource source links rendered after reset');
+  for(const a of links) {
+   assert.equal(a.target,'_blank');assert.equal(a.rel,'noreferrer noopener');
+   assert.equal(a.getAttribute('href'),a.textContent);
+  }
   assert.equal(await h.app.render(),h.root(),'repeat view render reuses current root');assert.equal(h.count(),1);
   for(const payload of [{results:null},{results:{}},{results:[null,{site:'baidu',result:'true',latency_ms:5}]}]) {
    h.button('Test all').click();await tick();await h.settle(payload);assert.match(h.row().textContent,/Failed-/);assert(!h.button('Test all').disabled);
