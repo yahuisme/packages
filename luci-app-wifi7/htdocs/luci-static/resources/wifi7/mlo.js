@@ -134,7 +134,7 @@ function summary(runtime, radios) {
 		E('div', { class: 'mlo-summary-item' }, [
 			E('span', { class: 'wifi7-label' }, _('MLO interfaces')),
 			E('strong', {}, String(sections.length)),
-			E('small', {}, _('%d incomplete').format(invalid))
+			E('small', {}, sections.length ? _('%d incomplete').format(invalid) : _('Pending addition'))
 		]),
 		E('div', { class: 'mlo-summary-item' }, [
 			E('span', { class: 'wifi7-label' }, _('Active MLD')),

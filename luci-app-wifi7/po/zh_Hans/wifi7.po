@@ -13,6 +13,9 @@ msgstr ""
 msgid "%d client associations"
 msgstr "%d 个客户端关联"
 
+msgid "Pending addition"
+msgstr "待添加"
+
 msgid "%d incomplete"
 msgstr "%d 待完善"
 

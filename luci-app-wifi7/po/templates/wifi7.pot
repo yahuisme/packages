@@ -8,6 +8,9 @@ msgstr ""
 msgid "%d client associations"
 msgstr ""
 
+msgid "Pending addition"
+msgstr ""
+
 msgid "%d incomplete"
 msgstr ""
 
