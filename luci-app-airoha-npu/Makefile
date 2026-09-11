@@ -2,6 +2,9 @@
 
 include $(TOPDIR)/rules.mk
 
+PKG_VERSION:=20260911
+PKG_RELEASE:=1
+
 LUCI_TITLE:=LuCI Support for Airoha NPU Status
 LUCI_DESCRIPTION:=Airoha driver status, kernel CPU frequency controls and firewall flow offloading configuration.
 LUCI_PKGNAME:=luci-app-airoha-npu

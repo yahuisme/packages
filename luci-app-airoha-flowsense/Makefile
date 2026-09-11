@@ -2,6 +2,9 @@
 
 include $(TOPDIR)/rules.mk
 
+PKG_VERSION:=20260911
+PKG_RELEASE:=1
+
 PKG_LICENSE:=Apache-2.0
 
 LUCI_TITLE:=LuCI Airoha FlowSense
