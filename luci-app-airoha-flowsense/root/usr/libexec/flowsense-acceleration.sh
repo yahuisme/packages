@@ -26,9 +26,10 @@ acc_vlan_filtering() {
     printf %s "$result"
 }
 acc_hardware() {
-    local data entries entry kind family table flags flag value result=0
-    # fw4 is the only table owned by this control; avoid walking every ruleset poll.
-    data=$(nft -j list table inet fw4 2>/dev/null) || { printf null; return; }
+    local data entries entry kind family table name text flags flag value result=0
+    # W1700K owns both inet fw4 and bridge fw4. One successful snapshot
+    # distinguishes an absent bridge table from a failed read.
+    data=$(nft -j list flowtables 2>/dev/null) || { printf null; return; }
     json_load "$data" >/dev/null 2>&1 || { printf null; return; }
     json_get_type kind nftables
     [ "$kind" = array ] || { printf null; return; }
@@ -39,13 +40,22 @@ acc_hardware() {
         json_get_type kind flowtable
         if [ "$kind" = object ]; then
             json_select flowtable
-            json_get_var family family; json_get_var table table
-            if [ "$family:$table" = inet:fw4 ]; then
+            json_get_var family family; json_get_var table table; json_get_var name name
+            if [ "$table" = fw4 ] && { [ "$family" = inet ] || [ "$family" = bridge ]; }; then
                 json_get_type kind flags
                 if [ "$kind" = array ]; then
                     json_select flags; json_get_keys flags
                     for flag in $flags; do json_get_var value "$flag"; [ "$value" != offload ] || result=1; done
                     json_select ..
+                else
+                    # nft 1.1.6 omits flowtable flags from JSON output. Query
+                    # the exact discovered table, not table existence or PPE load.
+                    [ -n "$name" ] || { printf null; return; }
+                    text=$(nft list flowtable "$family" "$table" "$name" 2>/dev/null) || { printf null; return; }
+                    value=$(printf '%s\n' "$text" | awk '
+                        /^[ \t]*flags[ \t]+/ { gsub(/[,;]/," "); for(i=2;i<=NF;i++) if($i=="offload") found=1 }
+                        END { print found ? 1 : 0 }')
+                    [ "$value" != 1 ] || result=1
                 fi
             fi
             json_select ..
@@ -152,9 +162,11 @@ set_acceleration() (
     read -r input
     json_load "$input" >/dev/null 2>&1 || { acc_error invalid; exit; }
     json_get_keys names
-    [ "$names" = 'hardware vlan pppoe ap' ] || {
-        for name in $names; do case "$name" in hardware|vlan|pppoe|ap) :;; *) acc_error invalid; exit;; esac; done
-    }
+    # uhttpd adds this transport metadata after checking session ACLs;
+    # rpcd forwards it alongside the method arguments. It is not a setting.
+    for name in $names; do
+        case "$name" in hardware|vlan|pppoe|ap|ubus_rpc_session) :;; *) acc_error invalid; exit;; esac
+    done
     for name in hardware vlan pppoe ap; do
         json_get_type type "$name"; json_get_var value "$name"
         [ "$type" = int ] || { acc_error invalid; exit; }

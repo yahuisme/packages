@@ -35,23 +35,16 @@ var css = `
 .flowsense-dashboard .flowsense-port-metric dt,.flowsense-dashboard .flowsense-port-metric dd{margin:0;padding:0;min-width:0;text-align:start;overflow-wrap:anywhere}
 .flowsense-dashboard .flowsense-port-metric dd{font-variant-numeric:tabular-nums}
 .flowsense-dashboard .flowsense-details{margin-top:16px}.flowsense-dashboard .flowsense-details summary{cursor:pointer;min-height:32px}
-.flowsense-dashboard .flowsense-acceleration{container-type:inline-size}
-.flowsense-dashboard .flowsense-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.flowsense-dashboard .flowsense-controls .cbi-value{display:flex;flex-flow:row nowrap;align-items:center;gap:8px;min-width:0;margin:0;padding:8px 0}
-.flowsense-dashboard .flowsense-controls .cbi-value-title{float:none;width:auto;flex:1;text-align:left;font-size:1.125em;font-weight:600;padding:0}
-.flowsense-dashboard .flowsense-controls .cbi-value-field{display:flex;flex:0 0 auto;align-items:center;justify-content:flex-end;gap:8px;margin:0;padding:0}
-.flowsense-dashboard .flowsense-controls input[type=checkbox]{appearance:none;-webkit-appearance:none;display:inline-block;position:relative;box-sizing:border-box;flex:none;margin:0;padding:0;width:48px;height:24px;border:0;border-radius:2px;background:var(--control-bg,#eee);box-shadow:none;cursor:pointer}
-.flowsense-dashboard .flowsense-controls input[type=checkbox]:before{content:none;display:none;box-shadow:none}
-.flowsense-dashboard .flowsense-controls input[type=checkbox]:after{content:"";display:block;position:absolute;box-sizing:border-box;top:4px;left:4px;width:20px;height:16px;border:0;border-radius:2px;background:var(--text-muted,#888);opacity:1;mask:none;-webkit-mask:none;transform:none;box-shadow:none;transition:none}
-.flowsense-dashboard .flowsense-controls input[type=checkbox]:checked:after{left:24px;background:var(--brand,#2563eb)}
-.flowsense-dashboard .flowsense-controls input[type=checkbox]:indeterminate:after{left:14px;background:var(--text-muted,#888)}
-.flowsense-dashboard .flowsense-controls input[type=checkbox]:disabled{cursor:not-allowed}
-.flowsense-dashboard .flowsense-controls input[type=checkbox]:focus-visible{outline:2px solid var(--brand,#2563eb);outline-offset:2px}
-.flowsense-dashboard .flowsense-acceleration-state{color:inherit}
-.flowsense-dashboard .flowsense-acceleration-state.enabled{color:#16a34a}
-.flowsense-dashboard .flowsense-acceleration-state.unknown{color:var(--cbi-muted-color,var(--text-muted,#888))}
+.flowsense-dashboard .flowsense-acceleration{container-type:inline-size;padding-inline:16px}
+.flowsense-dashboard .flowsense-controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px var(--flowsense-gap);margin-inline:-17px}
+.flowsense-dashboard .flowsense-controls .cbi-value{display:flex;flex-flow:row nowrap;align-items:flex-start;gap:8px;min-width:0;margin:0;padding:8px 32px 8px 17px}
+@container(min-width:1400px){.flowsense-dashboard .flowsense-controls .cbi-value{padding-right:80px}}
+.flowsense-dashboard .flowsense-controls .cbi-value-title{float:none;width:auto;flex:1;text-align:left;font-size:1.125em;font-weight:600;padding:8px 0;white-space:nowrap}
+.flowsense-dashboard .flowsense-controls .cbi-value-field{display:flex;flex:0 0 auto;flex-direction:column;align-items:stretch;gap:8px;min-width:0;margin:0;padding:0}
+.flowsense-dashboard .flowsense-controls select{width:104px;min-width:0}
 .flowsense-dashboard .flowsense-acceleration-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:8px}
-@container(max-width:600px){.flowsense-dashboard .flowsense-controls{grid-template-columns:minmax(0,1fr)}}
+@container(max-width:1000px){.flowsense-dashboard .flowsense-controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container(max-width:520px){.flowsense-dashboard .flowsense-controls{grid-template-columns:minmax(0,1fr)}}
 @container(max-width:800px){.flowsense-dashboard .flowsense-port{grid-template-columns:repeat(3,minmax(0,1fr))}.flowsense-dashboard .flowsense-port-title{grid-column:1 / -1}}
 @container(max-width:480px){.flowsense-dashboard .flowsense-port{grid-template-columns:minmax(0,1fr);gap:8px}.flowsense-dashboard .flowsense-port-metric{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:16px}}
 .flowsense-dashboard .cbi-input-text,.flowsense-dashboard .cbi-button{min-height:32px;box-sizing:border-box}
@@ -67,6 +60,10 @@ function rate(bytes, previous, seconds) {
 	return current != null && old != null && seconds > 0 && current >= old ? (current - old) * 8 / seconds / 1000000 : null;
 }
 function formatRate(value) { return value == null ? '—' : (value < 1 ? value.toFixed(2) : value.toFixed(value < 10 ? 1 : 0)) + ' Mbit/s'; }
+function rpcError(code, fallback) {
+	var messages = { ap_requires_vlan: _('Bridge compatibility mode requires VLAN acceleration.'), pending_changes: _('There are pending changes. Apply or discard them first.'), apply: _('Applying the acceleration settings failed.'), rollback: _('Rolling back the acceleration settings failed.'), invalid: _('The submitted acceleration settings are invalid.') };
+	return messages[code] || fallback;
+}
 function metric(label, value) { return E('div', { 'class': 'cbi-value' }, [E(value && value.id ? 'label' : 'span', { 'class': 'cbi-value-title', 'for': value && value.id || null }, label), E('div', { 'class': 'cbi-value-field' }, value)]); }
 function portMetric(label, value) { return E('dl', { 'class': 'flowsense-port-metric' }, [E('dt', {}, [label]), E('dd', {}, [value])]); }
 function statusBadge(carrier) {
@@ -118,16 +115,16 @@ return view.extend({
 				dirty = false; return update();
 			}).catch(function(error) { ui.addNotification(null, E('p', {}, [error.message]), 'error'); }).finally(function() { target.disabled = enabled.disabled = apply.disabled = !L.hasViewPermission(); });
 		});
-		var accelerationState = {}, accelerationInputs = {}, accelerationLabels = {}, accelerationDirty = {}, accelerationPending = null, accelerationSaving = false;
+		var accelerationState = {}, accelerationInputs = {}, accelerationDirty = {}, accelerationPending = null, accelerationSaving = false;
 		var accelerationApply = E('button', { type: 'button', 'class': 'cbi-button cbi-button-action cbi-button-primary', disabled: true }, _('Save & Apply'));
-		var controlLabels = [_('Hardware acceleration'), _('VLAN acceleration'), _('PPPoE acceleration'), _('AP acceleration')];
+		var controlLabels = [_('Hardware acceleration'), _('VLAN acceleration'), _('PPPoE acceleration'), _('Bridge compatibility mode')];
 		var acceleration = E('div', { 'class': 'cbi-section flowsense-section flowsense-acceleration' }, [
 			E('h3', { 'class': 'cbi-section-title' }, _('Acceleration')),
 			E('div', { 'class': 'flowsense-controls' }, accelerationKeys.map(function(key, index) {
-				var input = accelerationInputs[key] = E('input', { id: 'flowsense-' + key, type: 'checkbox', 'class': 'cbi-input-checkbox', 'aria-describedby': 'flowsense-' + key + '-state', disabled: true });
-				var label = accelerationLabels[key] = E('span', { id: 'flowsense-' + key + '-state', 'class': 'flowsense-acceleration-state unknown', 'aria-live': 'polite' }, _('Unknown'));
+				var input = accelerationInputs[key] = E('select', { id: 'flowsense-' + key, 'class': 'cbi-input-select', disabled: true }, [E('option', { value: '1' }, _('On')), E('option', { value: '0' }, _('Off'))]);
+				input.selectedIndex = -1;
 				input.addEventListener('change', function() { accelerationDirty[key] = true; });
-				return E('div', { 'class': 'cbi-value' }, [E('label', { 'class': 'cbi-value-title', 'for': input.id }, controlLabels[index]), E('div', { 'class': 'cbi-value-field' }, [label, input])]);
+				return E('div', { 'class': 'cbi-value' }, [E('label', { 'class': 'cbi-value-title', 'for': input.id }, controlLabels[index]), E('div', { 'class': 'cbi-value-field' }, [input])]);
 			})),
 			E('div', { 'class': 'flowsense-acceleration-actions' }, [accelerationApply])
 		]);
@@ -144,11 +141,8 @@ return view.extend({
 				var value = data && data[key] || {};
 				var state = accelerationState[key] = {};
 				['supported', 'enabled', 'configured'].forEach(function(field) { state[field] = typeof value[field] === 'boolean' ? value[field] : null; });
-				var known = state.supported === true && state.enabled !== null;
-				accelerationLabels[key].textContent = state.supported === false ? _('Unsupported') : !known ? _('Unknown') : state.enabled ? _('Enabled') : _('Disabled');
-				accelerationLabels[key].className = 'flowsense-acceleration-state' + (!known ? ' unknown' : state.enabled ? ' enabled' : '');
-				accelerationInputs[key].indeterminate = !editable(key);
-				if (reset || !accelerationDirty[key] || !editable(key)) { accelerationInputs[key].checked = state.configured === true; accelerationDirty[key] = false; }
+				accelerationInputs[key].title = state.supported === false ? _('Unsupported') : !editable(key) ? _('Unknown') : '';
+				if (reset || !accelerationDirty[key] || !editable(key)) { accelerationInputs[key].value = editable(key) ? (state.configured ? '1' : '0') : ''; accelerationDirty[key] = false; }
 			});
 			lockAcceleration();
 		}
@@ -161,14 +155,14 @@ return view.extend({
 		}
 		accelerationApply.addEventListener('click', function() {
 			if (!root.isConnected || !L.hasViewPermission() || accelerationSaving || accelerationApply.disabled) return;
-			var values = accelerationKeys.map(function(key) { return editable(key) ? (accelerationInputs[key].checked ? 1 : 0) : -1; });
+			var values = accelerationKeys.map(function(key) { return editable(key) ? (accelerationInputs[key].value === '1' ? 1 : 0) : -1; });
 			accelerationSaving = true; lockAcceleration();
 			// Drain an older read before writing: it must never overwrite post-apply readback.
 			Promise.resolve(accelerationPending).then(function() {
 				if (!root.isConnected || !L.hasViewPermission()) throw new Error(_('Unable to apply acceleration settings.'));
 				return setAcceleration.apply(null, values.map(function(value, index) { return editable(accelerationKeys[index]) ? value : -1; }));
 			}).then(function(result) {
-				if (!result || result.success !== true) throw new Error(_('Unable to apply acceleration settings.'));
+				if (!result || result.success !== true) throw new Error(rpcError(result && result.error, _('Unable to apply acceleration settings.')));
 			}).catch(function(error) {
 				if (root.isConnected) ui.addNotification(null, E('p', {}, [error.message]), 'error');
 			}).then(function() {

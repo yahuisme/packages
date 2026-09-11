@@ -19,6 +19,12 @@ class AccelerationTest(unittest.TestCase):
         for p in ('proc/sys/net/bridge', 'sys/class/net/br-lan/bridge', 'sys/kernel/debug/ppe',
                   'etc/sysctl.d', 'etc/config', 'var/run', 'tmp', 'bin', 'delta', 'override'):
             (self.d / p).mkdir(parents=True, exist_ok=True)
+        # Exercise embedded applets, not GNU host utilities hidden in PATH.
+        busybox = shutil.which('busybox')
+        assert busybox, 'BusyBox is required'
+        self.busybox = busybox
+        for applet in subprocess.check_output([self.busybox, '--list'], text=True).splitlines():
+            (self.d / 'bin' / applet).symlink_to(self.busybox)
         self.keys = ['call-iptables', 'call-ip6tables', 'call-arptables', 'filter-vlan-tagged',
                      'filter-pppoe-tagged', 'pass-vlan-input-dev']
         for k in self.keys:
@@ -35,7 +41,7 @@ class AccelerationTest(unittest.TestCase):
         self.script('uci', '#!/bin/sh\ncase "$*" in *" -c "*|-c*) exec ' + str(TOOLS / 'bin/uci') + ' "$@";; esac\nexec ' + str(TOOLS / 'bin/uci') + ' -c ' + str(self.d / 'etc/config') + ' -C ' + str(self.d / 'override') + ' -t ' + str(self.d / 'delta') + ' "$@"\n')
         self.script('nft', '#!/usr/bin/python3\nimport json,os\nfrom pathlib import Path\nif os.getenv("NFT_FAIL"): exit(1)\nprint(json.dumps({"nftables":[{"flowtable":{"family":"inet","table":"fw4","name":"ft","flags":["offload"] if Path("' + str(self.hw) + '").read_text()=="1" else []}}]}))\n')
         self.script('restart', '#!/bin/sh\nprintf restart >> "' + str(self.d / 'restarts') + '"\nif [ "$RESTART_FAIL" = 1 ] && [ ! -e "' + str(self.d / 'failed') + '" ]; then touch "' + str(self.d / 'failed') + '"; exit 1; fi\n[ "$STALE_HW" != 1 ] || exit 0\nuci -q get firewall.@defaults[0].flow_offloading_hw > "' + str(self.hw) + '"\n# strip newline for fixture\ntr -d "\\n" < "' + str(self.hw) + '" > "' + str(self.hw) + '.new"; mv "' + str(self.hw) + '.new" "' + str(self.hw) + '"\n')
-        self.env = dict(os.environ, LD_LIBRARY_PATH=str(TOOLS / 'lib'), PATH=str(self.d / 'bin') + ':' + str(TOOLS / 'bin') + ':' + os.environ['PATH'])
+        self.env = dict(os.environ, LD_LIBRARY_PATH=str(TOOLS / 'lib'), PATH=str(self.d / 'bin') + ':' + str(TOOLS / 'bin'))
         # Rewrite runtime paths once, before injecting fixture executable paths.
         import re
         source = (ROOT / 'root/usr/libexec/flowsense-acceleration.sh').read_text()
@@ -51,6 +57,7 @@ class AccelerationTest(unittest.TestCase):
 
     def script(self, name, body):
         p = self.d / 'bin' / name
+        p.unlink(missing_ok=True)  # Never overwrite the BusyBox symlink target.
         p.write_text(body)
         p.chmod(0o755)
 
@@ -61,8 +68,11 @@ class AccelerationTest(unittest.TestCase):
         return self.d / 'etc/sysctl.d' / name
 
     def call(self, method='getAcceleration', payload=None, **env):
-        p = subprocess.run(['busybox', 'ash', str(self.d / 'rpc'), 'call', method],
-                           input=json.dumps(payload or {}) + '\n', text=True, capture_output=True,
+        # uhttpd injects the authenticated session into the ubus arguments;
+        # rpcd plugin.c forwards the complete object to stdin, without a newline.
+        request = dict(payload or {}, ubus_rpc_session='0123456789abcdef0123456789abcdef')
+        p = subprocess.run([self.busybox, 'ash', str(self.d / 'rpc'), 'call', method],
+                           input=json.dumps(request), text=True, capture_output=True,
                            env=dict(self.env, **env), timeout=15)
         self.assertEqual(p.returncode, 0, p.stderr)
         return json.loads(p.stdout)
@@ -73,6 +83,48 @@ class AccelerationTest(unittest.TestCase):
     def snapshot(self):
         return {str(p.relative_to(self.d)): p.read_bytes() for base in ('etc', 'proc')
                 for p in (self.d / base).rglob('*') if p.is_file()}
+
+    def test_w1700k_bridge_family_readback(self):
+        self.script('nft', '#!/usr/bin/python3\nimport json,os,sys\nfrom pathlib import Path\nassert sys.argv[1:] == ["-j","list","flowtables"]\nif os.getenv("NFT_FAIL"): exit(1)\nprint(json.dumps({"nftables":[{"flowtable":{"family":"bridge","table":"fw4","name":"br_offload","flags":["offload"] if Path("' + str(self.hw) + '").read_text()=="1" else []}}]}))\n')
+        self.assertTrue(self.call()['hardware']['enabled'])
+        for value in (0, 1):
+            self.assertEqual(self.save(hardware=value), {'success': True})
+            self.assertIs(self.call()['hardware']['enabled'], bool(value))
+        self.assertIsNone(self.call(NFT_FAIL='1')['hardware']['enabled'])
+
+    def test_real_w1700k_nft_json_omits_flags(self):
+        fixture = ROOT / 'tests/fixtures/w1700k-nft-1.1.6-flowtables.json'
+        script = '''#!/usr/bin/python3
+import os,sys
+from pathlib import Path
+a=sys.argv[1:]
+if a == ['-j','list','flowtables']:
+    print(Path(FIXTURE).read_text())
+else:
+    assert a in (['list','flowtable','inet','fw4','ft'], ['list','flowtable','bridge','fw4','br_offload'])
+    if os.getenv('TEXT_FAIL'): exit(1)
+    print('table %s fw4 {' % a[2])
+    print(' flowtable %s {' % a[4])
+    print('  hook ingress priority filter;')
+    if Path(HARDWARE).read_text() == '1': print('  flags offload;')
+    print(' }')
+    print('}')
+'''
+        self.script('nft', script.replace('FIXTURE', repr(str(fixture))).replace('HARDWARE', repr(str(self.hw))))
+        self.assertTrue(self.call()['hardware']['enabled'])
+        for value in (0, 1):
+            self.assertEqual(self.save(hardware=value), {'success': True})
+            self.assertIs(self.call()['hardware']['enabled'], bool(value))
+        self.assertIsNone(self.call(TEXT_FAIL='1')['hardware']['enabled'])
+
+    def test_hardware_ruleset_scope(self):
+        for entries, expected in [([], False),
+                ([{'family': 'bridge', 'table': 'other', 'flags': ['offload']}], False),
+                ([{'family': 'inet', 'table': 'fw4', 'flags': []},
+                  {'family': 'bridge', 'table': 'fw4', 'flags': ['offload']}], True)]:
+            data = json.dumps({'nftables': [{'flowtable': e} for e in entries]})
+            self.script('nft', "#!/bin/sh\nprintf '%s' '" + data + "'\n")
+            self.assertIs(self.call()['hardware']['enabled'], expected)
 
     def test_read_and_both_directions(self):
         self.assertEqual(self.call(), {k: dict(supported=True, enabled=True, configured=True)
@@ -270,11 +322,60 @@ class AccelerationTest(unittest.TestCase):
             self.assertTrue(self.call()['vlan']['enabled'])
             self.assertIs(self.call()['ap']['enabled'], bool(v))
 
+    def test_browser_payload_from_hardware_off_bridge_on(self):
+        # This is a controlled fixture, not evidence of the screenshot's
+        # device state. Exercise each edit with the full browser payload.
+        self.config.write_text("config defaults\n option flow_offloading '0'\n option flow_offloading_hw '0'\n")
+        self.hw.write_text('0')
+        baseline = dict(hardware=0, vlan=1, pppoe=1, ap=1)
+        for edits in (dict(hardware=1), dict(pppoe=0), dict(ap=0), dict(vlan=0, ap=0)):
+            with self.subTest(edits=edits):
+                requested = dict(baseline, **edits)
+                self.assertEqual(self.save(**requested), {'success': True})
+                state = self.call()
+                for key, value in requested.items():
+                    self.assertIs(state[key]['enabled'], bool(value))
+                    self.assertIs(state[key]['configured'], bool(value))
+                self.assertEqual(self.save(**baseline), {'success': True})
+        self.assertEqual(subprocess.check_output([str(self.d / 'bin/uci'), 'changes', 'firewall'], env=self.env), b'')
+
+    def test_each_acceleration_key_is_independent(self):
+        baseline = dict(hardware=0, vlan=1, pppoe=1, ap=0)
+        self.config.write_text("config defaults\n option flow_offloading '0'\n option flow_offloading_hw '0'\n")
+        self.hw.write_text('0')
+        for key in baseline:
+            with self.subTest(key=key):
+                requested = dict(baseline)
+                requested[key] = 1 - requested[key]
+                self.assertEqual(self.save(**requested), {'success': True})
+                state = self.call()
+                self.assertIs(state[key]['configured'], bool(requested[key]))
+                for other in baseline:
+                    self.assertIs(state[other]['configured'], bool(requested[other]))
+
+    def test_unknown_settings_rejected_and_direct_call_works(self):
+        before, stamps = self.snapshot(), self.write_stamps()
+        for extra in ({'unexpected': 1}, {'hardware_extra': 1}):
+            self.assertEqual(self.save(**extra), {'success': False, 'error': 'invalid'})
+            self.assertEqual(self.snapshot(), before)
+            self.assertEqual(self.write_stamps(), stamps)
+        self.assertFalse((self.d / 'restarts').exists())
+        # Direct local ubus callers do not carry HTTP session metadata.
+        payload = dict.fromkeys(('hardware', 'vlan', 'pppoe', 'ap'), 0)
+        result = subprocess.run([self.busybox, 'ash', str(self.d / 'rpc'), 'call', 'setAcceleration'],
+                                input=json.dumps(payload), text=True, capture_output=True,
+                                env=self.env, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), {'success': True})
+        for state in self.call().values():
+            self.assertIs(state['enabled'], False)
+            self.assertIs(state['configured'], False)
+
     def test_acl_and_discovery(self):
         acl = json.loads((ROOT / 'root/usr/share/rpcd/acl.d/luci-app-airoha-flowsense.json').read_text())['luci-app-airoha-flowsense']
         self.assertIn('getAcceleration', acl['read']['ubus']['luci.airoha_flowsense'])
         self.assertIn('setAcceleration', acl['write']['ubus']['luci.airoha_flowsense'])
-        methods = json.loads(subprocess.check_output(['busybox', 'ash', str(self.d / 'rpc'), 'list'], env=self.env))
+        methods = json.loads(subprocess.check_output([self.busybox, 'ash', str(self.d / 'rpc'), 'list'], env=self.env))
         self.assertEqual(methods['setAcceleration'], dict.fromkeys(('hardware', 'vlan', 'pppoe', 'ap'), 'int'))
 
 

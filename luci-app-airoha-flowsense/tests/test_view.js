@@ -56,7 +56,7 @@ function count(name){return calls.filter(n=>n===name).length;}
   console.log('PASS FlowSense real RPC error text contains no elements');w.close();return;
  }
  if (!writable) {
-  const controls=[...root.querySelectorAll('input,button')];
+  const controls=[...root.querySelectorAll('input,select,button')];
   assert(controls.every(n=>n.disabled),'readonly controls disabled');
   for(const button of root.querySelectorAll('button')) { button.click();button.dispatchEvent(new w.Event('click')); }await settle();
   assert.equal(count('setMonitor'),0,'readonly synthetic handler must not dispatch setter');
@@ -133,51 +133,56 @@ function count(name){return calls.filter(n=>n===name).length;}
  sample.interfaces=[sample.interfaces[4],sample.interfaces[1]];await refresh();
  assert.deepEqual(names(),['LAN1','USB9'],'no fabricated priority ports when absent');
  const acceleration=check.querySelector('.flowsense-acceleration'), accelerationButton=acceleration.querySelector('button');
- const inputs=[...acceleration.querySelectorAll('input')], states=()=>[...acceleration.querySelectorAll('.flowsense-acceleration-state')];
+ const inputs=[...acceleration.querySelectorAll('select')];
+ assert.equal(acceleration.querySelectorAll('.flowsense-acceleration-state').length,0);
+ assert(!check.querySelector('style').textContent.includes('flowsense-acceleration-state'));
+ assert.equal(count('setAcceleration'),0,'load and polling never write configuration');
  await refresh();await settle();
  assert.equal(acceleration.previousElementSibling.className,'flowsense-summary');
  assert.equal(acceleration.nextElementSibling.querySelector('h3').textContent,'Ethernet Links');
  assert.equal(inputs.length,4);assert(inputs.every(n=>n.labels.length===1));
+ assert.deepEqual([...acceleration.querySelectorAll('label')].map(n=>n.textContent),['Hardware acceleration','VLAN acceleration','PPPoE acceleration','Bridge compatibility mode']);
  for (const input of inputs) {
-  assert.equal(input.type,'checkbox','native checkbox accessibility and keyboard semantics');
-  assert.equal(w.getComputedStyle(input).appearance,'none','native UA checkbox must not overlay the rectangular toggle');
-  assert.equal(w.getComputedStyle(input).width,'48px');
-  assert.equal(w.getComputedStyle(input).height,'24px');
-  assert.equal(w.getComputedStyle(input).borderRadius,'2px');
-  assert.equal(w.document.getElementById(input.getAttribute('aria-describedby')),input.previousElementSibling,'confirmed runtime status is the accessible description, not checked state');
+  assert.equal(input.type,'select-one','native select semantics');
+  assert.deepEqual([...input.options].map(n=>[n.value,n.textContent]),[['1','On'],['0','Off']]);
+  assert.equal(input.nextElementSibling,null,'select has no duplicate status label');
  }
- inputs[0].labels[0].click();assert.equal(inputs[0].checked,true,'native label click changes configured edit');
- assert.equal(states()[0].textContent,'Enabled','native label click leaves real runtime state unchanged');
- inputs[0].labels[0].click();assert.equal(inputs[0].checked,false);
- inputs[2].labels[0].click();assert.equal(inputs[2].checked,false);assert(inputs[2].indeterminate,'disabled unsupported label click retains mixed state');
- assert.deepEqual(states().map(n=>n.textContent),['Enabled','Disabled','Unsupported','Unknown']);
- assert.equal(computedColor(states()[0]),'rgb(22, 163, 74)');assert.equal(computedColor(states()[1]),'rgb(51, 51, 51)');assert.equal(computedColor(states()[3]),'var(--cbi-muted-color,var(--text-muted,#888))','jsdom retains the theme-muted expression');
+ inputs[0].value='1';inputs[0].dispatchEvent(new w.Event('change'));
+ assert.equal(inputs[0].value,'1');
+ inputs[0].value='0';inputs[0].dispatchEvent(new w.Event('change'));
+ inputs[2].labels[0].click();assert.equal(inputs[2].selectedIndex,-1,'unsupported has no selected option');
+ assert.deepEqual(inputs.map(n=>n.title),['','','Unsupported','Unknown']);
  assert.deepEqual(inputs.map(n=>n.disabled),[false,false,true,true]);
- assert.deepEqual(inputs.map(n=>n.indeterminate),[false,false,true,true],'unconfirmed controls must not look like ordinary off switches');
- assert.deepEqual(inputs.map(n=>n.checked),[false,true,false,true],'checkbox baseline is configured, not enabled');
+ assert.deepEqual(inputs.map(n=>n.selectedIndex),[1,0,-1,-1],'unconfirmed controls must not look like ordinary off switches');
+ assert.deepEqual(inputs.map(n=>n.value),['0','1','',''],'checkbox baseline is configured, not enabled');
  assert.equal(w.getComputedStyle(acceleration.querySelector('label')).fontWeight,'600');
  assert.equal(w.getComputedStyle(acceleration.querySelector('label')).textAlign,'left');
  for(const fail of [false,true]) {
-  inputs[0].checked=true;inputs[0].dispatchEvent(new w.Event('change'));
-  assert.equal(states()[0].textContent,'Enabled','editing never changes runtime label');
+  inputs[0].value='1';inputs[0].dispatchEvent(new w.Event('change'));
+  assert.equal(inputs[0].value,'1');
   accelerationSaveError=fail;waitAccelerationSave=deferred();accelerationButton.click();await settle();
   assert(inputs.every(n=>n.disabled));const writes=count('setAcceleration');accelerationButton.dispatchEvent(new w.Event('click'));await settle();assert.equal(count('setAcceleration'),writes);
   assert.deepEqual(JSON.parse(JSON.stringify(accelerationPayload)),{hardware:1,vlan:1,pppoe:-1,ap:-1});
   waitAccelerationSave.resolve();await settle();await settle();waitAccelerationSave=null;
-  assert.equal(inputs[0].checked,false,'success or failure restores real readback, never requested state');
-  assert.equal(states()[0].textContent,'Enabled');
+  assert.equal(inputs[0].value,'0','success or failure restores real readback, never requested state');
+  assert.equal(inputs[0].title,'');
  }
+ accelerationSaveError=false;inputs[0].value='0';inputs[0].dispatchEvent(new w.Event('change'));inputs[1].value='0';inputs[1].dispatchEvent(new w.Event('change'));
+ await refresh();await settle();assert.equal(inputs[1].value,'0','poll preserves pending select edit');
+ accelerationButton.click();await settle();await settle();
+ assert.deepEqual(JSON.parse(JSON.stringify(accelerationPayload)),{hardware:0,vlan:0,pppoe:-1,ap:-1},'off choice uses numeric zero, unavailable uses minus one');
+ assert.equal(inputs[1].value,'1','post-save readback restores configured baseline');
  assert.equal(count('apply'),0,'local setter never invokes global apply');
  waitAcceleration=deferred();await refresh();const reads=count('getAcceleration');await refresh();assert.equal(count('getAcceleration'),reads,'held sibling remains single-flight without blocking overview');
  waitAcceleration.resolve();waitAcceleration=null;await settle();
- accelerationError=true;await refresh();await settle();assert(states().every(n=>n.textContent==='Unknown'));assert(inputs.every(n=>n.disabled));assert(accelerationButton.disabled);
- assert(inputs.every(n=>n.indeterminate),'failed reads show mixed rather than off');
+ accelerationError=true;await refresh();await settle();assert(inputs.every(n=>n.title==='Unknown'));assert(inputs.every(n=>n.disabled));assert(accelerationButton.disabled);
+ assert(inputs.every(n=>n.selectedIndex===-1),'failed reads show mixed rather than off');
  accelerationError=false;await refresh();await settle();
- assert.deepEqual(inputs.map(n=>n.indeterminate),[false,false,true,true],'recovery clears mixed state only for confirmed controls');
+ assert.deepEqual(inputs.map(n=>n.selectedIndex),[1,0,-1,-1],'recovery clears mixed state only for confirmed controls');
  // A pre-save read must settle before the setter and a fresh read must follow it.
  waitAcceleration=deferred();await refresh();const beforeSave=count('setAcceleration');accelerationButton.click();await settle();assert.equal(count('setAcceleration'),beforeSave);
- waitAcceleration.resolve();waitAcceleration=null;await settle();await settle();assert.equal(count('setAcceleration'),beforeSave+1);assert.equal(inputs[0].checked,false);
- accelerationSample.hardware={supported:'true',enabled:1,configured:1};await refresh();await settle();assert(inputs[0].disabled);assert.equal(states()[0].textContent,'Unknown','malformed booleans fail closed');
+ waitAcceleration.resolve();waitAcceleration=null;await settle();await settle();assert.equal(count('setAcceleration'),beforeSave+1);assert.equal(inputs[0].value,'0');
+ accelerationSample.hardware={supported:'true',enabled:1,configured:1};await refresh();await settle();assert(inputs[0].disabled);assert.equal(inputs[0].selectedIndex,-1,'malformed booleans fail closed');
  accelerationSample.hardware={supported:true,enabled:true,configured:false};await refresh();await settle();
  waitAccelerationSave=deferred();accelerationButton.click();await settle();writable=false;waitAccelerationSave.resolve();waitAccelerationSave=null;await settle();await settle();assert(inputs.every(n=>n.disabled));assert(accelerationButton.disabled);
  const accelerationWrites=count('setAcceleration');accelerationButton.dispatchEvent(new w.Event('click'));await settle();assert.equal(count('setAcceleration'),accelerationWrites);writable=true;

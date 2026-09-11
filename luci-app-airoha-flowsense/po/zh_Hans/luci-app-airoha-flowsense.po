@@ -11,8 +11,14 @@ msgstr ""
 "Language: zh_Hans\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 
-msgid "AP acceleration"
-msgstr "AP 模式加速"
+msgid "Bridge compatibility mode"
+msgstr "AP 兼容模式"
+
+msgid "On"
+msgstr "已开启"
+
+msgid "Off"
+msgstr "已关闭"
 
 msgid "Acceleration"
 msgstr "流量加速"
@@ -32,17 +38,11 @@ msgstr "数据不可用"
 msgid "Data unavailable; previous readings cleared."
 msgstr "数据获取失败，旧读数已清除。"
 
-msgid "Disabled"
-msgstr "未启用"
-
 msgid "Disconnected"
 msgstr "未连接"
 
 msgid "Enable periodic probes"
 msgstr "启用定期探测"
-
-msgid "Enabled"
-msgstr "已启用"
 
 msgid "Enter a valid IPv4 address or hostname."
 msgstr "请输入有效的 IPv4 地址或主机名。"
@@ -140,3 +140,18 @@ msgstr "采样窗口丢包率"
 
 msgid "FlowSense telemetry, acceleration and probe settings"
 msgstr "流量传感器状态、加速与探测设置"
+
+msgid "Bridge compatibility mode requires VLAN acceleration."
+msgstr "AP 兼容模式需要先启用 VLAN 加速。"
+
+msgid "There are pending changes. Apply or discard them first."
+msgstr "存在待处理的更改，请先应用或丢弃。"
+
+msgid "Applying the acceleration settings failed."
+msgstr "应用加速设置失败。"
+
+msgid "Rolling back the acceleration settings failed."
+msgstr "回滚加速设置失败。"
+
+msgid "The submitted acceleration settings are invalid."
+msgstr "提交的加速设置无效。"

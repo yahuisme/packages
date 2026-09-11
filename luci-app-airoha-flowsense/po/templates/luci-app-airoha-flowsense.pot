@@ -11,7 +11,13 @@ msgstr ""
 "Language: zh_Hans\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 
-msgid "AP acceleration"
+msgid "Bridge compatibility mode"
+msgstr ""
+
+msgid "On"
+msgstr ""
+
+msgid "Off"
 msgstr ""
 
 msgid "Acceleration"
@@ -32,16 +38,10 @@ msgstr ""
 msgid "Data unavailable; previous readings cleared."
 msgstr ""
 
-msgid "Disabled"
-msgstr ""
-
 msgid "Disconnected"
 msgstr ""
 
 msgid "Enable periodic probes"
-msgstr ""
-
-msgid "Enabled"
 msgstr ""
 
 msgid "Enter a valid IPv4 address or hostname."
@@ -139,4 +139,19 @@ msgid "Window packet loss"
 msgstr ""
 
 msgid "FlowSense telemetry, acceleration and probe settings"
+msgstr ""
+
+msgid "Bridge compatibility mode requires VLAN acceleration."
+msgstr ""
+
+msgid "There are pending changes. Apply or discard them first."
+msgstr ""
+
+msgid "Applying the acceleration settings failed."
+msgstr ""
+
+msgid "Rolling back the acceleration settings failed."
+msgstr ""
+
+msgid "The submitted acceleration settings are invalid."
 msgstr ""
