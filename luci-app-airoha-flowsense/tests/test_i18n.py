@@ -3,6 +3,7 @@ import json
 import os
 import pathlib
 import re
+import subprocess
 import unittest
 
 root = pathlib.Path(__file__).resolve().parents[1]
@@ -77,6 +78,9 @@ class I18nCoverageTest(unittest.TestCase):
 
         # PO与POT应保持同步
         self.assertEqual(po_active, pot_active)
+        self.assertEqual(po_active - {''}, ids, 'No stale catalog strings')
+        for catalog in (po_path, pot_path):
+            subprocess.run(['msgfmt', '--check', '-o', os.devnull, str(catalog)], check=True)
 
         # 不含陈旧废弃词条
         deprecated = {'Total Download', 'Total Upload', 'PPE engine inactive', 'Probe inactive'}

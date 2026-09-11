@@ -9,7 +9,7 @@ if (!root) throw new Error('Set LUCI_RESOURCE_DIR to trusted upstream LuCI resou
 const source = fs.readFileSync(process.env.NPU_SETTINGS_JS || path.join(__dirname,
  '../htdocs/luci-static/resources/view/airoha_npu/settings.js'), 'utf8');
 
-async function scenario(unknown = false, readonly = false) {
+async function scenario(readonly = false) {
  const j = new JSDOM('<!doctype html><div id="maincontent"><div id="view"></div></div>',
   { url: 'http://localhost/cgi-bin/luci/admin/system/npu', runScripts: 'outside-only' });
  const w = j.window;
@@ -36,7 +36,7 @@ async function scenario(unknown = false, readonly = false) {
    if (spec.object === 'session') return true;
    if (spec.method === 'getInfo') return { governors: 'performance schedutil', frequencies: '1000000 800000' };
    if (spec.method === 'getStatus') return { cpu_governor: 'performance', cpu_max_freq: 1000000 };
-   if (spec.method === 'getFlowOffload') return unknown ? {} : { enabled: false };
+   assert(!spec.method.includes('Flow'), 'CPU settings must never query or manage flow offloading');
    return rejectSave ? { result: 'error', error: 'write_failed' } : { result: 'ok' };
   } };
   mods.fs = {};
@@ -71,15 +71,16 @@ async function scenario(unknown = false, readonly = false) {
    assert.equal(button.textContent, w._('Save')); button.click();
    await pending; await new Promise(r => setImmediate(r)); map.save = save;
   }
-  assert.equal(node.querySelectorAll('.cbi-value').length, 3, 'CPU and firewall settings must render all three controls');
-  for (const [name, section, expected] of [['governor', 'cpu', 'performance'], ['frequency', 'cpu', '1000000'], ['flow', 'firewall', unknown ? '' : '0']]) {
+  assert.equal(node.querySelectorAll('.cbi-value').length, 2, 'only native CPU controls must render');
+  assert.equal(node.querySelector('.cbi-map-descr').textContent, w._('Configure CPU governor and maximum scaling frequency.'));
+  for (const [name, section, expected] of [['governor', 'cpu', 'performance'], ['frequency', 'cpu', '1000000']]) {
    const option = map.lookupOption(name, section)[0];
    assert.equal(option.formvalue(section), expected, `${name} must show the RPC value`);
    assert.ok(option.getUIElement(section), `${name} needs a real LuCI widget`);
   }
   if (readonly) {
    assert.equal(map.readonly, true, 'JSONMap must respect view read-only permission');
-   for (const [name, section] of [['governor', 'cpu'], ['frequency', 'cpu'], ['flow', 'firewall']])
+   for (const [name, section] of [['governor', 'cpu'], ['frequency', 'cpu']])
     assert.equal(map.lookupOption(name, section)[0].getUIElement(section).options.disabled, true);
    assert.equal(w.document.querySelector('.cbi-button-save').disabled, true);
    map.lookupOption('governor', 'cpu')[0].getUIElement('cpu').setValue('schedutil');
@@ -87,30 +88,28 @@ async function scenario(unknown = false, readonly = false) {
    assert.equal(calls.filter(c => c[0].startsWith('set')).length, 0, 'forced readonly save must not write');
    return;
   }
-  exportDOM(unknown ? '.unknown' : '');
-  if (unknown) {
-   assert.equal(map.lookupOption('flow', 'firewall')[0].getUIElement('firewall').options.disabled, true);
-  } else {
+  exportDOM('');
+  {
    await saveClick();
    assert.equal(calls.filter(c => c[0].startsWith('set')).length, 0, 'unchanged form must not write');
    exportDOM('.noop');
    w.document.querySelectorAll('.alert-message').forEach(n => n.remove());
-   for (const [name, section, value] of [['governor', 'cpu', 'schedutil'], ['frequency', 'cpu', '800000'], ['flow', 'firewall', '1']])
+   for (const [name, section, value] of [['governor', 'cpu', 'schedutil'], ['frequency', 'cpu', '800000']])
     map.lookupOption(name, section)[0].getUIElement(section).setValue(value);
    await saveClick();
-   assert.deepEqual(calls.filter(c => c[0].startsWith('set')), [['setGovernor', 'schedutil'], ['setMaxFreq', '800000'], ['setFlowOffload', '1']]);
+   assert.deepEqual(calls.filter(c => c[0].startsWith('set')), [['setGovernor', 'schedutil'], ['setMaxFreq', '800000']]);
    assert.equal(notices.at(-1), w._('Settings applied.'));
    exportDOM('.saved');
    async function assertSavedReset() {
     await map.reset();
     assert.equal(node.querySelectorAll(':scope > style').length, 1, 'reset retains one responsive layout style');
-    for (const [name, section, value] of [['governor', 'cpu', 'schedutil'], ['frequency', 'cpu', '800000'], ['flow', 'firewall', '1']])
+    for (const [name, section, value] of [['governor', 'cpu', 'schedutil'], ['frequency', 'cpu', '800000']])
      assert.equal(map.lookupOption(name, section)[0].formvalue(section), value, 'reset keeps last confirmed ' + name);
    }
    map.lookupOption('frequency', 'cpu')[0].getUIElement('cpu').setValue('1000000');
    await assertSavedReset();
    await saveClick();
-   assert.equal(calls.filter(c => c[0].startsWith('set')).length, 3, 'reset then save must not undo confirmed settings');
+   assert.equal(calls.filter(c => c[0].startsWith('set')).length, 2, 'reset then save must not undo confirmed settings');
    w.document.querySelectorAll('.alert-message').forEach(n => n.remove());
    rejectSave = true; map.lookupOption('governor', 'cpu')[0].getUIElement('cpu').setValue('performance');
    let globalApply = 0;
@@ -138,6 +137,6 @@ async function scenario(unknown = false, readonly = false) {
  } finally { w.close(); }
 }
 (async () => {
- await scenario(false, true); await scenario(); await scenario(true);
- console.log('PASS real LuCI form: three controls, RPC defaults, no-op/save and unknown read-only');
+ await scenario(true); await scenario();
+ console.log('PASS real LuCI form: CPU-only controls, RPC defaults, no-op/save/reset, failure and read-only');
 })().catch(e => { console.error(e); process.exitCode = 1; });

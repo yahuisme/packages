@@ -10,7 +10,7 @@ positive() {
 	[ "${#1}" -le 10 ]
 }
 quote() {
-	printf '%s' "$1" | awk 'BEGIN { for(j=1;j<32;j++) esc[sprintf("%c",j)]=sprintf("\\u%04x",j); printf "\"" } { if (NR>1) printf "\\n"; for(i=1;i<=length;i++) { c=substr($0,i,1); if(c=="\"" || c=="\\") printf "\\%s",c; else if(c=="\t") printf "\\t"; else if(c=="\r") printf "\\r"; else if(c in esc) printf "%s",esc[c]; else printf "%s",c } } END { printf "\"" }'
+	printf '%s' "$1" | awk 'BEGIN { for(j=1;j<32;j++) esc[sprintf("%c",j)]=sprintf("\\u%04x",j); printf "\"" } { if (NR>1) printf "\\n"; for(i=1;i<=length;i++) { c=substr($0,i,1); if(c=="\"" || c=="\\") printf "\\%s",c; else if(c=="	") printf "\	"; else if(c=="\r") printf "\\r"; else if(c in esc) printf "%s",esc[c]; else printf "%s",c } } END { printf "\"" }'
 }
 number() { if positive "$1"; then printf '%s' "$1"; else printf null; fi; }
 error() { printf '{"error":"%s"}\n' "$1"; }
@@ -104,7 +104,6 @@ get_info() {
 }
 
 UCI=${NPU_UCI:-uci}
-FIREWALL=${NPU_FIREWALL:-/etc/init.d/firewall}
 uci_read() { "$UCI" -q -c "$ROOT/etc/config" -P "$ROOT/tmp/luci-airoha-npu-read" "$@"; }
 get_flow() {
 	local sw hw
@@ -117,50 +116,15 @@ get_flow() {
 		*) printf '{"enabled":false}\n';;
 	esac
 }
-replace_config() {
-	local stage
-	stage=$(mktemp "$ROOT/etc/config/.npu-firewall.XXXXXX") || return 1
-	if cp -p "$1" "$stage" && mv -f "$stage" "$ROOT/etc/config/firewall"; then return 0; fi
-	rm -f "$stage"
-	return 1
-}
-set_flow() {
-	local value config="$ROOT/etc/config/firewall" changes
-	argument enabled || { error invalid; return; }
-	case "$value" in 0|1) ;; *) error invalid; return;; esac
-	lock || { error busy; return; }
-	# Refuse pending LuCI/CLI edits rather than committing someone else's work.
-	changes=$("$UCI" -q -c "$ROOT/etc/config" changes firewall) || { error unavailable; return; }
-	[ -z "$changes" ] || { error pending_changes; return; }
-	work=$(mktemp -d "$ROOT/tmp/luci-airoha-npu.XXXXXX") || { error unavailable; return; }
-	trap 'rm -rf "$work"; rmdir "$ROOT/var/lock/luci-airoha-npu" 2>/dev/null' EXIT
-	mkdir "$work/delta" || { error unavailable; return; }
-	cp -p "$config" "$work/original" && cp -p "$config" "$work/firewall" || { error unavailable; return; }
-	# Stage in a private configuration directory, preserving absent options and unrelated settings.
-	if ! "$UCI" -q -c "$work" -t "$work/delta" set "firewall.@defaults[0].flow_offloading=$value" ||
-		! "$UCI" -q -c "$work" -t "$work/delta" set "firewall.@defaults[0].flow_offloading_hw=$value" ||
-		! "$UCI" -q -c "$work" -t "$work/delta" commit firewall; then error write_failed; return; fi
-	cmp -s "$config" "$work/original" || { error busy; return; }
-	if replace_config "$work/firewall" &&
-		[ "$(uci_read get 'firewall.@defaults[0].flow_offloading')" = "$value" ] &&
-		[ "$(uci_read get 'firewall.@defaults[0].flow_offloading_hw')" = "$value" ] &&
-		"$FIREWALL" reload >/dev/null 2>&1; then
-		printf '{"result":"ok"}\n'
-	elif replace_config "$work/original" && cmp -s "$config" "$work/original" &&
-		"$FIREWALL" reload >/dev/null 2>&1; then error write_failed
-	else error rollback_failed; fi
-}
-
 case "$1" in
 	list)
-		printf '%s\n' '{"getStatus":{},"getInfo":{},"getFlowOffload":{},"setFlowOffload":{"enabled":"str"},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"str"}}';;
+		printf '%s\n' '{"getStatus":{},"getInfo":{},"getFlowOffload":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"str"}}';;
 	call)
 		input=$(cat)
 		case "$2" in
 			getStatus) get_status;;
 			getInfo) get_info;;
 			getFlowOffload) get_flow;;
-			setFlowOffload) set_flow;;
 			setGovernor) set_cpu governor;;
 			setMaxFreq) set_cpu freq;;
 			*) error unsupported;;

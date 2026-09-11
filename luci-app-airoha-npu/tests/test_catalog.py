@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import re
+import subprocess
 import unittest
 
 P = Path(__file__).resolve().parents[1]
@@ -23,6 +24,7 @@ class Catalog(unittest.TestCase):
                     strings.add(val['title'])
 
         for path in [P / 'po/templates/luci-app-airoha-npu.pot', P / 'po/zh_Hans/luci-app-airoha-npu.po']:
+            subprocess.run(['msgfmt', '--check', '-o', '/dev/null', str(path)], check=True)
             entries = re.findall(r'^msgid (".*")\nmsgstr (".*")$', path.read_text(), re.M)
             mapping = {json.loads(k): json.loads(v) for k, v in entries if json.loads(k)}
             self.assertEqual(strings, set(mapping))

@@ -6,6 +6,12 @@
 
 var getOverview = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getOverview', reject: true });
 var getPpeEntries = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getPpeEntries', reject: true });
+// Acceleration RPC contract: each key is {supported, enabled, configured},
+// strictly boolean or null. enabled is runtime readback, configured is the edit
+// baseline. Setter parameters are 0/1, or -1 to leave unknown/unsupported keys alone.
+var accelerationKeys = ['hardware', 'vlan', 'pppoe', 'ap'];
+var getAcceleration = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getAcceleration', reject: true });
+var setAcceleration = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setAcceleration', params: accelerationKeys, reject: true });
 var setMonitor = rpc.declare({ object: 'luci.airoha_flowsense', method: 'setMonitor', params: ['target', 'enabled'], reject: true });
 
 var css = `
@@ -29,6 +35,23 @@ var css = `
 .flowsense-dashboard .flowsense-port-metric dt,.flowsense-dashboard .flowsense-port-metric dd{margin:0;padding:0;min-width:0;text-align:start;overflow-wrap:anywhere}
 .flowsense-dashboard .flowsense-port-metric dd{font-variant-numeric:tabular-nums}
 .flowsense-dashboard .flowsense-details{margin-top:16px}.flowsense-dashboard .flowsense-details summary{cursor:pointer;min-height:32px}
+.flowsense-dashboard .flowsense-acceleration{container-type:inline-size}
+.flowsense-dashboard .flowsense-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.flowsense-dashboard .flowsense-controls .cbi-value{display:flex;flex-flow:row nowrap;align-items:center;gap:8px;min-width:0;margin:0;padding:8px 0}
+.flowsense-dashboard .flowsense-controls .cbi-value-title{float:none;width:auto;flex:1;text-align:left;font-size:1.125em;font-weight:600;padding:0}
+.flowsense-dashboard .flowsense-controls .cbi-value-field{display:flex;flex:0 0 auto;align-items:center;justify-content:flex-end;gap:8px;margin:0;padding:0}
+.flowsense-dashboard .flowsense-controls input[type=checkbox]{appearance:none;-webkit-appearance:none;display:inline-block;position:relative;box-sizing:border-box;flex:none;margin:0;padding:0;width:48px;height:24px;border:0;border-radius:2px;background:var(--control-bg,#eee);box-shadow:none;cursor:pointer}
+.flowsense-dashboard .flowsense-controls input[type=checkbox]:before{content:none;display:none;box-shadow:none}
+.flowsense-dashboard .flowsense-controls input[type=checkbox]:after{content:"";display:block;position:absolute;box-sizing:border-box;top:4px;left:4px;width:20px;height:16px;border:0;border-radius:2px;background:var(--text-muted,#888);opacity:1;mask:none;-webkit-mask:none;transform:none;box-shadow:none;transition:none}
+.flowsense-dashboard .flowsense-controls input[type=checkbox]:checked:after{left:24px;background:var(--brand,#2563eb)}
+.flowsense-dashboard .flowsense-controls input[type=checkbox]:indeterminate:after{left:14px;background:var(--text-muted,#888)}
+.flowsense-dashboard .flowsense-controls input[type=checkbox]:disabled{cursor:not-allowed}
+.flowsense-dashboard .flowsense-controls input[type=checkbox]:focus-visible{outline:2px solid var(--brand,#2563eb);outline-offset:2px}
+.flowsense-dashboard .flowsense-acceleration-state{color:inherit}
+.flowsense-dashboard .flowsense-acceleration-state.enabled{color:#16a34a}
+.flowsense-dashboard .flowsense-acceleration-state.unknown{color:var(--cbi-muted-color,var(--text-muted,#888))}
+.flowsense-dashboard .flowsense-acceleration-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:8px}
+@container(max-width:600px){.flowsense-dashboard .flowsense-controls{grid-template-columns:minmax(0,1fr)}}
 @container(max-width:800px){.flowsense-dashboard .flowsense-port{grid-template-columns:repeat(3,minmax(0,1fr))}.flowsense-dashboard .flowsense-port-title{grid-column:1 / -1}}
 @container(max-width:480px){.flowsense-dashboard .flowsense-port{grid-template-columns:minmax(0,1fr);gap:8px}.flowsense-dashboard .flowsense-port-metric{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:16px}}
 .flowsense-dashboard .cbi-input-text,.flowsense-dashboard .cbi-button{min-height:32px;box-sizing:border-box}
@@ -65,9 +88,11 @@ return view.extend({
 	handleSave: null,
 	handleSaveApply: null,
 	handleReset: null,
-	load: function() { return getOverview().catch(function() { return null; }); },
+	load: function() { return Promise.all([getOverview().catch(function() { return null; }), getAcceleration().catch(function() { return null; })]); },
 
 	render: function(initial) {
+		var initialAcceleration = Array.isArray(initial) ? initial[1] : null;
+		initial = Array.isArray(initial) ? initial[0] : initial;
 		var root = E('div', { 'class': 'cbi-map flowsense-dashboard' }, [
 			E('style', {}, css),
 			E('h2', {}, _('Airoha FlowSense')),
@@ -93,7 +118,65 @@ return view.extend({
 				dirty = false; return update();
 			}).catch(function(error) { ui.addNotification(null, E('p', {}, [error.message]), 'error'); }).finally(function() { target.disabled = enabled.disabled = apply.disabled = !L.hasViewPermission(); });
 		});
-		var main = E('div', {}, [summary, E('div', { 'class': 'cbi-section' }, [E('h3', { 'class': 'cbi-section-title' }, _('Ethernet Links')), interfaces]), quality]);
+		var accelerationState = {}, accelerationInputs = {}, accelerationLabels = {}, accelerationDirty = {}, accelerationPending = null, accelerationSaving = false;
+		var accelerationApply = E('button', { type: 'button', 'class': 'cbi-button cbi-button-action cbi-button-primary', disabled: true }, _('Save & Apply'));
+		var controlLabels = [_('Hardware acceleration'), _('VLAN acceleration'), _('PPPoE acceleration'), _('AP acceleration')];
+		var acceleration = E('div', { 'class': 'cbi-section flowsense-section flowsense-acceleration' }, [
+			E('h3', { 'class': 'cbi-section-title' }, _('Acceleration')),
+			E('div', { 'class': 'flowsense-controls' }, accelerationKeys.map(function(key, index) {
+				var input = accelerationInputs[key] = E('input', { id: 'flowsense-' + key, type: 'checkbox', 'class': 'cbi-input-checkbox', 'aria-describedby': 'flowsense-' + key + '-state', disabled: true });
+				var label = accelerationLabels[key] = E('span', { id: 'flowsense-' + key + '-state', 'class': 'flowsense-acceleration-state unknown', 'aria-live': 'polite' }, _('Unknown'));
+				input.addEventListener('change', function() { accelerationDirty[key] = true; });
+				return E('div', { 'class': 'cbi-value' }, [E('label', { 'class': 'cbi-value-title', 'for': input.id }, controlLabels[index]), E('div', { 'class': 'cbi-value-field' }, [label, input])]);
+			})),
+			E('div', { 'class': 'flowsense-acceleration-actions' }, [accelerationApply])
+		]);
+		function editable(key) {
+			var state = accelerationState[key];
+			return state && state.supported === true && typeof state.enabled === 'boolean' && typeof state.configured === 'boolean';
+		}
+		function lockAcceleration() {
+			accelerationKeys.forEach(function(key) { accelerationInputs[key].disabled = accelerationSaving || !L.hasViewPermission() || !editable(key); });
+			accelerationApply.disabled = accelerationSaving || !L.hasViewPermission() || !accelerationKeys.some(editable);
+		}
+		function paintAcceleration(data, reset) {
+			accelerationKeys.forEach(function(key) {
+				var value = data && data[key] || {};
+				var state = accelerationState[key] = {};
+				['supported', 'enabled', 'configured'].forEach(function(field) { state[field] = typeof value[field] === 'boolean' ? value[field] : null; });
+				var known = state.supported === true && state.enabled !== null;
+				accelerationLabels[key].textContent = state.supported === false ? _('Unsupported') : !known ? _('Unknown') : state.enabled ? _('Enabled') : _('Disabled');
+				accelerationLabels[key].className = 'flowsense-acceleration-state' + (!known ? ' unknown' : state.enabled ? ' enabled' : '');
+				accelerationInputs[key].indeterminate = !editable(key);
+				if (reset || !accelerationDirty[key] || !editable(key)) { accelerationInputs[key].checked = state.configured === true; accelerationDirty[key] = false; }
+			});
+			lockAcceleration();
+		}
+		function refreshAcceleration(reset) {
+			if (accelerationPending) return accelerationPending;
+			accelerationPending = getAcceleration().then(function(data) { if (root.isConnected) paintAcceleration(data, reset); })
+				.catch(function() { if (root.isConnected) paintAcceleration(null, true); })
+				.finally(function() { accelerationPending = null; });
+			return accelerationPending;
+		}
+		accelerationApply.addEventListener('click', function() {
+			if (!root.isConnected || !L.hasViewPermission() || accelerationSaving || accelerationApply.disabled) return;
+			var values = accelerationKeys.map(function(key) { return editable(key) ? (accelerationInputs[key].checked ? 1 : 0) : -1; });
+			accelerationSaving = true; lockAcceleration();
+			// Drain an older read before writing: it must never overwrite post-apply readback.
+			Promise.resolve(accelerationPending).then(function() {
+				if (!root.isConnected || !L.hasViewPermission()) throw new Error(_('Unable to apply acceleration settings.'));
+				return setAcceleration.apply(null, values.map(function(value, index) { return editable(accelerationKeys[index]) ? value : -1; }));
+			}).then(function(result) {
+				if (!result || result.success !== true) throw new Error(_('Unable to apply acceleration settings.'));
+			}).catch(function(error) {
+				if (root.isConnected) ui.addNotification(null, E('p', {}, [error.message]), 'error');
+			}).then(function() {
+				// Never render requested values as status, including on failed writes.
+				if (root.isConnected) return refreshAcceleration(true);
+			}).finally(function() { accelerationSaving = false; if (root.isConnected) lockAcceleration(); });
+		});
+		var main = E('div', {}, [summary, acceleration, E('div', { 'class': 'cbi-section' }, [E('h3', { 'class': 'cbi-section-title' }, _('Ethernet Links')), interfaces]), quality]);
 		var monitor = E('div', { 'class': 'cbi-section' }, [E('h3', { 'class': 'cbi-section-title' }, _('Probe Settings')), metric(_('IPv4 address or hostname'), target), metric(_('Enable periodic probes'), enabled), E('div', { 'class': 'cbi-value' }, [E('span', { 'class': 'cbi-value-title' }), E('div', { 'class': 'cbi-value-field' }, apply)])]);
 		var details = E('details', { 'class': 'flowsense-details' }, [E('summary', {}, _('Show PPE flow entries')), ppe]);
 		root.append(message, main, monitor, details);
@@ -105,6 +188,8 @@ return view.extend({
 				return Promise.resolve();
 			}
 			if (pending) return pending;
+			// Lightweight sibling query shares the existing tick, with its own guard.
+			if (!accelerationSaving) refreshAcceleration(false);
 			pending = getOverview().then(function(data) {
 				if (!root.isConnected) return;
 				paint(data);
@@ -115,7 +200,7 @@ return view.extend({
 				online = true;
 				data = data && typeof data === 'object' ? data : {};
 				var jitter = data.jitter && typeof data.jitter === 'object' ? data.jitter : null;
-				var ports = Array.isArray(data.interfaces) ? data.interfaces.filter(function(port) { return port && typeof port.device === 'string' && port.device !== 'eth0' && port.stats && typeof port.stats === 'object'; }) : [];
+				var ports = Array.isArray(data.interfaces) ? data.interfaces.filter(function(port) { return port && typeof port.device === 'string' && port.device !== 'eth0'; }) : [];
 				var priority = ['wan', 'lan2', 'lan3', 'lan4'];
 				ports.sort(function(a, b) {
 					var ai = priority.indexOf(a.device), bi = priority.indexOf(b.device);
@@ -126,12 +211,13 @@ return view.extend({
 				var totalRx = 0, totalTx = 0, rxOk = 0, txOk = 0;
 				interfaces.replaceChildren();
 				ports.forEach(function(port) {
-					var old = previous && previous.ports[port.device], rx = rate(port.stats.rx_bytes, old && old.rx_bytes, seconds), tx = rate(port.stats.tx_bytes, old && old.tx_bytes, seconds);
+					var stats = port.stats && typeof port.stats === 'object' ? port.stats : {};
+					var old = previous && previous.ports[port.device], rx = rate(stats.rx_bytes, old && old.rx_bytes, seconds), tx = rate(stats.tx_bytes, old && old.tx_bytes, seconds);
 					if (rx != null) { totalRx += rx; rxOk++; } if (tx != null) { totalTx += tx; txOk++; }
-					interfaces.appendChild(E('div', { 'class': 'flowsense-port' }, [E('div', { 'class': 'flowsense-port-title' }, [E('span', { 'class': 'flowsense-port-name' }, [port.device.toUpperCase()]), statusBadge(port.carrier)]), portMetric(_('Speed'), number(port.speed, 0, 1000000) == null ? '—' : port.speed + ' Mbit/s'), portMetric(_('RX / TX rate'), formatRate(rx) + ' / ' + formatRate(tx)), portMetric(_('RX / TX errors'), (number(port.stats.rx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : port.stats.rx_errors) + ' / ' + (number(port.stats.tx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : port.stats.tx_errors))]));
+					interfaces.appendChild(E('div', { 'class': 'flowsense-port' }, [E('div', { 'class': 'flowsense-port-title' }, [E('span', { 'class': 'flowsense-port-name' }, [port.device.toUpperCase()]), statusBadge(port.carrier)]), portMetric(_('Speed'), number(port.speed, 0, 1000000) == null ? '—' : port.speed + ' Mbit/s'), portMetric(_('RX / TX rate'), formatRate(rx) + ' / ' + formatRate(tx)), portMetric(_('RX / TX errors'), (number(stats.rx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : stats.rx_errors) + ' / ' + (number(stats.tx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : stats.tx_errors))]));
 				});
-				summary.replaceChildren(card(_('Total Port Receive Rate'), rxOk === ports.length && ports.length ? formatRate(totalRx) : '—', rxOk + ' / ' + ports.length), card(_('Total Port Transmit Rate'), txOk === ports.length && ports.length ? formatRate(totalTx) : '—', txOk + ' / ' + ports.length), card(_('PPE Flow Engine'), data.configured_hw === true ? _('Enabled') : data.configured_hw === false ? _('Disabled') : _('Unknown'), _('Hardware flow offload')), card(_('Network Quality'), jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : '—', jitter && number(jitter.loss, 0, 100) != null ? _('Loss') + ': ' + jitter.loss + '%' : _('Probe data unavailable')));
-				quality.replaceChildren(E('h3', { 'class': 'cbi-section-title' }, _('Link Quality')), metric(_('Latest RTT'), jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : _('Probe data unavailable')), metric(_('RTT mean absolute deviation'), jitter && number(jitter.deviation, 0, 60000) != null ? jitter.deviation + ' ms' : '—'), metric(_('Window packet loss'), jitter && number(jitter.loss, 0, 100) != null ? jitter.loss + '%' : '—'), metric(_('Hardware flow offload'), data.configured_hw === true ? _('Enabled') : data.configured_hw === false ? _('Disabled') : _('Unknown')), metric(_('Software flow offload'), data.configured_sw === true ? _('Enabled') : data.configured_sw === false ? _('Disabled') : _('Unknown')));
+				summary.replaceChildren(card(_('Total Port Receive Rate'), rxOk === ports.length && ports.length ? formatRate(totalRx) : '—', rxOk + ' / ' + ports.length), card(_('Total Port Transmit Rate'), txOk === ports.length && ports.length ? formatRate(totalTx) : '—', txOk + ' / ' + ports.length), card(_('Physical Ethernet Ports'), (Array.isArray(data.interfaces) && ports.every(function(port) { return port.carrier === 0 || port.carrier === 1 || typeof port.carrier === 'boolean'; }) ? ports.filter(function(port) { return port.carrier === 1 || port.carrier === true; }).length : '—') + ' / ' + (Array.isArray(data.interfaces) ? ports.length : '—'), _('Connected / Total')), card(_('Network Quality'), jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : '—', jitter && number(jitter.loss, 0, 100) != null ? _('Loss') + ': ' + jitter.loss + '%' : _('Probe data unavailable')));
+				quality.replaceChildren(E('h3', { 'class': 'cbi-section-title' }, _('Link Quality')), metric(_('Latest RTT'), jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : _('Probe data unavailable')), metric(_('RTT mean absolute deviation'), jitter && number(jitter.deviation, 0, 60000) != null ? jitter.deviation + ' ms' : '—'), metric(_('Window packet loss'), jitter && number(jitter.loss, 0, 100) != null ? jitter.loss + '%' : '—'));
 				previous = { time: number(data.uptime, 0, Number.MAX_SAFE_INTEGER) || 0, ports: {} }; ports.forEach(function(port) { previous.ports[port.device] = port.stats; });
 				message.textContent = data.timestamp ? _('Last update') + ': ' + new Date(data.timestamp * 1000).toLocaleTimeString() : _('Data unavailable');
 				}
@@ -167,6 +253,7 @@ return view.extend({
 			});
 			removal.observe(document.body, { childList: true, subtree: true });
 			if (initial) paint(initial); else clear();
+			paintAcceleration(initialAcceleration, true);
 			poll.add(update, 5);
 			poll.add(loadPpe, 30);
 		});

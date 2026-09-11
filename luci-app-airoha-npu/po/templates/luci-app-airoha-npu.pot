@@ -22,9 +22,6 @@ msgstr ""
 msgid "Another operation is in progress. Retry later."
 msgstr ""
 
-msgid "Apply or revert pending firewall changes first."
-msgstr ""
-
 msgid "Bound"
 msgstr ""
 
@@ -35,9 +32,6 @@ msgid "CPU Frequency Changes"
 msgstr ""
 
 msgid "Clock Rate"
-msgstr ""
-
-msgid "Configure CPU governor, maximum scaling frequency, and firewall flow offloading."
 msgstr ""
 
 msgid "Conservative"
@@ -64,9 +58,6 @@ msgstr ""
 msgid "Enabled in firewall"
 msgstr ""
 
-msgid "Firewall Flow Offloading"
-msgstr ""
-
 msgid "Firmware File"
 msgstr ""
 
@@ -88,13 +79,7 @@ msgstr ""
 msgid "Hardware flow offload"
 msgstr ""
 
-msgid "Hardware flow offloading"
-msgstr ""
-
 msgid "Kernel CPU Controls"
-msgstr ""
-
-msgid "Manage hardware PPE and software flow offloading."
 msgstr ""
 
 msgid "Max limit:"
@@ -172,8 +157,8 @@ msgstr ""
 msgid "View real-time Airoha SoC frequency, NPU acceleration, and system status."
 msgstr ""
 
-msgid "Flow offloading state is unknown; refresh before changing it."
+msgid "Last 120 seconds"
 msgstr ""
 
-msgid "Last 120 seconds"
+msgid "Configure CPU governor and maximum scaling frequency."
 msgstr ""

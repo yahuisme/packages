@@ -1,6 +1,6 @@
 {
 	"luci-app-airoha-npu": {
-		"description": "Manage Airoha kernel CPU controls and firewall flow offloading",
+		"description": "View Airoha SoC status and manage kernel CPU controls",
 		"read": {
 			"ubus": {
 				"luci.airoha_npu": [ "getStatus", "getInfo", "getFlowOffload" ]
@@ -8,7 +8,7 @@
 		},
 		"write": {
 			"ubus": {
-				"luci.airoha_npu": [ "setGovernor", "setMaxFreq", "setFlowOffload" ]
+				"luci.airoha_npu": [ "setGovernor", "setMaxFreq" ]
 			}
 		}
 	}

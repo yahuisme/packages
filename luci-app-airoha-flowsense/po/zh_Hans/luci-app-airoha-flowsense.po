@@ -11,96 +11,132 @@ msgstr ""
 "Language: zh_Hans\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 
+msgid "AP acceleration"
+msgstr "AP 模式加速"
+
+msgid "Acceleration"
+msgstr "流量加速"
+
 msgid "Airoha FlowSense"
 msgstr "Airoha 流量传感器"
-msgid "All interfaces combined"
-msgstr "全部网口聚合统计"
-msgid "Bound Flows"
-msgstr "已绑定流"
-msgid "Complete valid curve points to preview."
-msgstr "请完善有效的曲线参数以显示预览。"
-msgid "Configured mode differs from hardware"
-msgstr "配置模式与硬件状态不一致"
-msgid "Data unavailable"
-msgstr "数据不可用"
-msgid "Data unavailable; previous readings cleared."
-msgstr "数据获取失败，旧读数已清除。"
-msgid "Disabled"
-msgstr "已禁用"
-msgid "Disconnected"
-msgstr "未连接"
-msgid "Enable periodic probes"
-msgstr "启用定期探测"
-msgid "Enabled"
-msgstr "已启用"
-msgid "Enter a valid IPv4 address or hostname."
-msgstr "请输入有效的 IPv4 地址或主机名。"
-msgid "Ethernet Links"
-msgstr "以太网链路"
-msgid "Fixed PWM output"
-msgstr "固定 PWM 输出"
-msgid "Flows"
-msgstr "条流"
-msgid "Hardware flow offload"
-msgstr "硬件流量卸载"
-msgid "IPv4 address or hostname"
-msgstr "IPv4 地址或主机名"
-msgid "Last update"
-msgstr "最后更新"
-msgid "Latest RTT"
-msgstr "最近往返延迟"
-msgid "Link Quality"
-msgstr "链路质量"
-msgid "Loss"
-msgstr "丢包"
-msgid "Network Quality"
-msgstr "链路网络质量"
-msgid "PPE data unavailable"
-msgstr "无法获取 PPE 流表"
-msgid "Probe data unavailable"
-msgstr "无法获取探测数据"
-msgid "Probe Settings"
-msgstr "探测设置"
-msgid "RX / TX errors"
-msgstr "接收 / 发送错误包"
-msgid "RX / TX rate"
-msgstr "接收 / 发送速率"
-msgid "Save & Apply"
-msgstr "保存并应用"
-msgid "Show PPE flow entries"
-msgstr "显示 PPE 流表条目"
-msgid "Shown / Total"
-msgstr "已显示 / 总条目"
-msgid "Software flow offload"
-msgstr "软件流量卸载"
-msgid "Speed"
-msgstr "协商速率"
-msgid "Total Port Receive Rate"
-msgstr "网口接收总速率"
-msgid "Total Port Transmit Rate"
-msgstr "网口发送总速率"
-msgid "Unknown"
-msgstr "未知"
-msgid "Unable to apply monitor settings."
-msgstr "无法应用监测设置。"
-msgid "Unavailable"
-msgstr "无法获取"
-msgid "Unbound"
-msgstr "未绑定"
+
 msgid "Connected"
 msgstr "已连接"
-msgid "Waiting for data"
-msgstr "等待数据"
-msgid "Window packet loss"
-msgstr "采样窗口丢包率"
-msgid "PPE Flow Engine"
-msgstr "PPE 流控引擎"
-msgid "IPv4 / IPv6 / Other"
-msgstr "IPv4 / IPv6 / 其他"
+
+msgid "Connected / Total"
+msgstr "已连接 / 总数"
+
+msgid "Data unavailable"
+msgstr "数据不可用"
+
+msgid "Data unavailable; previous readings cleared."
+msgstr "数据获取失败，旧读数已清除。"
+
+msgid "Disabled"
+msgstr "未启用"
+
+msgid "Disconnected"
+msgstr "未连接"
+
+msgid "Enable periodic probes"
+msgstr "启用定期探测"
+
+msgid "Enabled"
+msgstr "已启用"
+
+msgid "Enter a valid IPv4 address or hostname."
+msgstr "请输入有效的 IPv4 地址或主机名。"
+
+msgid "Ethernet Links"
+msgstr "以太网链路"
+
+
+msgid "Hardware acceleration"
+msgstr "硬件流量加速"
+
+msgid "IPv4 address or hostname"
+msgstr "IPv4 地址或主机名"
+
+msgid "Last update"
+msgstr "最后更新"
+
+msgid "Latest RTT"
+msgstr "最近往返延迟"
+
+msgid "Link Quality"
+msgstr "链路质量"
+
+msgid "Loss"
+msgstr "丢包"
+
+msgid "Network Quality"
+msgstr "链路网络质量"
+
+msgid "PPE data unavailable"
+msgstr "无法获取 PPE 流表"
+
+msgid "PPPoE acceleration"
+msgstr "PPPoE 加速"
+
+msgid "Physical Ethernet Ports"
+msgstr "物理以太网端口"
+
+msgid "Probe Settings"
+msgstr "探测设置"
+
+msgid "Probe data unavailable"
+msgstr "无法获取探测数据"
+
 msgid "RTT mean absolute deviation"
 msgstr "延迟平均绝对偏差"
-msgid "FlowSense telemetry and probe settings"
-msgstr "FlowSense 遥测与探测设置"
+
+msgid "RX / TX errors"
+msgstr "接收 / 发送错误包"
+
+msgid "RX / TX rate"
+msgstr "接收 / 发送速率"
+
+msgid "Save & Apply"
+msgstr "保存并应用"
+
+msgid "Show PPE flow entries"
+msgstr "显示 PPE 流表条目"
+
+msgid "Shown / Total"
+msgstr "已显示 / 总条目"
+
+msgid "Speed"
+msgstr "协商速率"
+
+msgid "Total Port Receive Rate"
+msgstr "网口接收总速率"
+
+msgid "Total Port Transmit Rate"
+msgstr "网口发送总速率"
+
+msgid "Unable to apply acceleration settings."
+msgstr "无法应用加速设置。"
+
+msgid "Unable to apply monitor settings."
+msgstr "无法应用监测设置。"
+
+msgid "Unknown"
+msgstr "未知"
+
+msgid "Unsupported"
+msgstr "不支持"
+
+msgid "VLAN acceleration"
+msgstr "VLAN 加速"
 
 msgid "View Ethernet traffic, link quality, and PPE flow entries."
 msgstr "查看以太网流量、链路质量与 PPE 流表。"
+
+msgid "Waiting for data"
+msgstr "等待数据"
+
+msgid "Window packet loss"
+msgstr "采样窗口丢包率"
+
+msgid "FlowSense telemetry, acceleration and probe settings"
+msgstr "流量传感器状态、加速与探测设置"

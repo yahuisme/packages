@@ -61,14 +61,16 @@ clean_args = []
 for arg in it:
     if arg == '-q': pass
     elif arg == '-c': config_dir = Path(next(it))
-    elif arg in ('-t', '-P'): next(it)
+    elif arg == '-P': next(it)
     else: clean_args.append(arg)
 
 if not clean_args:
     sys.exit(0)
 
 cmd = clean_args[0]
-firewall_file = (config_dir / 'firewall') if config_dir else Path('/etc/config/firewall')
+if config_dir is None:
+    raise RuntimeError('Fixture UCI requires a private config directory')
+firewall_file = config_dir / 'firewall'
 
 def read_firewall():
     if not firewall_file.exists(): return {}
@@ -88,12 +90,6 @@ def read_firewall():
                 res[cur_sec][key] = val
     return res
 
-def write_firewall(data):
-    lines = ['config defaults']
-    for k, v in data.get('defaults', {}).items():
-        lines.append(f"\toption {k} '{v}'")
-    firewall_file.write_text('\n'.join(lines) + '\n')
-
 if cmd == 'get':
     target = clean_args[1]
     data = read_firewall()
@@ -111,26 +107,8 @@ if cmd == 'get':
         sys.exit(1)
     sys.exit(1)
 
-elif cmd == 'changes':
-    sys.exit(0)
-
-elif cmd == 'set':
-    assignment = clean_args[1]
-    data = read_firewall()
-    if 'defaults' not in data:
-        data['defaults'] = {}
-    m = re.match(r'firewall\.@defaults\[0\]\.([a-zA-Z0-9_]+)=(.*)', assignment)
-    if m:
-        key, val = m.group(1), m.group(2)
-        data['defaults'][key] = val
-        write_firewall(data)
-        sys.exit(0)
-    sys.exit(1)
-
-elif cmd == 'commit':
-    sys.exit(0)
-
-sys.exit(0)
+# This adapter intentionally cannot mutate configuration.
+sys.exit(1)
 '''
 
 class Backend(unittest.TestCase):
@@ -206,27 +184,20 @@ class Backend(unittest.TestCase):
                             input=b'{"freq":"1400000"}', env=self.env))
         self.assertEqual(result['error'], 'rollback_failed')
 
-    def test_flow_transaction(self):
+    def test_read_only_flow_status(self):
         config = self.root / 'etc/config'
         config.mkdir(parents=True)
         firewall = config / 'firewall'
-        original = "config defaults\n\toption flow_offloading '1'\n\toption flow_offloading_hw '0'\n\toption input 'DROP'\n"
-        firewall.write_text(original)
         (self.root / 'tmp').mkdir()
-        reload = self.root / 'reload'
-        reload.write_text('#!/bin/sh\nexit 0\n')
-        reload.chmod(0o755)
-        self.env.update(NPU_FIREWALL=str(reload))
-        self.assertEqual(self.call('getFlowOffload')['enabled'], False)
-        self.assertEqual(self.call('setFlowOffload', {'enabled': '1'}).get('result'), 'ok')
-        self.assertEqual(self.call('getFlowOffload')['enabled'], True)
-        saved = firewall.read_bytes()
-        reload.write_text('#!/bin/sh\nexit 1\n')
-        self.assertEqual(self.call('setFlowOffload', {'enabled': '0'})['error'], 'rollback_failed')
-        self.assertEqual(firewall.read_bytes(), saved)
-        self.assertIn('error', self.call('setFlowOffload', {}))
-        firewall.write_text(original)
-        self.assertFalse(self.call('getFlowOffload')['enabled'])
+        self.assertIsNone(self.call('getFlowOffload')['enabled'])
+        for sw, hw, expected in [('1', '1', True), ('1', '0', False),
+                                 ('0', '1', False), ('0', '0', False),
+                                 ('invalid', '1', None)]:
+            original = f"config defaults\n\toption flow_offloading '{sw}'\n\toption flow_offloading_hw '{hw}'\n"
+            firewall.write_text(original)
+            self.assertIs(self.call('getFlowOffload')['enabled'], expected)
+            self.assertEqual(self.call('setFlowOffload', {'enabled': '1'})['error'], 'unsupported')
+            self.assertEqual(firewall.read_text(), original)
 
     def test_info_and_missing(self):
         dt = self.root / 'proc/device-tree'
@@ -256,7 +227,7 @@ class Backend(unittest.TestCase):
         for forbidden in ('devmem', 'setOverclock', 'getPpeEntries', 'modprobe', 'bridge-nf-', '_run_with_deadline'):
             self.assertNotIn(forbidden, source)
         methods = json.loads(subprocess.check_output(['sh', str(BACKEND), 'list']))
-        self.assertEqual(set(methods), {'getStatus', 'getInfo', 'getFlowOffload', 'setFlowOffload', 'setGovernor', 'setMaxFreq'})
+        self.assertEqual(set(methods), {'getStatus', 'getInfo', 'getFlowOffload', 'setGovernor', 'setMaxFreq'})
 
 if __name__ == '__main__':
     unittest.main()

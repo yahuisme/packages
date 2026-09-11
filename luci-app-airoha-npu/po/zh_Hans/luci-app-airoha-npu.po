@@ -22,9 +22,6 @@ msgstr "Airoha SoC 设置"
 msgid "Another operation is in progress. Retry later."
 msgstr "另一项操作正在进行，请稍后重试。"
 
-msgid "Apply or revert pending firewall changes first."
-msgstr "请先应用或撤销待处理的防火墙更改。"
-
 msgid "Bound"
 msgstr "已绑定"
 
@@ -36,9 +33,6 @@ msgstr "CPU 频率变化"
 
 msgid "Clock Rate"
 msgstr "时钟频率"
-
-msgid "Configure CPU governor, maximum scaling frequency, and firewall flow offloading."
-msgstr "配置 CPU 调速策略、最高运行频率与防火墙流量卸载。"
 
 msgid "Conservative"
 msgstr "保守调速"
@@ -64,9 +58,6 @@ msgstr "已启用"
 msgid "Enabled in firewall"
 msgstr "防火墙中已启用"
 
-msgid "Firewall Flow Offloading"
-msgstr "防火墙流量卸载"
-
 msgid "Firmware File"
 msgstr "固件文件路径"
 
@@ -88,14 +79,8 @@ msgstr "硬件流控 PPE"
 msgid "Hardware flow offload"
 msgstr "硬件流控 PPE"
 
-msgid "Hardware flow offloading"
-msgstr "硬件流量卸载"
-
 msgid "Kernel CPU Controls"
 msgstr "内核 CPU 控制"
-
-msgid "Manage hardware PPE and software flow offloading."
-msgstr "管理硬件 PPE 与软件流量卸载。"
 
 msgid "Max limit:"
 msgstr "上限:"
@@ -172,8 +157,8 @@ msgstr "用户空间"
 msgid "View real-time Airoha SoC frequency, NPU acceleration, and system status."
 msgstr "查看 Airoha SoC 实时频率、NPU 硬件加速与系统状态。"
 
-msgid "Flow offloading state is unknown; refresh before changing it."
-msgstr "流控状态未知，请刷新后重试。"
-
 msgid "Last 120 seconds"
 msgstr "最近 120 秒"
+
+msgid "Configure CPU governor and maximum scaling frequency."
+msgstr "配置 CPU 调速策略和最高运行频率。"

@@ -17,15 +17,19 @@ let notification;
 const calls=[],polls=new Map();let overviewError=false,waitOverview=null,waitPpe=null,waitSave=null,saveError=false;
 const sample={timestamp:1000,uptime:100,configured_hw:true,configured_sw:false,monitor:{target:'example.com',enabled:true},jitter:{last_ping:12,deviation:3,loss:4},interfaces:[{device:'lan1',speed:2500,carrier:1,stats:{rx_bytes:10,tx_bytes:20,rx_errors:7,tx_errors:9}}]};
 const ppeSample={available:true,total:1,entries:[{index:'abcd',state:'BND',type:'IPv4'}]};
+const accelerationSample={hardware:{supported:true,enabled:true,configured:false},vlan:{supported:true,enabled:false,configured:true},pppoe:{supported:false,enabled:null,configured:null},ap:{supported:true,enabled:null,configured:true}};
+let accelerationError=false, accelerationSaveError=false, waitAcceleration=null, waitAccelerationSave=null, accelerationPayload;
 mods.request.post=async(url,req)=>{
  const method=req.params[2];calls.push(method);
+ if(method==='getAcceleration'&&waitAcceleration)await waitAcceleration.promise;
+ if(method==='setAcceleration') { accelerationPayload=req.params[3];if(waitAccelerationSave)await waitAccelerationSave.promise; }
  if(method==='getOverview'&&waitOverview)await waitOverview.promise;
  if(method==='getPpeEntries'&&waitPpe)await waitPpe.promise;
  if(method==='setMonitor') {
   if(waitSave)await waitSave.promise;
   if(!saveError)sample.monitor={target:req.params[3].target,enabled:req.params[3].enabled===1};
  }
- const result=method==='getOverview'?(overviewError?[6]:[0,sample]):method==='getPpeEntries'?[0,ppeSample]:method==='setMonitor'?(saveError?[6]:[0,{success:true}]):[6];
+ const result=method==='getAcceleration'?(accelerationError?[6]:[0,accelerationSample]):method==='setAcceleration'?[0,{success:!accelerationSaveError}]:method==='getOverview'?(overviewError?[6]:[0,sample]):method==='getPpeEntries'?[0,ppeSample]:method==='setMonitor'?(saveError?[6]:[0,{success:true}]):[6];
  if(method==='setMonitor' && process.env.ERROR_TEXT_TEST==='1')
   return {ok:true,status:200,json:()=>w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,error:{code:-32000,message:hostile}}))};
  return {ok:true,status:200,json:()=>w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result}))};
@@ -44,7 +48,7 @@ function count(name){return calls.filter(n=>n===name).length;}
 (async()=>{
  await settle();await settle();const root=w.document.querySelector('.flowsense-dashboard');assert(root);assert(polls.has(5));
  if(process.env.ERROR_TEXT_TEST==='1') {
-  root.querySelector('button').click();await settle();await settle();
+  root.querySelector('#flowsense-target').closest('.cbi-section').querySelector('button').click();await settle();await settle();
   assert(notification,'RPC rejection notification');
   assert(notification.textContent.includes(hostile),'hostile error preserved literally');
   assert.equal(notification.querySelectorAll('*').length,0,'error contains text only');
@@ -54,9 +58,9 @@ function count(name){return calls.filter(n=>n===name).length;}
  if (!writable) {
   const controls=[...root.querySelectorAll('input,button')];
   assert(controls.every(n=>n.disabled),'readonly controls disabled');
-  const button=root.querySelector('button');button.click();
-  button.dispatchEvent(new w.Event('click'));await settle();
+  for(const button of root.querySelectorAll('button')) { button.click();button.dispatchEvent(new w.Event('click')); }await settle();
   assert.equal(count('setMonitor'),0,'readonly synthetic handler must not dispatch setter');
+  assert.equal(count('setAcceleration'),0,'readonly acceleration setter blocked');
   await polls.get(5)();assert(controls.every(n=>n.disabled),'refresh preserves readonly');
   console.log('PASS readonly controls, native/synthetic clicks, refresh: zero setters');w.close();return;
  }
@@ -66,6 +70,7 @@ function count(name){return calls.filter(n=>n===name).length;}
  assert(root.querySelector(':scope > .flowsense-status-message'));
  assert.equal(w.getComputedStyle(root.querySelector(':scope > .flowsense-status-message')).textAlign,'right');
  assert.equal(count('getOverview'),1,'load data reused without duplicate RPC');assert.equal(count('getPpeEntries'),0);
+ assert.equal(count('getAcceleration'),1,'initial acceleration reused without duplicate RPC');assert.equal(polls.size,2,'no new poll registration');
  assert(root.textContent.includes('12 ms'));assert.equal(root.querySelector('#flowsense-target').labels.length,1);assert.equal(root.querySelector('#flowsense-enabled').labels.length,1);
  const port=root.querySelector('.flowsense-port');
  assert.equal(port.querySelector('.flowsense-status').textContent,'↑Connected');
@@ -96,7 +101,7 @@ function count(name){return calls.filter(n=>n===name).length;}
  assert.deepEqual(sample.interfaces.map(p=>p.device),devices,'presentation must not mutate identifiers or source order');
  assert.deepEqual([...check.querySelectorAll('.flowsense-port')].map(n=>n.querySelectorAll('dd')[2].textContent),['3 / 3','2 / 2','5 / 5','0 / 0','1 / 1','4 / 4','6 / 6'],'metrics stay with real ports');
  const refresh=polls.get(5);
- const target=check.querySelector('#flowsense-target'),enabled=check.querySelector('#flowsense-enabled'),apply=check.querySelector('button');
+ const target=check.querySelector('#flowsense-target'),enabled=check.querySelector('#flowsense-enabled'),apply=target.closest('.cbi-section').querySelector('button');
  for(const fail of [false,true]) {
   saveError=fail;waitSave=deferred();target.value=fail?'retry.example':'saved.example';
   target.dispatchEvent(new w.Event('input'));enabled.checked=false;enabled.dispatchEvent(new w.Event('change'));
@@ -127,6 +132,62 @@ function count(name){return calls.filter(n=>n===name).length;}
  }
  sample.interfaces=[sample.interfaces[4],sample.interfaces[1]];await refresh();
  assert.deepEqual(names(),['LAN1','USB9'],'no fabricated priority ports when absent');
- check.remove();await settle();
+ const acceleration=check.querySelector('.flowsense-acceleration'), accelerationButton=acceleration.querySelector('button');
+ const inputs=[...acceleration.querySelectorAll('input')], states=()=>[...acceleration.querySelectorAll('.flowsense-acceleration-state')];
+ await refresh();await settle();
+ assert.equal(acceleration.previousElementSibling.className,'flowsense-summary');
+ assert.equal(acceleration.nextElementSibling.querySelector('h3').textContent,'Ethernet Links');
+ assert.equal(inputs.length,4);assert(inputs.every(n=>n.labels.length===1));
+ for (const input of inputs) {
+  assert.equal(input.type,'checkbox','native checkbox accessibility and keyboard semantics');
+  assert.equal(w.getComputedStyle(input).appearance,'none','native UA checkbox must not overlay the rectangular toggle');
+  assert.equal(w.getComputedStyle(input).width,'48px');
+  assert.equal(w.getComputedStyle(input).height,'24px');
+  assert.equal(w.getComputedStyle(input).borderRadius,'2px');
+  assert.equal(w.document.getElementById(input.getAttribute('aria-describedby')),input.previousElementSibling,'confirmed runtime status is the accessible description, not checked state');
+ }
+ inputs[0].labels[0].click();assert.equal(inputs[0].checked,true,'native label click changes configured edit');
+ assert.equal(states()[0].textContent,'Enabled','native label click leaves real runtime state unchanged');
+ inputs[0].labels[0].click();assert.equal(inputs[0].checked,false);
+ inputs[2].labels[0].click();assert.equal(inputs[2].checked,false);assert(inputs[2].indeterminate,'disabled unsupported label click retains mixed state');
+ assert.deepEqual(states().map(n=>n.textContent),['Enabled','Disabled','Unsupported','Unknown']);
+ assert.equal(computedColor(states()[0]),'rgb(22, 163, 74)');assert.equal(computedColor(states()[1]),'rgb(51, 51, 51)');assert.equal(computedColor(states()[3]),'var(--cbi-muted-color,var(--text-muted,#888))','jsdom retains the theme-muted expression');
+ assert.deepEqual(inputs.map(n=>n.disabled),[false,false,true,true]);
+ assert.deepEqual(inputs.map(n=>n.indeterminate),[false,false,true,true],'unconfirmed controls must not look like ordinary off switches');
+ assert.deepEqual(inputs.map(n=>n.checked),[false,true,false,true],'checkbox baseline is configured, not enabled');
+ assert.equal(w.getComputedStyle(acceleration.querySelector('label')).fontWeight,'600');
+ assert.equal(w.getComputedStyle(acceleration.querySelector('label')).textAlign,'left');
+ for(const fail of [false,true]) {
+  inputs[0].checked=true;inputs[0].dispatchEvent(new w.Event('change'));
+  assert.equal(states()[0].textContent,'Enabled','editing never changes runtime label');
+  accelerationSaveError=fail;waitAccelerationSave=deferred();accelerationButton.click();await settle();
+  assert(inputs.every(n=>n.disabled));const writes=count('setAcceleration');accelerationButton.dispatchEvent(new w.Event('click'));await settle();assert.equal(count('setAcceleration'),writes);
+  assert.deepEqual(JSON.parse(JSON.stringify(accelerationPayload)),{hardware:1,vlan:1,pppoe:-1,ap:-1});
+  waitAccelerationSave.resolve();await settle();await settle();waitAccelerationSave=null;
+  assert.equal(inputs[0].checked,false,'success or failure restores real readback, never requested state');
+  assert.equal(states()[0].textContent,'Enabled');
+ }
+ assert.equal(count('apply'),0,'local setter never invokes global apply');
+ waitAcceleration=deferred();await refresh();const reads=count('getAcceleration');await refresh();assert.equal(count('getAcceleration'),reads,'held sibling remains single-flight without blocking overview');
+ waitAcceleration.resolve();waitAcceleration=null;await settle();
+ accelerationError=true;await refresh();await settle();assert(states().every(n=>n.textContent==='Unknown'));assert(inputs.every(n=>n.disabled));assert(accelerationButton.disabled);
+ assert(inputs.every(n=>n.indeterminate),'failed reads show mixed rather than off');
+ accelerationError=false;await refresh();await settle();
+ assert.deepEqual(inputs.map(n=>n.indeterminate),[false,false,true,true],'recovery clears mixed state only for confirmed controls');
+ // A pre-save read must settle before the setter and a fresh read must follow it.
+ waitAcceleration=deferred();await refresh();const beforeSave=count('setAcceleration');accelerationButton.click();await settle();assert.equal(count('setAcceleration'),beforeSave);
+ waitAcceleration.resolve();waitAcceleration=null;await settle();await settle();assert.equal(count('setAcceleration'),beforeSave+1);assert.equal(inputs[0].checked,false);
+ accelerationSample.hardware={supported:'true',enabled:1,configured:1};await refresh();await settle();assert(inputs[0].disabled);assert.equal(states()[0].textContent,'Unknown','malformed booleans fail closed');
+ accelerationSample.hardware={supported:true,enabled:true,configured:false};await refresh();await settle();
+ waitAccelerationSave=deferred();accelerationButton.click();await settle();writable=false;waitAccelerationSave.resolve();waitAccelerationSave=null;await settle();await settle();assert(inputs.every(n=>n.disabled));assert(accelerationButton.disabled);
+ const accelerationWrites=count('setAcceleration');accelerationButton.dispatchEvent(new w.Event('click'));await settle();assert.equal(count('setAcceleration'),accelerationWrites);writable=true;
+ sample.interfaces=[{device:'wan',carrier:1},{device:'lan2',carrier:0},{device:'lan3'},{device:'eth0',carrier:1}];await refresh();
+ const physical=()=>check.querySelectorAll('.flowsense-card')[2];
+ assert.equal(physical().children.length,3);assert.equal(physical().querySelector('.flowsense-value').textContent,'— / 3');
+ sample.interfaces[2].carrier=1;await refresh();assert.equal(physical().querySelector('.flowsense-value').textContent,'2 / 3');
+ sample.interfaces=[];await refresh();assert.equal(physical().querySelector('.flowsense-value').textContent,'0 / 0');
+ assert.equal(check.querySelectorAll('.flowsense-card').length,4);assert.equal(w.getComputedStyle(physical()).minHeight,'96px');
+ assert(!check.textContent.includes('Software flow offload'));assert(!check.textContent.includes('PPE Flow Engine'));
+ waitAcceleration=deferred();await refresh();check.remove();await settle();const detached=check.innerHTML;waitAcceleration.resolve();waitAcceleration=null;await settle();assert.equal(check.innerHTML,detached);assert.equal(polls.size,0);
  console.log('PASS real view/RPC errors, initial reuse, all stale metrics cleared, labels, independent single-flight, closed and detached late replies');dom.window.close();
 })().catch(e=>{console.error(e);dom.window.close();process.exitCode=1});

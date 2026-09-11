@@ -18,7 +18,7 @@ python3 tests/test_backend.py
 python3 tests/test_catalog.py
 ```
 
-Python RPC tests use private sysfs/config/locks and harmless reload commands. Optional `UCI_BIN` and `JSONFILTER_BIN` select real tools; without them the suite uses adapters, not real-UCI verification. `/dev/null` and `/dev/full` model read/write failures. `l10n.js` is a support module, not an entrypoint.
+Python RPC tests use private sysfs/config/locks. Flow offloading is read-only here; tests verify status and rejection of the removed setter without modifying firewall configuration. Optional `UCI_BIN` and `JSONFILTER_BIN` select real tools; without them the suite uses adapters, not real-UCI verification. `/dev/null` and `/dev/full` model read/write failures. `l10n.js` is a support module, not an entrypoint.
 
 The first-frame test remains: complete production render, mount/reentry/resize/fallback/disposal with intervals frozen. Requires Playwright/Chromium and unchanged Aurora:
 
