@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_VERSION:=20260912
-PKG_RELEASE:=4
+PKG_RELEASE:=5
 
 PKG_LICENSE:=Apache-2.0
 

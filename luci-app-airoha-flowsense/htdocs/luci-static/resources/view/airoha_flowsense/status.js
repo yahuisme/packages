@@ -37,7 +37,7 @@ var css = `
 .flowsense-dashboard .flowsense-controls .cbi-value-field{display:flex;flex:0 0 auto;flex-direction:column;align-items:stretch;gap:8px;min-width:0;margin:0;padding:0}
 .flowsense-dashboard .flowsense-acceleration-state{display:inline-flex;flex:0 0 auto;align-items:center;gap:8px;padding:8px 0;text-align:right;white-space:nowrap}
 .flowsense-dashboard .flowsense-acceleration-dot{flex:0 0 6px;width:6px;height:6px;border-radius:50%;background:currentColor}
-@container(min-width:1400px){.flowsense-dashboard .flowsense-controls .cbi-value{padding-right:100px}}
+@container(min-width:1400px){.flowsense-dashboard .flowsense-controls .cbi-value{padding-right:128px}}
 @container(max-width:520px){.flowsense-dashboard .flowsense-controls .cbi-value{padding-right:17px}}
 .flowsense-dashboard .flowsense-active{color:#16a34a}
 @container(max-width:1000px){.flowsense-dashboard .flowsense-controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
