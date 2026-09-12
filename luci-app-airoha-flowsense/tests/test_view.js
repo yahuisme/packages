@@ -14,29 +14,36 @@ L.hasViewPermission=()=>writable;
 L.loaded=true;L.require=n=>Promise.resolve(mods[n]);w.E=mods.dom.create.bind(mods.dom);
 const hostile='<img src=x onerror="window.auditXss=1"><svg onload="window.auditXss=2"></svg>&';
 let notification;
-const calls=[],polls=new Map();let overviewError=false,waitOverview=null,waitPpe=null,waitSave=null,saveError=false;
+const calls=[],polls=new Map();let overviewError=false,waitOverview=null,waitSave=null,saveError=false;
 const sample={timestamp:1000,uptime:100,configured_hw:true,configured_sw:false,monitor:{target:'example.com',enabled:true},jitter:{last_ping:12,deviation:3,loss:4},interfaces:[{device:'lan1',speed:2500,carrier:1,stats:{rx_bytes:10,tx_bytes:20,rx_errors:7,tx_errors:9}}]};
-const ppeSample={available:true,total:1,entries:[{index:'abcd',state:'BND',type:'IPv4'}]};
 const accelerationSample={hardware:{supported:true,enabled:true,configured:false},vlan:{supported:true,enabled:false,configured:true},pppoe:{supported:false,enabled:null,configured:null},ap:{supported:true,enabled:null,configured:true}};
 let accelerationError=false, accelerationSaveError=false, waitAcceleration=null, waitAccelerationSave=null, accelerationPayload;
+let staged=null, failure='', hold=null;
 mods.request.post=async(url,req)=>{
- const method=req.params[2];calls.push(method);
- if(method==='getAcceleration'&&waitAcceleration)await waitAcceleration.promise;
- if(method==='setAcceleration') { accelerationPayload=req.params[3];if(waitAccelerationSave)await waitAccelerationSave.promise; }
- if(method==='getOverview'&&waitOverview)await waitOverview.promise;
- if(method==='getPpeEntries'&&waitPpe)await waitPpe.promise;
- if(method==='setMonitor') {
-  if(waitSave)await waitSave.promise;
-  if(!saveError)sample.monitor={target:req.params[3].target,enabled:req.params[3].enabled===1};
- }
- const result=method==='getAcceleration'?(accelerationError?[6]:[0,accelerationSample]):method==='setAcceleration'?[0,{success:!accelerationSaveError}]:method==='getOverview'?(overviewError?[6]:[0,sample]):method==='getPpeEntries'?[0,ppeSample]:method==='setMonitor'?(saveError?[6]:[0,{success:true}]):[6];
- if(method==='setMonitor' && process.env.ERROR_TEXT_TEST==='1')
-  return {ok:true,status:200,json:()=>w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,error:{code:-32000,message:hostile}}))};
+ if(Array.isArray(req))return {ok:true,status:200,json:()=>w.JSON.parse(JSON.stringify(req.map(r=>({jsonrpc:'2.0',id:r.id,result:[0,{values:{}}]}))))};
+ const method=req.params[2],v=req.params[3];calls.push(method);
+ if(req.params[1]==='uci')return {ok:true,status:200,json:()=>w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result:[0,{values:{}}]}))};
+ if(hold && method==='saveSettings')await hold.promise;
+ let result;
+ if(method==='getOverview')result=overviewError?[6]:[0,sample];
+ else if(method==='getAcceleration')result=accelerationError?[6]:[0,accelerationSample];
+ else if(method==='getSettings')result=[0,{success:true,pending:staged}];
+ else if(method==='saveSettings'){if(failure==='save')result=[6];else {staged={...v};result=[0,{success:true}]}}
+ else if(method==='applySettings'){
+  const a=['hardware','vlan','pppoe','ap'];let acc='unchanged',mon='unchanged';
+  if(a.some(k=>staged[k]!==-1)) {acc=failure==='acc'?'failed':'applied';if(acc==='applied')a.forEach(k=>{if(staged[k]!==-1)accelerationSample[k]={supported:true,enabled:!!staged[k],configured:!!staged[k]};staged[k]=-1})}
+  if(staged.enabled!==-1){mon=failure==='monitor'?'failed':'applied';if(mon==='applied'){sample.monitor={target:staged.target,enabled:!!staged.enabled};staged.enabled=-1;staged.target=''}}
+  const success=acc!=='failed'&&mon!=='failed';if(success)staged=null;
+  result=[0,{success,acceleration:acc,monitor:mon}];
+ }else throw Error('unexpected RPC '+method);
  return {ok:true,status:200,json:()=>w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result}))};
 };
 function load(name,source){source=source||fs.readFileSync(path.join(resources,name+'.js'),'utf8');const deps=[...source.matchAll(/'require ([^';]+)';/g)].map(m=>m[1]);const C=w.Function(...deps,source)(...deps.map(n=>mods[n]));return mods[name]=new C();}
 load('rpc');mods.ui={addNotification:(title,node)=>{notification=node;w.document.body.append(node)}};mods.poll.add=(fn,seconds)=>polls.set(seconds,fn);mods.poll.remove=fn=>{for(const [key,value] of polls)if(value===fn)polls.delete(key)};
-load('app',fs.readFileSync(path.join(__dirname,'../htdocs/luci-static/resources/view/airoha_flowsense/status.js'),'utf8'));
+load('validation');load('uci');mods.session={};mods.fs={};load('ui');mods.network={};mods.uci.load=()=>Promise.resolve();mods.uci.get=()=>null;load('form');
+w.LuCI.prototype.hasViewPermission=()=>writable;
+const nativeNotify=mods.ui.addNotification.bind(mods.ui);mods.ui.addNotification=(title,node,type)=>{notification=node;return nativeNotify(title,node,type)};
+load('app',fs.readFileSync(path.join(__dirname,'../htdocs/luci-static/resources/view/airoha_flowsense/settings.js'),'utf8'));
 const settle=()=>new Promise(r=>setTimeout(r,25));
 function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};}
 function computedColor(node) {
@@ -46,153 +53,31 @@ function computedColor(node) {
 }
 function count(name){return calls.filter(n=>n===name).length;}
 (async()=>{
- await settle();await settle();const root=w.document.querySelector('.flowsense-dashboard');assert(root);assert(polls.has(5));
- if(process.env.ERROR_TEXT_TEST==='1') {
-  root.querySelector('#flowsense-target').closest('.cbi-section').querySelector('button').click();await settle();await settle();
-  assert(notification,'RPC rejection notification');
-  assert(notification.textContent.includes(hostile),'hostile error preserved literally');
-  assert.equal(notification.querySelectorAll('*').length,0,'error contains text only');
-  assert.equal(w.auditXss,undefined);
-  console.log('PASS FlowSense real RPC error text contains no elements');w.close();return;
- }
- if (!writable) {
-  const controls=[...root.querySelectorAll('input,select,button')];
-  assert(controls.every(n=>n.disabled),'readonly controls disabled');
-  for(const button of root.querySelectorAll('button')) { button.click();button.dispatchEvent(new w.Event('click')); }await settle();
-  assert.equal(count('setMonitor'),0,'readonly synthetic handler must not dispatch setter');
-  assert.equal(count('setAcceleration'),0,'readonly acceleration setter blocked');
-  await polls.get(5)();assert(controls.every(n=>n.disabled),'refresh preserves readonly');
-  console.log('PASS readonly controls, native/synthetic clicks, refresh: zero setters');w.close();return;
- }
- assert.equal(root.querySelector(':scope > h2').textContent,'Airoha FlowSense');
- assert.equal(root.querySelector(':scope > h2 + .cbi-map-descr').textContent,'View Ethernet traffic, link quality, and PPE flow entries.');
- assert.equal(w.getComputedStyle(root.querySelector('.flowsense-section .cbi-value')).marginTop,'0px','compact app metric spacing');
- assert(root.querySelector(':scope > .flowsense-status-message'));
- assert.equal(w.getComputedStyle(root.querySelector(':scope > .flowsense-status-message')).textAlign,'right');
- assert.equal(count('getOverview'),1,'load data reused without duplicate RPC');assert.equal(count('getPpeEntries'),0);
- assert.equal(count('getAcceleration'),1,'initial acceleration reused without duplicate RPC');assert.equal(polls.size,2,'no new poll registration');
- assert(root.textContent.includes('12 ms'));assert.equal(root.querySelector('#flowsense-target').labels.length,1);assert.equal(root.querySelector('#flowsense-enabled').labels.length,1);
- const port=root.querySelector('.flowsense-port');
- assert.equal(port.querySelector('.flowsense-status').textContent,'↑Connected');
- assert.equal(w.getComputedStyle(port.querySelector('.flowsense-status-arrow')).color,'rgb(22, 163, 74)');
- assert.equal(w.getComputedStyle(port.querySelector('.flowsense-port-name')).fontWeight,'600');
- assert.equal(port.querySelectorAll('.cbi-value,.cbi-value-title,.cbi-value-field').length,0,'port telemetry must not inherit Aurora form-row margins and right-aligned labels');
- assert.deepEqual([...port.querySelectorAll('dt')].map(n=>n.textContent),['Speed','RX / TX rate','RX / TX errors']);
- assert.deepEqual([...port.querySelectorAll('dd')].map(n=>n.textContent),['2500 Mbit/s','— / —','7 / 9']);
- const overview=polls.get(5),ppePoll=polls.get(30),details=root.querySelector('details');
- await ppePoll();assert.equal(count('getPpeEntries'),0,'closed detail must not scan PPE');
- waitPpe=deferred();details.open=true;await settle();const p1=ppePoll(),p2=ppePoll();assert.equal(count('getPpeEntries'),1,'toggle and poll share PPE request');
- await overview();assert.equal(count('getOverview'),2,'overview independent of blocked PPE');
- overviewError=true;await overview();assert(root.textContent.includes('previous readings cleared'));
- for(const old of ['12 ms','3 ms','4%','2500 Mbit/s','LAN1'])assert(!root.textContent.includes(old),'stale '+old);
- assert.equal(root.querySelector('.flowsense-summary').children.length,0);
- waitPpe.resolve();await Promise.all([p1,p2]);waitPpe=null;assert(!root.textContent.includes('abcd'),'late PPE must not resurrect cleared values');
- overviewError=false;await overview();await ppePoll();assert(root.textContent.includes('abcd'));
- details.open=false;await settle();assert(!root.textContent.includes('abcd'));
- waitPpe=deferred();details.open=true;await settle();details.open=false;await settle();waitPpe.resolve();await ppePoll();await settle();waitPpe=null;assert(!root.textContent.includes('abcd'),'closed disclosure ignores late data');
- waitOverview=deferred();const o1=overview(),o2=overview();assert.equal(count('getOverview'),5,'overview requests single-flight');
- waitPpe=deferred();details.open=true;await settle();const pendingPpe=ppePoll();root.remove();await settle();assert.equal(polls.size,0,'removal unregisters both pollers');const html=root.innerHTML;
- waitOverview.resolve();waitPpe.resolve();await Promise.all([o1,o2,pendingPpe]);assert.equal(root.innerHTML,html,'detached replies cannot mutate DOM');
- const devices=['lan4','usb9','lan2','wan','lan1','lan3','usb2'];
- sample.interfaces=devices.map((device,i)=>({...sample.interfaces[0],device,stats:{rx_bytes:100+i,tx_bytes:200+i,rx_errors:i,tx_errors:i}}));
- const check=mods.app.render(sample);w.document.body.append(check);await settle();
- const names=()=>[...check.querySelectorAll('.flowsense-port-name')].map(n=>n.textContent);
- assert.deepEqual(names(),['WAN','LAN2','LAN3','LAN4','USB9','LAN1','USB2'],'fixed priority, stable extra ports');
- assert.deepEqual(sample.interfaces.map(p=>p.device),devices,'presentation must not mutate identifiers or source order');
- assert.deepEqual([...check.querySelectorAll('.flowsense-port')].map(n=>n.querySelectorAll('dd')[2].textContent),['3 / 3','2 / 2','5 / 5','0 / 0','1 / 1','4 / 4','6 / 6'],'metrics stay with real ports');
- const refresh=polls.get(5);
- const target=check.querySelector('#flowsense-target'),enabled=check.querySelector('#flowsense-enabled'),apply=target.closest('.cbi-section').querySelector('button');
- for(const fail of [false,true]) {
-  saveError=fail;waitSave=deferred();target.value=fail?'retry.example':'saved.example';
-  target.dispatchEvent(new w.Event('input'));enabled.checked=false;enabled.dispatchEvent(new w.Event('change'));
-  apply.click();await settle();
-  assert(target.disabled&&enabled.disabled&&apply.disabled,'freeze both editable controls until save settles');
-  const writes=count('setMonitor');apply.click();apply.dispatchEvent(new w.Event('click'));await settle();assert.equal(count('setMonitor'),writes,'no duplicate save');
-  waitSave.resolve();await settle();await settle();waitSave=null;
-  assert(!target.disabled&&!enabled.disabled&&!apply.disabled,'unlock after success or rejection');
-  assert.equal(target.value,fail?'retry.example':'saved.example','failed save retains edits');
-  assert.equal(enabled.checked,false);
- }
- // Permission revoked while a write is pending must stay locked in finally.
- waitSave=deferred();apply.click();await settle();writable=false;
- waitSave.resolve();await settle();await settle();waitSave=null;
- assert(target.disabled&&enabled.disabled&&apply.disabled,'readonly finally stays locked');
- const writes=count('setMonitor');apply.dispatchEvent(new w.Event('click'));await settle();
- assert.equal(count('setMonitor'),writes,'revoked permission blocks handler');
- writable=true;
- for(const [carrier,label,color] of [[1,'↑Connected','rgb(22, 163, 74)'],[0,'↓Disconnected','rgb(51, 51, 51)'],[null,'—Unknown','rgb(51, 51, 51)'],[true,'↑Connected','rgb(22, 163, 74)'],[false,'↓Disconnected','rgb(51, 51, 51)']]) {
-  sample.interfaces.forEach(p=>p.carrier=carrier);await refresh();
-  for(const state of check.querySelectorAll('.flowsense-status')) {
-   assert.equal(state.textContent,label);
-   assert.equal(computedColor(state.firstChild),color);
-   assert.equal(computedColor(state.lastChild),carrier?'rgb(22, 163, 74)':'rgb(51, 51, 51)','label computed color');
-   assert.equal(w.getComputedStyle(state.firstChild).fontWeight,'600');
-   assert.equal(state.firstChild.getAttribute('aria-hidden'),'true');
-  }
- }
- sample.interfaces=[sample.interfaces[4],sample.interfaces[1]];await refresh();
- assert.deepEqual(names(),['LAN1','USB9'],'no fabricated priority ports when absent');
- const acceleration=check.querySelector('.flowsense-acceleration'), accelerationButton=acceleration.querySelector('button');
- const inputs=[...acceleration.querySelectorAll('select')];
- assert.equal(acceleration.querySelectorAll('.flowsense-acceleration-state').length,0);
- assert(!check.querySelector('style').textContent.includes('flowsense-acceleration-state'));
- assert.equal(count('setAcceleration'),0,'load and polling never write configuration');
- await refresh();await settle();
- assert.equal(acceleration.previousElementSibling.className,'flowsense-summary');
- assert.equal(acceleration.nextElementSibling.querySelector('h3').textContent,'Ethernet Links');
- assert.equal(inputs.length,4);assert(inputs.every(n=>n.labels.length===1));
- assert.deepEqual([...acceleration.querySelectorAll('label')].map(n=>n.textContent),['Hardware acceleration','VLAN acceleration','PPPoE acceleration','Bridge compatibility mode']);
- for (const input of inputs) {
-  assert.equal(input.type,'select-one','native select semantics');
-  assert.deepEqual([...input.options].map(n=>[n.value,n.textContent]),[['1','On'],['0','Off']]);
-  assert.equal(input.nextElementSibling,null,'select has no duplicate status label');
- }
- inputs[0].value='1';inputs[0].dispatchEvent(new w.Event('change'));
- assert.equal(inputs[0].value,'1');
- inputs[0].value='0';inputs[0].dispatchEvent(new w.Event('change'));
- inputs[2].labels[0].click();assert.equal(inputs[2].selectedIndex,-1,'unsupported has no selected option');
- assert.deepEqual(inputs.map(n=>n.title),['','','Unsupported','Unknown']);
- assert.deepEqual(inputs.map(n=>n.disabled),[false,false,true,true]);
- assert.deepEqual(inputs.map(n=>n.selectedIndex),[1,0,-1,-1],'unconfirmed controls must not look like ordinary off switches');
- assert.deepEqual(inputs.map(n=>n.value),['0','1','',''],'checkbox baseline is configured, not enabled');
- assert.equal(w.getComputedStyle(acceleration.querySelector('label')).fontWeight,'600');
- assert.equal(w.getComputedStyle(acceleration.querySelector('label')).textAlign,'left');
- for(const fail of [false,true]) {
-  inputs[0].value='1';inputs[0].dispatchEvent(new w.Event('change'));
-  assert.equal(inputs[0].value,'1');
-  accelerationSaveError=fail;waitAccelerationSave=deferred();accelerationButton.click();await settle();
-  assert(inputs.every(n=>n.disabled));const writes=count('setAcceleration');accelerationButton.dispatchEvent(new w.Event('click'));await settle();assert.equal(count('setAcceleration'),writes);
-  assert.deepEqual(JSON.parse(JSON.stringify(accelerationPayload)),{hardware:1,vlan:1,pppoe:-1,ap:-1});
-  waitAccelerationSave.resolve();await settle();await settle();waitAccelerationSave=null;
-  assert.equal(inputs[0].value,'0','success or failure restores real readback, never requested state');
-  assert.equal(inputs[0].title,'');
- }
- accelerationSaveError=false;inputs[0].value='0';inputs[0].dispatchEvent(new w.Event('change'));inputs[1].value='0';inputs[1].dispatchEvent(new w.Event('change'));
- await refresh();await settle();assert.equal(inputs[1].value,'0','poll preserves pending select edit');
- accelerationButton.click();await settle();await settle();
- assert.deepEqual(JSON.parse(JSON.stringify(accelerationPayload)),{hardware:0,vlan:0,pppoe:-1,ap:-1},'off choice uses numeric zero, unavailable uses minus one');
- assert.equal(inputs[1].value,'1','post-save readback restores configured baseline');
- assert.equal(count('apply'),0,'local setter never invokes global apply');
- waitAcceleration=deferred();await refresh();const reads=count('getAcceleration');await refresh();assert.equal(count('getAcceleration'),reads,'held sibling remains single-flight without blocking overview');
- waitAcceleration.resolve();waitAcceleration=null;await settle();
- accelerationError=true;await refresh();await settle();assert(inputs.every(n=>n.title==='Unknown'));assert(inputs.every(n=>n.disabled));assert(accelerationButton.disabled);
- assert(inputs.every(n=>n.selectedIndex===-1),'failed reads show mixed rather than off');
- accelerationError=false;await refresh();await settle();
- assert.deepEqual(inputs.map(n=>n.selectedIndex),[1,0,-1,-1],'recovery clears mixed state only for confirmed controls');
- // A pre-save read must settle before the setter and a fresh read must follow it.
- waitAcceleration=deferred();await refresh();const beforeSave=count('setAcceleration');accelerationButton.click();await settle();assert.equal(count('setAcceleration'),beforeSave);
- waitAcceleration.resolve();waitAcceleration=null;await settle();await settle();assert.equal(count('setAcceleration'),beforeSave+1);assert.equal(inputs[0].value,'0');
- accelerationSample.hardware={supported:'true',enabled:1,configured:1};await refresh();await settle();assert(inputs[0].disabled);assert.equal(inputs[0].selectedIndex,-1,'malformed booleans fail closed');
- accelerationSample.hardware={supported:true,enabled:true,configured:false};await refresh();await settle();
- waitAccelerationSave=deferred();accelerationButton.click();await settle();writable=false;waitAccelerationSave.resolve();waitAccelerationSave=null;await settle();await settle();assert(inputs.every(n=>n.disabled));assert(accelerationButton.disabled);
- const accelerationWrites=count('setAcceleration');accelerationButton.dispatchEvent(new w.Event('click'));await settle();assert.equal(count('setAcceleration'),accelerationWrites);writable=true;
- sample.interfaces=[{device:'wan',carrier:1},{device:'lan2',carrier:0},{device:'lan3'},{device:'eth0',carrier:1}];await refresh();
- const physical=()=>check.querySelectorAll('.flowsense-card')[2];
- assert.equal(physical().children.length,3);assert.equal(physical().querySelector('.flowsense-value').textContent,'— / 3');
- sample.interfaces[2].carrier=1;await refresh();assert.equal(physical().querySelector('.flowsense-value').textContent,'2 / 3');
- sample.interfaces=[];await refresh();assert.equal(physical().querySelector('.flowsense-value').textContent,'0 / 0');
- assert.equal(check.querySelectorAll('.flowsense-card').length,4);assert.equal(w.getComputedStyle(physical()).minHeight,'96px');
- assert(!check.textContent.includes('Software flow offload'));assert(!check.textContent.includes('PPE Flow Engine'));
- waitAcceleration=deferred();await refresh();check.remove();await settle();const detached=check.innerHTML;waitAcceleration.resolve();waitAcceleration=null;await settle();assert.equal(check.innerHTML,detached);assert.equal(polls.size,0);
- console.log('PASS real view/RPC errors, initial reuse, all stale metrics cleared, labels, independent single-flight, closed and detached late replies');dom.window.close();
-})().catch(e=>{console.error(e);dom.window.close();process.exitCode=1});
+ await settle();await settle();let root=w.document.querySelector('.flowsense-settings');
+ const footer=w.document.querySelector('.cbi-page-actions');assert(footer);assert(footer.querySelector('.cbi-button-save'));assert(footer.querySelector('.cbi-button-reset'));assert(footer.querySelector('.cbi-button-apply'));assert(footer.querySelector('.cbi-dropdown'));
+ assert.equal(root.querySelectorAll('button,details').length,0);assert.equal(polls.size,0);
+ assert.equal(root.querySelectorAll('h2').length,1);assert.equal(root.querySelector('h2').textContent,'Airoha FlowSense');assert(root.querySelector('h2 + .cbi-map-descr'));assert.equal(root.querySelectorAll('input[type=checkbox]').length,5);assert.equal(root.querySelectorAll('select').length,0);
+ assert.equal(new Set([...root.querySelectorAll('input[type=checkbox]')].map(n=>n.className)).size,1);
+ const edit=(id,value)=>{const n=root.querySelector('[data-name="'+id+'"] input:not([type="hidden"])');if(n.type==='checkbox')n.checked=value;else n.value=value;n.dispatchEvent(new w.Event(n.tagName==='INPUT'&&n.type!=='checkbox'?'input':'change'));};
+ const control=id=>root.querySelector('[data-name="'+id+'"] input:not([type="hidden"])');
+ assert(control('pppoe').indeterminate);assert(control('pppoe').disabled);
+ for(const k of ['hardware','vlan','pppoe','ap'])accelerationSample[k]={supported:true,configured:k!=='ap',enabled:k!=='ap'};
+ root.remove();root=await mods.app.render(await mods.app.load());w.document.querySelector('#view').prepend(root);await settle();
+ for(const key of ['hardware','vlan','pppoe','ap']){const old=control(key).checked;edit(key,!old);await mods.app.handleSave();assert.equal(staged[key],+!old);await mods.app.handleSaveApply();assert.equal(accelerationSample[key].enabled,!old);edit(key,old);await mods.app.handleSaveApply();}
+ edit('hardware',false);edit('target','saved.example');edit('enabled',false);
+ const appliesBeforeSave=count('applySettings');footer.querySelector('.cbi-button-save').click();await settle();await settle();assert.equal(count('applySettings'),appliesBeforeSave);
+ assert.equal(sample.monitor.target,'example.com');assert.equal(accelerationSample.hardware.enabled,true);assert.equal(staged.target,'saved.example');assert(notification.textContent.includes('not yet applied'));
+ edit('target','discard.example');edit('hardware',true);await mods.app.handleReset();assert.equal(control('target').value,'saved.example');assert.equal(control('hardware').checked,false);
+ root.remove();await settle();const data=await mods.app.load();root=await mods.app.render(data);w.document.querySelector('#view').prepend(root);await settle();assert.equal(control('target').value,'saved.example');assert.equal(control('hardware').checked,false);
+ await mods.app.handleSaveApply();assert.equal(staged,null);assert.equal(sample.monitor.target,'saved.example');assert.equal(accelerationSample.hardware.enabled,false);assert(notification.textContent.includes('saved and applied'));
+ edit('target','reset.example');await mods.app.handleReset();assert.equal(control('target').value,'saved.example');
+ edit('target','partial.example');edit('hardware',true);failure='monitor';await mods.app.handleSaveApply();assert.equal(staged.hardware,-1);assert.equal(staged.target,'partial.example');assert.equal(accelerationSample.hardware.enabled,true);assert(notification.textContent.includes('Acceleration: Applied'));assert(notification.closest('.alert-message').classList.contains('error'));
+ failure='';await mods.app.handleSaveApply();assert.equal(staged,null);assert.equal(sample.monitor.target,'partial.example');
+ edit('hardware',false);failure='acc';await mods.app.handleSaveApply();assert.equal(staged.hardware,0);assert(notification.textContent.includes('Probe Settings: Unchanged'));failure='';await mods.app.handleSaveApply();assert.equal(staged,null);
+ edit('target','failed.example');failure='save';await mods.app.handleSave();assert.equal(control('target').value,'failed.example');assert(notification.closest('.alert-message').classList.contains('error'));failure='';
+ hold=deferred();const first=mods.app.handleSave();await settle();const writes=count('saveSettings');await mods.app.handleSaveApply();await mods.app.handleReset();assert.equal(count('saveSettings'),writes);assert(control('target').disabled);hold.resolve();await first;hold=null;
+ writable=false;const before=calls.length;await mods.app.handleSave();await mods.app.handleSaveApply();await mods.app.handleReset();assert.equal(calls.length,before);await mods.app.handleReset();writable=true;
+ root.remove();await settle();assert.equal(polls.size,0);
+ assert.equal(count('getPpeEntries'),0);assert.equal(count('apply'),0);
+ console.log('PASS real LuCI native footer/ComboButton, persistent Save transport, refresh, Reset, double-group/single-group Apply, partial/retry, failure, readonly, guard, telemetry cleanup');w.close();
+})().catch(e=>{console.error(e);w.close();process.exitCode=1});

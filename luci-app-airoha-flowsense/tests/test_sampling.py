@@ -21,21 +21,19 @@ class SamplingTest(unittest.TestCase):
             self.assertEqual(json.loads(self.run_shell(FUNCTIONS + '\njson_decimal "$1"', [value])), float(value))
         self.assertIsNone(json.loads(self.run_shell(FUNCTIONS + '\njson_decimal 100.1 100')))
 
-    def test_overview_does_not_collect_ppe(self):
-        with tempfile.TemporaryDirectory() as directory:
-            marker = pathlib.Path(directory) / 'ppe-called'
-            script = FUNCTIONS + """
+    def test_overview_contract(self):
+        script = FUNCTIONS + """
 uci() { printf '1'; }
 fs_target() { return 0; }
 get_jitter() { printf null; }
 get_interfaces() { printf '[]'; }
-get_ppe() { touch "$1"; printf '{"available":true}'; }
 get_overview
-""".replace('touch "$1"', "touch '" + str(marker) + "'")
-            result = json.loads(self.run_shell(script))
-            self.assertIn('interfaces', result)
-            self.assertNotIn('ppe', result)
-            self.assertFalse(marker.exists(), 'overview must never invoke full PPE producer')
+"""
+        result = json.loads(self.run_shell(script))
+        self.assertIn('interfaces', result)
+        self.assertNotIn('ppe', result)
+        self.assertNotIn('get_ppe', SOURCE)
+        self.assertNotIn('getPpeEntries', SOURCE)
 
 if __name__ == '__main__':
     unittest.main()

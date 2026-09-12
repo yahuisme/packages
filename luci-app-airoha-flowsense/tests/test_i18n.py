@@ -36,7 +36,7 @@ def parse_po_pure(path):
 
 class I18nCoverageTest(unittest.TestCase):
     def test_catalog_coverage_and_syntax(self):
-        source = (root / 'htdocs/luci-static/resources/view/airoha_flowsense/status.js').read_text(encoding='utf-8')
+        source = '\n'.join(path.read_text(encoding='utf-8') for path in (root / 'htdocs/luci-static/resources/view/airoha_flowsense').glob('*.js'))
         ids = set(re.findall(r'''_\(\s*['"]([^'"]+)['"]\s*\)''', source))
 
         for path in (root / 'root/usr/share').rglob('*.json'):

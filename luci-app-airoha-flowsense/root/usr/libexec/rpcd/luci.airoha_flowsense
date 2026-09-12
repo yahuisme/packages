@@ -11,25 +11,6 @@ json_decimal() {
         END { if (NR == 1 && valid) printf "%s", value; else printf "null" }'
 }
 
-get_ppe() {
-    local limit=${1:-0} tmp rc
-    tmp=$(mktemp /tmp/flowsense-ppe.XXXXXX) || { printf '{"available":false}'; return; }
-    timeout 2 cat /sys/kernel/debug/ppe/entries > "$tmp" 2>/dev/null
-    rc=$?
-    if [ "$rc" -ne 0 ]; then rm -f "$tmp"; printf '{"available":false}'; return; fi
-    awk -v limit="$limit" '
-    function esc(s,    i,c,o){o="";for(i=1;i<=length(s);i++){c=substr(s,i,1);if(c=="\\")o= o "\\\\";else if(c=="\"")o=o "\\\"";else if(c=="\t")o=o "\\t";else if(c=="\r")o=o "\\r";else if(c=="\n")o=o "\\n";else o=o c}return o}
-    /^[0-9a-fA-F]+ (BND|UNB|FIN) / {
-        total++; if($2=="BND")bnd++; if($2=="UNB")unb++
-        if($3=="IPv4")v4++; else if($3=="IPv6")v6++; else other++
-        if(shown>=limit)next
-        orig="";newf="";for(i=4;i<=NF;i++){if($i~/^orig=/)orig=substr($i,6);if($i~/^new=/)newf=substr($i,5)}
-        entries[shown++]=sprintf("{\"index\":\"%s\",\"state\":\"%s\",\"type\":\"%s\",\"orig\":\"%s\",\"new_flow\":\"%s\"}",$1,$2,esc($3),esc(orig),esc(newf))
-    }
-    END {printf "{\"available\":true,\"total\":%d,\"bnd\":%d,\"unb\":%d,\"ipv4\":%d,\"ipv6\":%d,\"other\":%d,\"entries\":[",total,bnd,unb,v4,v6,other;for(i=0;i<shown;i++)printf "%s%s",i?",":"",entries[i];printf "]}"}' "$tmp"
-    rm -f "$tmp"
-}
-
 get_interfaces() {
     local dev name first=1 key sep
     printf '['
@@ -98,9 +79,13 @@ set_monitor() {
 
 boolean() { case "$1" in 1) printf true;; 0) printf false;; *) printf null;; esac; }
 case "$1:$2" in
-    list:) printf '{"getOverview":{},"getPpeEntries":{},"getAcceleration":{},"setAcceleration":{"hardware":"int","vlan":"int","pppoe":"int","ap":"int"},"setMonitor":{"target":"str","enabled":"int"}}';;
+    list:) printf '{"getOverview":{},"getSettings":{},"saveSettings":{"hardware":"int","vlan":"int","pppoe":"int","ap":"int","target":"str","enabled":"int"},"applySettings":{},"getAcceleration":{},"setAcceleration":{"hardware":"int","vlan":"int","pppoe":"int","ap":"int"},"setMonitor":{"target":"str","enabled":"int"}}';;
+    call:getSettings|call:saveSettings|call:applySettings)
+        . /usr/libexec/flowsense-acceleration.sh
+        . /usr/libexec/flowsense-settings.sh
+        settings_rpc "$2";;
     call:getAcceleration|call:setAcceleration)
         . /usr/libexec/flowsense-acceleration.sh
         case "$2" in getAcceleration) get_acceleration;; *) set_acceleration;; esac;;
-    call:getOverview) get_overview;; call:getPpeEntries) get_ppe 100;; call:setMonitor) set_monitor;; *) printf '{"error":"Invalid method"}'; exit 1;;
+    call:getOverview) get_overview;; call:setMonitor) set_monitor;; *) printf '{"error":"Invalid method"}'; exit 1;;
 esac

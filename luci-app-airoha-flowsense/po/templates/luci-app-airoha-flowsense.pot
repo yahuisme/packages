@@ -11,19 +11,19 @@ msgstr ""
 "Language: zh_Hans\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 
-msgid "Bridge compatibility mode"
-msgstr ""
-
-msgid "On"
-msgstr ""
-
-msgid "Off"
-msgstr ""
-
 msgid "Acceleration"
 msgstr ""
 
 msgid "Airoha FlowSense"
+msgstr ""
+
+msgid "Applied"
+msgstr ""
+
+msgid "Bridge compatibility mode"
+msgstr ""
+
+msgid "Configure acceleration and periodic probes."
 msgstr ""
 
 msgid "Connected"
@@ -44,12 +44,17 @@ msgstr ""
 msgid "Enable periodic probes"
 msgstr ""
 
+msgid "Enabled"
+msgstr ""
+
 msgid "Enter a valid IPv4 address or hostname."
 msgstr ""
 
 msgid "Ethernet Links"
 msgstr ""
 
+msgid "FlowSense telemetry, acceleration and probe settings"
+msgstr ""
 
 msgid "Hardware acceleration"
 msgstr ""
@@ -72,7 +77,10 @@ msgstr ""
 msgid "Network Quality"
 msgstr ""
 
-msgid "PPE data unavailable"
+msgid "Not enabled"
+msgstr ""
+
+msgid "Not verified; check current settings."
 msgstr ""
 
 msgid "PPPoE acceleration"
@@ -96,16 +104,19 @@ msgstr ""
 msgid "RX / TX rate"
 msgstr ""
 
-msgid "Save & Apply"
+msgid "Settings"
 msgstr ""
 
-msgid "Show PPE flow entries"
+msgid "Settings saved and applied."
 msgstr ""
 
-msgid "Shown / Total"
+msgid "Settings saved; not yet applied."
 msgstr ""
 
 msgid "Speed"
+msgstr ""
+
+msgid "Status"
 msgstr ""
 
 msgid "Total Port Receive Rate"
@@ -114,10 +125,13 @@ msgstr ""
 msgid "Total Port Transmit Rate"
 msgstr ""
 
-msgid "Unable to apply acceleration settings."
+msgid "Unable to save settings."
 msgstr ""
 
-msgid "Unable to apply monitor settings."
+msgid "Unable to verify saved settings."
+msgstr ""
+
+msgid "Unchanged"
 msgstr ""
 
 msgid "Unknown"
@@ -129,29 +143,11 @@ msgstr ""
 msgid "VLAN acceleration"
 msgstr ""
 
-msgid "View Ethernet traffic, link quality, and PPE flow entries."
+msgid "View Ethernet traffic and link quality."
 msgstr ""
 
 msgid "Waiting for data"
 msgstr ""
 
 msgid "Window packet loss"
-msgstr ""
-
-msgid "FlowSense telemetry, acceleration and probe settings"
-msgstr ""
-
-msgid "Bridge compatibility mode requires VLAN acceleration."
-msgstr ""
-
-msgid "There are pending changes. Apply or discard them first."
-msgstr ""
-
-msgid "Applying the acceleration settings failed."
-msgstr ""
-
-msgid "Rolling back the acceleration settings failed."
-msgstr ""
-
-msgid "The submitted acceleration settings are invalid."
 msgstr ""

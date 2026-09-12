@@ -23,7 +23,7 @@ BUSYBOX = get_dependency('busybox')
 
 @unittest.skipUnless(UCI and JSONFILTER and BUSYBOX, 'uci, jsonfilter and busybox binaries are required')
 class BackendRealToolsTest(unittest.TestCase):
-    def test_backend_durable_save_and_ppe(self):
+    def test_backend_durable_apply(self):
         with tempfile.TemporaryDirectory() as td:
             d = pathlib.Path(td)
             for name in ('bin', 'config', 'delta', 'fresh'):
@@ -32,8 +32,7 @@ class BackendRealToolsTest(unittest.TestCase):
             common = root / 'root/usr/libexec/flowsense-common.sh'
             rpc = (root / 'root/usr/libexec/rpcd/luci.airoha_flowsense').read_text().replace(
                 '/usr/libexec/flowsense-common.sh', str(common)).replace(
-                '/etc/init.d/npu-jitter restart', 'fake_restart').replace(
-                '/sys/kernel/debug/ppe/entries', str(d / 'entries'))
+                '/etc/init.d/npu-jitter restart', 'fake_restart')
             (d / 'rpc').write_text(rpc)
             assert UCI and JSONFILTER and BUSYBOX
             (d / 'bin/jsonfilter').symlink_to(JSONFILTER)
@@ -95,14 +94,6 @@ fi
             self.assertEqual(persisted(), ('example.com', '0'))
             self.assertTrue((d / 'restarts').read_text().splitlines())
 
-            (d / 'entries').write_text(pathlib.Path(__file__).with_name('ppe-fixture.txt').read_text())
-            p = call('getPpeEntries')
-            self.assertEqual(p['total'], 4)
-            self.assertEqual(p['bnd'], 2)
-            self.assertEqual(p['unb'], 1)
-
-            (d / 'entries').unlink()
-            self.assertFalse(call('getPpeEntries')['available'])
 
 
 if __name__ == '__main__':

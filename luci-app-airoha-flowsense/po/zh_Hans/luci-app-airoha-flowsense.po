@@ -11,20 +11,20 @@ msgstr ""
 "Language: zh_Hans\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 
-msgid "Bridge compatibility mode"
-msgstr "AP 兼容模式"
-
-msgid "On"
-msgstr "已开启"
-
-msgid "Off"
-msgstr "已关闭"
-
 msgid "Acceleration"
 msgstr "流量加速"
 
 msgid "Airoha FlowSense"
 msgstr "Airoha 流量传感器"
+
+msgid "Applied"
+msgstr "已应用"
+
+msgid "Bridge compatibility mode"
+msgstr "AP 兼容模式"
+
+msgid "Configure acceleration and periodic probes."
+msgstr "配置流量加速和定期网络探测。"
 
 msgid "Connected"
 msgstr "已连接"
@@ -44,12 +44,17 @@ msgstr "未连接"
 msgid "Enable periodic probes"
 msgstr "启用定期探测"
 
+msgid "Enabled"
+msgstr "已开启"
+
 msgid "Enter a valid IPv4 address or hostname."
 msgstr "请输入有效的 IPv4 地址或主机名。"
 
 msgid "Ethernet Links"
 msgstr "以太网链路"
 
+msgid "FlowSense telemetry, acceleration and probe settings"
+msgstr "FlowSense 遥测、流量加速和探测设置"
 
 msgid "Hardware acceleration"
 msgstr "硬件流量加速"
@@ -72,8 +77,11 @@ msgstr "丢包"
 msgid "Network Quality"
 msgstr "链路网络质量"
 
-msgid "PPE data unavailable"
-msgstr "无法获取 PPE 流表"
+msgid "Not enabled"
+msgstr "未开启"
+
+msgid "Not verified; check current settings."
+msgstr "未能验证，请检查当前设置。"
 
 msgid "PPPoE acceleration"
 msgstr "PPPoE 加速"
@@ -96,17 +104,20 @@ msgstr "接收 / 发送错误包"
 msgid "RX / TX rate"
 msgstr "接收 / 发送速率"
 
-msgid "Save & Apply"
-msgstr "保存并应用"
+msgid "Settings"
+msgstr "设置"
 
-msgid "Show PPE flow entries"
-msgstr "显示 PPE 流表条目"
+msgid "Settings saved and applied."
+msgstr "设置已保存并应用。"
 
-msgid "Shown / Total"
-msgstr "已显示 / 总条目"
+msgid "Settings saved; not yet applied."
+msgstr "设置已保存，尚未应用。"
 
 msgid "Speed"
 msgstr "协商速率"
+
+msgid "Status"
+msgstr "状态"
 
 msgid "Total Port Receive Rate"
 msgstr "网口接收总速率"
@@ -114,11 +125,14 @@ msgstr "网口接收总速率"
 msgid "Total Port Transmit Rate"
 msgstr "网口发送总速率"
 
-msgid "Unable to apply acceleration settings."
-msgstr "无法应用加速设置。"
+msgid "Unable to save settings."
+msgstr "无法保存设置。"
 
-msgid "Unable to apply monitor settings."
-msgstr "无法应用监测设置。"
+msgid "Unable to verify saved settings."
+msgstr "无法验证已保存的设置。"
+
+msgid "Unchanged"
+msgstr "未更改"
 
 msgid "Unknown"
 msgstr "未知"
@@ -129,29 +143,11 @@ msgstr "不支持"
 msgid "VLAN acceleration"
 msgstr "VLAN 加速"
 
-msgid "View Ethernet traffic, link quality, and PPE flow entries."
-msgstr "查看以太网流量、链路质量与 PPE 流表。"
+msgid "View Ethernet traffic and link quality."
+msgstr "查看以太网流量和链路质量。"
 
 msgid "Waiting for data"
 msgstr "等待数据"
 
 msgid "Window packet loss"
 msgstr "采样窗口丢包率"
-
-msgid "FlowSense telemetry, acceleration and probe settings"
-msgstr "流量传感器状态、加速与探测设置"
-
-msgid "Bridge compatibility mode requires VLAN acceleration."
-msgstr "AP 兼容模式需要先启用 VLAN 加速。"
-
-msgid "There are pending changes. Apply or discard them first."
-msgstr "存在待处理的更改，请先应用或丢弃。"
-
-msgid "Applying the acceleration settings failed."
-msgstr "应用加速设置失败。"
-
-msgid "Rolling back the acceleration settings failed."
-msgstr "回滚加速设置失败。"
-
-msgid "The submitted acceleration settings are invalid."
-msgstr "提交的加速设置无效。"
