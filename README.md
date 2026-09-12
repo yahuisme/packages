@@ -11,7 +11,7 @@ ImmortalWrt / OpenWrt 专属定制软件包源。
 | `luci-app-airoha-fancontrol` | Airoha 温控与风扇调速面板 |
 | `luci-app-wifi7` | WiFi 7 射频、MLO 与运行状态管理面板 |
 | `luci-app-homeproxy` | 每日完整同步 VIKINGYFY/packages 的 HomeProxy |
-| `sing-box` | 基于 VIKINGYFY/packages，仅跟随 SagerNet 官方正式版 |
+| `sing-box` | 仅跟随 SagerNet 官方正式版 |
 
 ## 使用方法
 
