@@ -114,6 +114,21 @@ acc_error() { printf '{"success":false,"error":"%s"}' "$1"; }
 acc_put() { printf '%s\n' "$2" > "/proc/sys/net/bridge/bridge-nf-$1" && [ "$(acc_read "$1")" = "$2" ]; }
 acc_pending() { local changes; changes=$(uci -q changes firewall) && [ -z "$changes" ]; }
 acc_private() { uci -c "$tmp/config" -C "$tmp/override" -t "$tmp/delta" "$@"; }
+acc_restart_firewall() {
+    local failed=0
+    # procd's config.change trigger is asynchronous. Call the optional native
+    # reload handler synchronously so its bridge include is regenerated before
+    # restarting fw4; an event acknowledgement alone cannot prove application.
+    # Detect the service, not a firmware/distribution. Older images keep their
+    # existing firewall-only path. Use the same ordering during rollback.
+    if [ -x /etc/init.d/bridge-hw-offload ]; then
+        /etc/init.d/bridge-hw-offload reload >/dev/null 2>&1 || failed=1
+    fi
+    # Attempt firewall recovery even if bridge regeneration failed, but retain
+    # that failure. The caller still verifies committed UCI and live nft state.
+    /etc/init.d/firewall restart >/dev/null 2>&1 || failed=1
+    return "$failed"
+}
 acc_apply() {
     local key file
     if [ "$hardware" != -1 ]; then
@@ -122,7 +137,7 @@ acc_apply() {
         acc_pending && cmp -s /etc/config/firewall "$tmp/firewall" || return 1
         published=1
         cp "$tmp/config/firewall" /etc/config/firewall || return 1
-        /etc/init.d/firewall restart >/dev/null 2>&1 || return 1
+        acc_restart_firewall || return 1
     fi
     for file in $acc_files; do
         [ ! -f "$tmp/new/$file" ] || cp "$tmp/new/$file" "/etc/sysctl.d/$file" || return 1
@@ -145,7 +160,7 @@ acc_rollback() {
     done
     if [ "$published" = 1 ]; then
         cp -p "$tmp/firewall" /etc/config/firewall || failed=1
-        /etc/init.d/firewall restart >/dev/null 2>&1 || failed=1
+        acc_restart_firewall || failed=1
         cmp -s /etc/config/firewall "$tmp/firewall" && [ "$(acc_hardware)" = "$oldhw" ] && acc_pending || failed=1
     fi
     for key in $acc_keys; do

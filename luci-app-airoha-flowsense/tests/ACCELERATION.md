@@ -50,6 +50,28 @@ Source evidence:
   AP remains the bridge-netfilter compatibility control, not an independent
   switch for W1700K's native bridge flowtable (which follows hardware UCI).
 
+Hardware application and rollback both synchronously call the optional
+`/etc/init.d/bridge-hw-offload reload` before restarting firewall. This invokes
+the same native handler as the upstream `config.change` firewall trigger,
+without queuing an additional asynchronous event. Service presence, not a
+firmware name, selects the path; images without it retain firewall-only apply.
+Upstream `reload_service()` runs `apply-rules.sh` in the foreground, publishing
+or removing `ruleset-post/30-bridge-offload.nft`, but backgrounds its own firewall
+reload. An event acknowledgement cannot establish rule publication or runtime
+completion. The explicit synchronous restart consumes the regenerated include;
+service/restart failure and final UCI/nft readback still gate RPC success.
+The isolated service fixture checks both directions, stale-include avoidance,
+reload/restart failures, include regeneration during rollback, and no-op/sysctl-only
+requests without any service calls. Existing tests cover images without the service.
+
+This is not a global transaction with hotplug or other configuration writers.
+Upstream's generator does not check every file operation and its background
+firewall reload is not joined; the existing nft getter reports aggregate owned
+hardware enablement, not proof that every desired bridge port/table is present.
+Thus this fixes deterministic stale-include ordering, not upstream write-error,
+concurrent-writer or hardware-traffic guarantees. Live procd/fw4 and reboot
+validation on both firmware images remain necessary.
+
 The setter uses an application lock and private UCI config/override/delta
 paths, rejects preexisting firewall deltas, rechecks deltas and committed
 bytes immediately before publication, and verifies runtime plus effective

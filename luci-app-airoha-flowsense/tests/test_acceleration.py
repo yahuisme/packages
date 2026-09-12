@@ -84,6 +84,76 @@ class AccelerationTest(unittest.TestCase):
         return {str(p.relative_to(self.d)): p.read_bytes() for base in ('etc', 'proc')
                 for p in (self.d / base).rglob('*') if p.is_file()}
 
+    def bridge_service(self):
+        # Model the upstream contract: reload publishes an include, while its
+        # background firewall reload is NOT a completion barrier. The explicit
+        # firewall restart must consume the newly published include.
+        service = self.d / 'etc/init.d/bridge-hw-offload'
+        service.parent.mkdir(parents=True, exist_ok=True)
+        self.rules = self.d / 'bridge-rules'
+        self.rules.write_text(self.hw.read_text())
+        self.events = self.d / 'service-events'
+        service.write_text('''#!/bin/sh
+[ "$1" = reload ] || exit 1
+printf 'bridge\\n' >> "EVENTS"
+if [ "$BRIDGE_FAIL" = always ]; then exit 1; fi
+if [ "$BRIDGE_FAIL" = once ] && [ ! -e "RULES.failed" ]; then
+    touch "RULES.failed"; exit 1
+fi
+uci -q get firewall.@defaults[0].flow_offloading_hw | tr -d '\\n' > "RULES"
+'''.replace('EVENTS', str(self.events)).replace('RULES', str(self.rules)))
+        service.chmod(0o755)
+        self.script('restart', '''#!/bin/sh
+printf 'firewall\\n' >> "EVENTS"
+if [ "$RESTART_FAIL" = 1 ] && [ ! -e "RULES.restart-failed" ]; then
+    touch "RULES.restart-failed"; exit 1
+fi
+cp "RULES" "HARDWARE"
+'''.replace('EVENTS', str(self.events)).replace('RULES', str(self.rules)).replace('HARDWARE', str(self.hw)))
+
+    def test_bridge_include_is_regenerated_before_firewall_both_directions(self):
+        self.bridge_service()
+        for value in (0, 1):
+            self.assertEqual(self.save(hardware=value), {'success': True})
+            self.assertEqual(self.rules.read_text(), str(value))
+            self.assertIs(self.call()['hardware']['enabled'], bool(value))
+            self.assertIs(self.call()['hardware']['configured'], bool(value))
+        self.assertEqual(self.events.read_text().splitlines(),
+                         ['bridge', 'firewall', 'bridge', 'firewall'])
+
+    def test_bridge_reload_failure_is_not_success_and_recovery_runs(self):
+        self.bridge_service()
+        before = self.snapshot()
+        for mode, error in (('once', 'apply'), ('always', 'rollback')):
+            with self.subTest(mode=mode):
+                self.events.unlink(missing_ok=True)
+                result = self.call('setAcceleration', dict(hardware=0, vlan=-1, pppoe=-1, ap=-1),
+                                   BRIDGE_FAIL=mode)
+                self.assertEqual(result, {'success': False, 'error': error})
+                self.assertEqual(self.snapshot(), before)
+                self.assertEqual(self.rules.read_text(), '1')
+                self.assertEqual(self.hw.read_text(), '1')
+                self.assertEqual(self.events.read_text().splitlines(),
+                                 ['bridge', 'firewall', 'bridge', 'firewall'])
+
+    def test_bridge_include_restored_after_firewall_failure(self):
+        self.bridge_service()
+        before = self.snapshot()
+        result = self.call('setAcceleration', dict(hardware=0, vlan=-1, pppoe=-1, ap=-1),
+                           RESTART_FAIL='1')
+        self.assertEqual(result, {'success': False, 'error': 'apply'})
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual(self.rules.read_text(), '1')
+        self.assertEqual(self.hw.read_text(), '1')
+        self.assertEqual(self.events.read_text().splitlines(),
+                         ['bridge', 'firewall', 'bridge', 'firewall'])
+
+    def test_bridge_service_not_called_for_noop_or_sysctl_only(self):
+        self.bridge_service()
+        self.assertEqual(self.save(hardware=1), {'success': True})
+        self.assertEqual(self.save(pppoe=0), {'success': True})
+        self.assertFalse(self.events.exists())
+
     def test_w1700k_bridge_family_readback(self):
         self.script('nft', '#!/usr/bin/python3\nimport json,os,sys\nfrom pathlib import Path\nassert sys.argv[1:] == ["-j","list","flowtables"]\nif os.getenv("NFT_FAIL"): exit(1)\nprint(json.dumps({"nftables":[{"flowtable":{"family":"bridge","table":"fw4","name":"br_offload","flags":["offload"] if Path("' + str(self.hw) + '").read_text()=="1" else []}}]}))\n')
         self.assertTrue(self.call()['hardware']['enabled'])
