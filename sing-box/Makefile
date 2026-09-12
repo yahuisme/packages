@@ -6,7 +6,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=sing-box
 PKG_UPSTREAM_VERSION:=1.14.0
-PKG_VERSION:=1.14.0
+PKG_VERSION:=$(PKG_UPSTREAM_VERSION)
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_UPSTREAM_VERSION).tar.gz
@@ -99,7 +99,7 @@ define Package/sing-box-tiny/config
     depends on BROKEN
 
     config SING_BOX_TINY_BUILD_GRPC
-    bool "Build with standard gPRC support"
+    bool "Build with standard gRPC support"
     help
       Standard gRPC has good compatibility but poor performance.
 
