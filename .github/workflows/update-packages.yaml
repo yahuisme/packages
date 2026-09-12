@@ -2,101 +2,73 @@ name: Update Packages
 
 on:
   schedule:
-    # 每天香港时间 02:00 (UTC 18:00) 运行
+    # 每天香港时间 02:00 (UTC 18:00)
     - cron: '0 18 * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: update-packages
+  cancel-in-progress: false
+
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@main
+        with:
+          ref: ${{ github.event.repository.default_branch }}
 
-      - name: Setup Git Identity
+      - name: Sync HomeProxy
         run: |
-          git config user.name "yahuisme"
-          git config user.email "40222380+yahuisme@users.noreply.github.com"
+          set -euo pipefail
+          git fetch --depth=1 https://github.com/VIKINGYFY/packages.git main
+          git cat-file -e FETCH_HEAD:luci-app-homeproxy/Makefile
+          git cat-file -e FETCH_HEAD:.github/scripts/update-homeproxy-geodata.sh
+          rm -rf luci-app-homeproxy
+          git archive FETCH_HEAD luci-app-homeproxy .github/scripts/update-homeproxy-geodata.sh | tar -x
+
+      - name: Update Resources
+        run: bash .github/scripts/update-homeproxy-geodata.sh
 
       - name: Update sing-box
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -eu
-          set -o pipefail
-          LATEST_TAG=$(gh api repos/SagerNet/sing-box/releases/latest --jq .tag_name)
+          set -euo pipefail
+          LATEST_TAG=$(gh api repos/SagerNet/sing-box/releases/latest \
+            --jq 'select(.draft == false and .prerelease == false) | .tag_name')
           if [[ ! "$LATEST_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid sing-box release tag: $LATEST_TAG" >&2
+            echo "Invalid sing-box stable release: $LATEST_TAG" >&2
             exit 1
           fi
           VERSION="${LATEST_TAG#v}"
           CURRENT_VERSION=$(sed -n 's/^PKG_UPSTREAM_VERSION:=//p' sing-box/Makefile)
-
           if [ "$VERSION" != "$CURRENT_VERSION" ]; then
-            HASH=$(curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 \
-              "https://codeload.github.com/SagerNet/sing-box/tar.gz/v${VERSION}" | sha256sum | awk '{print $1}')
-            test "${#HASH}" -eq 64
-            sed -i "s/^PKG_UPSTREAM_VERSION:=.*/PKG_UPSTREAM_VERSION:=${VERSION}/" sing-box/Makefile
-            sed -i "s/^PKG_VERSION:=.*/PKG_VERSION:=${VERSION}/" sing-box/Makefile
-            sed -i "s/^PKG_HASH:=.*/PKG_HASH:=${HASH}/" sing-box/Makefile
-            sed -i "s/^PKG_RELEASE:=.*/PKG_RELEASE:=1/" sing-box/Makefile
-            git add sing-box/
-            git commit -m "chore: updated sing-box ${VERSION}"
-            echo "sing-box updated to ${VERSION}"
+            ARCHIVE=$(mktemp)
+            trap 'rm -f "$ARCHIVE"' EXIT
+            curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 \
+              "https://codeload.github.com/SagerNet/sing-box/tar.gz/$LATEST_TAG" -o "$ARCHIVE"
+            tar -tzf "$ARCHIVE" >/dev/null
+            HASH=$(sha256sum "$ARCHIVE" | cut -d' ' -f1)
+            sed -i \
+              -e "s/^PKG_UPSTREAM_VERSION:=.*/PKG_UPSTREAM_VERSION:=${VERSION}/" \
+              -e "s/^PKG_VERSION:=.*/PKG_VERSION:=${VERSION}/" \
+              -e "s/^PKG_HASH:=.*/PKG_HASH:=${HASH}/" \
+              -e 's/^PKG_RELEASE:=.*/PKG_RELEASE:=1/' sing-box/Makefile
           fi
 
-      - name: Update HomeProxy Resources
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit and Push
         run: |
-          set -eu
-          set -o pipefail
-          RES_DIR="luci-app-homeproxy/root/etc/homeproxy/resources"
-          [ -d "$RES_DIR" ] || exit 0
-
-          TMP_DIR=$(mktemp -d)
-          trap 'rm -rf "$TMP_DIR"' EXIT
-
-          # Use the packaged core's real SRS decoder; never start the daemon.
-          SB_VERSION=$(sed -n 's/^PKG_UPSTREAM_VERSION:=//p' sing-box/Makefile)
-          gh release download "v$SB_VERSION" --repo SagerNet/sing-box \
-            --pattern "sing-box-$SB_VERSION-linux-amd64.tar.gz" --dir "$TMP_DIR"
-          tar -xzf "$TMP_DIR/sing-box-$SB_VERSION-linux-amd64.tar.gz" -C "$TMP_DIR"
-          SING_BOX="$TMP_DIR/sing-box-$SB_VERSION-linux-amd64/sing-box"
-
-          # Match runtime: resolve rule-set to a commit, then fetch that commit.
-          # Stage and decode BOTH resources before touching the package files.
-          RESOURCE_DATE=0
-          for KIND in geoip geosite; do
-            gh api "repos/SagerNet/sing-$KIND/commits/rule-set" > "$TMP_DIR/commit.json"
-            VERSION=$(jq -er '.sha' "$TMP_DIR/commit.json")
-            DATE=$(jq -er '.commit.committer.date | select(test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")) | gsub("[-:TZ]"; "")' "$TMP_DIR/commit.json")
-            [ "${#VERSION}" -eq 40 ] || exit 1
-            case "$VERSION" in *[!0-9a-f]*) exit 1 ;; esac
-            curl -fsSL --retry 3 --connect-timeout 10 --max-time 60 \
-              "https://raw.githubusercontent.com/SagerNet/sing-$KIND/$VERSION/$KIND-cn.srs" \
-              -o "$TMP_DIR/${KIND}_cn.srs"
-            BLOB=$(gh api "repos/SagerNet/sing-$KIND/contents/$KIND-cn.srs?ref=$VERSION" --jq .sha)
-            [[ "$BLOB" =~ ^[0-9a-f]{40}$ ]] || exit 1
-            [ "$(git hash-object --no-filters "$TMP_DIR/${KIND}_cn.srs")" = "$BLOB" ] || exit 1
-            "$SING_BOX" rule-set match -f binary "$TMP_DIR/${KIND}_cn.srs" 192.0.2.1 >/dev/null
-            printf '%s %s\n' "$DATE" "$VERSION" > "$TMP_DIR/${KIND}_cn.ver"
-            if [[ "$DATE" > "$RESOURCE_DATE" ]]; then RESOURCE_DATE="$DATE"; fi
-          done
-          cp "$TMP_DIR/geoip_cn.srs" "$TMP_DIR/geoip_cn.ver" \
-             "$TMP_DIR/geosite_cn.srs" "$TMP_DIR/geosite_cn.ver" "$RES_DIR/"
-
-          if ! git diff --quiet "$RES_DIR"; then
-            git add "$RES_DIR"
-            git commit -m "chore: updated sources ${RESOURCE_DATE}"
-            echo "HomeProxy resources updated."
-          fi
-
-      - name: Push Changes
-        run: |
-          if [ -n "$(git log origin/main..HEAD --oneline)" ]; then
+          set -euo pipefail
+          git config user.name "yahuisme"
+          git config user.email "40222380+yahuisme@users.noreply.github.com"
+          git add -A -- luci-app-homeproxy sing-box .github/scripts/update-homeproxy-geodata.sh
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: sync packages"
             git push
           fi
