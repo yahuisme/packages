@@ -1,0 +1,504 @@
+diff --git a/htdocs/luci-static/resources/homeproxy/lifecycle.js b/htdocs/luci-static/resources/homeproxy/lifecycle.js
+new file mode 100644
+index 0000000..5d1b684
+--- /dev/null
++++ b/htdocs/luci-static/resources/homeproxy/lifecycle.js
+@@ -0,0 +1,43 @@
++'use strict';
++'require baseclass';
++'require poll';
++
++// Keep transport locks outside widgets recreated by form.Map.reset().
++const pending = Object.create(null);
++
++function watch(node, attach, detach) {
++	let mounted = false, active = true;
++	const observer = new MutationObserver(() => {
++		if (node.isConnected && !mounted) {
++			mounted = true;
++			attach();
++		} else if (mounted && !node.isConnected) {
++			active = false;
++			observer.disconnect();
++			detach();
++		}
++	});
++	observer.observe(document.documentElement, { childList: true, subtree: true });
++	return () => active && node.isConnected;
++}
++
++return baseclass.extend({
++	watch: watch,
++
++	poll(node, key, read, update, interval, immediate) {
++		const alive = watch(node, () => {
++			poll.add(refresh, interval);
++			if (immediate)
++				refresh();
++		}, () => poll.remove(refresh));
++		const refresh = () => {
++			if (!alive() || pending[key])
++				return Promise.resolve();
++			pending[key] = true;
++			return Promise.resolve().then(() => alive() ? read() : undefined).then((value) => {
++				if (alive())
++					update(value);
++			}).finally(() => { delete pending[key]; });
++		};
++	}
++});
+diff --git a/htdocs/luci-static/resources/view/homeproxy/client.js b/htdocs/luci-static/resources/view/homeproxy/client.js
+index 6c0fc9d..03d4e27 100644
+--- a/htdocs/luci-static/resources/view/homeproxy/client.js
++++ b/htdocs/luci-static/resources/view/homeproxy/client.js
+@@ -8,7 +8,7 @@
+ 'require form';
+ 'require dom';
+ 'require network';
+-'require poll';
++'require homeproxy.lifecycle as lifecycle';
+ 'require rpc';
+ 'require uci';
+ 'require ui';
+@@ -138,14 +138,12 @@ function renderTailscaleStatus(status) {
+ }
+ 
+ function renderStatus(isRunning, version, currentNode) {
+-	let spanTemp = '<em><span style="color:%s"><strong>%s (sing-box v%s) %s</strong></span></em>';
+-	let renderHTML;
+-	let statusColor = isRunning ? 'green' : 'red';
++	let renderHTML = ('<span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:100%%">' +
++		'<span style="min-width:0;overflow-wrap:anywhere">%h (sing-box v%h)</span>' +
++		'<span style="display:inline-flex;align-items:center;gap:8px;white-space:nowrap;color:%s">' +
++		'<span aria-hidden="true" style="width:6px;height:6px;flex:none;border-radius:50%%;background:currentColor"></span>%h</span></span>')
++		.format(_('HomeProxy'), version, isRunning ? '#16a34a' : '#dc2626', isRunning ? _('RUNNING') : _('NOT RUNNING'));
+ 	let nodeColor = '#1e90ff';
+-	if (isRunning)
+-		renderHTML = spanTemp.format(statusColor, _('HomeProxy'), version, _('RUNNING'));
+-	else
+-		renderHTML = spanTemp.format(statusColor, _('HomeProxy'), version, _('NOT RUNNING'));
+ 
+ 	if (currentNode)
+ 		renderHTML += '<div><em><span style="color:%s"><strong>%s</strong></span></em></div>'.format(nodeColor, '%h'.format(currentNode));
+@@ -194,7 +192,7 @@ return view.extend({
+ 		});
+ 
+ 		m = new form.Map('homeproxy', _('HomeProxy'),
+-			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition'));
++			_('The modern ImmortalWRT proxy platform for ARM64/AMD64.'));
+ 
+ 		let domainListCache = Object.create(null),
+ 		    pendingDomainLists = Object.create(null);
+@@ -305,11 +303,13 @@ return view.extend({
+ 
+ 		s = m.section(form.TypedSection);
+ 		s.render = function () {
+-			poll.add(function () {
++			const status = E('p', { id: 'service_status' }, _('Collecting data...'));
++			lifecycle.poll(status, 'client-status', () => {
+ 				return Promise.all([
+ 					L.resolveDefault(hp.getServiceStatus('sing-box-c'), false),
+ 					L.resolveDefault(callCurrentNode(), null)
+-				]).then((res) => {
++				]);
++			}, (res) => {
+ 					let isRunning = res[0],
+ 					    current = res[1],
+ 					    current_label = null;
+@@ -320,13 +320,11 @@ return view.extend({
+ 
+ 						current_label = _('URLTest: %s').format(nodeName);
+ 					}
+-					let view = document.getElementById('service_status');
+-					view.innerHTML = renderStatus(isRunning, features.version, current_label);
+-				});
++					status.innerHTML = renderStatus(isRunning, features.version, current_label);
+ 			});
+ 
+ 			return E('div', { class: 'cbi-section', id: 'status_bar' }, [
+-				E('p', { id: 'service_status' }, _('Collecting data...'))
++				status
+ 			]);
+ 		}
+ 
+@@ -795,11 +793,9 @@ return view.extend({
+ 		so.depends('enabled', '1');
+ 		so.renderWidget = function() {
+ 			const container = E('div', {}, _('Collecting data...'));
+-			const refresh = () => L.resolveDefault(callTailscaleStatus(), {}).then((status) => {
+-				dom.content(container, renderTailscaleStatus(status));
+-			});
+-			poll.add(refresh, 5);
+-			refresh();
++			lifecycle.poll(container, 'tailscale-status',
++				() => L.resolveDefault(callTailscaleStatus(), {}),
++				(status) => dom.content(container, renderTailscaleStatus(status)), 5, true);
+ 			return container;
+ 		};
+ 
+diff --git a/htdocs/luci-static/resources/view/homeproxy/server.js b/htdocs/luci-static/resources/view/homeproxy/server.js
+index e0a0132..063e6f3 100644
+--- a/htdocs/luci-static/resources/view/homeproxy/server.js
++++ b/htdocs/luci-static/resources/view/homeproxy/server.js
+@@ -6,7 +6,7 @@
+ 
+ 'use strict';
+ 'require form';
+-'require poll';
++'require homeproxy.lifecycle as lifecycle';
+ 'require rpc';
+ 'require uci';
+ 'require ui';
+@@ -35,12 +35,11 @@ const CBIGenValue = form.Value.extend({
+ });
+ 
+ function renderStatus(isRunning, version) {
+-	let spanTemp = '<em><span style="color:%s"><strong>%s (sing-box v%s) %s</strong></span></em>';
+-	let renderHTML;
+-	if (isRunning)
+-		renderHTML = spanTemp.format('green', _('HomeProxy Server'), version, _('RUNNING'));
+-	else
+-		renderHTML = spanTemp.format('red', _('HomeProxy Server'), version, _('NOT RUNNING'));
++	let renderHTML = ('<span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:100%%">' +
++		'<span style="min-width:0;overflow-wrap:anywhere">%h (sing-box v%h)</span>' +
++		'<span style="display:inline-flex;align-items:center;gap:8px;white-space:nowrap;color:%s">' +
++		'<span aria-hidden="true" style="width:6px;height:6px;flex:none;border-radius:50%%;background:currentColor"></span>%h</span></span>')
++		.format(_('HomeProxy Server'), version, isRunning ? '#16a34a' : '#dc2626', isRunning ? _('RUNNING') : _('NOT RUNNING'));
+ 
+ 	return renderHTML;
+ }
+@@ -110,19 +109,17 @@ return view.extend({
+ 		let features = data[1];
+ 
+ 		m = new form.Map('homeproxy', _('HomeProxy Server'),
+-			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition'));
++			_('The modern ImmortalWRT proxy platform for ARM64/AMD64.'));
+ 
+ 		s = m.section(form.TypedSection);
+ 		s.render = function() {
+-			poll.add(() => {
+-				return L.resolveDefault(hp.getServiceStatus('sing-box-s')).then((res) => {
+-					let view = document.getElementById('service_status');
+-					view.innerHTML = renderStatus(res, features.version);
+-				});
+-			});
++			const status = E('p', { id: 'service_status' }, _('Collecting data...'));
++			lifecycle.poll(status, 'server-status',
++				() => L.resolveDefault(hp.getServiceStatus('sing-box-s')),
++				(res) => { status.innerHTML = renderStatus(res, features.version); });
+ 
+ 			return E('div', { class: 'cbi-section', id: 'status_bar' }, [
+-					E('p', { id: 'service_status' }, _('Collecting data...'))
++					status
+ 			]);
+ 		}
+ 
+diff --git a/htdocs/luci-static/resources/view/homeproxy/status.js b/htdocs/luci-static/resources/view/homeproxy/status.js
+index b43762c..c4e2f46 100644
+--- a/htdocs/luci-static/resources/view/homeproxy/status.js
++++ b/htdocs/luci-static/resources/view/homeproxy/status.js
+@@ -8,7 +8,7 @@
+ 'require dom';
+ 'require form';
+ 'require fs';
+-'require poll';
++'require homeproxy.lifecycle as lifecycle';
+ 'require rpc';
+ 'require uci';
+ 'require ui';
+@@ -63,16 +63,31 @@ function getConnectionStatus() {
+ 	});
+ 	cbi_update_table(table, rows);
+ 
+-	let running = false;
+-	let generation = 0;
++	const session = this.connectionSession || (this.connectionSession = {
++		running: false, results: null, testing: false, generation: 0
++	});
+ 	let testButton;
++	let alive;
++	const paint = () => {
++		testButton.disabled = session.running;
++		connectionSites.forEach((site) => {
++			if (session.testing) {
++				const elements = statusElements[site.type];
++				elements.state.style.setProperty('color', 'gray');
++				dom.content(elements.state, _('Testing...'));
++				dom.content(elements.latency, '-');
++			} else if (session.results) {
++				updateResult(site.type, session.results[site.type]);
++			}
++		});
++	};
+ 
+ 	const updateResult = (site, result) => {
+ 		const elements = statusElements[site];
+ 		if (!elements)
+ 			return;
+ 
+-		if (result?.result) {
++		if (result?.result === true && Number.isFinite(result.latency_ms) && result.latency_ms >= 0) {
+ 			elements.state.style.setProperty('color', 'green');
+ 			dom.content(elements.state, _('Success'));
+ 			dom.content(elements.latency, _('%s ms').format(result.latency_ms));
+@@ -83,54 +98,46 @@ function getConnectionStatus() {
+ 		}
+ 	};
+ 
++	const notify = () => {
++		if (session.paint)
++			session.paint();
++	};
+ 	const runAllTests = () => {
+-		if (running)
+-			return Promise.resolve();
+-
+-		running = true;
+-		testButton.disabled = true;
+-		const currentGeneration = ++generation;
+-		connectionSites.forEach((site) => {
+-			const elements = statusElements[site.type];
+-			elements.state.style.setProperty('color', 'gray');
+-			dom.content(elements.state, _('Testing...'));
+-			dom.content(elements.latency, '-');
+-		});
+-
+-		return new Promise((resolve) => {
+-			let settled = false;
+-			const finish = (result) => {
+-				if (settled)
+-					return;
+-
+-				settled = true;
+-				resolve(result);
+-			};
+-			const timer = window.setTimeout(() => finish({ timed_out: true }), connectionTestTimeout);
+-
+-			L.resolveDefault(callConnStat('all'), { results: [] }).then((result) => {
+-				window.clearTimeout(timer);
+-				finish(result);
+-			});
+-		}).then((result) => {
+-			if (currentGeneration !== generation)
++		if (!alive() || session.running)
++			return;
++		session.running = true;
++		session.testing = true;
++		const generation = session.generation;
++		let timedOut = false;
++		notify();
++		const finish = (result) => {
++			if (generation !== session.generation)
+ 				return;
+-
+ 			const results = {};
+-			(result.results || []).forEach((siteResult) => {
+-				results[siteResult.site] = siteResult;
+-			});
+-			connectionSites.forEach((site) => {
+-				updateResult(site.type, results[site.type] || {
+-					result: false,
+-					timed_out: !!result.timed_out
++			if (Array.isArray(result?.results))
++				result.results.forEach((entry) => {
++					if (entry && typeof entry.site === 'string')
++						results[entry.site] = entry;
+ 				});
++			session.results = {};
++			connectionSites.forEach((site) => {
++				session.results[site.type] = results[site.type] || { timed_out: timedOut };
+ 			});
++			session.testing = false;
++			notify();
++		};
++		const timer = window.setTimeout(() => {
++			timedOut = true;
++			finish({});
++		}, connectionTestTimeout);
++		// A display timeout does not cancel the RPC or release its lock.
++		Promise.resolve().then(() => callConnStat('all')).catch(() => ({})).then((result) => {
++			if (!timedOut)
++				finish(result);
+ 		}).finally(() => {
+-			if (currentGeneration === generation) {
+-				running = false;
+-				testButton.disabled = false;
+-			}
++			window.clearTimeout(timer);
++			session.running = false;
++			notify();
+ 		});
+ 	};
+ 
+@@ -148,6 +155,11 @@ function getConnectionStatus() {
+ 		E('div', { 'class': 'cbi-section' }, [ table ])
+ 	]);
+ 
++	alive = lifecycle.watch(view, () => {
++		session.paint = () => { if (alive()) paint(); };
++		paint();
++	}, () => {});
++	paint();
+ 	return view;
+ }
+ 
+@@ -340,17 +352,13 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
+ 		log_textarea.scrollLeft = left;
+ 	}
+ 
+-	poll.add(L.bind(() => {
++	lifecycle.poll(log_textarea, 'log:' + filename, () => {
+ 		return fs.read_direct(String.format('%s/%s.log', hp_dir, filename), 'text')
+-		.then((res) => {
+-			updateLog(res || _('Log is empty.'));
+-		}).catch((err) => {
+-			if (err.toString().includes('NotFoundError'))
+-				updateLog(_('Log file does not exist.'));
+-			else
+-				updateLog(_('Unknown error: %s.').format(err));
++		.then((res) => res || _('Log is empty.')).catch((err) => {
++			return err.toString().includes('NotFoundError')
++				? _('Log file does not exist.') : _('Unknown error: %s.').format(err);
+ 		});
+-	}));
++	}, updateLog);
+ 
+ 	return E([
+ 		E('div', {'class': 'cbi-map'}, [
+@@ -402,7 +410,16 @@ return view.extend({
+ 		o = s.option(form.DummyValue, '_sing-box-s_logview');
+ 		o.render = L.bind(getRuntimeLog, this, o, _('sing-box Server'));
+ 
+-		return m.render();
++		return m.render().then((root) => {
++			const session = this.connectionSession;
++			lifecycle.watch(root, () => {}, () => {
++				session.generation++;
++				session.testing = false;
++				session.results = null;
++				session.paint = null;
++			});
++			return root;
++		});
+ 	},
+ 
+ 	handleSaveApply: null,
+diff --git a/po/zh_Hans/homeproxy.po b/po/zh_Hans/homeproxy.po
+index 6e06594..f059cb1 100644
+--- a/po/zh_Hans/homeproxy.po
++++ b/po/zh_Hans/homeproxy.po
+@@ -2010,12 +2010,8 @@ msgstr "可接受的最低 TLS 版本。"
+ 
+ #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:197
+ #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:113
+-msgid ""
+-"The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/"
+-"TUN/AI Edition"
+-msgstr ""
+-"为 ARM64/AMD64 设计的现代 ImmortalWRT 代理平台。 Powered by Sing-Box/TUN/AI "
+-"Edition"
++msgid "The modern ImmortalWRT proxy platform for ARM64/AMD64."
++msgstr "为 ARM64/AMD64 设计的现代 ImmortalWRT 代理平台。"
+ 
+ #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:869
+ msgid "The network interface to bind to."
+diff --git a/root/etc/homeproxy/scripts/generate_client.uc b/root/etc/homeproxy/scripts/generate_client.uc
+index 356578f..87faf12 100755
+--- a/root/etc/homeproxy/scripts/generate_client.uc
++++ b/root/etc/homeproxy/scripts/generate_client.uc
+@@ -12,10 +12,10 @@ import { connect } from 'ubus';
+ import { cursor } from 'uci';
+ 
+ import {
+-	addECHDNS, createNodeLabelRegistry, filterExistingNodes, findDomainGroupConflict,
++	addECHDNS, createNodeOutboundTags, filterExistingNodes, findDomainGroupConflict,
+ 	hasForceProxyRules, isEmpty, normalizeDomainList, normalizeList, parseURL,
+ 	domainListPath, resolveLanPolicy, splitDomainList,
+-	reserveUniqueLabel, strToBool, strToInt, strToTime,
++	strToBool, strToInt, strToTime,
+ 	removeBlankAttrs, renderEndpoint, renderOutbound, validation, HP_DIR, RUN_DIR
+ } from 'homeproxy';
+ 
+@@ -41,15 +41,7 @@ if (!(routing_mode in ['bypass_mainland_china', 'global']))
+ 
+ const lan_policy = resolveLanPolicy(uci, uciconfig);
+ 
+-const outbound_tags = createNodeLabelRegistry();
+-const node_outbound_tags = {};
+-
+-uci.foreach(uciconfig, ucinode, (cfg) => {
+-	node_outbound_tags[cfg['.name']] = reserveUniqueLabel(
+-		outbound_tags,
+-		cfg.label, `cfg-${cfg['.name']}-out`
+-	);
+-});
++const node_outbound_tags = createNodeOutboundTags(uci, uciconfig);
+ function get_node_outbound_tag(section_id) {
+ 	return node_outbound_tags[section_id] || `cfg-${section_id}-out`;
+ }
+@@ -407,7 +399,9 @@ function parse_dnsserver(server_addr, default_protocol) {
+ 		type: server_addr.protocol,
+ 		server: server_addr.hostname,
+ 		server_port: strToInt(server_addr.port),
+-		path: (server_addr.pathname !== '/') ? server_addr.pathname : null,
++		path: server_addr.protocol === 'https' && server_addr.search
++			? server_addr.pathname + '?' + server_addr.search
++			: ((server_addr.pathname !== '/') ? server_addr.pathname : null),
+ 	}
+ }
+ 
+diff --git a/root/etc/homeproxy/scripts/homeproxy.uc b/root/etc/homeproxy/scripts/homeproxy.uc
+index 4795ca7..f675d0c 100755
+--- a/root/etc/homeproxy/scripts/homeproxy.uc
++++ b/root/etc/homeproxy/scripts/homeproxy.uc
+@@ -195,6 +195,15 @@ export function createNodeLabelRegistry() {
+ 	};
+ };
+ 
++export function createNodeOutboundTags(uci, config) {
++	const used = createNodeLabelRegistry(), tags = {};
++	uci.foreach(config, 'node', (section) => {
++		const id = section['.name'];
++		tags[id] = reserveUniqueLabel(used, section.label, `cfg-${id}-out`);
++	});
++	return tags;
++};
++
+ export function synchronizeNodeLabels(uci, config, include) {
+ 	const used = createNodeLabelRegistry();
+ 	let changed = 0;
+diff --git a/root/usr/share/rpcd/ucode/luci.homeproxy b/root/usr/share/rpcd/ucode/luci.homeproxy
+index 0a3fab1..5a708c0 100644
+--- a/root/usr/share/rpcd/ucode/luci.homeproxy
++++ b/root/usr/share/rpcd/ucode/luci.homeproxy
+@@ -11,7 +11,7 @@ import { lstat, open, popen, readfile, rename, unlink, writefile } from 'fs';
+ import { cursor } from 'uci';
+ 
+ import {
+-	HP_DIR, RUN_DIR, addECHDNS, domainListPath, findDomainGroupConflict, isBinary,
++	HP_DIR, RUN_DIR, addECHDNS, createNodeOutboundTags, domainListPath, findDomainGroupConflict, isBinary,
+ 	normalizeDomainList, removeBlankAttrs, renderEndpoint, renderOutbound,
+ 	shellQuote, splitDomainList, validation
+ } from '/etc/homeproxy/scripts/homeproxy.uc';
+@@ -187,7 +187,9 @@ const methods = {
+ 			let staged = [];
+ 			for (let id in keys(changes)) {
+ 				const file = domainListPath(id), temporary = file + '.new';
+-				if (writefile(temporary, changes[id]) === null) {
++				const written = writefile(temporary, changes[id]);
++				if (written === null || written !== length(changes[id])) {
++					unlink(temporary);
+ 					for (let path in staged)
+ 						unlink(path.temporary);
+ 					return { result: false, error: 'failed to write domain list' };
+@@ -460,8 +462,8 @@ const methods = {
+ 					error: 'missing_current_proxy'
+ 				};
+ 
+-			const matched = match(tag, /^cfg-(.*)-out$/);
+-			const section_id = matched ? matched[1] : tag;
++			const node_tags = createNodeOutboundTags(uci, 'homeproxy');
++			const section_id = filter(keys(node_tags), (id) => node_tags[id] === tag)[0];
+ 
+ 			return {
+ 				mode: 'urltest',

@@ -31,6 +31,13 @@ jobs:
           rm -rf luci-app-homeproxy
           git archive FETCH_HEAD luci-app-homeproxy | tar -x
 
+      - name: Check HomeProxy
+        run: |
+          set -eu
+          STAGE=$(mktemp -d)
+          trap 'rm -rf "$STAGE"' EXIT
+          sh custom/homeproxy/apply.sh luci-app-homeproxy "$STAGE/luci-app-homeproxy"
+
       - name: Update sing-box
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
