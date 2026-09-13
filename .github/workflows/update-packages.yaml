@@ -2,8 +2,8 @@ name: Update Packages
 
 on:
   schedule:
-    # 每天香港时间 12:00 (UTC 04:00)
-    - cron: '0 4 * * *'
+    # 每天香港时间 06:00 (UTC 前一天 22:00)
+    - cron: '0 22 * * *'
   workflow_dispatch:
 
 permissions:
