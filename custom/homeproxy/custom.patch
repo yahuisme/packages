@@ -47,69 +47,6 @@ index 0000000..5d1b684
 +		};
 +	}
 +});
-diff --git a/htdocs/luci-static/resources/homeproxy.js b/htdocs/luci-static/resources/homeproxy.js
-index 57d3366..be530c0 100644
---- a/htdocs/luci-static/resources/homeproxy.js
-+++ b/htdocs/luci-static/resources/homeproxy.js
-@@ -327,6 +327,49 @@ return baseclass.extend({
- 		return el;
- 	},
- 
-+	// Translate only application-owned RPC errors; preserve unknown diagnostics.
-+	translateRPCError(error) {
-+		switch (error) {
-+		case 'illegal type':
-+			return _('illegal type');
-+		case 'invalid domain list request':
-+			return _('invalid domain list request');
-+		case 'invalid diversion group states':
-+			return _('invalid diversion group states');
-+		case 'illegal domain list identifier':
-+			return _('illegal domain list identifier');
-+		case 'failed to write domain list':
-+			return _('failed to write domain list');
-+		case 'failed to install domain list':
-+			return _('failed to install domain list');
-+		case 'failed to remove domain list':
-+			return _('failed to remove domain list');
-+		case 'empty certificate file':
-+			return _('empty certificate file');
-+		case 'illegal file type: binary':
-+			return _('illegal file type: binary');
-+		case 'this does not look like a correct PEM file':
-+			return _('this does not look like a correct PEM file');
-+		case 'failed to write certificate file':
-+			return _('failed to write certificate file');
-+		case 'failed to protect private key file':
-+			return _('failed to protect private key file');
-+		case 'illegal certificate filename':
-+			return _('illegal certificate filename');
-+		}
-+
-+		if (typeof error === 'string') {
-+			let match = /^invalid domain in list ([A-Za-z0-9_]+)$/.exec(error);
-+			if (match)
-+				return _('Invalid domain in list %s.').format(match[1]);
-+			match = /^domain (\S+) conflicts with (\S+)$/.exec(error);
-+			if (match)
-+				return _('Domain %s conflicts with %s.').format(match[1], match[2]);
-+		}
-+
-+		return error;
-+	},
-+
- 	uploadCertificate(_option, type, filename, ev) {
- 		const callWriteCertificate = rpc.declare({
- 			object: 'luci.homeproxy',
-@@ -341,7 +384,7 @@ return baseclass.extend({
- 				if (ret.result === true)
- 					ui.addNotification(null, E('p', _('Your %s was successfully uploaded. Size: %sB.').format(type, res.size)));
- 				else
--					ui.addNotification(null, E('p', _('Failed to upload %s, error: %s.').format(type, ret.error)));
-+					ui.addNotification(null, E('p', [ _('Failed to upload %s, error: %s.').format(type, this.translateRPCError(ret.error)) ]));
- 			});
- 		}, this, ev.target))
- 		.catch((e) => { ui.addNotification(null, E('p', e.message)) });
 diff --git a/htdocs/luci-static/resources/view/homeproxy/client.js b/htdocs/luci-static/resources/view/homeproxy/client.js
 index 6c0fc9d..d9a185c 100644
 --- a/htdocs/luci-static/resources/view/homeproxy/client.js
@@ -148,28 +85,10 @@ index 6c0fc9d..d9a185c 100644
  
  		m = new form.Map('homeproxy', _('HomeProxy'),
 -			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition'));
-+			_('The modern ImmortalWRT proxy platform for ARM64/AMD64.'));
++			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition').replace(/(?:<br\s*\/?>)?\s*Powered by Sing-Box\/TUN\/AI Edition\s*$/, ''));
  
  		let domainListCache = Object.create(null),
  		    pendingDomainLists = Object.create(null);
-@@ -205,7 +203,7 @@ return view.extend({
- 
- 			return callReadDomainList(id).then((res) => {
- 				if (res.error)
--					throw new Error(res.error);
-+					throw new Error(hp.translateRPCError(res.error));
- 				domainListCache[id] = res.content || '';
- 				return domainListCache[id];
- 			});
-@@ -283,7 +281,7 @@ return view.extend({
- 					});
- 					return callWriteDomainLists(lists, routingMode, groupStates).then((result) => {
- 						if (!result.result)
--							throw new Error(result.error || _('Failed to save domain lists.'));
-+							throw new Error(hp.translateRPCError(result.error) || _('Failed to save domain lists.'));
- 						for (let id of ids) {
- 							const builtin = id === 'direct' || id === 'proxy';
- 							const section = builtin ? 'diversion' : id;
 @@ -305,11 +303,13 @@ return view.extend({
  
  		s = m.section(form.TypedSection);
@@ -202,15 +121,6 @@ index 6c0fc9d..d9a185c 100644
  			]);
  		}
  
-@@ -765,7 +763,7 @@ return view.extend({
- 				return callRemoveDomainList(section_id);
- 			}).then((result) => {
- 				if (!result.result)
--					throw new Error(result.error || _('Failed to save domain lists.'));
-+					throw new Error(hp.translateRPCError(result.error) || _('Failed to save domain lists.'));
- 				domainListCache[section_id] = '';
- 			});
- 		};
 @@ -795,11 +793,9 @@ return view.extend({
  		so.depends('enabled', '1');
  		so.renderWidget = function() {
@@ -310,7 +220,7 @@ index e0a0132..a192e7f 100644
  
  		m = new form.Map('homeproxy', _('HomeProxy Server'),
 -			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition'));
-+			_('The modern ImmortalWRT proxy platform for ARM64/AMD64.'));
++			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition').replace(/(?:<br\s*\/?>)?\s*Powered by Sing-Box\/TUN\/AI Edition\s*$/, ''));
  
  		s = m.section(form.TypedSection);
  		s.render = function() {
@@ -331,18 +241,6 @@ index e0a0132..a192e7f 100644
  			]);
  		}
  
-@@ -609,9 +606,9 @@ return view.extend({
- 			o.validate = function(section_id, value) {
- 				if (section_id) {
- 					if (!value)
--						return _('Expecting: %s').format('non-empty value');
-+						return _('Expecting: %s').format(_('non-empty value'));
- 					else if (!value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/))
--						return _('Expecting: %s').format('valid email address');
-+						return _('Expecting: %s').format(_('valid email address'));
- 				}
- 
- 				return true;
 diff --git a/htdocs/luci-static/resources/view/homeproxy/status.js b/htdocs/luci-static/resources/view/homeproxy/status.js
 index b43762c..c4e2f46 100644
 --- a/htdocs/luci-static/resources/view/homeproxy/status.js
@@ -533,133 +431,6 @@ index b43762c..c4e2f46 100644
  	},
  
  	handleSaveApply: null,
-diff --git a/po/templates/homeproxy.pot b/po/templates/homeproxy.pot
-index cc67f71..a2a8dd7 100644
---- a/po/templates/homeproxy.pot
-+++ b/po/templates/homeproxy.pot
-@@ -2442,3 +2442,51 @@ msgstr ""
- #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:473
- msgid "valid port value"
- msgstr ""
-+
-+msgid "illegal type"
-+msgstr ""
-+
-+msgid "invalid domain list request"
-+msgstr ""
-+
-+msgid "invalid diversion group states"
-+msgstr ""
-+
-+msgid "illegal domain list identifier"
-+msgstr ""
-+
-+msgid "failed to write domain list"
-+msgstr ""
-+
-+msgid "failed to install domain list"
-+msgstr ""
-+
-+msgid "failed to remove domain list"
-+msgstr ""
-+
-+msgid "empty certificate file"
-+msgstr ""
-+
-+msgid "illegal file type: binary"
-+msgstr ""
-+
-+msgid "this does not look like a correct PEM file"
-+msgstr ""
-+
-+msgid "failed to write certificate file"
-+msgstr ""
-+
-+msgid "failed to protect private key file"
-+msgstr ""
-+
-+msgid "illegal certificate filename"
-+msgstr ""
-+
-+msgid "Invalid domain in list %s."
-+msgstr ""
-+
-+msgid "Domain %s conflicts with %s."
-+msgstr ""
-+
-+msgid "valid email address"
-+msgstr ""
-diff --git a/po/zh_Hans/homeproxy.po b/po/zh_Hans/homeproxy.po
-index 6e06594..20bf1ec 100644
---- a/po/zh_Hans/homeproxy.po
-+++ b/po/zh_Hans/homeproxy.po
-@@ -2010,12 +2010,8 @@ msgstr "可接受的最低 TLS 版本。"
- 
- #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:197
- #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:113
--msgid ""
--"The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/"
--"TUN/AI Edition"
--msgstr ""
--"为 ARM64/AMD64 设计的现代 ImmortalWRT 代理平台。 Powered by Sing-Box/TUN/AI "
--"Edition"
-+msgid "The modern ImmortalWRT proxy platform for ARM64/AMD64."
-+msgstr "为 ARM64/AMD64 设计的现代 ImmortalWRT 代理平台。"
- 
- #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:869
- msgid "The network interface to bind to."
-@@ -2491,3 +2487,51 @@ msgstr "有效端口范围（port1:port2）"
- #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:473
- msgid "valid port value"
- msgstr "有效端口值"
-+
-+msgid "illegal type"
-+msgstr "类型无效"
-+
-+msgid "invalid domain list request"
-+msgstr "域名列表请求无效"
-+
-+msgid "invalid diversion group states"
-+msgstr "分流组状态无效"
-+
-+msgid "illegal domain list identifier"
-+msgstr "域名列表标识无效"
-+
-+msgid "failed to write domain list"
-+msgstr "写入域名列表失败"
-+
-+msgid "failed to install domain list"
-+msgstr "安装域名列表失败"
-+
-+msgid "failed to remove domain list"
-+msgstr "删除域名列表失败"
-+
-+msgid "empty certificate file"
-+msgstr "证书文件为空"
-+
-+msgid "illegal file type: binary"
-+msgstr "文件类型无效：二进制文件"
-+
-+msgid "this does not look like a correct PEM file"
-+msgstr "文件不是有效的 PEM 格式"
-+
-+msgid "failed to write certificate file"
-+msgstr "写入证书文件失败"
-+
-+msgid "failed to protect private key file"
-+msgstr "设置私钥文件权限失败"
-+
-+msgid "illegal certificate filename"
-+msgstr "证书文件名无效"
-+
-+msgid "Invalid domain in list %s."
-+msgstr "列表 %s 中存在无效域名。"
-+
-+msgid "Domain %s conflicts with %s."
-+msgstr "域名 %s 与 %s 冲突。"
-+
-+msgid "valid email address"
-+msgstr "有效的电子邮箱地址"
 diff --git a/root/etc/homeproxy/scripts/generate_client.uc b/root/etc/homeproxy/scripts/generate_client.uc
 index 356578f..87faf12 100755
 --- a/root/etc/homeproxy/scripts/generate_client.uc
