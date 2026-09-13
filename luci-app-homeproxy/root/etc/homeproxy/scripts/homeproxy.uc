@@ -195,6 +195,15 @@ export function createNodeLabelRegistry() {
 	};
 };
 
+export function createNodeOutboundTags(uci, config) {
+	const used = createNodeLabelRegistry(), tags = {};
+	uci.foreach(config, 'node', (section) => {
+		const id = section['.name'];
+		tags[id] = reserveUniqueLabel(used, section.label, `cfg-${id}-out`);
+	});
+	return tags;
+};
+
 export function synchronizeNodeLabels(uci, config, include) {
 	const used = createNodeLabelRegistry();
 	let changed = 0;

@@ -722,6 +722,19 @@ function createNodeLatencyRowStateModel() {
 
 function renderNodeSettings(section, data, features, main_node, node_latency_row_state) {
 	let s = section, o;
+	/* Keep native tables scrollable without widening the surrounding page. */
+	s.renderContents = function() {
+		const el = form.GridSection.prototype.renderContents.apply(this, arguments);
+		el.classList.add('hp-node-list');
+		return el;
+	};
+	s.renderMoreOptionsModal = function() {
+		return form.GridSection.prototype.renderMoreOptionsModal.apply(this, arguments).then(() => {
+			const modal = this.getActiveModalMap()?.closest('.modal');
+			if (modal)
+				modal.classList.add('hp-node-modal');
+		});
+	};
 	if (typeof globalThis !== 'undefined') {
 		globalThis.__hpNodeLatencySections = globalThis.__hpNodeLatencySections || {};
 		globalThis.__hpNodeLatencyTrigger = function(section_id) {
@@ -1807,7 +1820,7 @@ return view.extend({
 						})
 					}, [ _('Import') ])
 				])
-			])
+			], 'hp-node-modal')
 		}
 		ss.renderSectionAdd = function(/* ... */) {
 			let el = form.GridSection.prototype.renderSectionAdd.apply(this, arguments),
@@ -2063,7 +2076,13 @@ return view.extend({
 				window.setTimeout(attachBulkButton, 300);
 			}
 
-			return el;
+			return E('div', {}, [
+				E('style', {}, [
+					'#modal_overlay > .hp-node-modal { max-width: 100%; }' +
+					'.hp-node-list { max-width: 100%; overflow-x: auto; }'
+				]),
+				el
+			]);
 		});
 	}
 });

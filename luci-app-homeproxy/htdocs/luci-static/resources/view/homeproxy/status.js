@@ -8,7 +8,7 @@
 'require dom';
 'require form';
 'require fs';
-'require poll';
+'require homeproxy.lifecycle as lifecycle';
 'require rpc';
 'require uci';
 'require ui';
@@ -63,16 +63,31 @@ function getConnectionStatus() {
 	});
 	cbi_update_table(table, rows);
 
-	let running = false;
-	let generation = 0;
+	const session = this.connectionSession || (this.connectionSession = {
+		running: false, results: null, testing: false, generation: 0
+	});
 	let testButton;
+	let alive;
+	const paint = () => {
+		testButton.disabled = session.running;
+		connectionSites.forEach((site) => {
+			if (session.testing) {
+				const elements = statusElements[site.type];
+				elements.state.style.setProperty('color', 'gray');
+				dom.content(elements.state, _('Testing...'));
+				dom.content(elements.latency, '-');
+			} else if (session.results) {
+				updateResult(site.type, session.results[site.type]);
+			}
+		});
+	};
 
 	const updateResult = (site, result) => {
 		const elements = statusElements[site];
 		if (!elements)
 			return;
 
-		if (result?.result) {
+		if (result?.result === true && Number.isFinite(result.latency_ms) && result.latency_ms >= 0) {
 			elements.state.style.setProperty('color', 'green');
 			dom.content(elements.state, _('Success'));
 			dom.content(elements.latency, _('%s ms').format(result.latency_ms));
@@ -83,54 +98,48 @@ function getConnectionStatus() {
 		}
 	};
 
+	const notify = () => {
+		if (session.paint)
+			session.paint();
+	};
 	const runAllTests = () => {
-		if (running)
-			return Promise.resolve();
-
-		running = true;
-		testButton.disabled = true;
-		const currentGeneration = ++generation;
-		connectionSites.forEach((site) => {
-			const elements = statusElements[site.type];
-			elements.state.style.setProperty('color', 'gray');
-			dom.content(elements.state, _('Testing...'));
-			dom.content(elements.latency, '-');
-		});
-
-		return new Promise((resolve) => {
-			let settled = false;
-			const finish = (result) => {
-				if (settled)
-					return;
-
-				settled = true;
-				resolve(result);
-			};
-			const timer = window.setTimeout(() => finish({ timed_out: true }), connectionTestTimeout);
-
-			L.resolveDefault(callConnStat('all'), { results: [] }).then((result) => {
-				window.clearTimeout(timer);
-				finish(result);
-			});
-		}).then((result) => {
-			if (currentGeneration !== generation)
+		if (!alive() || session.running)
+			return;
+		session.running = true;
+		session.testing = true;
+		const generation = session.generation;
+		let timedOut = false;
+		notify();
+		const finish = (result) => {
+			if (generation !== session.generation)
 				return;
-
 			const results = {};
-			(result.results || []).forEach((siteResult) => {
-				results[siteResult.site] = siteResult;
-			});
-			connectionSites.forEach((site) => {
-				updateResult(site.type, results[site.type] || {
-					result: false,
-					timed_out: !!result.timed_out
+			if (Array.isArray(result?.results))
+				result.results.forEach((entry) => {
+					if (entry && typeof entry.site === 'string')
+						results[entry.site] = entry;
 				});
+			session.results = {};
+			connectionSites.forEach((site) => {
+				session.results[site.type] = results[site.type] || { timed_out: timedOut };
 			});
+			session.testing = false;
+			notify();
+		};
+		const timer = window.setTimeout(() => {
+			timedOut = true;
+			finish({});
+		}, connectionTestTimeout);
+		// A display timeout does not cancel the RPC or release its lock.
+		Promise.resolve().then(() => callConnStat('all')).catch(() => ({})).then((result) => {
+			if (!timedOut)
+				finish(result);
 		}).finally(() => {
-			if (currentGeneration === generation) {
-				running = false;
-				testButton.disabled = false;
-			}
+			window.clearTimeout(timer);
+			session.running = false;
+			notify();
+			if (session.autoRun)
+				session.autoRun();
 		});
 	};
 
@@ -148,6 +157,19 @@ function getConnectionStatus() {
 		E('div', { 'class': 'cbi-section' }, [ table ])
 	]);
 
+	alive = lifecycle.watch(view, () => {
+		session.paint = () => { if (alive()) paint(); };
+		// Retry once on transport completion, never with a polling timer.
+		session.autoRun = () => {
+			if (alive() && !session.autoStarted && !session.running) {
+				session.autoStarted = true;
+				runAllTests();
+			}
+		};
+		paint();
+		session.autoRun();
+	}, () => {});
+	paint();
 	return view;
 }
 
@@ -340,17 +362,13 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 		log_textarea.scrollLeft = left;
 	}
 
-	poll.add(L.bind(() => {
+	lifecycle.poll(log_textarea, 'log:' + filename, () => {
 		return fs.read_direct(String.format('%s/%s.log', hp_dir, filename), 'text')
-		.then((res) => {
-			updateLog(res || _('Log is empty.'));
-		}).catch((err) => {
-			if (err.toString().includes('NotFoundError'))
-				updateLog(_('Log file does not exist.'));
-			else
-				updateLog(_('Unknown error: %s.').format(err));
+		.then((res) => res || _('Log is empty.')).catch((err) => {
+			return err.toString().includes('NotFoundError')
+				? _('Log file does not exist.') : _('Unknown error: %s.').format(err);
 		});
-	}));
+	}, updateLog);
 
 	return E([
 		E('div', {'class': 'cbi-map'}, [
@@ -402,7 +420,18 @@ return view.extend({
 		o = s.option(form.DummyValue, '_sing-box-s_logview');
 		o.render = L.bind(getRuntimeLog, this, o, _('sing-box Server'));
 
-		return m.render();
+		return m.render().then((root) => {
+			const session = this.connectionSession;
+			lifecycle.watch(root, () => {}, () => {
+				session.generation++;
+				session.autoStarted = false;
+				session.autoRun = null;
+				session.testing = false;
+				session.results = null;
+				session.paint = null;
+			});
+			return root;
+		});
 	},
 
 	handleSaveApply: null,

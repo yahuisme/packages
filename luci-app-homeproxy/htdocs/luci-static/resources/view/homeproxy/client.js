@@ -8,7 +8,7 @@
 'require form';
 'require dom';
 'require network';
-'require poll';
+'require homeproxy.lifecycle as lifecycle';
 'require rpc';
 'require uci';
 'require ui';
@@ -138,14 +138,12 @@ function renderTailscaleStatus(status) {
 }
 
 function renderStatus(isRunning, version, currentNode) {
-	let spanTemp = '<em><span style="color:%s"><strong>%s (sing-box v%s) %s</strong></span></em>';
-	let renderHTML;
-	let statusColor = isRunning ? 'green' : 'red';
+	let renderHTML = ('<span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:100%%">' +
+		'<span style="min-width:0;overflow-wrap:anywhere">%h (sing-box v%h)</span>' +
+		'<span style="display:inline-flex;align-items:center;gap:8px;white-space:nowrap;color:%s">' +
+		'<span aria-hidden="true" style="width:6px;height:6px;flex:none;border-radius:50%%;background:currentColor"></span><strong>%h</strong></span></span>')
+		.format(_('HomeProxy'), version, isRunning ? '#16a34a' : '#dc2626', isRunning ? _('RUNNING') : _('NOT RUNNING'));
 	let nodeColor = '#1e90ff';
-	if (isRunning)
-		renderHTML = spanTemp.format(statusColor, _('HomeProxy'), version, _('RUNNING'));
-	else
-		renderHTML = spanTemp.format(statusColor, _('HomeProxy'), version, _('NOT RUNNING'));
 
 	if (currentNode)
 		renderHTML += '<div><em><span style="color:%s"><strong>%s</strong></span></em></div>'.format(nodeColor, '%h'.format(currentNode));
@@ -194,7 +192,7 @@ return view.extend({
 		});
 
 		m = new form.Map('homeproxy', _('HomeProxy'),
-			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition'));
+			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition').replace(/(?:<br\s*\/?>)?\s*Powered by Sing-Box\/TUN\/AI Edition\s*$/, ''));
 
 		let domainListCache = Object.create(null),
 		    pendingDomainLists = Object.create(null);
@@ -305,11 +303,13 @@ return view.extend({
 
 		s = m.section(form.TypedSection);
 		s.render = function () {
-			poll.add(function () {
+			const status = E('p', { id: 'service_status' }, _('Collecting data...'));
+			lifecycle.poll(status, 'client-status', () => {
 				return Promise.all([
 					L.resolveDefault(hp.getServiceStatus('sing-box-c'), false),
 					L.resolveDefault(callCurrentNode(), null)
-				]).then((res) => {
+				]);
+			}, (res) => {
 					let isRunning = res[0],
 					    current = res[1],
 					    current_label = null;
@@ -320,13 +320,11 @@ return view.extend({
 
 						current_label = _('URLTest: %s').format(nodeName);
 					}
-					let view = document.getElementById('service_status');
-					view.innerHTML = renderStatus(isRunning, features.version, current_label);
-				});
+					status.innerHTML = renderStatus(isRunning, features.version, current_label);
 			});
 
 			return E('div', { class: 'cbi-section', id: 'status_bar' }, [
-				E('p', { id: 'service_status' }, _('Collecting data...'))
+				status
 			]);
 		}
 
@@ -794,11 +792,9 @@ return view.extend({
 		so.depends('enabled', '1');
 		so.renderWidget = function() {
 			const container = E('div', {}, _('Collecting data...'));
-			const refresh = () => L.resolveDefault(callTailscaleStatus(), {}).then((status) => {
-				dom.content(container, renderTailscaleStatus(status));
-			});
-			poll.add(refresh, 5);
-			refresh();
+			lifecycle.poll(container, 'tailscale-status',
+				() => L.resolveDefault(callTailscaleStatus(), {}),
+				(status) => dom.content(container, renderTailscaleStatus(status)), 5, true);
 			return container;
 		};
 

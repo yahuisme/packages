@@ -11,7 +11,7 @@ import { lstat, open, popen, readfile, rename, unlink, writefile } from 'fs';
 import { cursor } from 'uci';
 
 import {
-	HP_DIR, RUN_DIR, addECHDNS, domainListPath, findDomainGroupConflict, isBinary,
+	HP_DIR, RUN_DIR, addECHDNS, createNodeOutboundTags, domainListPath, findDomainGroupConflict, isBinary,
 	normalizeDomainList, removeBlankAttrs, renderEndpoint, renderOutbound,
 	shellQuote, splitDomainList, validation
 } from '/etc/homeproxy/scripts/homeproxy.uc';
@@ -187,7 +187,9 @@ const methods = {
 			let staged = [];
 			for (let id in keys(changes)) {
 				const file = domainListPath(id), temporary = file + '.new';
-				if (writefile(temporary, changes[id]) === null) {
+				const written = writefile(temporary, changes[id]);
+				if (written === null || written !== length(changes[id])) {
+					unlink(temporary);
 					for (let path in staged)
 						unlink(path.temporary);
 					return { result: false, error: 'failed to write domain list' };
@@ -460,8 +462,8 @@ const methods = {
 					error: 'missing_current_proxy'
 				};
 
-			const matched = match(tag, /^cfg-(.*)-out$/);
-			const section_id = matched ? matched[1] : tag;
+			const node_tags = createNodeOutboundTags(uci, 'homeproxy');
+			const section_id = filter(keys(node_tags), (id) => node_tags[id] === tag)[0];
 
 			return {
 				mode: 'urltest',
@@ -877,7 +879,11 @@ const methods = {
 			let resources = [];
 			for (let resource_type in keys(RESOURCES)) {
 				const resource = RESOURCES[resource_type];
-				const version = trim(readfile(resource.version) || '');
+				const stored = trim(readfile(resource.version) || '');
+				// Keep real UTC precision; never fabricate a time for legacy metadata.
+				const date = match(stored, /^([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{8})( [0-9a-f]{40})?$/);
+				const timestamp = match(stored, /^([0-9]{14})( [0-9a-f]{40})?$/);
+				const version = timestamp ? timestamp[1] : date ? date[1] : null;
 				push(resources, {
 					type: resource_type,
 					version: version || null,
@@ -903,11 +909,11 @@ const methods = {
 						update_result[pair[1]] = pair[2];
 				}
 			}
+			if (update_result.status !== `${status}`)
+				update_result = {};
 			const core_updated = update_result.core_updated === '1';
 			const dashboard_updated = update_result.dashboard_updated === '1';
-			let apply_failed = false;
-			if ((core_updated || dashboard_updated) && system('/etc/init.d/homeproxy running >/dev/null 2>&1') === 0)
-				apply_failed = system('/etc/init.d/homeproxy reload >/dev/null 2>&1') !== 0;
+			const apply_failed = update_result.apply_failed === '1';
 			return {
 				status,
 				core_updated,

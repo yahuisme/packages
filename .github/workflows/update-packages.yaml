@@ -2,8 +2,8 @@ name: Update Packages
 
 on:
   schedule:
-    # 每天香港时间 06:00 (UTC 前一天 22:00)
-    - cron: '0 22 * * *'
+    # 每天香港时间 02:00 (UTC 前一天 18:00)
+    - cron: '0 18 * * *'
   workflow_dispatch:
 
 permissions:
@@ -23,46 +23,10 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
 
-      - name: Sync HomeProxy
-        run: |
-          set -euo pipefail
-          git fetch --depth=1 https://github.com/VIKINGYFY/packages.git main
-          git cat-file -e FETCH_HEAD:luci-app-homeproxy/Makefile
-          rm -rf luci-app-homeproxy
-          git archive FETCH_HEAD luci-app-homeproxy | tar -x
-
-      - name: Check HomeProxy
-        run: |
-          set -eu
-          STAGE=$(mktemp -d)
-          trap 'rm -rf "$STAGE"' EXIT
-          sh custom/homeproxy/apply.sh luci-app-homeproxy "$STAGE/luci-app-homeproxy"
-
-      - name: Update sing-box
+      - name: Update resources and reviewed stable sing-box
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          LATEST_TAG=$(gh api repos/SagerNet/sing-box/releases/latest \
-            --jq 'select(.draft == false and .prerelease == false) | .tag_name')
-          if [[ ! "$LATEST_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid sing-box stable release: $LATEST_TAG" >&2
-            exit 1
-          fi
-          VERSION="${LATEST_TAG#v}"
-          CURRENT_VERSION=$(sed -n 's/^PKG_UPSTREAM_VERSION:=//p' sing-box/Makefile)
-          if [ "$VERSION" != "$CURRENT_VERSION" ]; then
-            ARCHIVE=$(mktemp)
-            trap 'rm -f "$ARCHIVE"' EXIT
-            curl -fsSL --retry 3 --connect-timeout 10 --max-time 120 \
-              "https://codeload.github.com/SagerNet/sing-box/tar.gz/$LATEST_TAG" -o "$ARCHIVE"
-            tar -tzf "$ARCHIVE" >/dev/null
-            HASH=$(sha256sum "$ARCHIVE" | cut -d' ' -f1)
-            sed -i \
-              -e "s/^PKG_UPSTREAM_VERSION:=.*/PKG_UPSTREAM_VERSION:=${VERSION}/" \
-              -e "s/^PKG_HASH:=.*/PKG_HASH:=${HASH}/" \
-              -e 's/^PKG_RELEASE:=.*/PKG_RELEASE:=1/' sing-box/Makefile
-          fi
+        run: python3 .github/scripts/update-homeproxy.py
 
       - name: Commit and Push
         run: |
@@ -76,9 +40,8 @@ jobs:
               VERSION=$(sed -n 's/^PKG_UPSTREAM_VERSION:=//p' "$PACKAGE/Makefile")
               git commit -m "chore: update sing-box ${VERSION}"
             else
-              VERSION=$(sed -n 's/^PKG_VERSION:=//p' "$PACKAGE/Makefile")
-              RELEASE=$(sed -n 's/^PKG_RELEASE:=//p' "$PACKAGE/Makefile")
-              git commit -m "chore: sync homeproxy ${VERSION}-r${RELEASE}"
+              VERSION=$(python3 -c 'import pathlib,re,subprocess; paths=subprocess.check_output(["git","diff","--cached","--name-only","--diff-filter=AM","--","luci-app-homeproxy"],text=True).splitlines(); versions=[pathlib.Path(p).read_text().split()[0] for p in paths if p.endswith(".ver")]; assert versions and all(re.fullmatch(r"[0-9]{14}",v) for v in versions), "Missing or invalid resource version"; print(max(versions))')
+              git commit -m "chore: update resources ${VERSION}"
             fi
           done
           if [ "$(git rev-parse HEAD)" != "$(git rev-parse '@{upstream}')" ]; then

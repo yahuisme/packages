@@ -6,7 +6,7 @@
 
 'use strict';
 'require form';
-'require poll';
+'require homeproxy.lifecycle as lifecycle';
 'require rpc';
 'require uci';
 'require ui';
@@ -35,12 +35,11 @@ const CBIGenValue = form.Value.extend({
 });
 
 function renderStatus(isRunning, version) {
-	let spanTemp = '<em><span style="color:%s"><strong>%s (sing-box v%s) %s</strong></span></em>';
-	let renderHTML;
-	if (isRunning)
-		renderHTML = spanTemp.format('green', _('HomeProxy Server'), version, _('RUNNING'));
-	else
-		renderHTML = spanTemp.format('red', _('HomeProxy Server'), version, _('NOT RUNNING'));
+	let renderHTML = ('<span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:100%%">' +
+		'<span style="min-width:0;overflow-wrap:anywhere">%h (sing-box v%h)</span>' +
+		'<span style="display:inline-flex;align-items:center;gap:8px;white-space:nowrap;color:%s">' +
+		'<span aria-hidden="true" style="width:6px;height:6px;flex:none;border-radius:50%%;background:currentColor"></span><strong>%h</strong></span></span>')
+		.format(_('HomeProxy Server'), version, isRunning ? '#16a34a' : '#dc2626', isRunning ? _('RUNNING') : _('NOT RUNNING'));
 
 	return renderHTML;
 }
@@ -110,19 +109,17 @@ return view.extend({
 		let features = data[1];
 
 		m = new form.Map('homeproxy', _('HomeProxy Server'),
-			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition'));
+			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition').replace(/(?:<br\s*\/?>)?\s*Powered by Sing-Box\/TUN\/AI Edition\s*$/, ''));
 
 		s = m.section(form.TypedSection);
 		s.render = function() {
-			poll.add(() => {
-				return L.resolveDefault(hp.getServiceStatus('sing-box-s')).then((res) => {
-					let view = document.getElementById('service_status');
-					view.innerHTML = renderStatus(res, features.version);
-				});
-			});
+			const status = E('p', { id: 'service_status' }, _('Collecting data...'));
+			lifecycle.poll(status, 'server-status',
+				() => L.resolveDefault(hp.getServiceStatus('sing-box-s')),
+				(res) => { status.innerHTML = renderStatus(res, features.version); });
 
 			return E('div', { class: 'cbi-section', id: 'status_bar' }, [
-					E('p', { id: 'service_status' }, _('Collecting data...'))
+					status
 			]);
 		}
 

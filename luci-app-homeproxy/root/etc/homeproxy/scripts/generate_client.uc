@@ -12,10 +12,10 @@ import { connect } from 'ubus';
 import { cursor } from 'uci';
 
 import {
-	addECHDNS, createNodeLabelRegistry, filterExistingNodes, findDomainGroupConflict,
+	addECHDNS, createNodeOutboundTags, filterExistingNodes, findDomainGroupConflict,
 	hasForceProxyRules, isEmpty, normalizeDomainList, normalizeList, parseURL,
 	domainListPath, resolveLanPolicy, splitDomainList,
-	reserveUniqueLabel, strToBool, strToInt, strToTime,
+	strToBool, strToInt, strToTime,
 	removeBlankAttrs, renderEndpoint, renderOutbound, validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
 
@@ -41,15 +41,7 @@ if (!(routing_mode in ['bypass_mainland_china', 'global']))
 
 const lan_policy = resolveLanPolicy(uci, uciconfig);
 
-const outbound_tags = createNodeLabelRegistry();
-const node_outbound_tags = {};
-
-uci.foreach(uciconfig, ucinode, (cfg) => {
-	node_outbound_tags[cfg['.name']] = reserveUniqueLabel(
-		outbound_tags,
-		cfg.label, `cfg-${cfg['.name']}-out`
-	);
-});
+const node_outbound_tags = createNodeOutboundTags(uci, uciconfig);
 function get_node_outbound_tag(section_id) {
 	return node_outbound_tags[section_id] || `cfg-${section_id}-out`;
 }
@@ -112,7 +104,7 @@ if (routing_mode === 'bypass_mainland_china') {
 	if (isEmpty(china_dns_server) || type(china_dns_server) !== 'string' || china_dns_server === 'wan')
 		china_dns_server = wan_dns;
 }
-const dns_default_strategy = (ipv6_support === '1') ? 'prefer_ipv6' : 'prefer_ipv4';
+const dns_default_strategy = (ipv6_support !== '1') ? 'ipv4_only' : null;
 
 let domain_groups = [];
 
@@ -407,7 +399,9 @@ function parse_dnsserver(server_addr, default_protocol) {
 		type: server_addr.protocol,
 		server: server_addr.hostname,
 		server_port: strToInt(server_addr.port),
-		path: (server_addr.pathname !== '/') ? server_addr.pathname : null,
+		path: server_addr.protocol === 'https' && server_addr.search
+			? server_addr.pathname + '?' + server_addr.search
+			: ((server_addr.pathname !== '/') ? server_addr.pathname : null),
 	}
 }
 
@@ -608,7 +602,7 @@ push(config.inbounds, {
 	tag: 'tun-in',
 
 	interface_name: tun_name,
-	address: [tun_addr4, tun_addr6],
+	address: (ipv6_support === '1') ? [tun_addr4, tun_addr6] : [tun_addr4],
 	mtu: strToInt(tun_mtu),
 	auto_route: true,
 	auto_redirect: true,
