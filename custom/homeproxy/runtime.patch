@@ -1,0 +1,138 @@
+diff --git a/root/etc/homeproxy/scripts/generate_client.uc b/root/etc/homeproxy/scripts/generate_client.uc
+index f819365..b162ebd 100755
+--- a/root/etc/homeproxy/scripts/generate_client.uc
++++ b/root/etc/homeproxy/scripts/generate_client.uc
+@@ -12,10 +12,10 @@ import { connect } from 'ubus';
+ import { cursor } from 'uci';
+ 
+ import {
+-	addECHDNS, createNodeLabelRegistry, filterExistingNodes, findDomainGroupConflict,
++	addECHDNS, createNodeOutboundTags, filterExistingNodes, findDomainGroupConflict,
+ 	hasForceProxyRules, isEmpty, normalizeDomainList, normalizeList, parseURL,
+ 	domainListPath, resolveLanPolicy, splitDomainList,
+-	reserveUniqueLabel, strToBool, strToInt, strToTime,
++	strToBool, strToInt, strToTime,
+ 	removeBlankAttrs, renderEndpoint, renderOutbound, validation, HP_DIR, RUN_DIR
+ } from 'homeproxy';
+ 
+@@ -41,15 +41,7 @@ if (!(routing_mode in ['bypass_mainland_china', 'global']))
+ 
+ const lan_policy = resolveLanPolicy(uci, uciconfig);
+ 
+-const outbound_tags = createNodeLabelRegistry();
+-const node_outbound_tags = {};
+-
+-uci.foreach(uciconfig, ucinode, (cfg) => {
+-	node_outbound_tags[cfg['.name']] = reserveUniqueLabel(
+-		outbound_tags,
+-		cfg.label, `cfg-${cfg['.name']}-out`
+-	);
+-});
++const node_outbound_tags = createNodeOutboundTags(uci, uciconfig);
+ function get_node_outbound_tag(section_id) {
+ 	return node_outbound_tags[section_id] || `cfg-${section_id}-out`;
+ }
+@@ -407,7 +399,9 @@ function parse_dnsserver(server_addr, default_protocol) {
+ 		type: server_addr.protocol,
+ 		server: server_addr.hostname,
+ 		server_port: strToInt(server_addr.port),
+-		path: (server_addr.pathname !== '/') ? server_addr.pathname : null,
++		path: server_addr.protocol === 'https' && server_addr.search
++			? server_addr.pathname + '?' + server_addr.search
++			: ((server_addr.pathname !== '/') ? server_addr.pathname : null),
+ 	}
+ }
+ 
+diff --git a/root/etc/homeproxy/scripts/homeproxy.uc b/root/etc/homeproxy/scripts/homeproxy.uc
+index 4795ca7..f675d0c 100755
+--- a/root/etc/homeproxy/scripts/homeproxy.uc
++++ b/root/etc/homeproxy/scripts/homeproxy.uc
+@@ -195,6 +195,15 @@ export function createNodeLabelRegistry() {
+ 	};
+ };
+ 
++export function createNodeOutboundTags(uci, config) {
++	const used = createNodeLabelRegistry(), tags = {};
++	uci.foreach(config, 'node', (section) => {
++		const id = section['.name'];
++		tags[id] = reserveUniqueLabel(used, section.label, `cfg-${id}-out`);
++	});
++	return tags;
++};
++
+ export function synchronizeNodeLabels(uci, config, include) {
+ 	const used = createNodeLabelRegistry();
+ 	let changed = 0;
+diff --git a/root/usr/share/rpcd/ucode/luci.homeproxy b/root/usr/share/rpcd/ucode/luci.homeproxy
+index 51eda2a..7cb9dd6 100644
+--- a/root/usr/share/rpcd/ucode/luci.homeproxy
++++ b/root/usr/share/rpcd/ucode/luci.homeproxy
+@@ -11,7 +11,7 @@ import { lstat, open, popen, readfile, rename, unlink, writefile } from 'fs';
+ import { cursor } from 'uci';
+ 
+ import {
+-	HP_DIR, RUN_DIR, addECHDNS, domainListPath, findDomainGroupConflict, isBinary,
++	HP_DIR, RUN_DIR, addECHDNS, createNodeOutboundTags, domainListPath, findDomainGroupConflict, isBinary,
+ 	normalizeDomainList, removeBlankAttrs, renderEndpoint, renderOutbound,
+ 	shellQuote, splitDomainList, validation
+ } from '/etc/homeproxy/scripts/homeproxy.uc';
+@@ -187,7 +187,9 @@ const methods = {
+ 			let staged = [];
+ 			for (let id in keys(changes)) {
+ 				const file = domainListPath(id), temporary = file + '.new';
+-				if (writefile(temporary, changes[id]) === null) {
++				const written = writefile(temporary, changes[id]);
++				if (written === null || written !== length(changes[id])) {
++					unlink(temporary);
+ 					for (let path in staged)
+ 						unlink(path.temporary);
+ 					return { result: false, error: 'failed to write domain list' };
+@@ -341,12 +343,35 @@ const methods = {
+ 			if (requested_site !== 'all' && !CONNECTION_SITES[requested_site])
+ 				return { result: false, error: 'illegal site' };
+ 
++			// Follow the client enable switch used by init, not the server state.
++			const uci = cursor();
++			uci.load('homeproxy');
++			let proxy = '';
++			if ((uci.get('homeproxy', 'config', 'main_node') ?? 'nil') !== 'nil') {
++				// Use the generated mixed listener; TUN stack selection is unrelated.
++				let config;
++				try {
++					config = json(readfile(RUN_DIR + '/sing-box-c.json'));
++				} catch (e) {
++					return { result: false, error: 'client runtime configuration is unavailable' };
++				}
++				const inbound = type(config) === 'object' && type(config.inbounds) === 'array'
++					? filter(config.inbounds, (entry) => type(entry) === 'object' &&
++						entry.tag === 'mixed-in' && entry.type === 'mixed')[0] : null;
++				const port = inbound?.listen_port;
++				if (type(port) !== 'int' || port < 1 || port > 65535)
++					return { result: false, error: 'client mixed inbound is unavailable' };
++				proxy = `http://127.0.0.1:${port}`;
++			}
++
++			// Keep every site on the same route, overriding inherited proxy settings.
++			const route = sprintf('--proxy %s --noproxy %s', shellQuote(proxy), shellQuote(proxy ? '' : '*'));
+ 			const sites = (requested_site === 'all') ? keys(CONNECTION_SITES) : [ requested_site ];
+ 			let commands = [];
+ 			for (let site in sites) {
+ 				push(commands, sprintf(
+-					'/usr/bin/curl --location --silent --output /dev/null --user-agent %s --connect-timeout 5 --max-time 9 --write-out %s %s',
+-					shellQuote('Mozilla/5.0'),
++					'/usr/bin/curl %s --location --silent --output /dev/null --user-agent %s --connect-timeout 5 --max-time 9 --write-out %s %s',
++					route, shellQuote('Mozilla/5.0'),
+ 					shellQuote(sprintf('%s\\t%%{http_code}\\t%%{time_appconnect}\\t%%{time_total}\\n', site)),
+ 					shellQuote(CONNECTION_SITES[site])
+ 				));
+@@ -460,8 +485,8 @@ const methods = {
+ 					error: 'missing_current_proxy'
+ 				};
+ 
+-			const matched = match(tag, /^cfg-(.*)-out$/);
+-			const section_id = matched ? matched[1] : tag;
++			const node_tags = createNodeOutboundTags(uci, 'homeproxy');
++			const section_id = filter(keys(node_tags), (id) => node_tags[id] === tag)[0];
+ 
+ 			return {
+ 				mode: 'urltest',

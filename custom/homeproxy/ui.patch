@@ -48,7 +48,7 @@ index 0000000..5d1b684
 +	}
 +});
 diff --git a/htdocs/luci-static/resources/view/homeproxy/client.js b/htdocs/luci-static/resources/view/homeproxy/client.js
-index 6c0fc9d..d9a185c 100644
+index 7f04980..0a03654 100644
 --- a/htdocs/luci-static/resources/view/homeproxy/client.js
 +++ b/htdocs/luci-static/resources/view/homeproxy/client.js
 @@ -8,7 +8,7 @@
@@ -70,7 +70,7 @@ index 6c0fc9d..d9a185c 100644
 +	let renderHTML = ('<span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:100%%">' +
 +		'<span style="min-width:0;overflow-wrap:anywhere">%h (sing-box v%h)</span>' +
 +		'<span style="display:inline-flex;align-items:center;gap:8px;white-space:nowrap;color:%s">' +
-+		'<span aria-hidden="true" style="width:6px;height:6px;flex:none;border-radius:50%%;background:currentColor"></span>%h</span></span>')
++		'<span aria-hidden="true" style="width:6px;height:6px;flex:none;border-radius:50%%;background:currentColor"></span><strong>%h</strong></span></span>')
 +		.format(_('HomeProxy'), version, isRunning ? '#16a34a' : '#dc2626', isRunning ? _('RUNNING') : _('NOT RUNNING'));
  	let nodeColor = '#1e90ff';
 -	if (isRunning)
@@ -121,7 +121,7 @@ index 6c0fc9d..d9a185c 100644
  			]);
  		}
  
-@@ -795,11 +793,9 @@ return view.extend({
+@@ -794,11 +792,9 @@ return view.extend({
  		so.depends('enabled', '1');
  		so.renderWidget = function() {
  			const container = E('div', {}, _('Collecting data...'));
@@ -185,7 +185,7 @@ index f69ec88..9b42bd6 100644
  	}
  });
 diff --git a/htdocs/luci-static/resources/view/homeproxy/server.js b/htdocs/luci-static/resources/view/homeproxy/server.js
-index e0a0132..a192e7f 100644
+index e0a0132..1631569 100644
 --- a/htdocs/luci-static/resources/view/homeproxy/server.js
 +++ b/htdocs/luci-static/resources/view/homeproxy/server.js
 @@ -6,7 +6,7 @@
@@ -210,7 +210,7 @@ index e0a0132..a192e7f 100644
 +	let renderHTML = ('<span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:100%%">' +
 +		'<span style="min-width:0;overflow-wrap:anywhere">%h (sing-box v%h)</span>' +
 +		'<span style="display:inline-flex;align-items:center;gap:8px;white-space:nowrap;color:%s">' +
-+		'<span aria-hidden="true" style="width:6px;height:6px;flex:none;border-radius:50%%;background:currentColor"></span>%h</span></span>')
++		'<span aria-hidden="true" style="width:6px;height:6px;flex:none;border-radius:50%%;background:currentColor"></span><strong>%h</strong></span></span>')
 +		.format(_('HomeProxy Server'), version, isRunning ? '#16a34a' : '#dc2626', isRunning ? _('RUNNING') : _('NOT RUNNING'));
  
  	return renderHTML;
@@ -242,7 +242,7 @@ index e0a0132..a192e7f 100644
  		}
  
 diff --git a/htdocs/luci-static/resources/view/homeproxy/status.js b/htdocs/luci-static/resources/view/homeproxy/status.js
-index b43762c..c4e2f46 100644
+index b43762c..1791d38 100644
 --- a/htdocs/luci-static/resources/view/homeproxy/status.js
 +++ b/htdocs/luci-static/resources/view/homeproxy/status.js
 @@ -8,7 +8,7 @@
@@ -289,7 +289,7 @@ index b43762c..c4e2f46 100644
  			elements.state.style.setProperty('color', 'green');
  			dom.content(elements.state, _('Success'));
  			dom.content(elements.latency, _('%s ms').format(result.latency_ms));
-@@ -83,54 +98,46 @@ function getConnectionStatus() {
+@@ -83,54 +98,48 @@ function getConnectionStatus() {
  		}
  	};
  
@@ -375,22 +375,32 @@ index b43762c..c4e2f46 100644
 +			window.clearTimeout(timer);
 +			session.running = false;
 +			notify();
++			if (session.autoRun)
++				session.autoRun();
  		});
  	};
  
-@@ -148,6 +155,11 @@ function getConnectionStatus() {
+@@ -148,6 +157,19 @@ function getConnectionStatus() {
  		E('div', { 'class': 'cbi-section' }, [ table ])
  	]);
  
 +	alive = lifecycle.watch(view, () => {
 +		session.paint = () => { if (alive()) paint(); };
++		// Retry once on transport completion, never with a polling timer.
++		session.autoRun = () => {
++			if (alive() && !session.autoStarted && !session.running) {
++				session.autoStarted = true;
++				runAllTests();
++			}
++		};
 +		paint();
++		session.autoRun();
 +	}, () => {});
 +	paint();
  	return view;
  }
  
-@@ -340,17 +352,13 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
+@@ -340,17 +362,13 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
  		log_textarea.scrollLeft = left;
  	}
  
@@ -413,7 +423,7 @@ index b43762c..c4e2f46 100644
  
  	return E([
  		E('div', {'class': 'cbi-map'}, [
-@@ -402,7 +410,16 @@ return view.extend({
+@@ -402,7 +420,18 @@ return view.extend({
  		o = s.option(form.DummyValue, '_sing-box-s_logview');
  		o.render = L.bind(getRuntimeLog, this, o, _('sing-box Server'));
  
@@ -422,6 +432,8 @@ index b43762c..c4e2f46 100644
 +			const session = this.connectionSession;
 +			lifecycle.watch(root, () => {}, () => {
 +				session.generation++;
++				session.autoStarted = false;
++				session.autoRun = null;
 +				session.testing = false;
 +				session.results = null;
 +				session.paint = null;
@@ -431,103 +443,3 @@ index b43762c..c4e2f46 100644
  	},
  
  	handleSaveApply: null,
-diff --git a/root/etc/homeproxy/scripts/generate_client.uc b/root/etc/homeproxy/scripts/generate_client.uc
-index 356578f..87faf12 100755
---- a/root/etc/homeproxy/scripts/generate_client.uc
-+++ b/root/etc/homeproxy/scripts/generate_client.uc
-@@ -12,10 +12,10 @@ import { connect } from 'ubus';
- import { cursor } from 'uci';
- 
- import {
--	addECHDNS, createNodeLabelRegistry, filterExistingNodes, findDomainGroupConflict,
-+	addECHDNS, createNodeOutboundTags, filterExistingNodes, findDomainGroupConflict,
- 	hasForceProxyRules, isEmpty, normalizeDomainList, normalizeList, parseURL,
- 	domainListPath, resolveLanPolicy, splitDomainList,
--	reserveUniqueLabel, strToBool, strToInt, strToTime,
-+	strToBool, strToInt, strToTime,
- 	removeBlankAttrs, renderEndpoint, renderOutbound, validation, HP_DIR, RUN_DIR
- } from 'homeproxy';
- 
-@@ -41,15 +41,7 @@ if (!(routing_mode in ['bypass_mainland_china', 'global']))
- 
- const lan_policy = resolveLanPolicy(uci, uciconfig);
- 
--const outbound_tags = createNodeLabelRegistry();
--const node_outbound_tags = {};
--
--uci.foreach(uciconfig, ucinode, (cfg) => {
--	node_outbound_tags[cfg['.name']] = reserveUniqueLabel(
--		outbound_tags,
--		cfg.label, `cfg-${cfg['.name']}-out`
--	);
--});
-+const node_outbound_tags = createNodeOutboundTags(uci, uciconfig);
- function get_node_outbound_tag(section_id) {
- 	return node_outbound_tags[section_id] || `cfg-${section_id}-out`;
- }
-@@ -407,7 +399,9 @@ function parse_dnsserver(server_addr, default_protocol) {
- 		type: server_addr.protocol,
- 		server: server_addr.hostname,
- 		server_port: strToInt(server_addr.port),
--		path: (server_addr.pathname !== '/') ? server_addr.pathname : null,
-+		path: server_addr.protocol === 'https' && server_addr.search
-+			? server_addr.pathname + '?' + server_addr.search
-+			: ((server_addr.pathname !== '/') ? server_addr.pathname : null),
- 	}
- }
- 
-diff --git a/root/etc/homeproxy/scripts/homeproxy.uc b/root/etc/homeproxy/scripts/homeproxy.uc
-index 4795ca7..f675d0c 100755
---- a/root/etc/homeproxy/scripts/homeproxy.uc
-+++ b/root/etc/homeproxy/scripts/homeproxy.uc
-@@ -195,6 +195,15 @@ export function createNodeLabelRegistry() {
- 	};
- };
- 
-+export function createNodeOutboundTags(uci, config) {
-+	const used = createNodeLabelRegistry(), tags = {};
-+	uci.foreach(config, 'node', (section) => {
-+		const id = section['.name'];
-+		tags[id] = reserveUniqueLabel(used, section.label, `cfg-${id}-out`);
-+	});
-+	return tags;
-+};
-+
- export function synchronizeNodeLabels(uci, config, include) {
- 	const used = createNodeLabelRegistry();
- 	let changed = 0;
-diff --git a/root/usr/share/rpcd/ucode/luci.homeproxy b/root/usr/share/rpcd/ucode/luci.homeproxy
-index 0a3fab1..5a708c0 100644
---- a/root/usr/share/rpcd/ucode/luci.homeproxy
-+++ b/root/usr/share/rpcd/ucode/luci.homeproxy
-@@ -11,7 +11,7 @@ import { lstat, open, popen, readfile, rename, unlink, writefile } from 'fs';
- import { cursor } from 'uci';
- 
- import {
--	HP_DIR, RUN_DIR, addECHDNS, domainListPath, findDomainGroupConflict, isBinary,
-+	HP_DIR, RUN_DIR, addECHDNS, createNodeOutboundTags, domainListPath, findDomainGroupConflict, isBinary,
- 	normalizeDomainList, removeBlankAttrs, renderEndpoint, renderOutbound,
- 	shellQuote, splitDomainList, validation
- } from '/etc/homeproxy/scripts/homeproxy.uc';
-@@ -187,7 +187,9 @@ const methods = {
- 			let staged = [];
- 			for (let id in keys(changes)) {
- 				const file = domainListPath(id), temporary = file + '.new';
--				if (writefile(temporary, changes[id]) === null) {
-+				const written = writefile(temporary, changes[id]);
-+				if (written === null || written !== length(changes[id])) {
-+					unlink(temporary);
- 					for (let path in staged)
- 						unlink(path.temporary);
- 					return { result: false, error: 'failed to write domain list' };
-@@ -460,8 +462,8 @@ const methods = {
- 					error: 'missing_current_proxy'
- 				};
- 
--			const matched = match(tag, /^cfg-(.*)-out$/);
--			const section_id = matched ? matched[1] : tag;
-+			const node_tags = createNodeOutboundTags(uci, 'homeproxy');
-+			const section_id = filter(keys(node_tags), (id) => node_tags[id] === tag)[0];
- 
- 			return {
- 				mode: 'urltest',

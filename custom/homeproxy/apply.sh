@@ -11,5 +11,7 @@ output="$parent/$(basename -- "$2")"
 stage=$(mktemp -d "$parent/.homeproxy-custom.XXXXXX")
 trap 'rm -rf "$stage"' EXIT HUP INT TERM
 cp -a "$source/." "$stage/"
-(cd "$stage" && git apply --check "$custom/custom.patch" && git apply "$custom/custom.patch")
+# Backend and UI patches own separate files; validate both before applying.
+(cd "$stage" && git apply --check "$custom/runtime.patch" "$custom/ui.patch" &&
+    git apply "$custom/runtime.patch" "$custom/ui.patch")
 mv "$stage" "$output"
