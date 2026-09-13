@@ -1681,10 +1681,8 @@ msgid "Resource Management"
 msgstr "资源管理"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:224
-msgid ""
-"Resources were updated, but HomeProxy failed to reload. Check the log for "
-"details."
-msgstr "资源已更新，但 HomeProxy 重载失败，请查看日志了解详情。"
+msgid "HomeProxy failed to reload. The previous resources were restored."
+msgstr "HomeProxy 重载失败，已恢复原资源。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:874
 msgid "Reuse address"

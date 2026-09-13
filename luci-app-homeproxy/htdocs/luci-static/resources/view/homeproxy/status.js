@@ -235,8 +235,11 @@ function getResources(o) {
 				return L.resolveDefault(callResUpdate(scope), {}).then((res) => {
 					let message, severity = 'info';
 
-					if (res.apply_failed) {
-						message = _('Resources were updated, but HomeProxy failed to reload. Check the log for details.');
+					if (res.rollback_failed) {
+						message = _('Recovery failed. Check the log and retained backup before retrying.');
+						severity = 'error';
+					} else if (res.apply_failed) {
+						message = _('HomeProxy failed to reload. The previous resources were restored.');
 						severity = 'error';
 					} else {
 						switch (res.status) {

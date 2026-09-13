@@ -941,11 +941,13 @@ const methods = {
 			const core_updated = update_result.core_updated === '1';
 			const dashboard_updated = update_result.dashboard_updated === '1';
 			const apply_failed = update_result.apply_failed === '1';
+			const rollback_failed = update_result.rollback_failed === '1';
 			return {
 				status,
 				core_updated,
 				dashboard_updated,
 				apply_failed,
+				rollback_failed,
 				updated: update_result.updated || null,
 				failed: update_result.failed || null
 			};

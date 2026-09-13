@@ -1606,9 +1606,7 @@ msgid "Resource Management"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:224
-msgid ""
-"Resources were updated, but HomeProxy failed to reload. Check the log for "
-"details."
+msgid "HomeProxy failed to reload. The previous resources were restored."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:874
