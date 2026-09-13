@@ -313,7 +313,7 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 		log_level_el = E('select', {
 			'id': o.cbid(section_id),
 			'class': 'cbi-input-select',
-			'style': 'margin-left: 4px; width: 6em;',
+			'style': 'width: 6em;',
 			'change': ui.createHandlerFn(this, (ev) => {
 				uci.set('homeproxy', section, 'log_level', ev.target.value);
 				return o.map.save(null, true).then(() => {
@@ -372,12 +372,11 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 
 	return E([
 		E('div', {'class': 'cbi-map'}, [
-			E('h3', {'name': 'content', 'style': 'align-items: center; display: flex;'}, [
+			E('h3', {'name': 'content', 'style': 'align-items: center; display: flex; flex-wrap: wrap; gap: 8px;'}, [
 				_('%s Log').format(name),
 				log_level_el || '',
 				E('button', {
 					'class': 'btn cbi-button cbi-button-action',
-					'style': 'margin-left: 4px;',
 					'click': ui.createHandlerFn(this, () => {
 						return L.resolveDefault(callLogClean(filename), {});
 					})
