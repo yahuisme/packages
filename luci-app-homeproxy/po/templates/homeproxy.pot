@@ -2442,3 +2442,6 @@ msgstr ""
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:472
 msgid "valid port value"
 msgstr ""
+
+msgid "Update resources"
+msgstr ""

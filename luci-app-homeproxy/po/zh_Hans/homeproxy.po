@@ -18,8 +18,8 @@ msgstr "未安装"
 msgid "Unknown version"
 msgstr "未知版本"
 
-msgid "Update rule sets"
-msgstr "更新规则"
+msgid "Update resources"
+msgstr "资源更新"
 
 msgid "Download"
 msgstr "下载"

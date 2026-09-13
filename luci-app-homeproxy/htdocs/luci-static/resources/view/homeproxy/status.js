@@ -198,6 +198,7 @@ function getResources(o) {
 	const callResUpdate = rpc.declare({
 		object: 'luci.homeproxy',
 		method: 'resources_update',
+		params: ['scope'],
 		expect: { '': {} }
 	});
 
@@ -222,6 +223,56 @@ function getResources(o) {
 			state.busy = false;
 			buttons.forEach((b) => { b.disabled = false; });
 		}).then(() => o.map.reset());
+	};
+	const rulesButton = (label, scope) => {
+		const button = E('button', {
+			'class': 'btn cbi-button cbi-button-action',
+			'disabled': state.busy ? '' : null,
+			'click': ui.createHandlerFn(this, () => {
+				if (state.busy) return;
+				state.busy = true;
+				buttons.forEach((b) => { b.disabled = true; });
+				return L.resolveDefault(callResUpdate(scope), {}).then((res) => {
+					let message, severity = 'info';
+
+					if (res.apply_failed) {
+						message = _('Resources were updated, but HomeProxy failed to reload. Check the log for details.');
+						severity = 'error';
+					} else {
+						switch (res.status) {
+						case 0:
+							message = _('Successfully updated.');
+							break;
+						case 1:
+							message = _('Update failed.');
+							severity = 'error';
+							break;
+						case 2:
+							message = _('Update already in progress.');
+							break;
+						case 3:
+							message = _('Already at the latest version.');
+							break;
+						case 4:
+							message = _('Some resources failed to update. Check the log for details.');
+							severity = 'warning';
+							break;
+						default:
+							message = _('Unknown error.');
+							severity = 'error';
+							break;
+						}
+					}
+
+					ui.addNotification(null, E('p', message), severity);
+				}).finally(() => {
+					state.busy = false;
+					buttons.forEach((b) => { b.disabled = false; });
+				}).then(() => o.map.reset());
+			})
+		}, [ label ]);
+		buttons.push(button);
+		return button;
 	};
 	const dashboardButton = (label, action) => {
 		const button = E('button', {
@@ -265,9 +316,8 @@ function getResources(o) {
 			return [
 				source ? E('a', { 'href': source, 'target': '_blank', 'rel': 'noreferrer noopener' }, [ resource.name ]) : resource.name,
 				E('span', {}, [ dashboard && !installed ? _('Not installed') : available || _('Unknown version') ]),
-				dashboard ? E('div', { 'class': 'hp-resource-actions' }, installed ? [
-					dashboardButton(_('Update'), 'update'), dashboardButton(_('Remove'), 'remove')
-				] : [ dashboardButton(_('Download'), 'update') ]) : '-'
+				dashboard ? E('div', { 'class': 'hp-resource-actions' }, installed ? [ dashboardButton(_('Update'), 'update'), dashboardButton(_('Remove'), 'remove') ] : [ dashboardButton(_('Download'), 'update') ]) :
+				rulesButton(_('Update'), resource.type === 'geoip_cn' ? 'geoip' : 'geosite')
 
 			];
 		});
@@ -277,50 +327,7 @@ function getResources(o) {
 			E('style', {}, [ '.hp-resources .hp-resource-actions{display:flex;flex-wrap:wrap;gap:8px}.hp-resources button{min-height:32px;font-weight:500}.hp-resources h3{flex-wrap:wrap;gap:8px}.hp-resources td{overflow-wrap:anywhere}.hp-resources .table{width:100%;table-layout:fixed}' ]),
 			E('h3', { 'name': 'content', 'style': 'align-items:center;display:flex' }, [
 				_('Resource Management'),
-				E('button', {
-					'class': 'btn cbi-button cbi-button-action',
-					'style': 'margin-left:4px',
-					'click': ui.createHandlerFn(this, () => {
-						if (state.busy) return;
-						state.busy = true;
-						return L.resolveDefault(callResUpdate(), {}).then((res) => {
-							let message, severity = 'info';
-
-							if (res.apply_failed) {
-								message = _('Resources were updated, but HomeProxy failed to reload. Check the log for details.');
-								severity = 'error';
-							} else {
-								switch (res.status) {
-								case 0:
-									message = _('Successfully updated.');
-									break;
-								case 1:
-									message = _('Update failed.');
-									severity = 'error';
-									break;
-								case 2:
-									message = _('Update already in progress.');
-									break;
-								case 3:
-									message = _('Already at the latest version.');
-									break;
-								case 4:
-									message = _('Some resources failed to update. Check the log for details.');
-									severity = 'warning';
-									break;
-								default:
-									message = _('Unknown error.');
-									severity = 'error';
-									break;
-								}
-							}
-
-							ui.addNotification(null, E('p', message), severity);
-							state.busy = false;
-							return o.map.reset();
-						});
-					})
-				}, [ _('Update rule sets') ])
+				rulesButton(_('Update resources'), 'manual')
 			]),
 			E('div', { 'class': 'cbi-section' }, [ table ])
 		]);

@@ -918,13 +918,16 @@ const methods = {
 		}
 	},
 	resources_update: {
-		call: function() {
+		args: { scope: 'all' },
+		call: function(request) {
+			const scope = request.args.scope ?? 'all';
+			if (scope !== 'all' && scope !== 'geoip' && scope !== 'geosite' && scope !== 'manual') return { status: 1 };
 			const hpuci = cursor();
 			hpuci.load('homeproxy');
 			const mixed_port = int(hpuci.get('homeproxy', 'infra', 'mixed_port')) || 5330;
 			const update_proxy = (hpuci.get('homeproxy', 'subscription', 'update_via_proxy') === '1') ?
 				`HOMEPROXY_UPDATE_PROXY=${shellQuote(`http://127.0.0.1:${mixed_port}`)} ` : '';
-			const status = system(`${update_proxy}${HP_DIR}/scripts/update_resources.sh`);
+			const status = system(`${update_proxy}${HP_DIR}/scripts/update_resources.sh rules ${shellQuote(scope)}`);
 			let update_result = {};
 			if (status !== 2) {
 				for (let line in split(trim(readfile(`${RUN_DIR}/update_resources.result`) || ''), '\n')) {
