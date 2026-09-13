@@ -9,6 +9,53 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+msgid "Actions"
+msgstr "操作"
+
+msgid "Not installed"
+msgstr "未安装"
+
+msgid "Unknown version"
+msgstr "未知版本"
+
+msgid "Update rule sets"
+msgstr "更新规则"
+
+msgid "Download"
+msgstr "下载"
+
+msgid "Update"
+msgstr "更新"
+
+msgid "Remove"
+msgstr "移除"
+
+msgid "Recovery failed. Check the log and retained backup before retrying."
+msgstr "恢复失败。请检查日志和保留的备份后再重试。"
+
+msgid "HomeProxy failed to reload. The previous dashboard was restored."
+msgstr "HomeProxy 重载失败，已恢复此前的仪表盘。"
+
+msgid "No changes needed."
+msgstr "无需更改。"
+
+msgid "Dashboard operation completed."
+msgstr "仪表盘操作完成。"
+
+msgid "Dashboard operation failed. Check the log for details."
+msgstr "仪表盘操作失败，请查看日志了解详情。"
+
+msgid "Remove dashboard?"
+msgstr "移除仪表盘？"
+
+msgid "Dashboard files will be removed and the running service reloaded. Settings are retained. Rule sets are not affected."
+msgstr "将移除仪表盘文件并重载正在运行的服务。保留设置，不影响规则集。"
+
+msgid "Download the dashboard in Status → Resource Management first. Enabling it does not download files."
+msgstr "请先在“状态 → 资源管理”中下载仪表盘。启用此选项不会下载文件。"
+
+
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:321
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:358
 msgid "%s Log"

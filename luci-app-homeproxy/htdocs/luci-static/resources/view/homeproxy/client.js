@@ -505,7 +505,8 @@ return view.extend({
 		o.depends('routing_mode', 'bypass_mainland_china');
 		o.depends('routing_mode', 'global');
 
-		o = s.taboption('dashboard', form.Flag, 'dashboard_enabled', _('Enable dashboard'));
+		o = s.taboption('dashboard', form.Flag, 'dashboard_enabled', _('Enable dashboard'),
+			_('Download the dashboard in Status → Resource Management first. Enabling it does not download files.'));
 		o.default = '0';
 		o.rmempty = false;
 		o.depends('routing_mode', 'bypass_mainland_china');
@@ -533,11 +534,17 @@ return view.extend({
 		o.depends({ routing_mode: 'bypass_mainland_china', dashboard_enabled: '1' });
 		o.depends({ routing_mode: 'global', dashboard_enabled: '1' });
 		o.onclick = function() {
+			return rpc.declare({ object: 'luci.homeproxy', method: 'resources_get', expect: { '': {} } })().then((res) => {
+			if (!res.resources?.some((r) => r.type === 'dashboard' && r.installed)) {
+				ui.addNotification(null, E('p', {}, [ _('Download the dashboard in Status → Resource Management first. Enabling it does not download files.') ]), 'warning');
+				return;
+			}
 			let host = window.location.hostname,
 			    port = uci.get('homeproxy', 'config', 'dashboard_port') || '9095';
 			if (host.includes(':') && !host.startsWith('['))
 				host = '[' + host + ']';
 			window.open('http://' + host + ':' + port + '/dashboard/', '_blank', 'noopener,noreferrer');
+			});
 		};
 
 		/* ACL settings start */

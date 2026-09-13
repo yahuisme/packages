@@ -201,6 +201,48 @@ function getResources(o) {
 		expect: { '': {} }
 	});
 
+	const callDashboard = rpc.declare({
+		object: 'luci.homeproxy', method: 'dashboard_manage', params: ['action'], expect: { '': {} }
+	});
+	const state = this.resourceSession || (this.resourceSession = { busy: false });
+	const buttons = [];
+	const runDashboard = (action) => {
+		if (state.busy) return;
+		state.busy = true;
+		buttons.forEach((b) => { b.disabled = true; });
+		return L.resolveDefault(callDashboard(action), {}).then((res) => {
+			const ok = res.status === 0 || res.status === 3;
+			const message = res.rollback_failed ? _('Recovery failed. Check the log and retained backup before retrying.') :
+				res.apply_failed ? _('HomeProxy failed to reload. The previous dashboard was restored.') :
+				res.status === 2 ? _('Update already in progress.') :
+				res.status === 3 ? _('No changes needed.') :
+				ok ? _('Dashboard operation completed.') : _('Dashboard operation failed. Check the log for details.');
+			ui.addNotification(null, E('p', {}, [ message ]), ok ? 'info' : 'error');
+		}).finally(() => {
+			state.busy = false;
+			buttons.forEach((b) => { b.disabled = false; });
+		}).then(() => o.map.reset());
+	};
+	const dashboardButton = (label, action) => {
+		const button = E('button', {
+			'class': 'btn cbi-button ' + (action === 'remove' ? 'cbi-button-negative' : 'cbi-button-action'),
+			'disabled': state.busy ? '' : null,
+			'click': ui.createHandlerFn(this, () => {
+				if (action !== 'remove') return runDashboard(action);
+				ui.showModal(_('Remove dashboard?'), [
+					E('p', {}, [ _('Dashboard files will be removed and the running service reloaded. Settings are retained. Rule sets are not affected.') ]),
+					E('div', { 'class': 'right' }, [
+						E('button', { 'class': 'btn', 'click': ui.hideModal }, [ _('Cancel') ]),
+						E('button', { 'class': 'btn cbi-button-negative', 'click': ui.createHandlerFn(this, () => {
+							ui.hideModal(); return runDashboard('remove');
+						}) }, [ _('Remove') ])
+					])
+				]);
+			})
+		}, [ label ]);
+		buttons.push(button);
+		return button;
+	};
 	return L.resolveDefault(callResStatus(), { resources: [] }).then((result) => {
 		const status = {};
 		(result.resources || []).forEach((resource) => {
@@ -210,35 +252,37 @@ function getResources(o) {
 			E('tr', { 'class': 'tr table-titles' }, [
 				E('th', { 'class': 'th' }, _('Name')),
 				E('th', { 'class': 'th' }, _('Version')),
-				E('th', { 'class': 'th' }, _('Source'))
+				E('th', { 'class': 'th' }, _('Actions'))
 			])
 		]);
 		const rows = resources.map((resource) => {
 			const resourceStatus = status[resource.type] || {};
 			const available = resourceStatus.version;
 			const source = resourceStatus.source;
+			const dashboard = resource.type === 'dashboard';
+			const installed = resourceStatus.installed === true;
 
 			return [
-				resource.name,
-				E('span', { 'style': available ? 'color:green' : 'color:red' },
-					available || '-'),
-				source ? E('a', {
-					'href': source,
-					'target': '_blank',
-					'rel': 'noreferrer noopener',
-					'style': 'word-break:break-all'
-				}, source) : '-'
+				source ? E('a', { 'href': source, 'target': '_blank', 'rel': 'noreferrer noopener' }, [ resource.name ]) : resource.name,
+				E('span', {}, [ dashboard && !installed ? _('Not installed') : available || _('Unknown version') ]),
+				dashboard ? E('div', { 'class': 'hp-resource-actions' }, installed ? [
+					dashboardButton(_('Update'), 'update'), dashboardButton(_('Remove'), 'remove')
+				] : [ dashboardButton(_('Download'), 'update') ]) : '-'
+
 			];
 		});
 		cbi_update_table(table, rows);
 
-		return E('div', { 'class': 'cbi-map' }, [
+		return E('div', { 'class': 'cbi-map hp-resources' }, [
+			E('style', {}, [ '.hp-resources .hp-resource-actions{display:flex;flex-wrap:wrap;gap:8px}.hp-resources button{min-height:32px;font-weight:500}.hp-resources h3{flex-wrap:wrap;gap:8px}.hp-resources td{overflow-wrap:anywhere}.hp-resources .table{width:100%;table-layout:fixed}' ]),
 			E('h3', { 'name': 'content', 'style': 'align-items:center;display:flex' }, [
 				_('Resource Management'),
 				E('button', {
 					'class': 'btn cbi-button cbi-button-action',
 					'style': 'margin-left:4px',
 					'click': ui.createHandlerFn(this, () => {
+						if (state.busy) return;
+						state.busy = true;
 						return L.resolveDefault(callResUpdate(), {}).then((res) => {
 							let message, severity = 'info';
 
@@ -272,10 +316,11 @@ function getResources(o) {
 							}
 
 							ui.addNotification(null, E('p', message), severity);
+							state.busy = false;
 							return o.map.reset();
 						});
 					})
-				}, [ _('Update all') ])
+				}, [ _('Update rule sets') ])
 			]),
 			E('div', { 'class': 'cbi-section' }, [ table ])
 		]);

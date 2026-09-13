@@ -886,11 +886,35 @@ const methods = {
 				const version = timestamp ? timestamp[1] : date ? date[1] : null;
 				push(resources, {
 					type: resource_type,
+					installed: resource_type === 'dashboard' ? !!length(readfile(`${HP_DIR}/dashboard/index.html`) || '') : !!version,
 					version: version || null,
 					source: resource.source
 				});
 			}
 			return { resources };
+		}
+	},
+	dashboard_manage: {
+		args: { action: 'update' },
+		call: function(request) {
+			const action = request.args.action;
+			if (!(action in ['update', 'remove']))
+				return { status: 1 };
+			const hpuci = cursor();
+			hpuci.load('homeproxy');
+			const port = int(hpuci.get('homeproxy', 'infra', 'mixed_port')) || 5330;
+			const proxy = hpuci.get('homeproxy', 'subscription', 'update_via_proxy') === '1' ?
+				`HOMEPROXY_UPDATE_PROXY=${shellQuote(`http://127.0.0.1:${port}`)} ` : '';
+			const status = system(`${proxy}${HP_DIR}/scripts/update_resources.sh dashboard-${action}`);
+			let result = {};
+			if (status !== 2) {
+				for (let line in split(trim(readfile(`${RUN_DIR}/dashboard.result`) || ''), '\n')) {
+					const pair = match(line, /^([^=]+)=(.*)$/);
+					if (pair) result[pair[1]] = pair[2];
+				}
+			}
+			if (result.status !== `${status}`) result = {};
+			return { status, apply_failed: result.apply_failed === '1', rollback_failed: result.rollback_failed === '1' };
 		}
 	},
 	resources_update: {

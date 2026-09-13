@@ -105,39 +105,6 @@ def resources(home, binary, temp):
         (home/'resources'/f'{kind}_cn.srs').write_bytes(data)
         (home/'resources'/f'{kind}_cn.ver').write_text(version)
         print(f'{kind}: {version.strip()}', flush=True)
-    repo = 'sing-box-dashboard'
-    sha, version = version_metadata(repo, 'gh-pages')
-    data = download(f'https://codeload.github.com/SagerNet/{repo}/zip/{sha}')
-    tree = api(f'{repo}/git/trees/{sha}?recursive=1')
-    if tree.get('truncated'):
-        raise ValueError('Truncated dashboard tree')
-    expected = {e['path']: e for e in tree['tree'] if e['type'] == 'blob'}
-    dashboard = temp/'dashboard'
-    dashboard.mkdir()
-    seen = set()
-    with zipfile.ZipFile(io.BytesIO(data)) as archive:
-        for member in archive.infolist():
-            if member.is_dir():
-                continue
-            path = Path(member.filename)
-            if path.is_absolute() or '..' in path.parts or len(path.parts) < 2:
-                raise ValueError('Unsafe dashboard path')
-            name = '/'.join(path.parts[1:])
-            entry = expected.get(name)
-            body = archive.read(member)
-            if name in seen or not entry or entry['mode'] not in ('100644', '100755') or blob(body) != entry['sha']:
-                raise ValueError('Dashboard Git blob mismatch/type')
-            seen.add(name)
-            dest = dashboard/name
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(body)
-            dest.chmod(int(entry['mode'][-3:], 8))
-    if seen != set(expected) or not (dashboard/'index.html').stat().st_size:
-        raise ValueError('Incomplete dashboard archive')
-    (dashboard/'dashboard.ver').write_text(version)
-    shutil.rmtree(home/'dashboard')
-    shutil.copytree(dashboard, home/'dashboard')
-    print(f'dashboard: {version.strip()}', flush=True)
     check(binary, home, temp)
 
 
@@ -198,7 +165,7 @@ def main():
         target = root/'luci-app-homeproxy/root/etc/homeproxy'
         shutil.copytree(target, home)
         resources(home, binary, temp)
-        pairs = [(home/'resources', target/'resources'), (home/'dashboard', target/'dashboard')]
+        pairs = [(home/'resources', target/'resources')]
         if version != current:
             updated = re.sub(r'^PKG_UPSTREAM_VERSION:=.*$', f'PKG_UPSTREAM_VERSION:={version}', original, flags=re.M)
             updated = re.sub(r'^PKG_HASH:=.*$', f'PKG_HASH:={digest}', updated, flags=re.M)

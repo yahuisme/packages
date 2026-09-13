@@ -83,7 +83,7 @@ class Versions(unittest.TestCase):
                     self.assertEqual((resources/'direct_list.txt').read_text(), 'user.example\n')
                     self.assertEqual((resources/'diversion/orphan.txt').read_text(), 'disabled-or-orphan.example\n')
                 run(0)
-                for p in [resources/'geoip_cn.ver', resources/'geosite_cn.ver', dashboard/'dashboard.ver']:
+                for p in [resources/'geoip_cn.ver', resources/'geosite_cn.ver']:
                     self.assertEqual(p.read_text(), '20240203040506 '+sha+'\n')
                 self.assertIn('/geoip/'+sha+'/geoip-cn.srs', paths)
                 self.assertIn('/geoip/digest?ref='+sha, paths)
@@ -100,7 +100,7 @@ class Versions(unittest.TestCase):
                 stub.write_text('#!/bin/sh\n[ "$1" != reload ]\n')
                 run(1)
                 self.assertEqual((resources/'geoip_cn.ver').read_text(), before)
-                self.assertEqual((dashboard/'dashboard.ver').read_text(), before)
+                self.assertEqual((dashboard/'dashboard.ver').read_text(), '20240203040506\n')
                 stub.write_text('#!/bin/sh\nexit 0\n')
                 # Every directory installation boundary rolls back both resources.
                 mover = base/'mv'
@@ -108,15 +108,17 @@ class Versions(unittest.TestCase):
                 mover.chmod(0o755)
                 env['PATH'] = str(base)+':'+env['PATH']
                 env['MV_COUNT'] = str(base/'mv-count')
-                for failure in range(1, 5):
+                for failure in range(1, 3):
                     env['MV_FAIL_AT'] = str(failure)
                     (base/'mv-count').write_text('0')
                     run(1)
                     self.assertEqual((resources/'geoip_cn.ver').read_text(), before)
-                    self.assertEqual((dashboard/'dashboard.ver').read_text(), before)
+                    self.assertEqual((dashboard/'dashboard.ver').read_text(), '20240203040506\n')
                 mover.unlink()
                 run(0)
                 run(3)
+                self.assertFalse(any('/dashboard' in p for p in paths), paths)
+                self.assertEqual((dashboard/'index.html').read_text(), 'old')
             finally:
                 server.shutdown(); server.server_close(); thread.join()
 

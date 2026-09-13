@@ -10,6 +10,7 @@
 
 - 不再自动覆盖 HomeProxy 源码；按需移植安全、故障及兼容修复，提交中记录来源。
 - 每日香港时间 02:00 更新资源并检查 sing-box 官方稳定版；新核心版本通过兼容审查后加入 `update-homeproxy.py` 的 `REVIEWED` 白名单。
-- GeoIP：`SagerNet/sing-geoip` 的 `rule-set`；GeoSite：`SagerNet/sing-geosite` 的 `rule-set-unstable`；Dashboard：`SagerNet/sing-box-dashboard` 的 `gh-pages`。
+- GeoIP：`SagerNet/sing-geoip` 的 `rule-set`；GeoSite：`SagerNet/sing-geosite` 的 `rule-set-unstable`。
+- Dashboard：`SagerNet/sing-box-dashboard` 的 `gh-pages`，不内置、不参与默认更新，仅在资源管理中手动下载、更新或移除。
 - 内置与在线资源统一使用 `YYYYMMDDHHmmss COMMIT`，时间取来源提交的 UTC 时间；下载锁定该提交，校验后安装，失败保留或恢复旧资源。
 - 资源自动提交：`chore: update resources <14位版本>`；sing-box：`chore: update sing-box <版本>`。

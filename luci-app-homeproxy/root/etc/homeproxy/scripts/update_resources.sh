@@ -22,7 +22,12 @@ UPDATE_PROXY="${HOMEPROXY_UPDATE_PROXY:-}"
 UPDATED_BRANCHES="" FAILED_BRANCHES=""
 CORE_UPDATED=0 DASHBOARD_UPDATED=0 APPLY_FAILED=0 ROLLBACK_FAILED=0
 
-mkdir -p "$RESOURCES_DIR" "$DASHBOARD_DIR" "$RUN_DIR" || exit 1
+# Dashboard is opt-in; cron and the rules RPC never select these modes.
+MODE="${1:-rules}"
+case "$MODE" in rules|dashboard-update|dashboard-remove) ;; *) exit 1 ;; esac
+[ "$MODE" = rules ] || RESULT_PATH="$RUN_DIR/dashboard.result"
+mkdir -p "$RUN_DIR" || exit 1
+[ "$MODE" != rules ] || mkdir -p "$RESOURCES_DIR" || exit 1
 log() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG_PATH"; }
 mark_updated() { UPDATED_BRANCHES="${UPDATED_BRANCHES:+$UPDATED_BRANCHES,}$1"; }
 mark_failed() { FAILED_BRANCHES="${FAILED_BRANCHES:+$FAILED_BRANCHES,}$1"; log "[RESOURCES] Failed: $1"; }
@@ -82,6 +87,8 @@ RESOURCE_BACKUP="${RESOURCES_DIR}.old.$$"
 DASHBOARD_STAGE="${DASHBOARD_DIR}.new.$$"
 DASHBOARD_BACKUP="${DASHBOARD_DIR}.old.$$"
 RESOURCE_SWAPPED=0 DASHBOARD_SWAPPED=0
+DASHBOARD_EXISTED=0
+[ ! -e "$DASHBOARD_DIR" ] || DASHBOARD_EXISTED=1
 # Backups are deliberately retained if restoration fails.
 restore() {
 	local target="$1" backup="$2"
@@ -97,7 +104,11 @@ rollback() {
 		RESOURCE_SWAPPED=0
 	fi
 	if [ "$DASHBOARD_SWAPPED" -eq 1 ]; then
-		restore "$DASHBOARD_DIR" "$DASHBOARD_BACKUP" || :
+		if [ "$DASHBOARD_EXISTED" -eq 1 ]; then
+			restore "$DASHBOARD_DIR" "$DASHBOARD_BACKUP" || :
+		else
+			rm -rf "$DASHBOARD_DIR" || ROLLBACK_FAILED=1
+		fi
 		DASHBOARD_SWAPPED=0
 	fi
 }
@@ -105,6 +116,7 @@ cleanup() { rm -rf "$TMP_DIR" "$RESOURCE_STAGE" "$DASHBOARD_STAGE"; rm -f "$RESU
 trap cleanup EXIT
 trap 'rollback; exit 1' INT TERM HUP
 
+if [ "$MODE" = rules ]; then
 cp -a "$RESOURCES_DIR" "$RESOURCE_STAGE" || finish 1
 for kind in geoip geosite; do
 	case "$kind" in
@@ -139,23 +151,48 @@ for kind in geoip geosite; do
 	CORE_UPDATED=1
 	mark_updated "$resource"
 done
-
-if ! version="$(fetch_version "$DASHBOARD_VERSION_URL")"; then
-	mark_failed dashboard
-elif [ "$(cat "$DASHBOARD_DIR/dashboard.ver" 2>/dev/null)" != "$version" ] || [ ! -s "$DASHBOARD_DIR/index.html" ]; then
-	commit="${version##* }"
-	if download "$DASHBOARD_SOURCE/$commit" "$TMP_DIR/dashboard.zip" &&
-	   mkdir "$TMP_DIR/dashboard" && unzip -q "$TMP_DIR/dashboard.zip" -d "$TMP_DIR/dashboard"; then
-		for index in "$TMP_DIR/dashboard/index.html" "$TMP_DIR"/dashboard/*/index.html; do
-			[ -s "$index" ] || continue
-			if cp -a "${index%/index.html}" "$DASHBOARD_STAGE" &&
-			   printf '%s\n' "$version" > "$DASHBOARD_STAGE/dashboard.ver" && chmod -R a+rX "$DASHBOARD_STAGE"; then
-				DASHBOARD_UPDATED=1
-			fi
-			break
-		done
+elif [ "$MODE" = dashboard-remove ]; then
+	[ "$DASHBOARD_EXISTED" -eq 1 ] || finish 3
+	DASHBOARD_UPDATED=1
+	mark_updated dashboard
+else
+	version="$(fetch_version "$DASHBOARD_VERSION_URL")" || { mark_failed dashboard; finish 1; }
+	if [ "$(cat "$DASHBOARD_DIR/dashboard.ver" 2>/dev/null)" = "$version" ] && [ -s "$DASHBOARD_DIR/index.html" ]; then
+		finish 3
 	fi
-	if [ "$DASHBOARD_UPDATED" -eq 1 ]; then mark_updated dashboard; else mark_failed dashboard; fi
+	commit="${version##* }"
+	# Immutable archive, then validate its file names/types before extraction.
+	if ! download "$DASHBOARD_SOURCE/$commit" "$TMP_DIR/dashboard.zip" ||
+	   ! unzip -Z1 "$TMP_DIR/dashboard.zip" > "$TMP_DIR/entries" ||
+	   ! ucode -l fs -e '
+		let entries = split(trim(fs.readfile(ARGV[0]) || ""), "\n");
+		let root = "";
+		for (let p in entries) {
+			if (!length(p) || match(p, /(^\/|\\|(^|\/)\.\.?(\/|$))/)) exit(1);
+			let r = split(p, "/")[0];
+			if (root && root != r) exit(1);
+			root = r;
+		}
+		if (!root) exit(1);
+	   ' "$TMP_DIR/entries" ||
+	   ! mkdir "$TMP_DIR/dashboard" ||
+	   ! unzip -q "$TMP_DIR/dashboard.zip" -d "$TMP_DIR/dashboard"; then
+		mark_failed dashboard; finish 1
+	fi
+	# Reject symlinks and special files; only a single complete web root is valid.
+	if [ -n "$(find "$TMP_DIR/dashboard" ! -type f ! -type d -print)" ]; then
+		mark_failed dashboard; finish 1
+	fi
+	for index in "$TMP_DIR"/dashboard/*/index.html; do
+		[ -s "$index" ] || continue
+		if cp -a "${index%/index.html}" "$DASHBOARD_STAGE" &&
+		   printf '%s\n' "$version" > "$DASHBOARD_STAGE/dashboard.ver" && chmod -R a+rX "$DASHBOARD_STAGE"; then
+			DASHBOARD_UPDATED=1
+		fi
+		break
+	done
+	[ "$DASHBOARD_UPDATED" -eq 1 ] || { mark_failed dashboard; finish 1; }
+	mark_updated dashboard
 fi
 
 # Fail closed: never publish a partial resource generation.
@@ -171,9 +208,11 @@ if [ "$CORE_UPDATED" -eq 1 ]; then
 	else install_failed=1; fi
 fi
 if [ "$install_failed" -eq 0 ] && [ "$DASHBOARD_UPDATED" -eq 1 ]; then
-	if mv "$DASHBOARD_DIR" "$DASHBOARD_BACKUP"; then
+	if [ "$DASHBOARD_EXISTED" -eq 0 ] || mv "$DASHBOARD_DIR" "$DASHBOARD_BACKUP"; then
 		DASHBOARD_SWAPPED=1
-		mv "$DASHBOARD_STAGE" "$DASHBOARD_DIR" || install_failed=1
+		if [ "$MODE" != dashboard-remove ]; then
+			mv "$DASHBOARD_STAGE" "$DASHBOARD_DIR" || install_failed=1
+		fi
 	else install_failed=1; fi
 fi
 if [ "$install_failed" -eq 1 ]; then
