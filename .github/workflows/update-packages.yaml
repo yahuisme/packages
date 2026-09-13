@@ -77,7 +77,8 @@ jobs:
               git commit -m "chore: update sing-box ${VERSION}"
             else
               VERSION=$(sed -n 's/^PKG_VERSION:=//p' "$PACKAGE/Makefile")
-              git commit -m "chore: sync homeproxy ${VERSION}"
+              RELEASE=$(sed -n 's/^PKG_RELEASE:=//p' "$PACKAGE/Makefile")
+              git commit -m "chore: sync homeproxy ${VERSION}-r${RELEASE}"
             fi
           done
           if [ "$(git rev-parse HEAD)" != "$(git rev-parse '@{upstream}')" ]; then
