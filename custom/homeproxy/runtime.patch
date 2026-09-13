@@ -82,7 +82,7 @@ index 4795ca7..f675d0c 100755
  	const used = createNodeLabelRegistry();
  	let changed = 0;
 diff --git a/root/usr/share/rpcd/ucode/luci.homeproxy b/root/usr/share/rpcd/ucode/luci.homeproxy
-index 51eda2a..7cb9dd6 100644
+index 51eda2a..7ce9c83 100644
 --- a/root/usr/share/rpcd/ucode/luci.homeproxy
 +++ b/root/usr/share/rpcd/ucode/luci.homeproxy
 @@ -11,7 +11,7 @@ import { lstat, open, popen, readfile, rename, unlink, writefile } from 'fs';
@@ -105,45 +105,7 @@ index 51eda2a..7cb9dd6 100644
  					for (let path in staged)
  						unlink(path.temporary);
  					return { result: false, error: 'failed to write domain list' };
-@@ -341,12 +343,35 @@ const methods = {
- 			if (requested_site !== 'all' && !CONNECTION_SITES[requested_site])
- 				return { result: false, error: 'illegal site' };
- 
-+			// Follow the client enable switch used by init, not the server state.
-+			const uci = cursor();
-+			uci.load('homeproxy');
-+			let proxy = '';
-+			if ((uci.get('homeproxy', 'config', 'main_node') ?? 'nil') !== 'nil') {
-+				// Use the generated mixed listener; TUN stack selection is unrelated.
-+				let config;
-+				try {
-+					config = json(readfile(RUN_DIR + '/sing-box-c.json'));
-+				} catch (e) {
-+					return { result: false, error: 'client runtime configuration is unavailable' };
-+				}
-+				const inbound = type(config) === 'object' && type(config.inbounds) === 'array'
-+					? filter(config.inbounds, (entry) => type(entry) === 'object' &&
-+						entry.tag === 'mixed-in' && entry.type === 'mixed')[0] : null;
-+				const port = inbound?.listen_port;
-+				if (type(port) !== 'int' || port < 1 || port > 65535)
-+					return { result: false, error: 'client mixed inbound is unavailable' };
-+				proxy = `http://127.0.0.1:${port}`;
-+			}
-+
-+			// Keep every site on the same route, overriding inherited proxy settings.
-+			const route = sprintf('--proxy %s --noproxy %s', shellQuote(proxy), shellQuote(proxy ? '' : '*'));
- 			const sites = (requested_site === 'all') ? keys(CONNECTION_SITES) : [ requested_site ];
- 			let commands = [];
- 			for (let site in sites) {
- 				push(commands, sprintf(
--					'/usr/bin/curl --location --silent --output /dev/null --user-agent %s --connect-timeout 5 --max-time 9 --write-out %s %s',
--					shellQuote('Mozilla/5.0'),
-+					'/usr/bin/curl %s --location --silent --output /dev/null --user-agent %s --connect-timeout 5 --max-time 9 --write-out %s %s',
-+					route, shellQuote('Mozilla/5.0'),
- 					shellQuote(sprintf('%s\\t%%{http_code}\\t%%{time_appconnect}\\t%%{time_total}\\n', site)),
- 					shellQuote(CONNECTION_SITES[site])
- 				));
-@@ -460,8 +485,8 @@ const methods = {
+@@ -460,8 +462,8 @@ const methods = {
  					error: 'missing_current_proxy'
  				};
  
