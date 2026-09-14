@@ -13,8 +13,6 @@ ImmortalWrt / OpenWrt 专属定制软件包源。
 | `luci-app-homeproxy` | `20260914-r5` | 独立维护 HomeProxy |
 | `sing-box` | `1.14.0` | 跟随 SagerNet 官方最新正式版 |
 
-维护基线、资源来源/UTC 14 位版本和升级政策见 [HomeProxy 维护说明](docs/homeproxy-maintenance.md)。
-
 ## 使用方法
 
 在固件源码根目录的 `feeds.conf` 或 `feeds.conf.default` 中添加：
