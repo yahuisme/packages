@@ -2057,15 +2057,10 @@ msgstr "服务器和客户端之间的最大时间差。"
 msgid "The minimum TLS version that is acceptable."
 msgstr "可接受的最低 TLS 版本。"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:197
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:113
-msgid ""
-"The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/"
-"TUN/AI Edition"
-msgstr ""
-"为 ARM64/AMD64 设计的现代 ImmortalWRT 代理平台。 Powered by Sing-Box/TUN/AI "
-"Edition"
-
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:195
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:111
+msgid "OpenWrt proxy platform based on sing-box."
+msgstr "基于 sing-box 的 OpenWrt 代理平台。"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:869
 msgid "The network interface to bind to."
 msgstr "绑定到的网络接口。"

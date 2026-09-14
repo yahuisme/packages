@@ -536,20 +536,20 @@ function getNodeLatencyStatusText(row_state) {
 
 function getNodeLatencyStatusStyle(row_state) {
 	if (!row_state)
-		return 'color:gray';
+		return 'color:var(--cbi-muted-color, var(--text-muted, gray))';
 
 	switch (row_state.state) {
 	case NODE_LATENCY_ROW_STATES.TESTING:
-		return 'color:#0a84ff';
+		return 'color:var(--cbi-primary-color, var(--primary, #0a84ff))';
 	case NODE_LATENCY_ROW_STATES.SUCCESS:
-		return 'color:green';
+		return 'color:var(--success, light-dark(#15803d, #16a34a))';
 	case NODE_LATENCY_ROW_STATES.TIMEOUT:
-		return 'color:#ff8c00';
+		return 'color:var(--warning, light-dark(#c2410c, #ff8c00))';
 	case NODE_LATENCY_ROW_STATES.ERROR:
-		return 'color:red';
+		return 'color:var(--danger, light-dark(#b91c1c, #dc2626))';
 	case NODE_LATENCY_ROW_STATES.UNTESTED:
 	default:
-		return 'color:gray';
+		return 'color:var(--cbi-muted-color, var(--text-muted, gray))';
 	}
 }
 
@@ -741,13 +741,6 @@ function renderNodeSettings(section, data, features, main_node, node_latency_row
 				modal.classList.add('hp-node-modal');
 		});
 	};
-	if (typeof globalThis !== 'undefined') {
-		globalThis.__hpNodeLatencySections = globalThis.__hpNodeLatencySections || {};
-		globalThis.__hpNodeLatencyTrigger = function(section_id) {
-			let target = globalThis.__hpNodeLatencySections?.[section_id];
-			return target ? target.handleNodeLatencyTest(section_id) : false;
-		};
-	}
 	s.rowcolors = true;
 	s.sortable = true;
 	s.nodescriptions = true;
@@ -858,6 +851,9 @@ function renderNodeSettings(section, data, features, main_node, node_latency_row
 	o.inputtitle = function(section_id) {
 		return getNodeLatencyActionTitle(this.section.getNodeLatencyRowState(section_id));
 	}
+	o.onclick = function(ev, section_id) {
+		return this.section.handleNodeLatencyTest(section_id);
+	}
 	o.renderWidget = function(section_id, _option_index, cfgvalue) {
 		let hiddenEl = new ui.Hiddenfield((cfgvalue != null) ? cfgvalue : '', {
 			id: this.cbid(section_id)
@@ -865,12 +861,9 @@ function renderNodeSettings(section, data, features, main_node, node_latency_row
 		let outputEl = E('output', { 'for': this.cbid(section_id) });
 		let row_state = s.getNodeLatencyRowState(section_id);
 
-		if (typeof globalThis !== 'undefined' && globalThis.__hpNodeLatencySections)
-			globalThis.__hpNodeLatencySections[section_id] = s;
-
 		outputEl.appendChild(E('button', {
 			'class': 'cbi-button cbi-button-action',
-			'onclick': 'return globalThis.__hpNodeLatencyTrigger(%s);'.format(JSON.stringify(section_id)),
+			'click': ui.createHandlerFn(this, 'onclick', section_id),
 			'disabled': (row_state.state === NODE_LATENCY_ROW_STATES.TESTING) ? true : null
 		}, [ getNodeLatencyActionTitle(row_state) ]));
 
@@ -1860,13 +1853,15 @@ return view.extend({
 		/* User nodes end */
 
 		/* Subscription nodes start */
+		const subSections = Object.create(null);
 		for (const info of subinfo) {
 			s.tab('sub_' + info.hash, _('Sub (%s)').format(info.title));
 			o = s.taboption('sub_' + info.hash, form.SectionValue, '_sub_' + info.hash, form.GridSection, 'node');
 			ss = renderNodeSettings(o.subsection, data, features, main_node, node_latency_row_state);
 			ss.filter = function(section_id) {
 				return (uci.get(data[0], section_id, 'grouphash') === info.hash);
-			}
+			};
+			subSections[info.hash] = ss;
 		}
 		/* Subscription nodes end */
 		/* Node settings end */
@@ -2063,13 +2058,15 @@ return view.extend({
 			let bulk_button = E('button', {
 				'class': 'cbi-button cbi-button-action hp-bulk-latency-test',
 				'click': ui.createHandlerFn(this, async () => {
-					if (bulk_testing || typeof globalThis === 'undefined')
+					if (bulk_testing)
 						return false;
 
 					let section_ids = getActiveSubscriptionLatencySectionIds(el);
 					if (!section_ids.length)
 						return false;
-					let target = globalThis.__hpNodeLatencySections?.[section_ids[0]];
+					let active_tab = getActiveSubscriptionTabId(el);
+					let sub_hash = active_tab ? active_tab.replace(/^sub_/, '') : null;
+					let target = (sub_hash && subSections[sub_hash]) ? subSections[sub_hash] : ss;
 					if (!target)
 						return false;
 

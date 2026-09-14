@@ -35,11 +35,12 @@ const CBIGenValue = form.Value.extend({
 });
 
 function renderStatus(isRunning, version) {
+	let statusColor = isRunning ? 'var(--success, light-dark(#15803d, #16a34a))' : 'var(--danger, light-dark(#b91c1c, #dc2626))';
 	let renderHTML = ('<span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:100%%">' +
 		'<span style="min-width:0;overflow-wrap:anywhere">%h (sing-box v%h)</span>' +
 		'<span style="display:inline-flex;align-items:center;gap:8px;white-space:nowrap;color:%s">' +
 		'<span aria-hidden="true" style="width:6px;height:6px;flex:none;border-radius:50%%;background:currentColor"></span><strong>%h</strong></span></span>')
-		.format(_('HomeProxy Server'), version, isRunning ? '#16a34a' : '#dc2626', isRunning ? _('RUNNING') : _('NOT RUNNING'));
+		.format(_('HomeProxy Server'), version, statusColor, isRunning ? _('RUNNING') : _('NOT RUNNING'));
 
 	return renderHTML;
 }
@@ -109,7 +110,7 @@ return view.extend({
 		let features = data[1];
 
 		m = new form.Map('homeproxy', _('HomeProxy Server'),
-			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition').replace(/(?:<br\s*\/?>)?\s*Powered by Sing-Box\/TUN\/AI Edition\s*$/, ''));
+			_('OpenWrt proxy platform based on sing-box.'));
 
 		s = m.section(form.TypedSection);
 		s.render = function() {

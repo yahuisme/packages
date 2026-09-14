@@ -138,12 +138,13 @@ function renderTailscaleStatus(status) {
 }
 
 function renderStatus(isRunning, version, currentNode) {
+	let statusColor = isRunning ? 'var(--success, light-dark(#15803d, #16a34a))' : 'var(--danger, light-dark(#b91c1c, #dc2626))';
 	let renderHTML = ('<span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:100%%">' +
 		'<span style="min-width:0;overflow-wrap:anywhere">%h (sing-box v%h)</span>' +
 		'<span style="display:inline-flex;align-items:center;gap:8px;white-space:nowrap;color:%s">' +
 		'<span aria-hidden="true" style="width:6px;height:6px;flex:none;border-radius:50%%;background:currentColor"></span><strong>%h</strong></span></span>')
-		.format(_('HomeProxy'), version, isRunning ? '#16a34a' : '#dc2626', isRunning ? _('RUNNING') : _('NOT RUNNING'));
-	let nodeColor = '#1e90ff';
+		.format(_('HomeProxy'), version, statusColor, isRunning ? _('RUNNING') : _('NOT RUNNING'));
+	let nodeColor = 'var(--cbi-primary-color, var(--primary, #1e90ff))';
 
 	if (currentNode)
 		renderHTML += '<div><em><span style="color:%s"><strong>%s</strong></span></em></div>'.format(nodeColor, '%h'.format(currentNode));
@@ -192,7 +193,7 @@ return view.extend({
 		});
 
 		m = new form.Map('homeproxy', _('HomeProxy'),
-			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition').replace(/(?:<br\s*\/?>)?\s*Powered by Sing-Box\/TUN\/AI Edition\s*$/, ''));
+			_('OpenWrt proxy platform based on sing-box.'));
 
 		let domainListCache = Object.create(null),
 		    pendingDomainLists = Object.create(null);

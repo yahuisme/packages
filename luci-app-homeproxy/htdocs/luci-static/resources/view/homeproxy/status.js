@@ -45,7 +45,7 @@ function getConnectionStatus() {
 	]);
 	const statusElements = {};
 	const rows = connectionSites.map((site) => {
-		const state = E('strong', { 'style': 'color:gray' }, '-');
+		const state = E('strong', { 'style': 'color:var(--cbi-muted-color, var(--text-muted, gray))' }, '-');
 		const latency = E('span', {}, '-');
 		statusElements[site.type] = { state, latency };
 
@@ -73,7 +73,7 @@ function getConnectionStatus() {
 		connectionSites.forEach((site) => {
 			if (session.testing) {
 				const elements = statusElements[site.type];
-				elements.state.style.setProperty('color', 'gray');
+				elements.state.style.setProperty('color', 'var(--cbi-primary-color, var(--primary, #0a84ff))');
 				dom.content(elements.state, _('Testing...'));
 				dom.content(elements.latency, '-');
 			} else if (session.results) {
@@ -88,11 +88,11 @@ function getConnectionStatus() {
 			return;
 
 		if (result?.result === true && Number.isFinite(result.latency_ms) && result.latency_ms >= 0) {
-			elements.state.style.setProperty('color', 'green');
+			elements.state.style.setProperty('color', 'var(--success, light-dark(#15803d, #16a34a))');
 			dom.content(elements.state, _('Success'));
 			dom.content(elements.latency, _('%s ms').format(result.latency_ms));
 		} else {
-			elements.state.style.setProperty('color', 'red');
+			elements.state.style.setProperty('color', 'var(--danger, light-dark(#b91c1c, #dc2626))');
 			dom.content(elements.state, result?.timed_out ? _('Timed out') : _('Failed'));
 			dom.content(elements.latency, '-');
 		}
