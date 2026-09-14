@@ -7,7 +7,7 @@
 
 'use strict';
 
-import { lstat, open, popen, readfile, rename, unlink, writefile } from 'fs';
+import { lstat, mkdtemp, open, popen, readfile, rename, rmdir, unlink, writefile } from 'fs';
 import { cursor } from 'uci';
 
 import {
@@ -62,6 +62,25 @@ function normalizeDomainContent(content) {
 		if (!validation('hostname', domain))
 			return null;
 	return length(domains) ? join('\n', domains) + '\n' : '';
+}
+
+function withDomainListLock(callback) {
+	system(`mkdir -p ${HP_DIR}/diversion`);
+	const lockfd = open(`${HP_DIR}/diversion/domainlist.lock`, 'w', 0600);
+	if (!lockfd || lockfd.lock('x') !== true) {
+		lockfd?.close();
+		return { result: false, error: 'failed to lock domain lists' };
+	}
+
+	let result;
+	try {
+		result = callback();
+	} catch (e) {
+		result = { result: false, error: 'failed to update domain lists' };
+	}
+	lockfd.lock('u');
+	lockfd.close();
+	return result;
 }
 
 function validateDomainLists(changes, routingMode, groupStates) {
@@ -176,47 +195,68 @@ const methods = {
 				changes[id] = content;
 			}
 
-			const conflict = validateDomainLists(changes, routingMode, groupStates);
-			if (conflict)
-				return {
-					result: false,
-					error: `domain ${conflict.left.value} conflicts with ${conflict.right.value}`
-				};
+			return withDomainListLock(() => {
+				const conflict = validateDomainLists(changes, routingMode, groupStates);
+				if (conflict)
+					return {
+						result: false,
+						error: `domain ${conflict.left.value} conflicts with ${conflict.right.value}`
+					};
 
-			system(`mkdir -p ${HP_DIR}/diversion`);
-			let staged = [];
-			for (let id in keys(changes)) {
-				const file = domainListPath(id), temporary = file + '.new';
-				const written = writefile(temporary, changes[id]);
-				if (written === null || written !== length(changes[id])) {
-					unlink(temporary);
-					for (let path in staged)
+				const stage = mkdtemp(`${HP_DIR}/diversion/.domainlist.XXXXXX`);
+				if (!stage)
+					return { result: false, error: 'failed to stage domain lists' };
+
+				let staged = [];
+				const cleanup = () => {
+					for (let path in staged) {
 						unlink(path.temporary);
-					return { result: false, error: 'failed to write domain list' };
-				}
-				push(staged, { file, temporary });
-			}
-			for (let path in staged)
-				path.backup = path.file + '.bak',
-				path.had_backup = readfile(path.file) !== null,
-				path.had_backup && writefile(path.backup, readfile(path.file));
-
-			for (let path in staged)
-				if (!rename(path.temporary, path.file)) {
-					for (let restore in staged) {
-						if (restore.had_backup)
-							rename(restore.backup, restore.file);
-						else
-							unlink(restore.file);
+						unlink(path.backup);
 					}
-					for (let pending in staged)
-						unlink(pending.temporary);
-					return { result: false, error: 'failed to install domain list' };
+					rmdir(stage);
+				};
+				for (let id in keys(changes)) {
+					const file = domainListPath(id), temporary = `${stage}/${id}.new`;
+					const original = readfile(file), backup = `${stage}/${id}.bak`;
+					const written = writefile(temporary, changes[id]);
+					push(staged, { file, temporary, backup, original, had_backup: original !== null });
+					if (written === null || written !== length(changes[id])) {
+						cleanup();
+						return { result: false, error: 'failed to write domain list' };
+					}
 				}
-			for (let path in staged)
-				unlink(path.backup);
+				for (let path in staged) {
+					if (!path.had_backup)
+						continue;
+					const written = writefile(path.backup, path.original);
+					if (written === null || written !== length(path.original) || readfile(path.backup) !== path.original) {
+						cleanup();
+						return { result: false, error: 'failed to back up domain list' };
+					}
+				}
 
-			return { result: true };
+				for (let path in staged)
+					if (!rename(path.temporary, path.file)) {
+						let restored = true;
+						for (let restore in staged) {
+							if (restore.had_backup) {
+								if (!rename(restore.backup, restore.file) || readfile(restore.file) !== restore.original)
+									restored = false;
+							} else if (readfile(restore.file) !== null) {
+								unlink(restore.file);
+								if (readfile(restore.file) !== null)
+									restored = false;
+							}
+						}
+						for (let pending in staged)
+							unlink(pending.temporary);
+						if (restored)
+							cleanup();
+						return { result: false, error: restored ? 'failed to install domain list' : 'failed to install and restore domain lists' };
+					}
+				cleanup();
+				return { result: true };
+			});
 		}
 	},
 	domainlist_remove: {
@@ -226,16 +266,18 @@ const methods = {
 			if (!validDomainListId(id) || id in ['direct', 'proxy'])
 				return { result: false, error: 'illegal domain list identifier' };
 
-			const file = domainListPath(id);
-			for (let path in [file, file + '.new']) {
-				if (readfile(path) === null)
-					continue;
-				unlink(path);
-				if (readfile(path) !== null)
-					return { result: false, error: 'failed to remove domain list' };
-			}
+			return withDomainListLock(() => {
+				const file = domainListPath(id);
+				for (let path in [file, file + '.new']) {
+					if (readfile(path) === null)
+						continue;
+					unlink(path);
+					if (readfile(path) !== null)
+						return { result: false, error: 'failed to remove domain list' };
+				}
 
-			return { result: true };
+				return { result: true };
+			});
 		}
 	},
 

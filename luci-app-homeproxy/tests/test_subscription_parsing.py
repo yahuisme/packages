@@ -42,6 +42,71 @@ class SubscriptionParsing(unittest.TestCase):
     def test_socks4a(self):
         self.assertEqual(self.parse("parse_uri('socks4a://example.com:1080')")['socks_version'],'4a')
     def test_yaml(self):
-        self.assertIsNone(self.parse('parse_mihomo_yaml('+json.dumps('proxies:\n  - name: test\n    type: trojan\n')+')'))
-        text='proxies:\n  - '+json.dumps(dict(name='test',type='trojan',server='example.com',port=443,password='pass'))+'\n'
-        self.assertEqual(len(self.parse('parse_mihomo_yaml('+json.dumps(text)+')')),1)
+        block = '''proxies:
+  - name: Block Trojan
+    type: trojan
+    server: example.com
+    port: 443
+    password: "p: ass # literal"
+    network: ws
+    ws-opts:
+      path: /api
+      headers:
+        Host: cdn.example.com
+'''
+        nodes = self.parse('parse_mihomo_yaml('+json.dumps(block)+')')
+        self.assertEqual(len(nodes), 1)
+        self.assertEqual(nodes[0]['name'], 'Block Trojan')
+        self.assertEqual(nodes[0]['password'], 'p: ass # literal')
+        self.assertEqual(nodes[0]['ws-opts']['headers']['Host'], 'cdn.example.com')
+        parsed = self.parse('parse_uri(parse_mihomo_yaml('+json.dumps(block)+')[0])')
+        self.assertEqual(parsed['type'], 'trojan')
+        self.assertEqual(parsed['ws_host'], 'cdn.example.com')
+
+        flow = "proxies:\n  - {name: Flow Trojan, type: trojan, server: example.com, port: 443, password: pass, skip-cert-verify: true}\n"
+        nodes = self.parse('parse_mihomo_yaml('+json.dumps(flow)+')')
+        self.assertEqual(len(nodes), 1)
+        self.assertEqual(nodes[0]['name'], 'Flow Trojan')
+        self.assertIs(nodes[0]['skip-cert-verify'], True)
+
+    def test_yaml_rejects_anchors_tags_and_multiline_scalars(self):
+        for payload in (
+            'proxies:\n  - &node {name: x, type: trojan, server: example.com, port: 443, password: p}\n',
+            'proxies:\n  - name: !unsafe x\n    type: trojan\n',
+            'proxies:\n  - name: x\n    type: trojan\n    password: |\n      secret\n',
+        ):
+            with self.subTest(payload=payload):
+                self.assertIsNone(self.parse('parse_mihomo_yaml('+json.dumps(payload)+')'))
+
+    def test_yaml_empty_flow_sequence_stays_empty(self):
+        self.assertEqual(self.parse("yaml_scalar('[]')"), [])
+
+    def test_yaml_empty_flow_mapping_is_rejected_as_proxy(self):
+        payload = 'proxies:\n  - {}\n'
+        self.assertIsNone(self.parse('parse_mihomo_yaml('+json.dumps(payload)+')'))
+
+    def test_yaml_nested_block_sequence_is_parsed(self):
+        payload = '''proxies:
+  - name: sequence
+    type: trojan
+    server: example.com
+    port: 443
+    password: pass
+    alpn:
+      - h2
+      - http/1.1
+'''
+        nodes = self.parse('parse_mihomo_yaml('+json.dumps(payload)+')')
+        self.assertEqual(nodes[0]['alpn'], ['h2', 'http/1.1'])
+
+    def test_yaml_boolean_before_comment_remains_boolean(self):
+        payload = '''proxies:
+  - name: boolean
+    type: trojan
+    server: example.com
+    port: 443
+    password: pass
+    skip-cert-verify: true # intentional
+'''
+        nodes = self.parse('parse_mihomo_yaml('+json.dumps(payload)+')')
+        self.assertIs(nodes[0]['skip-cert-verify'], True)

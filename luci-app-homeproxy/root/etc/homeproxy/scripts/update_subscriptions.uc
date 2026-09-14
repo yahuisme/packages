@@ -989,45 +989,147 @@ function parse_uri(uri) {
 	return config;
 }
 
+function yaml_split_flow(text) {
+	let parts = [], start = 0, depth = 0, quote = null;
+	for (let i = 0; i < length(text); i++) {
+		const ch = substr(text, i, 1);
+		if (quote) {
+			if (ch === quote && (quote === "'" || i === 0 || substr(text, i - 1, 1) !== '\\'))
+				quote = null;
+			continue;
+		}
+		if (ch === "'" || ch === '"') quote = ch;
+		else if (ch === '{' || ch === '[') depth++;
+		else if (ch === '}' || ch === ']') depth--;
+		else if (ch === ',' && depth === 0) {
+			push(parts, trim(substr(text, start, i - start)));
+			start = i + 1;
+		}
+	}
+	push(parts, trim(substr(text, start)));
+	return parts;
+}
+
+function yaml_colon(text) {
+	let depth = 0, quote = null;
+	for (let i = 0; i < length(text); i++) {
+		const ch = substr(text, i, 1);
+		if (quote) {
+			if (ch === quote && (quote === "'" || i === 0 || substr(text, i - 1, 1) !== '\\')) quote = null;
+			continue;
+		}
+		if (ch === "'" || ch === '"') quote = ch;
+		else if (ch === '{' || ch === '[') depth++;
+		else if (ch === '}' || ch === ']') depth--;
+		else if (ch === ':' && depth === 0) return i;
+	}
+	return -1;
+}
+
+function yaml_scalar(text) {
+	text = trim(text);
+	if (!text || match(text, /^[&*!|>]/)) return text ? null : {};
+	if (substr(text, 0, 1) === '{' && substr(text, -1) === '}') {
+		let object = {};
+		const body = trim(substr(text, 1, length(text) - 2));
+		if (!body) return object;
+		for (let pair in yaml_split_flow(body)) {
+			const colon = yaml_colon(pair);
+			if (colon < 1) return null;
+			let key = yaml_scalar(substr(pair, 0, colon));
+			let value = yaml_scalar(substr(pair, colon + 1));
+			if (type(key) !== 'string' || value === null) return null;
+			object[key] = value;
+		}
+		return object;
+	}
+	if (substr(text, 0, 1) === '[' && substr(text, -1) === ']') {
+		let values = [];
+		const body = trim(substr(text, 1, length(text) - 2));
+		if (!body) return values;
+		for (let item in yaml_split_flow(body)) {
+			let value = yaml_scalar(item);
+			if (value === null) return null;
+			push(values, value);
+		}
+		return values;
+	}
+	if (substr(text, 0, 1) === '"') {
+		try { return json(text); } catch (e) { return null; }
+	}
+	if (substr(text, 0, 1) === "'") {
+		if (substr(text, -1) !== "'") return null;
+		return replace(substr(text, 1, length(text) - 2), /''/g, "'");
+	}
+	text = trim(replace(text, /\s+#.*$/, ''));
+	/* Keep this deliberately below full YAML: no tags, aliases or implicit dates. */
+	if (text === 'true') return true;
+	if (text === 'false') return false;
+	if (text === 'null' || text === '~') return null;
+	if (match(text, /^[-+]?[0-9]+$/)) return int(text);
+	return text;
+}
+
 function parse_mihomo_yaml(text) {
 	if (isEmpty(text) || type(text) !== 'string')
 		return null;
 
-	let in_proxies = false;
-	let proxies = [];
-	for (let line in split(text, '\n')) {
-		line = trim(line);
-		if (line === 'proxies:' || match(line, /^proxies:\s*$/)) {
-			in_proxies = true;
+	let proxies = [], current = null, stack = [], proxies_indent = null, proxy_item_indent = null;
+	for (let raw in split(replace(text, /\r/g, ''), '\n')) {
+		if (!trim(raw) || match(trim(raw), /^#/)) continue;
+		let indent = length(match(raw, /^ */)[0]), line = trim(raw);
+		if (proxies_indent === null) {
+			if (line === 'proxies:') proxies_indent = indent;
 			continue;
 		}
-		if (!in_proxies)
+		if (indent <= proxies_indent) break;
+		if (match(line, /^-\s+/) && current && proxy_item_indent !== null && indent > proxy_item_indent) {
+			while (length(stack) && indent <= stack[-1].indent) pop(stack);
+			if (!length(stack)) return null;
+			const entry = stack[-1];
+			if (type(entry.parent[entry.key]) === 'object' && length(entry.parent[entry.key]) === 0)
+				entry.parent[entry.key] = [];
+			if (type(entry.parent[entry.key]) !== 'array') return null;
+			const value = yaml_scalar(trim(replace(line, /^-\s+/, '')));
+			if (value === null || type(value) === 'object') return null;
+			push(entry.parent[entry.key], value);
 			continue;
-
-		if (!line)
-			continue;
-
-		if (match(line, /^\w+:\s*$/) && line !== '-')
-			break;
-
-		const m = match(line, /^-\s*(\{.*\})\s*$/);
-		if (!m)
-			continue;
-
-		let obj;
-		try {
-			obj = json(m[1]);
-		} catch(e) {
-			obj = null;
 		}
-		if (obj) {
-			obj.nodetype = 'mihomo';
-			push(proxies, obj);
+		if (match(line, /^-\s+/)) {
+			proxy_item_indent = indent;
+			let value = trim(replace(line, /^-\s+/, ''));
+			if (substr(value, 0, 1) === '{') {
+				const object = yaml_scalar(value);
+				if (type(object) === 'object' && length(object)) push(proxies, { ...object, nodetype: 'mihomo' });
+				else return null;
+				current = null;
+				continue;
+			}
+			current = {};
+			push(proxies, current);
+			stack = [{ indent: indent, object: current }];
+			line = value;
+		}
+		if (!current) continue;
+		const colon = yaml_colon(line);
+		if (colon < 1) return null;
+		while (length(stack) && indent <= stack[-1].indent) pop(stack);
+		const parent = length(stack) ? stack[-1].object : current;
+		const key = yaml_scalar(substr(line, 0, colon));
+		const value_text = trim(substr(line, colon + 1));
+		if (type(key) !== 'string' || match(value_text, /^[&*!|>]/)) return null;
+		if (!value_text) {
+			parent[key] = {};
+			push(stack, { indent, object: parent[key], parent, key });
+		} else {
+			const value = yaml_scalar(value_text);
+			if (value === null && !(value_text in ['null', '~'])) return null;
+			parent[key] = value;
 		}
 	}
-
-	if (in_proxies && !length(proxies))
-		log('Unsupported Mihomo YAML: use one JSON object per proxy entry or a share-link subscription.');
+	for (let proxy in proxies) proxy.nodetype = 'mihomo';
+	if (proxies_indent !== null && !length(proxies))
+		log('Unsupported Mihomo YAML: no supported proxy mapping was found.');
 	return length(proxies) ? proxies : null;
 }
 

@@ -1871,14 +1871,12 @@ msgstr "成功导入 %s 个节点，共 %s 个。"
 msgid "Successfully updated."
 msgstr "更新成功。"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1747
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1877
-msgid ""
-"Support Hysteria, Shadowsocks, Trojan, v2rayN (VMess), and XTLS (VLESS) "
-"online configuration delivery standard."
-msgstr ""
-"支持 Hysteria、Shadowsocks、Trojan、v2rayN（VMess）和 XTLS（VLESS）在线配置交"
-"付标准。"
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1759
+msgid "Supports AnyTLS, HTTP(S), Hysteria, Hysteria2, Shadowsocks, SOCKS4/4A/5, Trojan, TUIC, VLESS and VMess share links."
+msgstr "支持 AnyTLS、HTTP(S)、Hysteria、Hysteria2、Shadowsocks、SOCKS4/4A/5、Trojan、TUIC、VLESS 和 VMess 分享链接。"
+
+msgid "Supports AnyTLS, HTTP(S), Shadowsocks, SOCKS4/4A/5, Trojan, VLESS and VMess share links."
+msgstr "支持 AnyTLS、HTTP(S)、Shadowsocks、SOCKS4/4A/5、Trojan、VLESS 和 VMess 分享链接。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:383
 msgid ""
@@ -2562,3 +2560,10 @@ msgstr "失效节点：%s"
 
 msgid "Node unavailable; using the main node."
 msgstr "节点已失效，将使用主节点。"
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:434
+msgid "Log unavailable."
+msgstr "日志不可用。"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:434
+msgid "Log updated."
+msgstr "日志已更新。"

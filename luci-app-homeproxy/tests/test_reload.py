@@ -22,7 +22,107 @@ def fn(source, name, indent=''):
 
 
 class Reload(unittest.TestCase):
-    def run_case(self, fault='', mode='client'):
+    def run_real_cold_start(self, fault='', preexisting=False):
+        """Run the complete native rc.common -> procd.sh start dispatch."""
+        with tempfile.TemporaryDirectory(prefix='homeproxy-rc-common-') as d:
+            root = Path(d)
+            runtime = root / 'root'
+            run = root / 'run'
+            dns = root / 'dns/dnsmasq-homeproxy.d'
+            for path in [runtime / 'lib/functions', runtime / 'usr/share/libubox',
+                         runtime / 'etc/init.d', root / 'bin', run, dns]:
+                path.mkdir(parents=True, exist_ok=True)
+
+            (runtime / 'lib/functions.sh').write_text(r'''
+list_contains() { local var="$1" str="$2" val; eval "val=\${$var}"; case " $val " in *" $str "*) return 0;; *) return 1;; esac; }
+''')
+            (runtime / 'lib/functions/service.sh').write_text('')
+            (runtime / 'lib/functions/procd.sh').write_text(PROCD)
+            (runtime / 'usr/share/libubox/jshn.sh').write_text(r'''
+json_set_namespace() { [ -z "$2" ] || eval "$2=old"; return 0; }
+json_init() { INSTANCES=''; printf 'open\n' >> "$ROOT/events"; }
+json_add_string() { :; }
+json_add_boolean() { :; }
+json_add_int() { :; }
+json_add_object() { [ "$1" = instances ] && JSON_INSTANCES=1; [ "${JSON_INSTANCES:-0}" = 1 ] && [ "$1" != instances ] && INSTANCES="$INSTANCES $1"; }
+json_add_array() { :; }
+json_close_object() { :; }
+json_close_array() { :; }
+json_select() { return 1; }
+json_get_values() { :; }
+json_dump() { printf '%s' "$INSTANCES"; }
+json_cleanup() { JSON_INSTANCES=0; INSTANCES=''; }
+''')
+            ubus = root / 'bin/ubus'
+            ubus.write_text('#!/bin/sh\nprintf "ubus:%s:%s\\n" "$3" "$4" >> "$ROOT/events"\n[ "$FAULT" != ubus ]\n')
+            ubus.chmod(0o755)
+
+            old = {run / 'sing-box-c.json': 'OLD CLIENT',
+                   run / 'sing-box-s.json': 'OLD SERVER',
+                   run / 'fw4_input.nft': 'OLD FIREWALL',
+                   dns / 'redirect-dns.conf': 'OLD DNS',
+                   dns.parent / 'dnsmasq-homeproxy.conf': 'OLD INCLUDE'}
+            if preexisting:
+                for path, text in old.items():
+                    path.write_text(text)
+
+            stubs = r'''
+config_load() { :; }
+config_get() { case "$2.$3" in config.main_node) eval "$1=node";; config.routing_mode) eval "$1=bypass_mainland_china";; *) eval "$1=\"$4\"";; esac; }
+config_get_bool() { case "$2.$3" in server.enabled|config.dashboard_enabled) eval "$1=1";; *) eval "$1=0";; esac; }
+sync_subscription_cron() { :; }
+procd_kill() { printf 'kill\n' >> "$ROOT/events"; }
+runtime_init() { [ "$FAULT" != runtime-init ]; }
+ucode() { case "$*" in *cleanup_urltest*) [ "$FAULT" != cleanup ];; *firewall_pre*) printf 'NEW FIREWALL' > "$RUN_DIR/fw4_input.nft";; *generate_client*) [ "$FAULT" != generate ] || return 1; printf 'NEW CLIENT' > "$RUN_DIR/sing-box-c.json.new";; *generate_server*) printf 'NEW SERVER' > "$RUN_DIR/sing-box-s.json.new";; esac; }
+check_stub() { :; }
+sing-box() { printf fixture; }
+chown() { :; }
+fw4() { :; }
+dnsmasq() { :; }
+flock() { :; }
+logger() { :; }
+lock() { :; }
+'''
+            init = INIT.replace('/usr/libexec/homeproxy-runtime-init', 'runtime_init')
+            init = init.replace('/etc/init.d/dnsmasq', 'dnsmasq')
+            init = init.replace('log() {', stubs + '\nlog() {', 1)
+            init = init.replace('RUN_DIR="/var/run/homeproxy"', f'RUN_DIR="{run}"')
+            init = init.replace('DNSMASQ_DIR="/tmp/dnsmasq.d/dnsmasq-homeproxy.d"', f'DNSMASQ_DIR="{dns}"')
+            init = init.replace('HP_DIR="/etc/homeproxy"', f'HP_DIR="{root}/hp"')
+            init = init.replace('DASHBOARD_DIR="$HP_DIR/dashboard"', f'DASHBOARD_DIR="{root}/dashboard"')
+            init = init.replace('PROG="/usr/bin/sing-box"', 'PROG="check_stub"')
+            initscript = runtime / 'etc/init.d/homeproxy'
+            initscript.write_text(init)
+            initscript.chmod(0o755)
+            (root / 'dashboard').mkdir()
+            (root / 'dashboard/index.html').write_text('index')
+
+            env = dict(os.environ, ROOT=d, FAULT=fault, IPKG_INSTROOT=str(runtime),
+                       PATH=str(root / 'bin') + ':' + os.environ['PATH'])
+            result = subprocess.run(['busybox', 'ash', str(BASE / 'package/base-files/files/etc/rc.common'),
+                                     str(initscript), 'start'], env=env, capture_output=True, text=True)
+            events = (root / 'events').read_text().splitlines() if (root / 'events').exists() else []
+            submissions = [line for line in events if line.startswith('ubus:set:')]
+            self.assertEqual(result.stderr, '', result.stdout)
+            self.assertNotIn('kill', events)
+            self.assertEqual(len([line for line in events if line == 'open']), 1, events)
+            expected_submissions = 0 if fault in ('runtime-init', 'cleanup', 'generate') else 1
+            self.assertEqual(len(submissions), expected_submissions, events)
+            if submissions:
+                self.assertIn('sing-box-c', submissions[0])
+                self.assertIn('sing-box-s', submissions[0])
+            if fault:
+                self.assertNotEqual(result.returncode, 0, events)
+                if preexisting:
+                    for path, text in old.items():
+                        self.assertEqual(path.read_text(), text, (fault, path, events))
+                else:
+                    self.assertFalse(any(run.glob('sing-box-*.json')))
+                    self.assertFalse(any(dns.glob('*')))
+            else:
+                self.assertEqual(result.returncode, 0, events)
+
+    def run_case(self, fault='', mode='client', operation='reload', preexisting=True):
         with tempfile.TemporaryDirectory(prefix='homeproxy-reload-') as d:
             root = Path(d)
             run = root / 'run'
@@ -34,12 +134,13 @@ class Reload(unittest.TestCase):
                    run / 'fw4_input.nft': 'OLD FIREWALL',
                    dns / 'redirect-dns.conf': 'OLD DNS',
                    dns.parent / 'dnsmasq-homeproxy.conf': 'OLD INCLUDE'}
-            for path, text in old.items():
-                path.write_text(text)
+            if preexisting:
+                for path, text in old.items():
+                    path.write_text(text)
             logs = {run / 'sing-box-c.log': 'CLIENT HISTORY', run / 'sing-box-s.log': 'SERVER HISTORY'}
             for path, text in logs.items():
                 path.write_text(text)
-            inodes = {path: path.stat().st_ino for path in old}
+            inodes = {path: path.stat().st_ino for path in old} if preexisting else {}
             (root / 'bin').mkdir()
             ubus = root / 'bin/ubus'
             ubus.write_text('#!/bin/sh\nprintf "ubus:%s\\n" "$4" >> "$ROOT/events"\ncase "$FAULT" in ubus|restore-remove|restore-copy) exit 1;; esac\n')
@@ -48,7 +149,7 @@ class Reload(unittest.TestCase):
             code = INIT[INIT.index('log() {'):] + '\n'
             code = code.replace('/usr/libexec/homeproxy-runtime-init', 'runtime_init')
             code = code.replace('/etc/init.d/dnsmasq', 'dnsmasq')
-            code += ''.join(fn(RC, n, '\t') for n in ['rc_procd', 'start', 'stop', 'reload'])
+            code += ''.join(fn(RC, n, '\t') for n in ['rc_procd', 'stop', 'reload'])
             code += ''.join(fn(PROCD, n) for n in ['_procd_call', '_procd_ubus_call', '_procd_close_service'])
             code += r'''
 config_load() { :; }
@@ -99,7 +200,8 @@ mv() { if [ "$FAULT" = install ] && [ "$1" = -f ] && [ "$2" = "$RUN_DIR/sing-box
             code += f'HP_DIR={root}/hp\nDASHBOARD_DIR={root}/dashboard\n'
             code += 'LOG_PATH="$RUN_DIR/log"\nCACHE_DIR="$HP_DIR/cache"\nCACHE_PATH="$CACHE_DIR/cache.db"\n'
             code += 'mkdir -p "$DASHBOARD_DIR"; printf index > "$DASHBOARD_DIR/index.html"\n'
-            code += 'CONF=homeproxy\nPROG=check_stub\ninitscript=/etc/init.d/homeproxy\nreload\nexit $?\n'
+            code += 'CONF=homeproxy\nPROG=check_stub\ninitscript=/etc/init.d/homeproxy\n'
+            code += ('reload\n' if operation == 'reload' else 'start\n') + 'exit $?\n'
             script = root / 'test.sh'
             script.write_text(code)
             env = dict(os.environ, ROOT=d, FAULT=fault, MODE=mode,
@@ -107,7 +209,7 @@ mv() { if [ "$FAULT" = install ] && [ "$1" = -f ] && [ "$2" = "$RUN_DIR/sing-box
             result = subprocess.run(['busybox', 'ash', str(script)], env=env, capture_output=True, text=True)
             events = (root / 'events').read_text().splitlines() if (root / 'events').exists() else []
             self.assertEqual(result.stderr, '')
-            if mode != 'disabled':
+            if preexisting and mode != 'disabled':
                 for path, text in logs.items():
                     self.assertEqual(path.read_text(), text, (fault, path))
             self.assertNotIn('kill', events)
@@ -119,7 +221,7 @@ mv() { if [ "$FAULT" = install ] && [ "$1" = -f ] && [ "$2" = "$RUN_DIR/sing-box
                 self.assertFalse((dns / 'dnsmasq.d').exists())
                 self.assertIn('restoration was incomplete', (run / 'log').read_text())
                 return
-            if fault:
+            if fault and preexisting:
                 self.assertNotEqual(result.returncode, 0, (fault, events))
                 for path, text in old.items():
                     self.assertTrue(path.exists(), (fault, path, events))
@@ -128,6 +230,10 @@ mv() { if [ "$FAULT" = install ] && [ "$1" = -f ] && [ "$2" = "$RUN_DIR/sing-box
                         self.assertEqual(path.stat().st_ino, inodes[path], (fault, path))
                 if fault != 'ubus':
                     self.assertFalse(any(e.startswith('ubus:') for e in events), events)
+            elif fault:
+                self.assertNotEqual(result.returncode, 0, (fault, events))
+                self.assertFalse(any(run.glob('sing-box-*.json')))
+                self.assertFalse(any(dns.glob('*')))
             else:
                 self.assertEqual(result.returncode, 0, events)
                 submitted = [e for e in events if e.startswith('ubus:')]
@@ -166,6 +272,15 @@ mv() { if [ "$FAULT" = install ] && [ "$1" = -f ] && [ "$2" = "$RUN_DIR/sing-box
         for fault in ['restore-remove', 'restore-copy']:
             with self.subTest(fault=fault):
                 self.run_case(fault, 'both')
+
+    def test_cold_start_submission_failure_is_reported_and_restored(self):
+        self.run_real_cold_start('ubus', preexisting=True)
+
+    def test_cold_start_from_empty_runtime_succeeds(self):
+        self.run_real_cold_start('', preexisting=False)
+
+    def test_cold_start_preparation_failure_leaves_runtime_empty(self):
+        self.run_real_cold_start('generate', preexisting=False)
 
     def test_disabled_dns_failure(self):
         self.run_case('dns', 'disabled')

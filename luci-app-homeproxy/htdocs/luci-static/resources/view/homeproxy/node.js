@@ -39,6 +39,12 @@ function normalizeHysteriaHoppingPort(mport) {
 	return ports.length ? ports : null;
 }
 
+function getShareLinkDescription(features) {
+	return features.with_quic
+		? _('Supports AnyTLS, HTTP(S), Hysteria, Hysteria2, Shadowsocks, SOCKS4/4A/5, Trojan, TUIC, VLESS and VMess share links.')
+		: _('Supports AnyTLS, HTTP(S), Shadowsocks, SOCKS4/4A/5, Trojan, VLESS and VMess share links.');
+}
+
 function validateCronField(field, minimum, maximum) {
 	return field.split(',').every((item) => {
 		const parts = item.split('/');
@@ -306,6 +312,8 @@ function parseShareLink(uri, features) {
 			break;
 		case 'tuic':
 			/* https://github.com/daeuniverse/dae/discussions/182 */
+			if (!features.with_quic)
+				return null;
 			url = new URL('http://' + uri[1]);
 			params = url.searchParams;
 
@@ -1756,7 +1764,7 @@ return view.extend({
 		ss.handleLinkImport = function() {
 			let textarea = new ui.Textarea();
 			ui.showModal(_('Import share links'), [
-				E('p', _('Support Hysteria, Shadowsocks, Trojan, v2rayN (VMess), and XTLS (VLESS) online configuration delivery standard.')),
+				E('p', getShareLinkDescription(features)),
 				textarea.render(),
 				E('div', { class: 'right' }, [
 					E('button', {

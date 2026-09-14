@@ -26,6 +26,7 @@ const connectionSites = [
 ];
 
 const connectionTestTimeout = 10000;
+const visuallyHiddenStyle = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0';
 
 function getConnectionStatus() {
 	const callConnStat = rpc.declare({
@@ -45,8 +46,17 @@ function getConnectionStatus() {
 	]);
 	const statusElements = {};
 	const rows = connectionSites.map((site) => {
-		const state = E('strong', { 'style': 'color:var(--cbi-muted-color, var(--text-muted, gray))' }, '-');
-		const latency = E('span', {}, '-');
+		const state = E('strong', {
+			'role': 'status',
+			'aria-live': 'polite',
+			'aria-atomic': 'true',
+			'style': 'color:var(--cbi-muted-color, var(--text-muted, gray))'
+		}, '-');
+		const latency = E('span', {
+			'role': 'status',
+			'aria-live': 'polite',
+			'aria-atomic': 'true'
+		}, '-');
 		statusElements[site.type] = { state, latency };
 
 		return [
@@ -403,7 +413,15 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 		'style': 'width:100%; font-family:monospace; white-space:pre; overflow:auto;'
 	}, [ _('Collecting data...') ]);
 
-	function updateLog(content) {
+	const log_status = E('span', {
+		'role': 'status',
+		'aria-live': 'polite',
+		'aria-atomic': 'true',
+		'style': visuallyHiddenStyle
+	}, '');
+
+	function updateLog(result) {
+		const content = result.content;
 		if (log_textarea.value === content)
 			return;
 		const focused = document.activeElement === log_textarea;
@@ -415,13 +433,16 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 			log_textarea.setSelectionRange(start, end, direction);
 		log_textarea.scrollTop = top;
 		log_textarea.scrollLeft = left;
+		dom.content(log_status, result.status === 'unavailable' ? _('Log unavailable.') :
+			result.status === 'empty' ? _('Log is empty.') : _('Log updated.'));
 	}
 
 	lifecycle.poll(log_textarea, 'log:' + filename, () => {
 		return fs.read_direct(String.format('%s/%s.log', hp_dir, filename), 'text')
-		.then((res) => res || _('Log is empty.')).catch((err) => {
-			return err.toString().includes('NotFoundError')
-				? _('Log file does not exist.') : _('Unknown error: %s.').format(err);
+		.then((res) => res ? { status: 'updated', content: res } :
+			{ status: 'empty', content: _('Log is empty.') }).catch((err) => {
+			return { status: 'unavailable', content: err?.name === 'NotFoundError'
+				? _('Log file does not exist.') : _('Unknown error: %s.').format(err) };
 		});
 	}, updateLog);
 
@@ -439,6 +460,7 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 			]),
 			E('div', {'class': 'cbi-section'}, [
 				log_textarea,
+				log_status,
 				E('div', {'style': 'text-align:right'},
 					E('small', {}, _('Refresh every %s seconds.').format(L.env.pollinterval))
 				)

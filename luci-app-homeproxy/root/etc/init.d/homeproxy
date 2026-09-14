@@ -187,7 +187,7 @@ sync_subscription_cron() {
 	configure_subscription_cron "$enabled" "$auto_update_time"
 }
 
-start_service() {
+_homeproxy_start_service() {
 	mkdir -p "$RUN_DIR" || return 1
 	if ! /usr/libexec/homeproxy-runtime-init; then
 		log "Error: failed to initialize runtime ports."
@@ -512,10 +512,9 @@ homeproxy_restore() {
 	cp -a "$source" "$target"
 }
 
-reload_service() {
-	log "Reloading service..."
-
-	local backup file status=0 HP_RELOAD=1 HP_CONFIG_CHANGED=0 HP_NETWORK_CHANGED=0
+homeproxy_transaction() {
+	local service_open="${1:-0}"
+	local backup file status=0 HP_CONFIG_CHANGED=0 HP_NETWORK_CHANGED=0
 	mkdir -p "$RUN_DIR" || return 1
 	backup="$(mktemp -d "$RUN_DIR/.reload.XXXXXX")" || return 1
 	for file in sing-box-c.json sing-box-s.json fw4_input.nft; do
@@ -534,10 +533,8 @@ reload_service() {
 		return 1
 	fi
 
-	# rc.common's start() submits even when start_service() fails. Submit
-	# explicitly only after setup succeeds; procd retains unchanged instances.
-	procd_open_service "$CONF" "$initscript"
-	if start_service && homeproxy_close_service; then
+	[ "$service_open" -eq 1 ] || procd_open_service "$CONF" "$initscript"
+	if _homeproxy_start_service && homeproxy_close_service; then
 		rm -rf "$backup"
 		return 0
 	fi
@@ -555,12 +552,33 @@ reload_service() {
 		/etc/init.d/dnsmasq restart >"/dev/null" 2>&1 || status=1
 	fi
 	if [ "$status" -ne 0 ]; then
-		log "Error: reload failed and runtime restoration was incomplete; backup retained at $backup."
+		log "Error: service setup failed and runtime restoration was incomplete; backup retained at $backup."
 	else
-		log "Error: reload failed; previous runtime configuration retained."
+		log "Error: service setup failed; previous runtime configuration retained."
 		rm -rf "$backup"
 	fi
 	return 1
+}
+
+start_service() {
+	local HP_RELOAD=1
+	homeproxy_transaction 1
+	HP_START_STATUS=$?
+	# rc_procd already opened this definition. It must not submit a second,
+	# empty definition after the transaction has closed (or rejected) it.
+	procd_close_service() { :; }
+	return "$HP_START_STATUS"
+}
+
+service_started() {
+	return "${HP_START_STATUS:-0}"
+}
+
+reload_service() {
+	log "Reloading service..."
+
+	local HP_RELOAD=1
+	homeproxy_transaction
 }
 
 service_triggers() {
