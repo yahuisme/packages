@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update only public resources and explicitly reviewed official stable sing-box.
+"""Update public resources and the latest official stable sing-box.
 No service starts. All downloads/checks complete before publishing local files.
 """
 import argparse
@@ -18,8 +18,6 @@ import zipfile
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
-# Add an exact stable version only after HomeProxy generator/device review.
-REVIEWED = {'1.14.0'}
 SOURCES = [('geoip', 'sing-geoip', 'rule-set'),
            ('geosite', 'sing-geosite', 'rule-set-unstable')]
 
@@ -29,10 +27,6 @@ def stable_version(release):
     if release.get('draft') is not False or release.get('prerelease') is not False or not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+', tag):
         raise ValueError('Not an official stable release')
     return tag[1:]
-
-
-def compatible(version):
-    return version in REVIEWED
 
 
 def api(path):
@@ -81,8 +75,7 @@ def get_binary(release, temp):
 def check(binary, home, temp):
     for path in sorted((home/'resources').glob('*.srs')):
         subprocess.run([str(binary), 'rule-set', 'match', '-f', 'binary', str(path), '192.0.2.1'], check=True, stdout=subprocess.DEVNULL)
-    # Offline schema smoke test. Exact-version review remains the upgrade gate;
-    # this fixture alone cannot certify all generated protocols/device behavior.
+    # Offline schema smoke test; not a full device compatibility test.
     config = {'dns': {'servers': [{'type': 'udp', 'tag': 'direct-dns', 'server': '223.5.5.5'}]},
               'inbounds': [{'type': 'mixed', 'tag': 'mixed-in', 'listen': '127.0.0.1', 'listen_port': 5330}],
               'outbounds': [{'type': 'direct', 'tag': 'direct-out'}],
@@ -143,13 +136,7 @@ def main():
     original = makefile.read_text()
     current = re.search(r'^PKG_UPSTREAM_VERSION:=(.+)$', original, re.M).group(1)
     latest = api('sing-box/releases/latest')
-    candidate = stable_version(latest)
-    if not compatible(candidate):
-        print(f'Hold sing-box {candidate}: HomeProxy compatibility review required; updating resources with {current}.', flush=True)
-        latest = api(f'sing-box/releases/tags/v{current}')
     version = stable_version(latest)
-    if not compatible(version):
-        raise ValueError('Current sing-box is not compatibility-reviewed')
     # Temporary files share the target filesystem; no binary/config survives exit.
     with tempfile.TemporaryDirectory(prefix='.homeproxy-update-', dir=root) as directory:
         temp = Path(directory)

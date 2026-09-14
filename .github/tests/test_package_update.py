@@ -1,4 +1,4 @@
-"""Host updater gates: never accept prereleases or unreviewed core versions."""
+"""Host updater gates: follow official stable releases, never prereleases."""
 import importlib.util
 from pathlib import Path
 import unittest
@@ -6,7 +6,7 @@ import unittest
 SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/update-homeproxy.py'
 
 class Gates(unittest.TestCase):
-    def test_stable_and_compatibility_gate(self):
+    def test_stable_release(self):
         self.assertTrue(SCRIPT.is_file(), 'independent updater missing')
         spec = importlib.util.spec_from_file_location('updater', SCRIPT)
         assert spec and spec.loader
@@ -20,8 +20,7 @@ class Gates(unittest.TestCase):
         for field in ['draft', 'prerelease']:
             with self.assertRaises(ValueError):
                 module.stable_version(dict(release, **{field: True}))
-        self.assertTrue(module.compatible('1.14.0'))
-        self.assertFalse(module.compatible('1.15.0'))
+        self.assertEqual(module.stable_version(dict(release, tag_name='v1.15.0')), '1.15.0')
 
 if __name__ == '__main__':
     unittest.main()

@@ -26,6 +26,19 @@ class SubscriptionParsing(unittest.TestCase):
             for transport,key in [('ws','ws_path'),('http','http_path'),('httpupgrade','http_path')]:
                 uri=proto+'://'+cred+'@example.com:443?type='+transport+'&path=%2Fapi%3Ftoken%3Da%252Fb'
                 self.assertEqual(self.parse('parse_uri('+json.dumps(uri)+')')[key],'/api?token=a%2Fb')
+    def test_hosts_decode_once(self):
+        for proto, cred in [('trojan', 'secret'), ('vless', '11111111-1111-4111-8111-111111111111')]:
+            for transport, key in [('http', 'http_host'), ('httpupgrade', 'httpupgrade_host'), ('ws', 'ws_host')]:
+                for encoded, expected in [('cdn%2Eexample.com', 'cdn.example.com'), ('cdn%252Eexample.com', 'cdn%2Eexample.com')]:
+                    with self.subTest(proto=proto, transport=transport, encoded=encoded):
+                        uri = f'{proto}://{cred}@example.com:443?type={transport}&host={encoded}'
+                        value = self.parse('parse_uri('+json.dumps(uri)+')')[key]
+                        self.assertEqual(value, [expected] if key == 'http_host' else expected)
+    def test_password_decode_once(self):
+        for proto in ('trojan', 'anytls', 'hy2'):
+            with self.subTest(proto=proto):
+                uri = f'{proto}://p%2540ss@example.com:443'
+                self.assertEqual(self.parse('parse_uri('+json.dumps(uri)+')')['password'], 'p%40ss')
     def test_socks4a(self):
         self.assertEqual(self.parse("parse_uri('socks4a://example.com:1080')")['socks_version'],'4a')
     def test_yaml(self):
