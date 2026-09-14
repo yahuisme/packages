@@ -32,8 +32,9 @@ const {boot}=require('./integration.cjs');
    assert.deepEqual(states().map(n=>n.textContent),labels);
    for(const state of states()) {
     const up=state.textContent==='↑Enabled';
-    assert.equal(h.w.getComputedStyle(state.firstChild).color,up?'rgb(22, 163, 74)':'rgb(34, 34, 34)');
-    assert.equal(computedColor(state.lastChild),up?'rgb(22, 163, 74)':'rgb(51, 51, 51)','label computed color');
+    const color=h.w.getComputedStyle(state.firstChild).color;
+    assert(up ? color.includes('--success') : color.includes('--cbi-text-color'),'theme-aware arrow color');
+    assert.equal(computedColor(state.lastChild),up?'var(--success,light-dark(#15803d,#16a34a))':'rgb(51, 51, 51)','label computed color');
     assert.equal(h.w.getComputedStyle(state.firstChild).fontWeight,'600');
     assert.equal(state.firstChild.getAttribute('aria-hidden'),'true');
    }

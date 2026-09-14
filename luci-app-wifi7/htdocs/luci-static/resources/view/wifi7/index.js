@@ -422,8 +422,8 @@ return view.extend({
 			.wifi7-map .wifi7-device-tag,.wifi7-map .wifi7-status-label,.wifi7-map .wifi7-label { color:var(--cbi-muted-color,var(--text-muted,inherit)); }
 			.wifi7-map .wifi7-status-wrap { display:flex; align-items:center; gap:8px; }
 			.wifi7-map .wifi7-status-badge { display:inline-flex; align-items:center; gap:8px; color:inherit; white-space:nowrap; }
-			.wifi7-map .wifi7-status-arrow { color:#222; font-weight:600; }
-			.wifi7-map .wifi7-badge-up > span { color:#16a34a; }
+			.wifi7-map .wifi7-status-arrow { color:var(--cbi-text-color,var(--text-color,inherit)); font-weight:600; }
+			.wifi7-map .wifi7-badge-up > span { color:var(--success,light-dark(#15803d,#16a34a)); }
 			.wifi7-map .wifi7-card-body { display:flex; flex-direction:column; }
 			.wifi7-map .wifi7-row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:8px 0; }
 			.wifi7-map .wifi7-value { text-align:right; font-variant-numeric:tabular-nums; }
