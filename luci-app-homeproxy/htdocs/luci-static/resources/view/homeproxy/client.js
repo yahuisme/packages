@@ -304,7 +304,12 @@ return view.extend({
 
 		s = m.section(form.TypedSection);
 		s.render = function () {
-			const status = E('p', { id: 'service_status' }, _('Collecting data...'));
+			const status = E('p', {
+				id: 'service_status',
+				role: 'status',
+				'aria-live': 'polite',
+				'aria-atomic': 'true'
+			}, _('Collecting data...'));
 			lifecycle.poll(status, 'client-status', () => {
 				return Promise.all([
 					L.resolveDefault(hp.getServiceStatus('sing-box-c'), false),

@@ -114,7 +114,12 @@ return view.extend({
 
 		s = m.section(form.TypedSection);
 		s.render = function() {
-			const status = E('p', { id: 'service_status' }, _('Collecting data...'));
+			const status = E('p', {
+				id: 'service_status',
+				role: 'status',
+				'aria-live': 'polite',
+				'aria-atomic': 'true'
+			}, _('Collecting data...'));
 			lifecycle.poll(status, 'server-status',
 				() => L.resolveDefault(hp.getServiceStatus('sing-box-s')),
 				(res) => { status.innerHTML = renderStatus(res, features.version); });

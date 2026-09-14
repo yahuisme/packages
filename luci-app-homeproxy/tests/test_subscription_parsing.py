@@ -110,3 +110,30 @@ class SubscriptionParsing(unittest.TestCase):
 '''
         nodes = self.parse('parse_mihomo_yaml('+json.dumps(payload)+')')
         self.assertIs(nodes[0]['skip-cert-verify'], True)
+
+    def test_unavailable_main_node_falls_back(self):
+        source = (BASE/'homeproxy.uc').read_text()
+        start = source.index('export function normalizeList')
+        end = source.index('export function hasForceProxyRules')
+        functions = source[start:end].replace('export function', 'function')
+        preamble = '''
+function isEmpty(v) { return v === null || v === ''; }
+const values = { 'config.main_node': 'removed', good: 'node' };
+const uci = {
+  get: (config, section, option) => values[option ? section + '.' + option : section] || null,
+  get_first: (config, section) => section === 'node' ? 'good' : null,
+  set: (config, section, option, value) => values[section + '.' + option] = value,
+  delete: (config, section, option) => delete values[section + '.' + option]
+};
+'''
+        invocation = '''
+const result = reconcileUrltestNodes(uci, 'homeproxy');
+print(sprintf('%J', { result, main_node: values['config.main_node'] }));
+'''
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d)/'test.uc'; p.write_text(preamble + functions + invocation)
+            r = subprocess.run(['ucode', str(p)], capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            output = json.loads(r.stdout)
+        self.assertTrue(output['result']['changed'])
+        self.assertEqual(output['main_node'], 'good')
