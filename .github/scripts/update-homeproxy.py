@@ -156,7 +156,7 @@ def main():
         if version != current:
             updated = re.sub(r'^PKG_UPSTREAM_VERSION:=.*$', f'PKG_UPSTREAM_VERSION:={version}', original, flags=re.M)
             updated = re.sub(r'^PKG_HASH:=.*$', f'PKG_HASH:={digest}', updated, flags=re.M)
-            updated = re.sub(r'^PKG_RELEASE:=.*$', 'PKG_RELEASE:=1', updated, flags=re.M)
+            updated = re.sub(r'^PKG_RELEASE:=.*$', 'PKG_RELEASE:=', updated, flags=re.M)
             staged = temp/'Makefile'
             staged.write_text(updated)
             staged.chmod(makefile.stat().st_mode & 0o777)

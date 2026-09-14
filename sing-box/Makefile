@@ -7,7 +7,7 @@ include $(TOPDIR)/rules.mk
 PKG_NAME:=sing-box
 PKG_UPSTREAM_VERSION:=1.14.0
 PKG_VERSION:=$(PKG_UPSTREAM_VERSION)
-PKG_RELEASE:=1
+PKG_RELEASE:=
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_UPSTREAM_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/SagerNet/sing-box/tar.gz/v$(PKG_UPSTREAM_VERSION)?
