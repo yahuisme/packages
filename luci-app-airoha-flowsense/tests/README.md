@@ -6,6 +6,10 @@ Run from the repository root:
 NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/resources node luci-app-airoha-flowsense/tests/test_view.js
 NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/resources node luci-app-airoha-flowsense/tests/test_status.js
 NODE_PATH="$(npm root -g)" LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/resources ERROR_MESSAGES_TEST=1 node luci-app-airoha-flowsense/tests/test_view.js
+OPENWRT_TOOLS=/opt/test-tools/openwrt \
+UCI_BIN=/opt/test-tools/openwrt/bin/uci \
+JSONFILTER_BIN=/opt/test-tools/openwrt/bin/jsonpath \
+BUSYBOX_BIN="$(command -v busybox)" \
 python3 -m unittest discover -s luci-app-airoha-flowsense/tests -v
 ```
 

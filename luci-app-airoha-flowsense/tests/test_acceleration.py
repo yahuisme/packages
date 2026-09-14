@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-TOOLS = Path(os.environ.get('OPENWRT_TOOLS', '/root/.local/opt/openwrt-audit-tools'))
+TOOLS = Path(os.environ.get('OPENWRT_TOOLS', '/opt/test-tools/openwrt'))
 
 
 class AccelerationTest(unittest.TestCase):

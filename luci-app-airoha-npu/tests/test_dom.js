@@ -102,7 +102,8 @@ async function tick(ms = 3000) {
    assert.equal(svg.querySelectorAll('.npu-chart-grid').length, 7 + times.length);
   }
   const lineStyle = w.getComputedStyle(node.querySelector('.npu-chart-line'));
-  assert.equal(lineStyle.stroke, '#22a06b');
+  assert.equal(lineStyle.stroke, 'var(--npu-chart-accent)');
+  assert.match(node.querySelector(':scope > style').textContent, /--npu-chart-accent:var\(--success,light-dark\(#15803d,#16a34a\)\)/);
   assert.equal(lineStyle.strokeWidth, '1.5');
   assert.equal(node.querySelector('.npu-chart-line').getAttribute('vector-effect'), 'non-scaling-stroke');
   assert(+w.getComputedStyle(node.querySelector('.npu-chart-grid')).opacity <= 0.15, 'subtle grid');

@@ -33,6 +33,7 @@ const w = j.window;
   assert.equal(node.querySelectorAll('[data-section-id="custom"] .cbi-section-node').length,0,'section id is on the node itself, not its ancestor');
   assert.equal(section.querySelectorAll('[data-name^="point"] input').length,10);
   assert.equal(section.querySelectorAll('.cbi-value').length,11);
+  assert(section.textContent.includes('Temperatures must increase, PWM must not decrease, and the last point is fixed at full speed.'));
   assert.equal(section.lastElementChild.dataset.name,'_curve_preview','CSS reorders preview visually without changing native form DOM order');
   assert.deepEqual([...section.querySelectorAll('[data-name^="point"]')].map(e=>e.dataset.name),
    Array.from({length:5},(_,i)=>[`point${i+1}_temp`,`point${i+1}_pwm`]).flat(),'preserve parameter and keyboard order');
@@ -41,6 +42,8 @@ const w = j.window;
   assert.equal(section.querySelector('[data-name="point5_pwm"] input').disabled,true);
   assert.equal(section.querySelectorAll('.fan-curve-dots circle').length,5);
   const svg=section.querySelector('.fan-curve-preview svg');
+  assert.match(svg.querySelector('.fan-curve-line').getAttribute('stroke'), /var\(--cbi-primary-color/);
+  assert.match(node.querySelector(':scope > style').textContent, /\.fan-curve-dots\{fill:var\(--cbi-primary-color/);
   assert.deepEqual([...svg.querySelectorAll('.fan-curve-x-tick')].map(e=>e.textContent),['0','10','20','30','40','50','60','70','80','90','100']);
   assert.deepEqual([...svg.querySelectorAll('.fan-curve-y-tick')].map(e=>e.textContent),['0','32','64','96','128','160','192','224','255']);
   assert(svg.textContent.includes('°C') && svg.textContent.includes('PWM'));
