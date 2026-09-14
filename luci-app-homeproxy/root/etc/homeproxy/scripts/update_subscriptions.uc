@@ -619,13 +619,13 @@ function parse_uri(uri) {
 		break;
 		case 'http':
 		case 'https':
-			url = parseURL('http://' + uri[1]) || {};
+			url = parseURL(uri[0] + '://' + uri[1]) || {};
 
 			config = {
 				label: url.hash ? urldecode(url.hash) : null,
 				type: 'http',
 				address: url.hostname,
-				port: url.port,
+				port: url.port || ((uri[0] === 'https') ? '443' : '80'),
 				username: url.username ? urldecode(url.username) : null,
 				password: url.password ? urldecode(url.password) : null,
 				tls: (uri[0] === 'https') ? '1' : '0'
@@ -667,7 +667,7 @@ function parse_uri(uri) {
 		case 'hysteria2':
 		case 'hy2':
 			/* https://v2.hysteria.network/docs/developers/URI-Scheme/ */
-			url = parseURL('http://' + uri[1]) || {};
+			url = parseURL(uri[0] + '://' + uri[1]) || {};
 			params = url.searchParams || {};
 
 			if (!sing_features.with_quic) {
@@ -679,7 +679,7 @@ function parse_uri(uri) {
 				label: url.hash ? urldecode(url.hash) : null,
 				type: 'hysteria2',
 				address: url.hostname,
-				port: url.port,
+				port: url.port || '443',
 				password: url.username ? (
 					urldecode(url.username + (url.password ? (':' + url.password) : ''))
 				) : null,
@@ -706,7 +706,7 @@ function parse_uri(uri) {
 				port: url.port,
 				username: url.username ? urldecode(url.username) : null,
 				password: url.password ? urldecode(url.password) : null,
-				socks_version: (match(uri[0], /4/)) ? '4' : '5'
+				socks_version: (uri[0] === 'socks4a') ? '4a' : ((uri[0] === 'socks4') ? '4' : '5')
 			};
 
 			break;
@@ -754,7 +754,7 @@ function parse_uri(uri) {
 				type: 'trojan',
 				address: url.hostname,
 				port: url.port,
-				password: urldecode(url.username),
+				password: url.username ? urldecode(url.username) : null,
 				transport: (params.type !== 'tcp') ? params.type : null,
 				tls: '1',
 				tls_insecure: (params.insecure === '1' || params.allowInsecure === '1') ? '1' : '0',
@@ -768,16 +768,16 @@ function parse_uri(uri) {
 				config.grpc_servicename = params.serviceName;
 				break;
 			case 'http':
-				config.http_host = params.host ? split(urldecode(params.host), ',') : null;
-				config.http_path = params.path ? urldecode(params.path) : null;
+				config.http_host = params.host ? split(params.host, ',') : null;
+				config.http_path = params.path ? params.path : null;
 				break;
 			case 'httpupgrade':
-				config.httpupgrade_host = params.host ? urldecode(params.host) : null;
-				config.http_path = params.path ? urldecode(params.path) : null;
+				config.httpupgrade_host = params.host ? params.host : null;
+				config.http_path = params.path ? params.path : null;
 				break;
 			case 'ws':
-				config.ws_host = params.host ? urldecode(params.host) : null;
-				config.ws_path = params.path ? urldecode(params.path) : null;
+				config.ws_host = params.host ? params.host : null;
+				config.ws_path = params.path ? params.path : null;
 				if (config.ws_path && match(config.ws_path, /\?ed=/)) {
 					config.websocket_early_data_header = 'Sec-WebSocket-Protocol';
 					config.websocket_early_data = split(config.ws_path, '?ed=')[1];
@@ -858,17 +858,17 @@ function parse_uri(uri) {
 			case 'tcp':
 				if (params.type === 'http' || params.headerType === 'http') {
 					config.transport = 'http';
-					config.http_host = params.host ? split(urldecode(params.host), ',') : null;
-					config.http_path = params.path ? urldecode(params.path) : null;
+					config.http_host = params.host ? split(params.host, ',') : null;
+					config.http_path = params.path ? params.path : null;
 				}
 				break;
 			case 'httpupgrade':
-				config.httpupgrade_host = params.host ? urldecode(params.host) : null;
-				config.http_path = params.path ? urldecode(params.path) : null;
+				config.httpupgrade_host = params.host ? params.host : null;
+				config.http_path = params.path ? params.path : null;
 				break;
 			case 'ws':
-				config.ws_host = params.host ? urldecode(params.host) : null;
-				config.ws_path = params.path ? urldecode(params.path) : null;
+				config.ws_host = params.host ? params.host : null;
+				config.ws_path = params.path ? params.path : null;
 				if (config.ws_path && match(config.ws_path, /\?ed=/)) {
 					config.websocket_early_data_header = 'Sec-WebSocket-Protocol';
 					config.websocket_early_data = split(config.ws_path, '?ed=')[1];
@@ -969,6 +969,9 @@ function parse_uri(uri) {
 			log(sprintf('Skipping unsupported %s transport: %s (%s).', config.type, config.transport, config.label || config.address));
 			return null;
 		}
+		if (config.type in ['trojan', 'anytls', 'hysteria2'] && isEmpty(config.password))
+			return null;
+
 		if (!has_required_hysteria_bandwidth(config))
 			return null;
 
@@ -1023,6 +1026,8 @@ function parse_mihomo_yaml(text) {
 		}
 	}
 
+	if (in_proxies && !length(proxies))
+		log('Unsupported Mihomo YAML: use one JSON object per proxy entry or a share-link subscription.');
 	return length(proxies) ? proxies : null;
 }
 

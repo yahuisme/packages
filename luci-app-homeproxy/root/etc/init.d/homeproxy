@@ -438,9 +438,9 @@ start_service() {
 	procd_set_param respawn
 	procd_close_instance
 
-	[ "$client_ready" -ne 1 ] || : > "$RUN_DIR/sing-box-c.log"
+	[ "$client_ready" -ne 1 ] || touch "$RUN_DIR/sing-box-c.log" || return 1
 	if [ "$server_ready" -eq 1 ]; then
-		: > "$RUN_DIR/sing-box-s.log"
+		touch "$RUN_DIR/sing-box-s.log" || return 1
 		mkdir -p "$HP_DIR/certs"
 	fi
 

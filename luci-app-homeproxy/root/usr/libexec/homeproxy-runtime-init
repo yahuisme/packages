@@ -30,8 +30,9 @@ initialize_port() {
 	local port="$1" default_port="$2" initialized="$3" reserved="$4"
 
 	if ! valid_port "$port" || { [ "$port" = "$default_port" ] && [ "$initialized" != '1' ]; }; then
-		port="$(random_port "$reserved")"
+		port="$(random_port "$reserved")" || return 1
 	fi
+	valid_port "$port" || return 1
 	printf '%s\n' "$port"
 }
 
@@ -51,30 +52,31 @@ if [ "$sing_box_major" -lt 1 ] || \
 	exit 1
 fi
 
-clash_api_port="$(initialize_port "$clash_api_port" 9090 "$clash_api_port_initialized" "$dashboard_port")"
-dashboard_port="$(initialize_port "$dashboard_port" 9095 "$dashboard_port_initialized" "$clash_api_port")"
+clash_api_port="$(initialize_port "$clash_api_port" 9090 "$clash_api_port_initialized" "$dashboard_port")" || exit 1
+dashboard_port="$(initialize_port "$dashboard_port" 9095 "$dashboard_port_initialized" "$clash_api_port")" || exit 1
 
 if [ "$main_node" = 'urltest' ] && { [ "$dashboard_enabled" = '1' ] || [ "$tailscale_enabled" = '1' ]; } && \
    [ "$clash_api_port" = "$dashboard_port" ]; then
-	dashboard_port="$(random_port "$clash_api_port")"
+	dashboard_port="$(random_port "$clash_api_port")" || exit 1
+	valid_port "$dashboard_port" || exit 1
 fi
 
 if [ "$(uci -q get homeproxy.infra.clash_api_port)" != "$clash_api_port" ]; then
-	uci -q set homeproxy.infra.clash_api_port="$clash_api_port"
+	uci -q set homeproxy.infra.clash_api_port="$clash_api_port" || exit 1
 	changed=1
 fi
 if [ "$(uci -q get homeproxy.config.dashboard_port)" != "$dashboard_port" ]; then
-	uci -q set homeproxy.config.dashboard_port="$dashboard_port"
+	uci -q set homeproxy.config.dashboard_port="$dashboard_port" || exit 1
 	changed=1
 fi
 if [ "$clash_api_port_initialized" != '1' ]; then
-	uci -q set homeproxy.infra.clash_api_port_initialized='1'
+	uci -q set homeproxy.infra.clash_api_port_initialized='1' || exit 1
 	changed=1
 fi
 if [ "$dashboard_port_initialized" != '1' ]; then
-	uci -q set homeproxy.config.dashboard_port_initialized='1'
+	uci -q set homeproxy.config.dashboard_port_initialized='1' || exit 1
 	changed=1
 fi
 
-[ "$changed" -eq 0 ] || uci -q commit homeproxy
+[ "$changed" -eq 0 ] || uci -q commit homeproxy || exit 1
 exit 0

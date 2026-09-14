@@ -91,6 +91,12 @@ function parseECHConfig(value) {
 	return { tls_ech: '1', tls_ech_config: ['-----BEGIN ECH CONFIGS-----', value, '-----END ECH CONFIGS-----'] };
 }
 
+function explicitSharePort(uri, fallback) {
+	const authority = String(uri[1] || '').split(/[/?#]/, 1)[0];
+	const match = authority.match(/:(\d+)$/);
+	return match ? match[1] : fallback;
+}
+
 function parseShareLink(uri, features) {
 	let config, url, params;
 
@@ -132,7 +138,7 @@ function parseShareLink(uri, features) {
 				label: url.hash ? decodeURIComponent(url.hash.slice(1)) : null,
 				type: 'http',
 				address: url.hostname,
-				port: url.port || '80',
+				port: explicitSharePort(uri, uri[0] === 'https' ? '443' : '80'),
 				username: url.username ? decodeURIComponent(url.username) : null,
 				password: url.password ? decodeURIComponent(url.password) : null,
 				tls: (uri[0] === 'https') ? '1' : '0'
@@ -179,7 +185,7 @@ function parseShareLink(uri, features) {
 				label: url.hash ? decodeURIComponent(url.hash.slice(1)) : null,
 				type: 'hysteria2',
 				address: url.hostname,
-				port: url.port || '80',
+				port: explicitSharePort(uri, '443'),
 				password: url.username ? (
 					decodeURIComponent(url.username + (url.password ? (':' + url.password) : ''))
 				) : null,
@@ -279,16 +285,16 @@ function parseShareLink(uri, features) {
 				config.grpc_servicename = params.get('serviceName');
 				break;
 			case 'http':
-				config.http_host = params.get('host') ? decodeURIComponent(params.get('host')).split(',') : null;
-				config.http_path = params.get('path') ? decodeURIComponent(params.get('path')) : null;
+				config.http_host = params.get('host') ? params.get('host').split(',') : null;
+				config.http_path = params.get('path') || null;
 				break;
 			case 'httpupgrade':
-				config.httpupgrade_host = params.get('host') ? decodeURIComponent(params.get('host')) : null;
-				config.http_path = params.get('path') ? decodeURIComponent(params.get('path')) : null;
+				config.httpupgrade_host = params.get('host') ? params.get('host') : null;
+				config.http_path = params.get('path') || null;
 				break;
 			case 'ws':
-				config.ws_host = params.get('host') ? decodeURIComponent(params.get('host')) : null;
-				config.ws_path = params.get('path') ? decodeURIComponent(params.get('path')) : null;
+				config.ws_host = params.get('host') ? params.get('host') : null;
+				config.ws_path = params.get('path') || null;
 				if (config.ws_path && config.ws_path.includes('?ed=')) {
 					config.websocket_early_data_header = 'Sec-WebSocket-Protocol';
 					config.websocket_early_data = config.ws_path.split('?ed=')[1];
@@ -363,17 +369,17 @@ function parseShareLink(uri, features) {
 			case 'tcp':
 				if (config.transport === 'http' || params.get('headerType') === 'http') {
 					config.transport = 'http';
-					config.http_host = params.get('host') ? decodeURIComponent(params.get('host')).split(',') : null;
-					config.http_path = params.get('path') ? decodeURIComponent(params.get('path')) : null;
+					config.http_host = params.get('host') ? params.get('host').split(',') : null;
+					config.http_path = params.get('path') || null;
 				}
 				break;
 			case 'httpupgrade':
-				config.httpupgrade_host = params.get('host') ? decodeURIComponent(params.get('host')) : null;
-				config.http_path = params.get('path') ? decodeURIComponent(params.get('path')) : null;
+				config.httpupgrade_host = params.get('host') ? params.get('host') : null;
+				config.http_path = params.get('path') || null;
 				break;
 			case 'ws':
-				config.ws_host = params.get('host') ? decodeURIComponent(params.get('host')) : null;
-				config.ws_path = params.get('path') ? decodeURIComponent(params.get('path')) : null;
+				config.ws_host = params.get('host') ? params.get('host') : null;
+				config.ws_path = params.get('path') || null;
 				if (config.ws_path && config.ws_path.includes('?ed=')) {
 					config.websocket_early_data_header = 'Sec-WebSocket-Protocol';
 					config.websocket_early_data = config.ws_path.split('?ed=')[1];
@@ -1887,7 +1893,8 @@ return view.extend({
 		o.rmempty = false;
 
 		o = s.taboption('subscription', form.DynamicList, 'subscription_url', _('Subscription URLs'),
-			_('Support Hysteria, Shadowsocks, Trojan, v2rayN (VMess), and XTLS (VLESS) online configuration delivery standard.'));
+			_('Supports share-link subscriptions and Mihomo YAML with JSON-style proxy entries only; general YAML syntax is not supported.'));
+		const subscriptionURLs = o;
 		o.validate = function(section_id, value) {
 			if (section_id && value) {
 				try {
@@ -1939,76 +1946,109 @@ return view.extend({
 		return value == null ? 'xudp' : (value || 'none');
 	};
 
-		o = s.taboption('subscription', form.Button, '_save_subscriptions', _('Save subscriptions settings'),
-			_('NOTE: Save current settings before updating subscriptions.'));
+		o = s.taboption('subscription', form.Button, '_save_subscriptions', _('Save subscriptions settings'));
 		o.inputstyle = 'apply';
 		o.inputtitle = _('Save current settings');
 		o.onclick = function() {
-			return this.map.save(null, true).then(() => {
-				ui.changes.apply(true);
-			});
-		}
+			return this.map.save(null, true).then(() => ui.changes.apply(true));
+		};
 
-		o = s.taboption('subscription', form.Button, '_update_subscriptions', _('Update nodes from subscriptions'));
+		let subscriptionActionPending = false;
+		o = s.taboption('subscription', form.Button, '_update_subscriptions', _('Update nodes from subscriptions'),
+			_('Save and apply current settings before updating subscriptions.'));
+		const updateSubscriptions = o;
 		o.inputstyle = 'apply';
 		o.inputtitle = function(section_id) {
-			let sublist = uci.get(data[0], section_id, 'subscription_url') || [];
-			if (sublist.length > 0) {
-				return _('Update %s subscriptions').format(sublist.length);
-			} else {
-				this.readonly = true;
-				return _('No subscription available')
+			const urls = subscriptionURLs.formvalue(section_id) ??
+				uci.get(data[0], section_id, 'subscription_url') ?? [];
+			const count = L.toArray(urls).filter(Boolean).length;
+			this.readonly = !!this.map.readonly || subscriptionActionPending || count === 0;
+			return count ? _('Save and update %s subscriptions').format(count) : _('No subscription available');
+		};
+		subscriptionURLs.onchange = function(ev, section_id) {
+			const title = updateSubscriptions.inputtitle(section_id);
+			const hidden = document.getElementById(updateSubscriptions.cbid(section_id));
+			const button = hidden?.previousElementSibling?.querySelector('button');
+			if (button) {
+				button.textContent = title;
+				button.disabled = !!(this.map.readonly || updateSubscriptions.readonly);
 			}
-		}
-		o.onclick = function() {
-			return fs.exec('/etc/homeproxy/scripts/update_subscriptions.sh').then((res) => {
-				if (res.code !== 0) {
-					ui.addNotification(null, E('p', _('An error occurred during updating subscriptions: %s.').format(
-						res.stderr || _('exit code %d').format(res.code))));
-					return this.map.reset();
-				}
+		};
+		o.onclick = async function() {
+			if (subscriptionActionPending || this.map.readonly)
+				return;
+			subscriptionActionPending = true;
+			try {
+				await this.map.save(null, true);
+				// ui.changes.apply() returns undefined and schedules a page reload.
+				// Use the promise-based UCI apply/confirm contract for this chained action.
+				await uci.apply();
+				ui.changes.setIndicator(0);
+				const res = await fs.exec('/etc/homeproxy/scripts/update_subscriptions.sh');
+				if (res.code !== 0)
+					throw new Error(res.stderr || _('exit code %d').format(res.code));
+				location.reload();
+			} catch (err) {
+				ui.addNotification(null, E('p', [ _('An error occurred during updating subscriptions: %s.').format(err) ]), 'error');
+			} finally {
+				subscriptionActionPending = false;
+				await this.map.reset();
+			}
+		};
 
-				return location.reload();
-			}).catch((err) => {
-				ui.addNotification(null, E('p', _('An error occurred during updating subscriptions: %s.').format(err)));
-				return this.map.reset();
+		function subscriptionNodeIds() {
+			const ids = [];
+			uci.sections(data[0], 'node', (node) => {
+				if (node.grouphash)
+					ids.push(node['.name']);
 			});
+			return ids;
 		}
-
 		o = s.taboption('subscription', form.Button, '_remove_subscriptions', _('Remove all nodes from subscriptions'));
 		o.inputstyle = 'reset';
 		o.inputtitle = function() {
-			let subnodes = [];
-			uci.sections(data[0], 'node', (res) => {
-				if (res.grouphash)
-					subnodes = subnodes.concat(res['.name'])
-			});
-
-			if (subnodes.length > 0) {
-				return _('Remove %s nodes').format(subnodes.length);
-			} else {
-				this.readonly = true;
-				return _('No subscription node');
-			}
-		}
+			const count = subscriptionNodeIds().length;
+			this.readonly = !!this.map.readonly || subscriptionActionPending || count === 0;
+			return count ? _('Remove %s nodes').format(count) : _('No subscription node');
+		};
 		o.onclick = function() {
-			let subnodes = [];
-			uci.sections(data[0], 'node', (res) => {
-				if (res.grouphash)
-					subnodes = subnodes.concat(res['.name'])
-			});
-
-			for (let i in subnodes)
-				uci.remove(data[0], subnodes[i]);
-
-			if (subnodes.includes(uci.get(data[0], 'config', 'main_node')))
-				uci.set(data[0], 'config', 'main_node', 'nil');
-
-			this.inputtitle = _('%s nodes removed').format(subnodes.length);
-			this.readonly = true;
-
-			return this.map.save(null, true);
-		}
+			if (subscriptionActionPending || this.map.readonly)
+				return;
+			const ids = subscriptionNodeIds();
+			if (!ids.length)
+				return;
+			const mainAffected = ids.includes(uci.get(data[0], 'config', 'main_node'));
+			ui.showModal(_('Remove all nodes from subscriptions'), [
+				E('p', [ _('Remove %s subscription nodes? This cannot be undone.').format(ids.length) ]),
+				E('p', [ mainAffected ? _('The main node will be cleared and the client will be disabled.') :
+					_('The main node will not be changed.') ]),
+				E('p', [ _('Diversion groups using removed nodes must be assigned another node.') ]),
+				E('div', { 'class': 'right' }, [
+					E('button', { 'class': 'cbi-button', 'click': ui.hideModal }, [ _('Cancel') ]),
+					' ',
+					E('button', { 'class': 'cbi-button cbi-button-negative',
+						'click': ui.createHandlerFn(this, async () => {
+							if (subscriptionActionPending)
+								return;
+							subscriptionActionPending = true;
+							try {
+								await this.map.save(() => {
+									ids.forEach(id => uci.remove(data[0], id));
+									if (ids.includes(uci.get(data[0], 'config', 'main_node')))
+										uci.set(data[0], 'config', 'main_node', 'nil');
+								}, true);
+								ui.hideModal();
+							} catch (err) {
+								ui.addNotification(null, E('p', [ String(err) ]), 'error');
+							} finally {
+								subscriptionActionPending = false;
+								await this.map.reset();
+							}
+						})
+					}, [ _('Remove') ])
+				])
+			]);
+		};
 		/* Subscriptions settings end */
 
 		return m.render().then((el) => {

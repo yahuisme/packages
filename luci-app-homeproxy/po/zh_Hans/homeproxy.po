@@ -2536,3 +2536,30 @@ msgstr "有效端口范围（port1:port2）"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:472
 msgid "valid port value"
 msgstr "有效端口值"
+
+msgid "Supports share-link subscriptions and Mihomo YAML with JSON-style proxy entries only; general YAML syntax is not supported."
+msgstr "支持分享链接订阅及采用 JSON 格式节点条目的 Mihomo YAML，不支持通用 YAML 语法。"
+
+msgid "Save and apply current settings before updating subscriptions."
+msgstr "自动保存并应用当前设置，再更新订阅。"
+
+msgid "Save and update %s subscriptions"
+msgstr "保存并更新 %s 个订阅"
+
+msgid "Remove %s subscription nodes? This cannot be undone."
+msgstr "确认删除 %s 个订阅节点？"
+
+msgid "The main node will be cleared and the client will be disabled."
+msgstr "主节点将被清空，应用设置后客户端将关闭。"
+
+msgid "The main node will not be changed."
+msgstr "主节点保持不变。"
+
+msgid "Diversion groups using removed nodes must be assigned another node."
+msgstr "使用已删除节点的分流组将回退到主节点。"
+
+msgid "Unavailable node: %s"
+msgstr "失效节点：%s"
+
+msgid "Node unavailable; using the main node."
+msgstr "节点已失效，将使用主节点。"

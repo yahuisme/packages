@@ -36,6 +36,9 @@ class Reload(unittest.TestCase):
                    dns.parent / 'dnsmasq-homeproxy.conf': 'OLD INCLUDE'}
             for path, text in old.items():
                 path.write_text(text)
+            logs = {run / 'sing-box-c.log': 'CLIENT HISTORY', run / 'sing-box-s.log': 'SERVER HISTORY'}
+            for path, text in logs.items():
+                path.write_text(text)
             inodes = {path: path.stat().st_ino for path in old}
             (root / 'bin').mkdir()
             ubus = root / 'bin/ubus'
@@ -104,6 +107,9 @@ mv() { if [ "$FAULT" = install ] && [ "$1" = -f ] && [ "$2" = "$RUN_DIR/sing-box
             result = subprocess.run(['busybox', 'ash', str(script)], env=env, capture_output=True, text=True)
             events = (root / 'events').read_text().splitlines() if (root / 'events').exists() else []
             self.assertEqual(result.stderr, '')
+            if mode != 'disabled':
+                for path, text in logs.items():
+                    self.assertEqual(path.read_text(), text, (fault, path))
             self.assertNotIn('kill', events)
             if fault.startswith('restore-'):
                 self.assertNotEqual(result.returncode, 0)
@@ -149,6 +155,12 @@ mv() { if [ "$FAULT" = install ] && [ "$1" = -f ] && [ "$2" = "$RUN_DIR/sing-box
         for mode in ['client', 'server', 'both', 'disabled']:
             with self.subTest(mode=mode):
                 self.run_case(mode=mode)
+
+    def test_preexisting_logs_retained_on_success_and_failure(self):
+        for fault in ['', 'generate', 'check', 'fw4', 'dns', 'ubus']:
+            with self.subTest(fault=fault):
+                # Logs are runtime state and must survive reload outcomes.
+                self.run_case(fault, 'both')
 
     def test_failed_restore_retains_backup(self):
         for fault in ['restore-remove', 'restore-copy']:

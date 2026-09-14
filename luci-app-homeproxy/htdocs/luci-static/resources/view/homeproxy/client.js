@@ -682,14 +682,15 @@ return view.extend({
 			};
 		}
 
+		const domainMatchDescription = _('Entries containing a dot use domain suffix matching; other entries use keyword matching.');
 		ss.tab('direct_list', _('Direct List'));
 		so = ss.taboption('direct_list', form.TextValue, '_direct_list', null,
-			_('Domains in this list always use direct routing.'));
+			_('Domains in this list always use direct routing.') + '<br/>' + domainMatchDescription);
 		configureDomainList(so, 'direct');
 
 		ss.tab('proxy_list', _('Proxy List'));
 		so = ss.taboption('proxy_list', form.TextValue, '_proxy_list', null,
-			_('Domains in this list always use the main node.'));
+			_('Domains in this list always use the main node.') + '<br/>' + domainMatchDescription);
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
 		configureDomainList(so, 'proxy');
 
@@ -736,15 +737,20 @@ return view.extend({
 		for (let i in proxy_nodes)
 			dro.value(i, proxy_nodes[i]);
 		dro.value('tailscale', _('[Tailscale] Tailscale'));
+		uci.sections('homeproxy', 'domain_route', (section) => {
+			if (section.node && section.node !== 'tailscale' && !proxy_nodes[section.node])
+				dro.value(section.node, _('Unavailable node: %s').format(section.node));
+		});
 		dro.rmempty = false;
 		dro.textvalue = function(section_id) {
 			const value = this.cfgvalue(section_id);
-			return value === 'tailscale' ? _('[Tailscale] Tailscale') :
-				(value != null ? (proxy_nodes[value] || value) : null);
+			if (value === 'tailscale' && uci.get('homeproxy', 'tailscale', 'enabled') === '1')
+				return _('[Tailscale] Tailscale');
+			return value !== 'tailscale' && proxy_nodes[value] ? proxy_nodes[value] :
+				_('Node unavailable; using the main node.');
 		};
 
-		dro = domainRoutes.option(form.TextValue, '_domain_list', _('Domain List'),
-			_('Entries containing a dot use domain suffix matching; other entries use keyword matching.'));
+		dro = domainRoutes.option(form.TextValue, '_domain_list', _('Domain List'), domainMatchDescription);
 		dro.modalonly = true;
 		dro.rows = 12;
 		dro.monospace = true;

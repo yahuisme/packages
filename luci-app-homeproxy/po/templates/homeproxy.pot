@@ -2443,3 +2443,30 @@ msgstr ""
 
 msgid "Update resources"
 msgstr ""
+
+msgid "Supports share-link subscriptions and Mihomo YAML with JSON-style proxy entries only; general YAML syntax is not supported."
+msgstr ""
+
+msgid "Save and apply current settings before updating subscriptions."
+msgstr ""
+
+msgid "Save and update %s subscriptions"
+msgstr ""
+
+msgid "Remove %s subscription nodes? This cannot be undone."
+msgstr ""
+
+msgid "The main node will be cleared and the client will be disabled."
+msgstr ""
+
+msgid "The main node will not be changed."
+msgstr ""
+
+msgid "Diversion groups using removed nodes must be assigned another node."
+msgstr ""
+
+msgid "Unavailable node: %s"
+msgstr ""
+
+msgid "Node unavailable; using the main node."
+msgstr ""
