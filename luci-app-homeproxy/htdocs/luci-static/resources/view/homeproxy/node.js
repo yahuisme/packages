@@ -1960,7 +1960,8 @@ return view.extend({
 				uci.get(data[0], section_id, 'subscription_url') ?? [];
 			const count = L.toArray(urls).filter(Boolean).length;
 			this.readonly = !!this.map.readonly || subscriptionActionPending || count === 0;
-			return count ? _('Save and update subscriptions') : _('No subscription available');
+			return subscriptionActionPending ? _('Updating subscriptions…') :
+				(count ? _('Save and update subscriptions') : _('No subscription available'));
 		};
 		subscriptionURLs.onchange = function(ev, section_id) {
 			const title = updateSubscriptions.inputtitle(section_id);
@@ -1971,25 +1972,45 @@ return view.extend({
 				button.disabled = !!(this.map.readonly || updateSubscriptions.readonly);
 			}
 		};
-		o.onclick = async function() {
+		o.onclick = async function(ev, section_id) {
 			if (subscriptionActionPending || this.map.readonly)
 				return;
 			subscriptionActionPending = true;
+			subscriptionURLs.onchange(null, section_id);
+			const progress = ui.addNotification(null, E('p', [ _('Saving settings and updating subscriptions…') ]), 'info');
+			let updated = false;
 			try {
 				await this.map.save(null, true);
-				// Map.save() commits the edited UCI settings. The updater reads that
-				// committed state itself; an extra uci/apply() is unrelated to the
-				// import and can report a stale apply result after a successful save.
+				// Map.save writes session deltas. Apply and confirm before the
+				// standalone updater reads committed settings. RPC errors reject.
+				const applied = await uci.callApply(10, true);
+				if (applied !== 0)
+					throw new Error(_('exit code %d').format(applied));
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+				const confirmed = await uci.callConfirm();
+				if (confirmed !== 0)
+					throw new Error(_('exit code %d').format(confirmed));
 				ui.changes.setIndicator(0);
 				const res = await fs.exec('/etc/homeproxy/scripts/update_subscriptions.sh');
 				if (res.code !== 0)
 					throw new Error(res.stderr || _('exit code %d').format(res.code));
-				location.reload();
+				ui.showModal(_('Subscriptions updated successfully.'), [
+					E('p', [ _('The page will reload automatically.') ])
+				]);
+				updated = true;
+				setTimeout(() => {
+					ui.hideModal();
+					location.reload();
+				}, 1200);
 			} catch (err) {
 				ui.addNotification(null, E('p', [ _('An error occurred during updating subscriptions: %s.').format(err) ]), 'error');
 			} finally {
-				subscriptionActionPending = false;
-				await this.map.reset();
+				progress.remove();
+				// Keep the lock until automatic navigation.
+				if (!updated) {
+					subscriptionActionPending = false;
+					await this.map.reset();
+				}
 			}
 		};
 

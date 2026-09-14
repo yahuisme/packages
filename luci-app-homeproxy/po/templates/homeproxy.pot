@@ -2474,3 +2474,39 @@ msgstr ""
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:434
 msgid "Log updated."
 msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1963
+msgid "Updating subscriptions…"
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1980
+msgid "Saving settings and updating subscriptions…"
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1997
+msgid "Subscriptions updated successfully."
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1998
+msgid "Reload the page to display the updated nodes."
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:2001
+msgid "Reload page"
+msgstr ""
+
+
+msgid "The page will reload automatically."
+msgstr ""
+
+msgid "Updated"
+msgstr ""
+
+msgid "Downloaded"
+msgstr ""
+
+msgid "Deleted"
+msgstr ""
+
+msgid "Updating…"
+msgstr ""

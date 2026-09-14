@@ -996,12 +996,18 @@ const methods = {
 			}
 			if (update_result.status !== `${status}`)
 				update_result = {};
+			const resources = [];
+			for (let name in ['geoip_cn', 'geosite_cn', 'dashboard']) {
+				if (update_result[name] in ['0', '1', '3'])
+					push(resources, { type: name, status: int(update_result[name]) });
+			}
 			const core_updated = update_result.core_updated === '1';
 			const dashboard_updated = update_result.dashboard_updated === '1';
 			const apply_failed = update_result.apply_failed === '1';
 			const rollback_failed = update_result.rollback_failed === '1';
 			return {
 				status,
+				resources,
 				core_updated,
 				dashboard_updated,
 				apply_failed,

@@ -56,6 +56,13 @@ print(sprintf('%J',{result,reads,calls}));'''
             self.assertEqual(data['reads'], [] if status == 2 else [temp+'/update_resources.result'])
             return data['result']
 
+    def test_rpc_per_item_results(self):
+        result = self.rpc_result(0, 0, {'geoip_cn':0, 'geosite_cn':3, 'dashboard':3})
+        self.assertEqual(result['resources'], [
+            {'type':'geoip_cn','status':0}, {'type':'geosite_cn','status':3}, {'type':'dashboard','status':3}])
+        result = self.rpc_result(1, 1, {'geoip_cn':1, 'geosite_cn':3, 'dashboard':''})
+        self.assertEqual(result['resources'], [{'type':'geoip_cn','status':1}, {'type':'geosite_cn','status':3}])
+
     def test_rpc_matching_result_preserves_failure_flags(self):
         for apply, rollback in [(1, 0), (1, 1), (0, 1), (0, 0)]:
             with self.subTest(apply=apply, rollback=rollback):
@@ -68,13 +75,13 @@ print(sprintf('%J',{result,reads,calls}));'''
         result = self.rpc_result(1, 0, {key:1 for key in
             ['apply_failed', 'rollback_failed', 'core_updated', 'dashboard_updated']})
         self.assertEqual(result, dict(status=1, apply_failed=False, rollback_failed=False,
-            core_updated=False, dashboard_updated=False, updated=None, failed=None))
+            core_updated=False, dashboard_updated=False, updated=None, failed=None, resources=[]))
 
     def test_rpc_busy_does_not_read_old_result(self):
         # Even a matching stale status must never supply flags while the lock is held.
         result = self.rpc_result(2, 2, {'apply_failed':1, 'rollback_failed':1})
         self.assertEqual(result, dict(status=2, apply_failed=False, rollback_failed=False,
-            core_updated=False, dashboard_updated=False, updated=None, failed=None))
+            core_updated=False, dashboard_updated=False, updated=None, failed=None, resources=[]))
 
     def test_http_scope_transactions(self):
         evidence = []
@@ -133,11 +140,18 @@ print(sprintf('%J',{result,reads,calls}));'''
                     if scope=='manual' and installed: selected.add('dashboard')
                     requested=run(0)
                     self.assertEqual({p.split('/')[1] for p in requested},selected)
+                    result_file=root/'run/update_resources.result'
+                    def item_results():
+                        values=dict(line.split('=',1) for line in result_file.read_text().splitlines())
+                        return {k:int(values[k]) for k in ['geoip_cn','geosite_cn','dashboard'] if values.get(k)}
+                    expected={k if k=='dashboard' else k+'_cn' for k in selected}
+                    self.assertEqual(item_results(),dict.fromkeys(expected,0))
                     after=snapshot()
                     for name,data in before.items():
                         if not any(name.startswith('resources/'+k+'_cn.') or name.startswith(k+'/') for k in selected): self.assertEqual(after[name],data)
                     self.assertEqual(dashboard.exists(),installed)
                     run(3); self.assertEqual(snapshot(),after)
+                    self.assertEqual(item_results(),dict.fromkeys(expected,3))
                     with (root/'run/update_resources.lock').open('w') as lock:
                         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                         self.assertEqual(run(2), [])
@@ -146,6 +160,7 @@ print(sprintf('%J',{result,reads,calls}));'''
                     generation[0]=2
                     bad[0]=next(iter(sorted(selected)))
                     run(1); self.assertEqual(snapshot(),after,'download/digest/archive failure retains all')
+                    self.assertEqual(item_results(),dict.fromkeys(expected,1))
                     bad[0]='NO_FAILURE'; env['FAIL_RELOAD']='1'
                     run(1); self.assertEqual(snapshot(),after,'reload failure rolls back selected transaction')
                     self.assertIn('apply_failed=1',(root/'run/update_resources.result').read_text())
@@ -154,6 +169,7 @@ print(sprintf('%J',{result,reads,calls}));'''
                         # Already-current dashboard must not discard updated rules.
                         (resources/'geoip_cn.ver').write_text('old'); run(0)
                         self.assertIn('2222',(resources/'geoip_cn.ver').read_text())
+                        self.assertEqual(item_results(),{'geoip_cn':0,'geosite_cn':3,'dashboard':3})
                     evidence.append({'scope':scope,'installed':installed,'requested':requested,'rollback':'passed'})
                 finally: server.shutdown(); server.server_close(); thread.join()
         if os.environ.get('SCOPE_EVIDENCE'): Path(os.environ['SCOPE_EVIDENCE']).write_text(json.dumps(evidence,indent=2))

@@ -994,8 +994,8 @@ function yaml_split_flow(text) {
 	for (let i = 0; i < length(text); i++) {
 		const ch = substr(text, i, 1);
 		if (quote) {
-			if (ch === quote && (quote === "'" || i === 0 || substr(text, i - 1, 1) !== '\\'))
-				quote = null;
+			if (quote === '"' && ch === '\\') i++;
+			else if (ch === quote) quote = null;
 			continue;
 		}
 		if (ch === "'" || ch === '"') quote = ch;
@@ -1015,7 +1015,8 @@ function yaml_colon(text) {
 	for (let i = 0; i < length(text); i++) {
 		const ch = substr(text, i, 1);
 		if (quote) {
-			if (ch === quote && (quote === "'" || i === 0 || substr(text, i - 1, 1) !== '\\')) quote = null;
+			if (quote === '"' && ch === '\\') i++;
+			else if (ch === quote) quote = null;
 			continue;
 		}
 		if (ch === "'" || ch === '"') quote = ch;
@@ -1026,8 +1027,28 @@ function yaml_colon(text) {
 	return -1;
 }
 
+function yaml_strip_comment(text) {
+	let quote = null;
+	for (let i = 0; i < length(text); i++) {
+		const ch = substr(text, i, 1);
+		if (quote) {
+			if (quote === '"' && ch === '\\') i++;
+			else if (ch === quote) {
+				if (quote === "'" && substr(text, i + 1, 1) === "'") i++;
+				else quote = null;
+			}
+		} else if ((ch === '"' || ch === "'") &&
+		           (i === 0 || substr(text, i - 1, 1) in [' ', '\t', ':', '[', '{', ','])) {
+			quote = ch;
+		} else if (ch === '#' && (i === 0 || match(substr(text, i - 1, 1), /\s/))) {
+			return trim(substr(text, 0, i));
+		}
+	}
+	return trim(text);
+}
+
 function yaml_scalar(text) {
-	text = trim(text);
+	text = yaml_strip_comment(trim(text));
 	if (!text || match(text, /^[&*!|>]/)) return text ? null : {};
 	if (substr(text, 0, 1) === '{' && substr(text, -1) === '}') {
 		let object = {};
@@ -1061,7 +1082,6 @@ function yaml_scalar(text) {
 		if (substr(text, -1) !== "'") return null;
 		return replace(substr(text, 1, length(text) - 2), /''/g, "'");
 	}
-	text = trim(replace(text, /\s+#.*$/, ''));
 	/* Keep this deliberately below full YAML: no tags, aliases or implicit dates. */
 	if (text === 'true') return true;
 	if (text === 'false') return false;
@@ -1077,12 +1097,13 @@ function parse_mihomo_yaml(text) {
 	let proxies = [], current = null, stack = [], proxies_indent = null, proxy_item_indent = null;
 	for (let raw in split(replace(text, /\r/g, ''), '\n')) {
 		if (!trim(raw) || match(trim(raw), /^#/)) continue;
-		let indent = length(match(raw, /^ */)[0]), line = trim(raw);
+		let indent = length(match(raw, /^ */)[0]), line = yaml_strip_comment(trim(raw));
 		if (proxies_indent === null) {
 			if (line === 'proxies:') proxies_indent = indent;
 			continue;
 		}
-		if (indent <= proxies_indent) break;
+		/* YAML permits an indentless sequence, but not sibling mapping keys. */
+		if (indent < proxies_indent || (indent === proxies_indent && !match(line, /^-\s+/))) break;
 		if (match(line, /^-\s+/) && current && proxy_item_indent !== null && indent > proxy_item_indent) {
 			while (length(stack) && indent <= stack[-1].indent) pop(stack);
 			if (!length(stack)) return null;

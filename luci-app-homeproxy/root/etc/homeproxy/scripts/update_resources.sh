@@ -21,6 +21,14 @@ HOMEPROXY_INIT="${HOMEPROXY_INIT:-/etc/init.d/homeproxy}"
 UPDATE_PROXY="${HOMEPROXY_UPDATE_PROXY:-}"
 UPDATED_BRANCHES="" FAILED_BRANCHES=""
 CORE_UPDATED=0 DASHBOARD_UPDATED=0 APPLY_FAILED=0 ROLLBACK_FAILED=0
+GEOIP_RESULT="" GEOSITE_RESULT="" DASHBOARD_RESULT=""
+set_result() {
+	case "$1" in
+	geoip_cn) GEOIP_RESULT="$2" ;;
+	geosite_cn) GEOSITE_RESULT="$2" ;;
+	dashboard) DASHBOARD_RESULT="$2" ;;
+	esac
+}
 
 # Only explicit manual refresh includes an installed dashboard; default/cron stay rules-only.
 MODE="${1:-rules}"
@@ -38,10 +46,16 @@ mark_updated() { UPDATED_BRANCHES="${UPDATED_BRANCHES:+$UPDATED_BRANCHES,}$1"; }
 mark_failed() { FAILED_BRANCHES="${FAILED_BRANCHES:+$FAILED_BRANCHES,}$1"; log "[RESOURCES] Failed: $1"; }
 finish() {
 	local status="$1"
+	# Staging is not publication: a failed transaction never reports an update.
+	if [ "$status" != 0 ] && [ "$status" != 3 ]; then
+		[ "$GEOIP_RESULT" != 0 ] || GEOIP_RESULT=1
+		[ "$GEOSITE_RESULT" != 0 ] || GEOSITE_RESULT=1
+		[ "$DASHBOARD_RESULT" != 0 ] || DASHBOARD_RESULT=1
+	fi
 	# Readers see either the previous complete result or this complete result.
-	if ! printf 'status=%s\ncore_updated=%s\ndashboard_updated=%s\nupdated=%s\nfailed=%s\napply_failed=%s\nrollback_failed=%s\n' \
+	if ! printf 'status=%s\ncore_updated=%s\ndashboard_updated=%s\nupdated=%s\nfailed=%s\napply_failed=%s\nrollback_failed=%s\ngeoip_cn=%s\ngeosite_cn=%s\ndashboard=%s\n' \
 		"$status" "$CORE_UPDATED" "$DASHBOARD_UPDATED" "$UPDATED_BRANCHES" "$FAILED_BRANCHES" \
-		"$APPLY_FAILED" "$ROLLBACK_FAILED" > "$RESULT_PATH.$$" ||
+		"$APPLY_FAILED" "$ROLLBACK_FAILED" "$GEOIP_RESULT" "$GEOSITE_RESULT" "$DASHBOARD_RESULT" > "$RESULT_PATH.$$" ||
 	   ! mv -f "$RESULT_PATH.$$" "$RESULT_PATH"; then
 		log '[RESOURCES] Failed to publish update result.'
 		exit 1
@@ -130,6 +144,7 @@ for kind in geoip geosite; do
 	geosite) source="$GEOSITE_SOURCE"; version_url="$GEOSITE_VERSION_URL"; digest_url="$GEOSITE_DIGEST_URL" ;;
 	esac
 	resource="${kind}_cn"
+	set_result "$resource" 1
 	if ! version="$(fetch_version "$version_url")"; then
 		mark_failed "$resource"; continue
 	fi
@@ -139,6 +154,7 @@ for kind in geoip geosite; do
 	fi
 	if [ "$(cat "$RESOURCES_DIR/$resource.ver" 2>/dev/null)" = "$version" ] &&
 	   verify_blob "$RESOURCES_DIR/$resource.srs" "$blob" && validate_rule_set "$RESOURCES_DIR/$resource.srs"; then
+		set_result "$resource" 3
 		continue
 	fi
 	if ! download "$source/$commit/$kind-cn.srs" "$TMP_DIR/$resource.srs" ||
@@ -155,6 +171,7 @@ for kind in geoip geosite; do
 		finish 1
 	fi
 	CORE_UPDATED=1
+	set_result "$resource" 0
 	mark_updated "$resource"
 done
 fi
@@ -163,9 +180,10 @@ if [ "$MODE" = dashboard-remove ]; then
 	DASHBOARD_UPDATED=1
 	mark_updated dashboard
 elif [ "$MODE" = dashboard-update ] || { [ "$SCOPE" = manual ] && [ -s "$DASHBOARD_DIR/index.html" ]; }; then
+	DASHBOARD_RESULT=1
 	version="$(fetch_version "$DASHBOARD_VERSION_URL")" || { mark_failed dashboard; finish 1; }
 	if [ "$(cat "$DASHBOARD_DIR/dashboard.ver" 2>/dev/null)" = "$version" ] && [ -s "$DASHBOARD_DIR/index.html" ]; then
-		: # Keep any staged rule updates.
+		DASHBOARD_RESULT=3 # Keep any staged rule updates.
 	else
 		commit="${version##* }"
 		# Immutable archive, then validate its file names/types before extraction.
@@ -199,6 +217,7 @@ elif [ "$MODE" = dashboard-update ] || { [ "$SCOPE" = manual ] && [ -s "$DASHBOA
 			break
 		done
 		[ "$DASHBOARD_UPDATED" -eq 1 ] || { mark_failed dashboard; finish 1; }
+		DASHBOARD_RESULT=0
 		mark_updated dashboard
 	fi
 fi

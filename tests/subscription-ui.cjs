@@ -1,4 +1,7 @@
 const assert = require('assert/strict');
+// Never inherit another checkout from an audit shell.
+process.env.PACKAGES_ROOT = require('path').resolve(__dirname, '..');
+const watchdog = setTimeout(() => { console.error('FAIL subscription UI stalled'); process.exit(1); }, 30000);
 const { pageBoot, tick } = require('./helpers/test_page_lifecycle.cjs');
 
 const UPDATE = 'Save and update subscriptions';
@@ -25,8 +28,8 @@ async function fixture() {
 	const notices = [];
 	const beforeReset = [];
 	const mutations = [];
-	const gates = { apply: null, confirm: null, exec: null };
-	const failures = { apply: null, confirm: null, exec: null };
+	const gates = { save: null, apply: null, confirm: null, exec: null };
+	const failures = { save: null, apply: null, confirm: null, exec: null };
 	const originalPost = h.mods.request.post;
 	const originalTimeout = h.w.setTimeout;
 	const nativeRemove = h.mods.uci.remove.bind(h.mods.uci);
@@ -40,12 +43,14 @@ async function fixture() {
 			calls.push(method);
 			if (gates[method])
 				await gates[method].promise;
-			if (failures[method])
+			if (failures[method] === 'reject')
+				throw Error(`injected ${method} transport failure`);
+			if (failures[method] === 'status')
 				return { ok: true, status: 200, json: () => h.w.JSON.parse(JSON.stringify({
 					jsonrpc: '2.0', id: req.id, result: [ 6 ]
 				})) };
 			return { ok: true, status: 200, json: () => h.w.JSON.parse(JSON.stringify({
-				jsonrpc: '2.0', id: req.id, result: [ 0, 0 ]
+				jsonrpc: '2.0', id: req.id, result: [ 0, failures[method] === 'payload' ? 6 : 0 ]
 			})) };
 		}
 		return originalPost(url, req);
@@ -55,18 +60,28 @@ async function fixture() {
 		assert.equal(path, '/etc/homeproxy/scripts/update_subscriptions.sh');
 		if (gates.exec)
 			await gates.exec.promise;
+		if (failures.exec === 'status')
+			return { code: 1, stderr: 'injected updater status' };
 		if (failures.exec)
 			throw failures.exec;
 		return { code: 0, stdout: '', stderr: '' };
 	};
-	h.mods.ui.addNotification = (_title, node, level) => notices.push({ text: node.textContent, level });
+	const nativeNotification = Object.getPrototypeOf(h.mods.ui).addNotification;
+	h.mods.ui.addNotification = (title, node, level) => {
+		const el = nativeNotification.call(h.mods.ui, title, node, level);
+		notices.push({ text: node.textContent, level, el });
+		return el;
+	};
+	h.mods.ui.changes.setIndicator = n => { if (calls.at(-1) !== 'save' && calls.at(-1) !== 'reset') calls.push(`indicator:${n}`); };
 	h.w.console.error = () => {};
 	h.w.setTimeout = (fn, ms, ...args) => ms === 1000 ? originalTimeout(fn, 0, ...args) : originalTimeout(fn, ms, ...args);
 
 	const map = h.map;
 	const nativeSave = map.save;
-	map.save = function(cb, silent) {
+	map.save = async function(cb, silent) {
 		calls.push('save');
+		if (gates.save) await gates.save.promise;
+		if (failures.save) throw Error('injected save failure');
 		return nativeSave.call(this, cb, silent).then(value => {
 			calls.push('saved');
 			return value;
@@ -86,45 +101,66 @@ async function fixture() {
 	assert(updateOption, 'native update form.Button option must be discoverable');
 	const removeButton = button('No subscription node');
 	const removeOption = h.mods.dom.findClassInstance(removeButton.closest('.cbi-value'));
+	let pending;
+	const nativeClick = updateOption.onclick;
+	updateOption.onclick = function(...args) {
+		assert.equal(this, updateOption, 'native Button binds option, not DOM');
+		return pending = nativeClick.apply(this, args);
+	};
 	return { ...h, calls, notices, beforeReset, mutations, gates, failures, map, button, updateOption, removeButton, removeOption,
 		close: () => h.w.close(),
-		update: () => updateOption.onclick.call(updateOption) };
+		update: () => { button(UPDATE)?.click(); return pending; } };
 }
 
 (async () => {
-	let h = await fixture();
-	try {
-		h.update();
-		await settleUntil(() => h.calls.includes('reset'), 'successful update did not finish');
-		assert.deepEqual(h.calls, [ 'save', 'saved', 'exec', 'reset' ]);
-		assert(!h.calls.includes('apply') && !h.calls.includes('confirm'),
-			'subscription import must not invoke the unrelated UCI apply transaction');
-	} finally { h.close(); }
-
-	h = await fixture();
-	try {
-		h.gates.exec = deferred();
-		const pending = h.update();
-		await settleUntil(() => h.calls.includes('exec'), 'update did not reach subscription import');
-		h.update();
-		await tick();
-		assert.equal(h.calls.filter(x => x === 'save').length, 1, 'second click must not start another save');
-		h.gates.exec.resolve();
-		await pending;
-		assert(h.calls.includes('reset'), 'single-flight update did not finish');
-	} finally { h.close(); }
-
-	for (const stage of [ 'exec' ]) {
+	let h;
+	for (const stage of [ 'save', 'apply', 'confirm', 'exec' ]) {
 		h = await fixture();
 		try {
-			h.failures[stage] = Error(`injected ${stage} failure`);
-			await h.update();
-			assert(h.calls.includes('reset'), `${stage} failure did not settle`);
-			assert.equal(h.notices.length, 1, `${stage} failure must notify once`);
-			assert.equal(h.notices[0].level, 'error');
-			assert(!h.calls.includes('exec') || stage === 'exec', 'save failure must abort exec');
+			h.gates[stage] = deferred();
+			const pending = h.update();
+			await settleUntil(() => h.calls.includes(stage), `did not reach ${stage}`);
+			const busy = h.button('Updating subscriptions…');
+			assert(busy?.disabled, `${stage}: native button must remain disabled`);
+			assert.equal(busy.textContent, 'Updating subscriptions…');
+			assert(h.notices[0].el.isConnected, 'progress is visible while pending');
+			busy.click();
+			await h.updateOption.onclick.call(h.updateOption, null, 'subscription');
+			assert.equal(h.calls.filter(x => x === 'save').length, 1);
+			assert(!h.calls.includes('exec') || stage === 'exec', 'import must wait for confirmation');
+			h.gates[stage].resolve();
+			await pending;
+			assert.deepEqual(h.calls, [ 'save', 'saved', 'apply', 'confirm', 'indicator:0', 'exec' ]);
+			assert(!h.notices[0].el.isConnected, 'progress removed on success');
+			const reload = [...h.w.document.querySelectorAll('#modal_overlay button')].find(x => x.textContent === 'Reload page');
+			assert(!reload, 'success requires no extra confirmation');
+			assert(h.w.document.querySelector('#modal_overlay').textContent.includes('The page will reload automatically.'));
+			assert.equal(h.navigationErrors.length, 0, 'no automatic navigation');
+			await h.updateOption.onclick.call(h.updateOption, null, 'subscription');
+			assert.equal(h.calls.filter(x => x === 'exec').length, 1, 'lock survives success until reload');
+			await new Promise(resolve => setTimeout(resolve, 1300));
+			assert.equal(h.navigationErrors.length, 1, 'success automatically reloads');
+		} finally { h.close(); }
+	}
+
+	for (const [stage, modes] of Object.entries({ save: ['reject'], apply: ['status', 'payload', 'reject'], confirm: ['status', 'payload', 'reject'], exec: ['status', 'reject'] })) {
+		for (const mode of modes) {
+			h = await fixture();
+			try {
+				h.failures[stage] = mode;
+				await h.update();
+				assert(h.calls.includes('reset'), `${stage}/${mode} failure did not settle`);
+				assert.equal(h.notices.filter(x => x.level === 'error').length, 1);
+				assert(!h.notices[0].el.isConnected, 'failed progress cleaned up');
+				assert(!h.calls.includes('exec') || stage === 'exec', 'failure must abort import');
+				assert(!h.calls.includes('indicator:0') || stage === 'exec', 'failed apply/confirm must preserve indicator');
+				assert(!h.calls.includes('confirm') || ['confirm', 'exec'].includes(stage));
+				assert(!h.button(UPDATE).disabled, 'failure restores native button');
+				h.failures[stage] = null;
+				await h.update();
+				assert.equal(h.calls.filter(x => x === 'save').length, 2, 'failure releases single-flight lock');
+			} finally { h.close(); }
 		}
-		finally { h.close(); }
 	}
 
 	h = await fixture();
@@ -195,8 +231,8 @@ async function fixture() {
 		assert(!h.mutations.some(call => call[0] === 'set' && call[3] === 'main_node'), 'save failure must not alter main node');
 	} finally { h.close(); }
 
-	console.log('PASS current node.js saves then imports subscriptions without UCI apply/confirm; failures, cancellation and single-flight');
+	console.log('PASS native LuCI Button/Map/UI/RPC: held save→apply→confirm→exec; status/payload/reject failures and retry; progress cleanup; acknowledged reload; cancellation and single-flight');
 })().catch(err => {
 	console.error(err);
 	process.exitCode = 1;
-});
+}).finally(() => clearTimeout(watchdog));
