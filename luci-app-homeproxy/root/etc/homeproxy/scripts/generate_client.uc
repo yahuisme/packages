@@ -12,10 +12,10 @@ import { connect } from 'ubus';
 import { cursor } from 'uci';
 
 import {
-	addECHDNS, createNodeOutboundTags, filterExistingNodes, findDomainGroupConflict,
+	addECHDNS, createNodeLabelRegistry, filterExistingNodes, findDomainGroupConflict,
 	hasForceProxyRules, isEmpty, normalizeDomainList, normalizeList, parseURL,
 	domainListPath, resolveLanPolicy, splitDomainList,
-	strToBool, strToInt, strToTime,
+	reserveUniqueLabel, strToBool, strToInt, strToTime,
 	removeBlankAttrs, renderEndpoint, renderOutbound, validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
 
@@ -41,7 +41,11 @@ if (!(routing_mode in ['bypass_mainland_china', 'global']))
 
 const lan_policy = resolveLanPolicy(uci, uciconfig);
 
-const node_outbound_tags = createNodeOutboundTags(uci, uciconfig);
+const outbound_tags = createNodeLabelRegistry();
+const node_outbound_tags = {};
+uci.foreach(uciconfig, ucinode, (cfg) => {
+	node_outbound_tags[cfg['.name']] = reserveUniqueLabel(outbound_tags, cfg.label, `cfg-${cfg['.name']}-out`);
+});
 function get_node_outbound_tag(section_id) {
 	return node_outbound_tags[section_id] || `cfg-${section_id}-out`;
 }
