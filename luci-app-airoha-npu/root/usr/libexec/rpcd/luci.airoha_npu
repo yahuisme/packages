@@ -10,7 +10,7 @@ positive() {
 	[ "${#1}" -le 10 ]
 }
 quote() {
-	printf '%s' "$1" | awk 'BEGIN { for(j=1;j<32;j++) esc[sprintf("%c",j)]=sprintf("\\u%04x",j); printf "\"" } { if (NR>1) printf "\\n"; for(i=1;i<=length;i++) { c=substr($0,i,1); if(c=="\"" || c=="\\") printf "\\%s",c; else if(c=="	") printf "\	"; else if(c=="\r") printf "\\r"; else if(c in esc) printf "%s",esc[c]; else printf "%s",c } } END { printf "\"" }'
+	printf '%s' "$1" | awk 'BEGIN { for(j=1;j<32;j++) esc[sprintf("%c",j)]=sprintf("\\u%04x",j); printf "\"" } { if (NR>1) printf "\\n"; for(i=1;i<=length;i++) { c=substr($0,i,1); if(c=="\"" || c=="\\") printf "\\%s",c; else if(c=="\r") printf "\\r"; else if(c in esc) printf "%s",esc[c]; else printf "%s",c } } END { printf "\"" }'
 }
 number() { if positive "$1"; then printf '%s' "$1"; else printf null; fi; }
 error() { printf '{"error":"%s"}\n' "$1"; }
@@ -59,6 +59,62 @@ set_cpu() {
 		else error rollback_failed; fi
 	fi
 }
+# Fixed, private persistent staging. Runtime is touched only by applySettings.
+SETTINGS="$ROOT/etc/airoha-npu"
+settings_parse() {
+	argument governor || return 1
+	case "$value" in ''|*[!a-zA-Z0-9_-]*) return 1;; esac
+	gov=$value
+	argument freq && positive "$value" || return 1
+	freq=$value
+}
+settings_supported() {
+	contains "$gov" "$(read_value "$POLICY/scaling_available_governors")" &&
+	contains "$freq" "$(read_value "$POLICY/scaling_available_frequencies")"
+}
+settings_json() { printf '{"governor":"%s","freq":"%s"}' "$gov" "$freq"; }
+settings_rpc() (
+	local gov freq value tmp oldgov oldfreq ok=1
+	umask 077
+	[ ! -L "$SETTINGS" ] && [ ! -L "$SETTINGS/pending.json" ] || { error storage; exit; }
+	[ ! -e "$SETTINGS/pending.json" ] || [ -f "$SETTINGS/pending.json" ] || { error storage; exit; }
+	lock || { error busy; exit; }
+	case "$1" in
+		getSettings)
+			if [ ! -e "$SETTINGS/pending.json" ]; then printf '{"result":"ok","pending":null}\n'; exit; fi
+			[ -f "$SETTINGS/pending.json" ] || { error storage; exit; }
+			input=$(cat "$SETTINGS/pending.json") && settings_parse || { error invalid; exit; }
+			printf '{"result":"ok","pending":'; settings_json; printf '}\n';;
+		saveSettings)
+			settings_parse && settings_supported || { error invalid; exit; }
+			mkdir -p "$SETTINGS" && chmod 700 "$SETTINGS" || { error storage; exit; }
+			tmp=$(mktemp "$SETTINGS/.pending.XXXXXX") || { error storage; exit; }
+			if ! { settings_json > "$tmp" && chmod 600 "$tmp" && mv -f "$tmp" "$SETTINGS/pending.json"; }; then
+				rm -f "$tmp"; error storage; exit
+			fi
+			printf '{"result":"ok"}\n';;
+		applySettings)
+			[ -f "$SETTINGS/pending.json" ] || { error unavailable; exit; }
+			input=$(cat "$SETTINGS/pending.json") && settings_parse && settings_supported || { error invalid; exit; }
+			oldgov=$(read_value "$POLICY/scaling_governor")
+			oldfreq=$(read_value "$POLICY/scaling_max_freq")
+			contains "$oldgov" "$(read_value "$POLICY/scaling_available_governors")" &&
+			contains "$oldfreq" "$(read_value "$POLICY/scaling_available_frequencies")" &&
+			[ -w "$POLICY/scaling_governor" ] && [ -w "$POLICY/scaling_max_freq" ] || { error unavailable; exit; }
+			if { { [ "$oldgov" = "$gov" ] || printf '%s\n' "$gov" > "$POLICY/scaling_governor"; } &&
+				{ [ "$oldfreq" = "$freq" ] || printf '%s\n' "$freq" > "$POLICY/scaling_max_freq"; } &&
+				[ "$(read_value "$POLICY/scaling_governor")" = "$gov" ] &&
+				[ "$(read_value "$POLICY/scaling_max_freq")" = "$freq" ]; } 2>/dev/null; then
+				printf '{"result":"ok"}\n'
+			else
+				{ printf '%s\n' "$oldfreq" > "$POLICY/scaling_max_freq"; } 2>/dev/null || ok=0
+				{ printf '%s\n' "$oldgov" > "$POLICY/scaling_governor"; } 2>/dev/null || ok=0
+				[ "$(read_value "$POLICY/scaling_governor")" = "$oldgov" ] &&
+				[ "$(read_value "$POLICY/scaling_max_freq")" = "$oldfreq" ] || ok=0
+				if [ "$ok" = 1 ]; then error write_failed; else error rollback_failed; fi
+			fi;;
+	esac
+)
 get_status() {
 	local field value first=1
 	printf '{'
@@ -118,10 +174,11 @@ get_flow() {
 }
 case "$1" in
 	list)
-		printf '%s\n' '{"getStatus":{},"getInfo":{},"getFlowOffload":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"str"}}';;
+		printf '%s\n' '{"getSettings":{},"saveSettings":{"governor":"str","freq":"str"},"applySettings":{},"getStatus":{},"getInfo":{},"getFlowOffload":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"str"}}';;
 	call)
 		input=$(cat)
 		case "$2" in
+			getSettings|saveSettings|applySettings) settings_rpc "$2";;
 			getStatus) get_status;;
 			getInfo) get_info;;
 			getFlowOffload) get_flow;;

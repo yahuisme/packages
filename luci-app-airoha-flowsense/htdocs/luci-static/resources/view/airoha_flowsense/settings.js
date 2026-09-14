@@ -14,6 +14,22 @@ var applySettings = rpc.declare({ object: 'luci.airoha_flowsense', method: 'appl
 var accelerationKeys = ['hardware', 'vlan', 'pppoe', 'ap'];
 var getAcceleration = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getAcceleration', reject: true });
 
+function settingsError(code) {
+	switch (code) {
+	case 'pending_changes': return _('There are pending configuration changes. Apply or revert them before retrying.');
+	case 'invalid': return _('Invalid settings. Check your input and try again.');
+	case 'busy': return _('Another settings operation is in progress. Try again later.');
+	case 'storage': return _('Unable to read or write saved settings. Check storage space and access permissions.');
+	case 'prepare': return _('Unable to prepare the configuration update. Check available space and try again.');
+	case 'read': return _('Unable to read the current configuration or runtime state. Refresh the page and try again.');
+	case 'unsupported': return _('The device does not support this setting, or the relevant system parameters are not writable.');
+	case 'ap_requires_vlan': return _('AP compatibility mode requires VLAN acceleration to be enabled.');
+	case 'apply': return _('Apply failed; the previous configuration was restored. Check service status and try again.');
+	case 'rollback': return _('Apply failed and the previous configuration could not be fully restored. Check the current configuration and service status immediately.');
+	default: return _('The operation failed for an unknown reason. Refresh the page and check the system log before retrying.');
+	}
+}
+
 function text(value) { return typeof value === 'string' ? value : ''; }
 function validTarget(value) {
 	value = text(value).trim();
@@ -104,39 +120,42 @@ return view.extend({
 			var monitorChanged = monitorState && (baseline && baseline.enabled !== -1 || target.value.trim() !== monitorState.target || enabled.checked !== monitorState.enabled);
 			desired.target = monitorChanged ? target.value.trim() : '';
 			desired.enabled = monitorChanged ? +enabled.checked : -1;
+			var failureMessage = settingsError();
+			function fail(message) { failureMessage = message; throw new Error(message); }
 			accelerationSaving = true; lockAcceleration();
 			return Promise.resolve().then(function() {
-				if (!root.isConnected || !L.hasViewPermission()) throw new Error(_('Unable to save settings.'));
+				if (!root.isConnected || !L.hasViewPermission()) fail(_('Unable to save settings.'));
 				return saveSettings.apply(null, values.concat([desired.target, desired.enabled]));
 			}).then(function(result) {
-				if (!result || result.success !== true) throw new Error(_('Unable to save settings.'));
+				if (!result || result.success !== true) fail(settingsError(result && result.error));
 				return getSettings();
 			}).then(function(result) {
 				if (!result || result.success !== true || !result.pending || !Object.keys(desired).every(function(key) { return result.pending[key] === desired[key]; }))
-					throw new Error(_('Unable to verify saved settings.'));
+					fail(result && result.error ? settingsError(result.error) : _('Unable to verify saved settings.'));
 				baseline = result.pending; dirty = false; accelerationDirty = {};
 				if (!apply) { ui.addNotification(null, E('p', {}, _('Settings saved; not yet applied.')), 'info'); return; }
-				if (!root.isConnected || !L.hasViewPermission()) throw new Error(_('Unable to save settings.'));
+				if (!root.isConnected || !L.hasViewPermission()) fail(_('Unable to save settings.'));
 				return applySettings().then(function(result) {
 					return Promise.all([getAcceleration(), getOverview(), getSettings()].map(function(request) { return request.catch(function() { return null; }); })).then(function(data) {
 						if (!root.isConnected) return;
 						paintAcceleration(data[0], true); paint(data[1]);
-						if (!data[2] || data[2].success !== true) throw new Error(_('Unable to verify saved settings.'));
+						if (!data[2] || data[2].success !== true) fail(data[2] && data[2].error ? settingsError(data[2].error) : _('Unable to verify saved settings.'));
 						baseline = data[2].pending;
 						paintAcceleration(data[0], true); paint(data[1]);
 						var accOK = accelerationKeys.every(function(key) { return desired[key] === -1 || editable(key) && accelerationState[key].configured === !!desired[key] && accelerationState[key].enabled === !!desired[key]; });
 						var monOK = desired.enabled === -1 || monitorState && monitorState.target === desired.target && monitorState.enabled === !!desired.enabled;
+						if (result && result.error) fail(settingsError(result.error));
 						if (!result || result.success !== true || !accOK || !monOK || baseline) {
 							ui.addNotification(null, E('p', {}, [
-								_('Acceleration') + ': ' + (result && result.acceleration === 'unchanged' && accOK ? _('Unchanged') : result && result.acceleration === 'applied' && accOK ? _('Applied') : _('Not verified; check current settings.')) + (result && result.acceleration_error ? ' (' + result.acceleration_error + ')' : '') + '; ' +
-								_('Probe Settings') + ': ' + (result && result.monitor === 'unchanged' && monOK ? _('Unchanged') : result && result.monitor === 'applied' && monOK ? _('Applied') : _('Not verified; check current settings.')) + (result && result.monitor_error ? ' (' + result.monitor_error + ')' : '')
+								_('Acceleration') + ': ' + (result && result.acceleration === 'unchanged' && accOK ? _('Unchanged') : result && result.acceleration === 'applied' && accOK ? _('Applied') : _('Not verified; check current settings.')) + (result && result.acceleration_error ? ' (' + settingsError(result.acceleration_error) + ')' : '') + '; ' +
+								_('Probe Settings') + ': ' + (result && result.monitor === 'unchanged' && monOK ? _('Unchanged') : result && result.monitor === 'applied' && monOK ? _('Applied') : _('Not verified; check current settings.')) + (result && result.monitor_error ? ' (' + settingsError(result.monitor_error) + ')' : '')
 							]), 'error'); return;
 						}
 						ui.addNotification(null, E('p', {}, _('Settings saved and applied.')), 'info');
 					});
 				});
-			}).catch(function(error) {
-				if (root.isConnected) ui.addNotification(null, E('p', {}, [error.message]), 'error');
+			}).catch(function() {
+				if (root.isConnected) ui.addNotification(null, E('p', {}, [failureMessage]), 'error');
 			}).finally(function() { accelerationSaving = false; if (root.isConnected) lockAcceleration(); });
 		};
 		function paint(data) {

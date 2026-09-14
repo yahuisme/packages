@@ -18,14 +18,24 @@ const calls=[],polls=new Map();let overviewError=false,waitOverview=null,waitSav
 const sample={timestamp:1000,uptime:100,configured_hw:true,configured_sw:false,monitor:{target:'example.com',enabled:true},jitter:{last_ping:12,deviation:3,loss:4},interfaces:[{device:'lan1',speed:2500,carrier:1,stats:{rx_bytes:10,tx_bytes:20,rx_errors:7,tx_errors:9}}]};
 const accelerationSample={hardware:{supported:true,enabled:true,configured:false},vlan:{supported:true,enabled:false,configured:true},pppoe:{supported:false,enabled:null,configured:null},ap:{supported:true,enabled:null,configured:true}};
 let accelerationError=false, accelerationSaveError=false, waitAcceleration=null, waitAccelerationSave=null, accelerationPayload;
-let staged=null, failure='', hold=null;
+let staged=null, failure='', hold=null, injected=null;
+const errorTest = process.env.ERROR_MESSAGES_TEST === '1';
+if (errorTest) {
+ const po=fs.readFileSync(path.join(__dirname,'../po/zh_Hans/luci-app-airoha-flowsense.po'),'utf8');
+ w.TR={};
+ for(const m of po.matchAll(/^msgid (".+")\nmsgstr (".*")$/gm))w.TR[w.sfh(JSON.parse(m[1]))]=JSON.parse(m[2]);
+}
 mods.request.post=async(url,req)=>{
  if(Array.isArray(req))return {ok:true,status:200,json:()=>w.JSON.parse(JSON.stringify(req.map(r=>({jsonrpc:'2.0',id:r.id,result:[0,{values:{}}]}))))};
  const method=req.params[2],v=req.params[3];calls.push(method);
  if(req.params[1]==='uci')return {ok:true,status:200,json:()=>w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result:[0,{values:{}}]}))};
  if(hold && method==='saveSettings')await hold.promise;
  let result;
- if(method==='getOverview')result=overviewError?[6]:[0,sample];
+ if(injected && method===injected.method && (!injected.skip || --injected.skip === 0)) {
+  if(injected.transport) throw Error(hostile + ' RPC pending_changes');
+  result=[0,injected.result];
+ }
+ else if(method==='getOverview')result=overviewError?[6]:[0,sample];
  else if(method==='getAcceleration')result=accelerationError?[6]:[0,accelerationSample];
  else if(method==='getSettings')result=[0,{success:true,pending:staged}];
  else if(method==='saveSettings'){if(failure==='save')result=[6];else {staged={...v};result=[0,{success:true}]}}
@@ -54,6 +64,27 @@ function computedColor(node) {
 function count(name){return calls.filter(n=>n===name).length;}
 (async()=>{
  await settle();await settle();let root=w.document.querySelector('.flowsense-settings');
+ if(errorTest) {
+  const expected={pending_changes:'存在尚未处理的配置更改，请先应用或撤销这些更改后重试。',invalid:'设置无效，请检查输入后重试。',busy:'另一项设置操作正在进行，请稍后重试。',storage:'无法读写已保存的设置，请检查存储空间和访问权限。',prepare:'无法准备配置更新，请检查可用空间后重试。',read:'无法读取当前配置或运行状态，请刷新页面后重试。',unsupported:'设备不支持此设置，或相关系统参数不可写。',ap_requires_vlan:'启用 AP 兼容模式需要同时启用 VLAN 加速。',apply:'应用失败，已恢复原配置。请检查服务状态后重试。',rollback:'应用失败，且未能完整恢复原配置。请立即检查当前配置和服务状态。'};
+  const unknown='操作失败，无法确定原因。请刷新页面并检查系统日志后重试。';
+  let cases=0;
+  for(const field of ['acceleration_error','monitor_error','error'])for(const [code,message] of [...Object.entries(expected),['future_code',unknown],['constructor',unknown],[hostile,unknown]]) {
+   for(const method of field==='error'?['saveSettings','applySettings','getSettings','getSettingsAfterApply']:['applySettings']) {
+    injected={method:method==='getSettingsAfterApply'?'getSettings':method,skip:method==='getSettingsAfterApply'?2:0,result:{success:false,[field]:code}};
+    if(method==='saveSettings')await mods.app.handleSave();else await mods.app.handleSaveApply();
+    assert(notification.textContent.includes(message),`${method}/${field}/${code}: ${notification.textContent}`);
+    assert(!notification.textContent.includes(code),`internal code leaked: ${code}`);
+    assert(!notification.querySelector('img,svg'));assert(notification.closest('.alert-message').classList.contains('error'));cases++;
+   }
+  }
+  for(const method of ['saveSettings','getSettings','applySettings','getOverview','getAcceleration']) {
+   injected={method,transport:true};await mods.app.handleSaveApply();
+   assert(!/pending_changes|RPC|<img|Error/.test(notification.textContent),notification.textContent);
+   assert(/[\u4e00-\u9fff]/.test(notification.textContent));cases++;
+  }
+  injected=null;await mods.app.handleSaveApply();assert.equal(staged,null);assert.equal(notification.textContent,'设置已保存并应用。');
+  assert.equal(count('apply'),0);console.log(`PASS ${cases} Chinese failure notification cases through real LuCI RPC/form/UI; retry passed`);w.close();return;
+ }
  const footer=w.document.querySelector('.cbi-page-actions');assert(footer);assert(footer.querySelector('.cbi-button-save'));assert(footer.querySelector('.cbi-button-reset'));assert(footer.querySelector('.cbi-button-apply'));assert(footer.querySelector('.cbi-dropdown'));
  assert.equal(root.querySelectorAll('button,details').length,0);assert.equal(polls.size,0);
  assert.equal(root.querySelectorAll('h2').length,1);assert.equal(root.querySelector('h2').textContent,'Airoha FlowSense');assert(root.querySelector('h2 + .cbi-map-descr'));assert.equal(root.querySelectorAll('input[type=checkbox]').length,5);assert.equal(root.querySelectorAll('select').length,0);

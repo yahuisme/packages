@@ -151,3 +151,36 @@ msgstr "等待数据"
 
 msgid "Window packet loss"
 msgstr "采样窗口丢包率"
+
+msgid "There are pending configuration changes. Apply or revert them before retrying."
+msgstr "存在尚未处理的配置更改，请先应用或撤销这些更改后重试。"
+
+msgid "Invalid settings. Check your input and try again."
+msgstr "设置无效，请检查输入后重试。"
+
+msgid "Another settings operation is in progress. Try again later."
+msgstr "另一项设置操作正在进行，请稍后重试。"
+
+msgid "Unable to read or write saved settings. Check storage space and access permissions."
+msgstr "无法读写已保存的设置，请检查存储空间和访问权限。"
+
+msgid "Unable to prepare the configuration update. Check available space and try again."
+msgstr "无法准备配置更新，请检查可用空间后重试。"
+
+msgid "Unable to read the current configuration or runtime state. Refresh the page and try again."
+msgstr "无法读取当前配置或运行状态，请刷新页面后重试。"
+
+msgid "The device does not support this setting, or the relevant system parameters are not writable."
+msgstr "设备不支持此设置，或相关系统参数不可写。"
+
+msgid "AP compatibility mode requires VLAN acceleration to be enabled."
+msgstr "启用 AP 兼容模式需要同时启用 VLAN 加速。"
+
+msgid "Apply failed; the previous configuration was restored. Check service status and try again."
+msgstr "应用失败，已恢复原配置。请检查服务状态后重试。"
+
+msgid "Apply failed and the previous configuration could not be fully restored. Check the current configuration and service status immediately."
+msgstr "应用失败，且未能完整恢复原配置。请立即检查当前配置和服务状态。"
+
+msgid "The operation failed for an unknown reason. Refresh the page and check the system log before retrying."
+msgstr "操作失败，无法确定原因。请刷新页面并检查系统日志后重试。"

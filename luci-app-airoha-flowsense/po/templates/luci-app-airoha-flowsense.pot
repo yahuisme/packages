@@ -151,3 +151,36 @@ msgstr ""
 
 msgid "Window packet loss"
 msgstr ""
+
+msgid "There are pending configuration changes. Apply or revert them before retrying."
+msgstr ""
+
+msgid "Invalid settings. Check your input and try again."
+msgstr ""
+
+msgid "Another settings operation is in progress. Try again later."
+msgstr ""
+
+msgid "Unable to read or write saved settings. Check storage space and access permissions."
+msgstr ""
+
+msgid "Unable to prepare the configuration update. Check available space and try again."
+msgstr ""
+
+msgid "Unable to read the current configuration or runtime state. Refresh the page and try again."
+msgstr ""
+
+msgid "The device does not support this setting, or the relevant system parameters are not writable."
+msgstr ""
+
+msgid "AP compatibility mode requires VLAN acceleration to be enabled."
+msgstr ""
+
+msgid "Apply failed; the previous configuration was restored. Check service status and try again."
+msgstr ""
+
+msgid "Apply failed and the previous configuration could not be fully restored. Check the current configuration and service status immediately."
+msgstr ""
+
+msgid "The operation failed for an unknown reason. Refresh the page and check the system log before retrying."
+msgstr ""

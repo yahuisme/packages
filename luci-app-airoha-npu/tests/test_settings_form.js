@@ -9,7 +9,7 @@ if (!root) throw new Error('Set LUCI_RESOURCE_DIR to trusted upstream LuCI resou
 const source = fs.readFileSync(process.env.NPU_SETTINGS_JS || path.join(__dirname,
  '../htdocs/luci-static/resources/view/airoha_npu/settings.js'), 'utf8');
 
-async function scenario(readonly = false) {
+async function scenario(readonly = false, loadFailure = false) {
  const j = new JSDOM('<!doctype html><div id="maincontent"><div id="view"></div></div>',
   { url: 'http://localhost/cgi-bin/luci/admin/system/npu', runScripts: 'outside-only' });
  const w = j.window;
@@ -30,12 +30,21 @@ async function scenario(readonly = false) {
   L.require = n => Promise.resolve(mods[n]); L.hasViewPermission = () => !readonly;
   w.E = mods.dom.create.bind(mods.dom);
   mods.uci = { load: async () => {}, loadPackage: async () => {}, get: () => null };
-  const calls = [], notices = []; let rejectSave = false;
+  const calls = [], notices = []; let rejectSave = false, staged = null, fault = null;
+  const runtime = { cpu_governor: 'performance', cpu_max_freq: 1000000 };
   mods.rpc = { declare: spec => async (...args) => {
    calls.push([spec.method, ...args]);
    if (spec.object === 'session') return true;
+   if (fault && fault.method === spec.method) {
+    if (fault.transport) throw new Error('<img src=x onerror=alert(1)> transport details');
+    return { error: fault.code };
+   }
    if (spec.method === 'getInfo') return { governors: 'performance schedutil', frequencies: '1000000 800000' };
-   if (spec.method === 'getStatus') return { cpu_governor: 'performance', cpu_max_freq: 1000000 };
+   if (spec.method === 'getStatus') return { ...runtime };
+   if (spec.method === 'getSettings') { if (loadFailure) throw Error('offline'); return { result: 'ok', pending: staged }; }
+   if (rejectSave) return { error: 'write_failed' };
+   if (spec.method === 'saveSettings') staged = { governor: args[0], freq: args[1] };
+   if (spec.method === 'applySettings') { runtime.cpu_governor = staged.governor; runtime.cpu_max_freq = Number(staged.freq); }
    assert(!spec.method.includes('Flow'), 'CPU settings must never query or manage flow offloading');
    return rejectSave ? { result: 'error', error: 'write_failed' } : { result: 'ok' };
   } };
@@ -78,14 +87,15 @@ async function scenario(readonly = false) {
    assert.equal(option.formvalue(section), expected, `${name} must show the RPC value`);
    assert.ok(option.getUIElement(section), `${name} needs a real LuCI widget`);
   }
-  if (readonly) {
+  if (readonly || loadFailure) {
    assert.equal(map.readonly, true, 'JSONMap must respect view read-only permission');
    for (const [name, section] of [['governor', 'cpu'], ['frequency', 'cpu']])
     assert.equal(map.lookupOption(name, section)[0].getUIElement(section).options.disabled, true);
    assert.equal(w.document.querySelector('.cbi-button-save').disabled, true);
    map.lookupOption('governor', 'cpu')[0].getUIElement('cpu').setValue('schedutil');
    await map.save();
-   assert.equal(calls.filter(c => c[0].startsWith('set')).length, 0, 'forced readonly save must not write');
+   await app.handleSaveApply();
+   assert.equal(calls.filter(c => /^(set|save|apply)/.test(c[0])).length, 0, 'forced readonly actions must not write');
    return;
   }
   exportDOM('');
@@ -97,8 +107,12 @@ async function scenario(readonly = false) {
    for (const [name, section, value] of [['governor', 'cpu', 'schedutil'], ['frequency', 'cpu', '800000']])
     map.lookupOption(name, section)[0].getUIElement(section).setValue(value);
    await saveClick();
-   assert.deepEqual(calls.filter(c => c[0].startsWith('set')), [['setGovernor', 'schedutil'], ['setMaxFreq', '800000']]);
-   assert.equal(notices.at(-1), w._('Settings applied.'));
+   assert.deepEqual(calls.filter(c => c[0].startsWith('set')), [], 'Save must not execute immediate kernel setters');
+   assert.equal(notices.at(-1), w._('Settings saved.'));
+   assert.deepEqual(runtime, { cpu_governor: 'performance', cpu_max_freq: 1000000 }, 'Save leaves runtime untouched');
+   const fresh = new C();
+   await fresh.render(await fresh.load());
+   assert.equal(fresh.settingsMap.lookupOption('governor', 'cpu')[0].default, 'schedutil', 'reload retrieves saved baseline');
    exportDOM('.saved');
    async function assertSavedReset() {
     await map.reset();
@@ -109,7 +123,7 @@ async function scenario(readonly = false) {
    map.lookupOption('frequency', 'cpu')[0].getUIElement('cpu').setValue('1000000');
    await assertSavedReset();
    await saveClick();
-   assert.equal(calls.filter(c => c[0].startsWith('set')).length, 2, 'reset then save must not undo confirmed settings');
+   assert.equal(calls.filter(c => c[0].startsWith('set')).length, 0, 'reset then save must not execute kernel setters');
    w.document.querySelectorAll('.alert-message').forEach(n => n.remove());
    rejectSave = true; map.lookupOption('governor', 'cpu')[0].getUIElement('cpu').setValue('performance');
    let globalApply = 0;
@@ -117,19 +131,35 @@ async function scenario(readonly = false) {
    await assert.rejects(app.handleSaveApply(new w.Event('click'), '0'), /./,
     'failed direct RPC save must remain rejected through native Save & Apply');
    assert.equal(globalApply, 0, 'failed save must never apply unrelated global changes');
-   assert.equal(notices.at(-1), w._('The change failed and recovery could not be verified. Check the system settings.'));
+   assert.equal(notices.at(-1), w._('The change failed. Previous settings were restored.'));
    exportDOM('.failed');
    rejectSave = false;
    await app.handleSaveApply(new w.Event('click'), '0');
    assert.equal(globalApply, 0, 'direct RPC success also must not apply unrelated global changes');
+   assert.deepEqual(runtime, { cpu_governor: 'performance', cpu_max_freq: 800000 });
+   assert.equal(notices.at(-1), w._('Settings applied.'));
    map.lookupOption('governor', 'cpu')[0].getUIElement('cpu').setValue('schedutil');
    await map.save();
    await assertSavedReset();
-   const writes = calls.filter(c => c[0].startsWith('set')).length;
+   for (const method of ['saveSettings', 'getSettings', 'applySettings', 'getStatus']) {
+    for (const failure of [{transport:true}, {code:'<img src=x onerror=alert(1)>'}, {code:'toString'}]) {
+     fault = {method, ...failure};
+     await assert.rejects(app.handleSaveApply());
+     assert.equal(notices.at(-1), w._(method === 'getStatus' && !failure.transport
+      ? 'The required system interface is unavailable.' : 'The operation failed. Refresh the page and try again.'),
+      'transport and unknown codes must produce only the localized fallback');
+     assert.equal(w.document.querySelectorAll('.alert-message img').length, 0);
+    }
+   }
+   fault = null;
+   await app.handleSaveApply();
+   assert.equal(notices.at(-1), w._('Settings applied.'));
+   assert.equal(globalApply, 0);
+   const writes = calls.filter(c => /^(set|save|apply)/.test(c[0])).length;
    L.hasViewPermission = () => false;
    map.lookupOption('governor', 'cpu')[0].getUIElement('cpu').setValue('performance');
    await map.save();
-   assert.equal(calls.filter(c => c[0].startsWith('set')).length, writes,
+   assert.equal(calls.filter(c => /^(set|save|apply)/.test(c[0])).length, writes,
     'permission revoked after render blocks further writes');
   }
   node.remove();
@@ -137,6 +167,6 @@ async function scenario(readonly = false) {
  } finally { w.close(); }
 }
 (async () => {
- await scenario(true); await scenario();
+ await scenario(true); await scenario(false, true); await scenario();
  console.log('PASS real LuCI form: CPU-only controls, RPC defaults, no-op/save/reset, failure and read-only');
 })().catch(e => { console.error(e); process.exitCode = 1; });

@@ -94,8 +94,8 @@ msgstr "NPU 与流控引擎"
 msgid "NPU Core"
 msgstr "NPU 核心"
 
-msgid "No changes to apply."
-msgstr "没有需要应用的更改。"
+msgid "Settings saved."
+msgstr "设置已保存。"
 
 msgid "Not bound"
 msgstr "未绑定"

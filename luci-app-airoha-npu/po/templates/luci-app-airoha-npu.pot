@@ -94,7 +94,7 @@ msgstr ""
 msgid "NPU Core"
 msgstr ""
 
-msgid "No changes to apply."
+msgid "Settings saved."
 msgstr ""
 
 msgid "Not bound"

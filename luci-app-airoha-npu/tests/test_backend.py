@@ -148,7 +148,7 @@ class Backend(unittest.TestCase):
             (self.policy / name).write_text(value + '\n')
 
     def call(self, method, args=None):
-        return json.loads(subprocess.check_output(['sh', str(BACKEND), 'call', method],
+        return json.loads(subprocess.check_output(['busybox', 'ash', str(BACKEND), 'call', method],
                          input=json.dumps(args or {}).encode(), env=self.env))
 
     def test_cpu_validation(self):
@@ -219,15 +219,73 @@ class Backend(unittest.TestCase):
         (firmware / 'firmware-name').write_bytes(b'airoha/rv32.bin\0')
         self.assertEqual(self.call('getInfo')['firmware_file'], '/lib/firmware/airoha/rv32.bin')
         self.assertEqual(self.call('getInfo')['firmware_file_version'], '')
-        (dt / 'compatible').write_bytes(b'quote"\\\x01test\0')
-        self.assertEqual(self.call('getInfo')['soc_compat'], 'quote"\\\x01test')
+        (dt / 'compatible').write_bytes(b'quote"\\\x01test\tend\0')
+        self.assertEqual(self.call('getInfo')['soc_compat'], 'quote"\\\x01test\tend')
+
+    def test_settings_staging(self):
+        payload = {'governor': 'performance', 'freq': '1400000', 'ubus_rpc_session': 'fixture'}
+        before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()}
+        self.assertIsNone(self.call('getSettings')['pending'])
+        self.assertEqual(self.call('saveSettings', payload), {'result': 'ok'})
+        self.assertEqual(before, {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()})
+        pending = self.root / 'etc/airoha-npu/pending.json'
+        self.assertEqual(pending.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(pending.parent.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(self.call('getSettings')['pending'], {'governor': 'performance', 'freq': '1400000'})
+        self.assertEqual(self.call('applySettings'), {'result': 'ok'})
+        self.assertEqual(self.call('getStatus')['cpu_governor'], 'performance')
+        self.assertEqual(self.call('getStatus')['cpu_max_freq'], 1400000)
+        # Saved baseline remains durable after Apply; neither read nor reboot auto-applies it.
+        self.assertEqual(self.call('getSettings')['pending'], json.loads(pending.read_text()))
+        for gov, freq in [('schedutil', '1400000'), ('schedutil', '1200000'), ('performance', '500000')]:
+            self.assertEqual(self.call('saveSettings', {'governor': gov, 'freq': freq}), {'result': 'ok'})
+            self.assertEqual(self.call('applySettings'), {'result': 'ok'})
+            self.assertEqual(self.call('getStatus')['cpu_governor'], gov)
+            self.assertEqual(self.call('getStatus')['cpu_max_freq'], int(freq))
+        original = pending.read_bytes()
+        for changes in [{'governor': 'bad'}, {'freq': '500000\n'}, {'freq': 500000}, {'governor': None}]:
+            self.assertEqual(self.call('saveSettings', dict(payload, **changes))['error'], 'invalid')
+            self.assertEqual(pending.read_bytes(), original)
+        lock = self.root / 'var/lock/luci-airoha-npu'
+        lock.mkdir()
+        self.assertEqual(self.call('applySettings')['error'], 'busy')
+        self.assertEqual(self.call('saveSettings', payload)['error'], 'busy')
+        lock.rmdir()
+        pending.unlink(); pending.mkdir()
+        self.assertEqual(self.call('saveSettings', payload)['error'], 'storage')
+        pending.rmdir(); pending.write_text('{broken')
+        self.assertEqual(self.call('getSettings')['error'], 'invalid')
+        self.assertEqual(self.call('applySettings')['error'], 'invalid')
+        pending.unlink(); pending.symlink_to(self.policy / 'scaling_governor')
+        for method in ['getSettings', 'saveSettings', 'applySettings']:
+            self.assertEqual(self.call(method, payload)['error'], 'storage')
+
+    def test_settings_rollback(self):
+        payload = {'governor': 'performance', 'freq': '1400000'}
+        self.assertEqual(self.call('saveSettings', payload), {'result': 'ok'})
+        copied = self.root / 'rpc'
+        copied.write_text(BACKEND.read_text().replace(
+            'read_value() { cat "$1" 2>/dev/null; }',
+            'read_value() { case "$1" in */scaling_max_freq) printf "1200000\\n";; *) cat "$1" 2>/dev/null;; esac; }'))
+        def apply():
+            return json.loads(subprocess.check_output(['busybox', 'ash', str(copied), 'call', 'applySettings'], input=b'{}', env=self.env))
+        self.assertEqual(apply()['error'], 'write_failed')
+        self.assertEqual((self.policy / 'scaling_governor').read_text().strip(), 'schedutil')
+        self.assertEqual((self.policy / 'scaling_max_freq').read_text().strip(), '1200000')
+        self.assertEqual(self.call('getSettings')['pending'], payload)
+        target = self.policy / 'scaling_max_freq'
+        target.unlink(); target.symlink_to('/dev/full')
+        self.assertEqual(apply()['error'], 'rollback_failed')
+        self.assertEqual((self.policy / 'scaling_governor').read_text().strip(), 'schedutil')
+        target.unlink(); target.write_text('1200000\n')
+        self.assertEqual(self.call('applySettings'), {'result': 'ok'})
 
     def test_surface(self):
         source = BACKEND.read_text()
         for forbidden in ('devmem', 'setOverclock', 'getPpeEntries', 'modprobe', 'bridge-nf-', '_run_with_deadline'):
             self.assertNotIn(forbidden, source)
         methods = json.loads(subprocess.check_output(['sh', str(BACKEND), 'list']))
-        self.assertEqual(set(methods), {'getStatus', 'getInfo', 'getFlowOffload', 'setGovernor', 'setMaxFreq'})
+        self.assertEqual(set(methods), {'getStatus', 'getInfo', 'getFlowOffload', 'setGovernor', 'setMaxFreq', 'getSettings', 'saveSettings', 'applySettings'})
 
 if __name__ == '__main__':
     unittest.main()

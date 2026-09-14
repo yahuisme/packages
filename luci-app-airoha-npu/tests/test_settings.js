@@ -1,28 +1,44 @@
 'use strict';
-const assert = require('assert');
+const assert = require('assert/strict');
 const fs = require('fs');
 const path = require('path');
 const source = fs.readFileSync(path.join(__dirname, '../htdocs/luci-static/resources/view/airoha_npu/settings.js'), 'utf8');
-async function scenario(undoFailure, readFailure = false) {
- let map, options = {}, calls = [], notices = [];
- const state = { cpu_governor: 'performance', cpu_max_freq: 1000000 };
- function Map() { map = this; this.section = () => ({ option: (_, name) => options[name] = { value() {}, formvalue() { return ({ governor: 'schedutil', frequency: '800000' })[name]; } } }); this.lookupOption = n => [options[n]]; this.render = () => Promise.resolve({ classList: { add() {} }, prepend() {} }); }
- const rpc = { declare: spec => (...args) => {
-  calls.push([spec.method, ...args]);
-  if (spec.method === 'getStatus') return readFailure ? Promise.reject(new Error('read failed')) : Promise.resolve({...state});
-  assert(!spec.method.includes('Flow'), 'CPU settings must not call flow RPCs');
-  if (spec.method === 'setGovernor') { if (undoFailure && args[0] === 'performance') return Promise.reject(new Error('undo failed')); state.cpu_governor = args[0]; }
-  if (spec.method === 'setMaxFreq') return Promise.resolve({result:'error',error:'write_failed'});
-  return Promise.resolve({ result:'ok' });
+async function scenario(failure) {
+ let map, options = {}, calls = [], notices = [], pending = null;
+ let permitted = true;
+ const rpc = { declare: spec => async (...args) => {
+  calls.push(spec.method);
+  if (spec.method === 'saveSettings') {
+   if (failure === 'save') return { error: 'storage' };
+   pending = { governor: args[0], freq: args[1] };
+   if (failure === 'revoke') permitted = false;
+  }
+  if (spec.method === 'getSettings') {
+   if (failure === 'read') throw new Error('read failed');
+   return { result: 'ok', pending: failure === 'mismatch' ? null : pending };
+  }
+  if (spec.method === 'applySettings' && failure === 'apply') return { error: 'rollback_failed' };
+  if (spec.method === 'getStatus') return { cpu_governor: 'performance', cpu_max_freq: 1000000 };
+  return { result: 'ok' };
  } };
- const document = { getElementById: () => true };
- // Compile only the trusted checked-out LuCI source; no user input is code.
- const view = new Function('L','view','form','rpc','ui','document','_','E',source)({hasViewPermission:()=>true},{extend:x=>x},{JSONMap:Map},rpc,{addNotification:(_,node)=>notices.push(node)},document,x=>x,(_,__,text)=>text);
- await view.render([{governors:'performance schedutil',frequencies:'1000000 800000'}, {...state}]);
- assert.deepStrictEqual(Object.keys(options), ['governor', 'frequency']);
- await assert.rejects(map.save(), /Previous settings were restored/);
- assert(calls.some(c=>c[0]==='setGovernor' && c[1]==='performance'), 'must attempt all undo operations');
- assert(calls.some(c=>c[0]==='getStatus'), 'rollback must read back actual state');
- assert(notices.at(-1).includes(undoFailure || readFailure ? 'recovery could not be verified' : 'Previous settings were restored'), 'must distinguish verified recovery');
+ function Map() {
+  map = this;
+  this.section = () => ({ option: (_, name) => options[name] = { value() {}, formvalue() { return name === 'governor' ? 'schedutil' : '800000'; } } });
+  this.lookupOption = n => [options[n]]; this.render = async () => ({});
+ }
+ // Compile trusted checked-out source only; RPC data is never executable.
+ const view = new Function('L','view','form','rpc','ui','_','E',source)(
+  {hasViewPermission:()=>permitted}, {extend:x=>x}, {JSONMap:Map}, rpc,
+  {addNotification:(_,node)=>notices.push(node)}, x=>x, (_,__,text)=>text);
+ await view.render([{governors:'performance schedutil',frequencies:'1000000 800000'},
+  {cpu_governor:'performance',cpu_max_freq:1000000}, {result:'ok',pending:null}]);
+ const first = map.save(true), duplicate = map.save(true);
+ assert.equal(first, duplicate, 'concurrent actions share one operation');
+ await assert.rejects(first);
+ assert.equal(calls.filter(c=>c==='saveSettings').length, 1);
+ assert.equal(calls.filter(c=>c==='applySettings').length, ['apply','runtime'].includes(failure) ? 1 : 0);
+ assert(notices.length, 'failure must be notified');
+ assert(!calls.some(c=>c==='setGovernor'||c==='setMaxFreq'));
+ assert.equal(options.governor.default, ['apply','runtime','revoke'].includes(failure) ? 'schedutil' : 'performance', 'only verified saves advance Reset baseline');
 }
-(async()=>{await scenario(false);await scenario(true);await scenario(false,true);console.log('PASS CPU rollback, readback and failed recovery without flow RPCs');})().catch(e=>{console.error(e);process.exit(1);});
+(async()=>{for(const failure of ['save','read','mismatch','apply','runtime','revoke']) await scenario(failure); console.log('PASS save/readback/apply/runtime failures, duplicate actions, permission revocation and saved baseline');})().catch(e=>{console.error(e);process.exitCode=1;});
