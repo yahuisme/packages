@@ -5,6 +5,7 @@
  */
 
 'use strict';
+'require dom';
 'require form';
 'require homeproxy.lifecycle as lifecycle';
 'require rpc';
@@ -122,7 +123,7 @@ return view.extend({
 			}, _('Collecting data...'));
 			lifecycle.poll(status, 'server-status',
 				() => L.resolveDefault(hp.getServiceStatus('sing-box-s')),
-				(res) => { status.innerHTML = renderStatus(res, features.version); });
+				(res) => { dom.content(status, renderStatus(res, features.version)); });
 
 			return E('div', { class: 'cbi-section', id: 'status_bar' }, [
 					status

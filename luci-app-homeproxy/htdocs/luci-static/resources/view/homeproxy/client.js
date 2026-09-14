@@ -5,8 +5,8 @@
  */
 
 'use strict';
-'require form';
 'require dom';
+'require form';
 'require network';
 'require homeproxy.lifecycle as lifecycle';
 'require rpc';
@@ -326,7 +326,7 @@ return view.extend({
 
 						current_label = _('URLTest: %s').format(nodeName);
 					}
-					status.innerHTML = renderStatus(isRunning, features.version, current_label);
+					dom.content(status, renderStatus(isRunning, features.version, current_label));
 			});
 
 			return E('div', { class: 'cbi-section', id: 'status_bar' }, [

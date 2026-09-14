@@ -5,6 +5,7 @@
  */
 
 'use strict';
+'require dom';
 'require form';
 'require fs';
 'require rpc';
@@ -772,7 +773,7 @@ function renderNodeSettings(section, data, features, main_node, node_latency_row
 
 		let status_widget = this.map.findElement('id', latency_id);
 		if (status_widget)
-			status_widget.innerHTML = renderNodeLatencyStatus(row_state);
+			dom.content(status_widget, renderNodeLatencyStatus(row_state));
 
 		let test_widget = this.map.findElement('id', test_id);
 		let test_button = test_widget ? test_widget.querySelector('button') : null;
