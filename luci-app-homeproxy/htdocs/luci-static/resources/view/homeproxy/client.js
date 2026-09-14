@@ -485,7 +485,7 @@ return view.extend({
 
 		o = s.taboption('routing', form.ListValue, 'tcpip_stack', _('TCP/IP stack'),
 			_('TCP/IP stack.'));
-		o.value('mixed', _('Automatic'));
+		o.value('mixed', 'Mixed');
 		if (features.with_gvisor)
 			o.value('gvisor', 'gVisor');
 		o.value('system', 'System');

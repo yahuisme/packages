@@ -1365,10 +1365,6 @@ msgstr "分（0-59）、时（0-23）、日（1-31）、月（1-12）、周（0-
 msgid "Mixed"
 msgstr "混合"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:482
-msgid "Automatic"
-msgstr "自动"
-
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:494
 msgid "Automatically select the stack supported by the core."
 msgstr "自动选择内核支持的协议栈。"
@@ -1754,9 +1750,9 @@ msgstr "Salamander"
 msgid "Save and apply to enable Tailscale."
 msgstr "保存并应用后启用 Tailscale。"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1932
-msgid "Save current settings"
-msgstr "保存当前设置"
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1962
+msgid "Save and update subscriptions"
+msgstr "保存并更新订阅"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1929
 msgid "Save subscriptions settings"
@@ -1947,7 +1943,7 @@ msgstr "无法获取 Tailscale 状态。请保存并应用，并确认客户端�
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:316
 msgid ""
 "Tell the client to use the BBR flow control algorithm instead of Hysteria CC."
-msgstr "让客户端使用 BBR 流控算法。"
+msgstr "让客户端使用 BBR 流量控制算法，而非 Hysteria CC。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:424
 msgid "Tencent Public DNS (DoH)"
@@ -2300,7 +2296,7 @@ msgstr "使用 ACME TLS 证书颁发机构。"
 msgid ""
 "Used only when creating the node. Leave empty to sign in using the login "
 "button below."
-msgstr "仅在创建设备时使用。留空后可通过下方登录按钮完成登录。"
+msgstr "仅在创建节点时使用。留空后可通过下方登录按钮完成登录。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1504
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:555
@@ -2547,13 +2543,13 @@ msgid "Remove %s subscription nodes? This cannot be undone."
 msgstr "确认删除 %s 个订阅节点？"
 
 msgid "The main node will be cleared and the client will be disabled."
-msgstr "主节点将被清空，应用设置后客户端将关闭。"
+msgstr "主节点将被清空，客户端将被禁用。"
 
 msgid "The main node will not be changed."
 msgstr "主节点保持不变。"
 
 msgid "Diversion groups using removed nodes must be assigned another node."
-msgstr "使用已删除节点的分流组将回退到主节点。"
+msgstr "使用已删除节点的分流组必须指定其他节点。"
 
 msgid "Unavailable node: %s"
 msgstr "失效节点：%s"
