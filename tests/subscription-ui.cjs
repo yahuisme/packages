@@ -1,7 +1,7 @@
 const assert = require('assert/strict');
 const { pageBoot, tick } = require('./helpers/test_page_lifecycle.cjs');
 
-const UPDATE = 'Save and update 1 subscriptions';
+const UPDATE = 'Save and update subscriptions';
 const REMOVE = 'Remove 1 nodes';
 
 function deferred() {
@@ -96,24 +96,25 @@ async function fixture() {
 	try {
 		h.update();
 		await settleUntil(() => h.calls.includes('reset'), 'successful update did not finish');
-		assert.deepEqual(h.calls, [ 'save', 'saved', 'apply', 'confirm', 'exec', 'reset' ]);
-		assert.equal(h.navigationErrors.length, 1, 'successful update must request exactly one reload');
+		assert.deepEqual(h.calls, [ 'save', 'saved', 'exec', 'reset' ]);
+		assert(!h.calls.includes('apply') && !h.calls.includes('confirm'),
+			'subscription import must not invoke the unrelated UCI apply transaction');
 	} finally { h.close(); }
 
 	h = await fixture();
 	try {
-		h.gates.apply = deferred();
+		h.gates.exec = deferred();
 		const pending = h.update();
-		await settleUntil(() => h.calls.includes('apply'), 'update did not reach apply');
+		await settleUntil(() => h.calls.includes('exec'), 'update did not reach subscription import');
 		h.update();
 		await tick();
 		assert.equal(h.calls.filter(x => x === 'save').length, 1, 'second click must not start another save');
-		h.gates.apply.resolve();
+		h.gates.exec.resolve();
 		await pending;
 		assert(h.calls.includes('reset'), 'single-flight update did not finish');
 	} finally { h.close(); }
 
-	for (const stage of [ 'apply', 'confirm', 'exec' ]) {
+	for (const stage of [ 'exec' ]) {
 		h = await fixture();
 		try {
 			h.failures[stage] = Error(`injected ${stage} failure`);
@@ -121,7 +122,7 @@ async function fixture() {
 			assert(h.calls.includes('reset'), `${stage} failure did not settle`);
 			assert.equal(h.notices.length, 1, `${stage} failure must notify once`);
 			assert.equal(h.notices[0].level, 'error');
-			assert(!h.calls.includes('exec') || stage === 'exec', `${stage} failure must abort exec`);
+			assert(!h.calls.includes('exec') || stage === 'exec', 'save failure must abort exec');
 		}
 		finally { h.close(); }
 	}
@@ -138,6 +139,8 @@ async function fixture() {
 		urlOption.formvalue = () => [ 'https://example.invalid/changed' ];
 		urlOption.onchange(null, 'subscription');
 		assert(!button.disabled, 'adding a URL must re-enable update immediately');
+		assert.equal(button.textContent, UPDATE, 'URL changes must retain the concise update label');
+		assert.equal(h.button('Save current settings'), undefined, 'redundant subscription save button must not render');
 	} finally { h.close(); }
 
 	h = await fixture();
@@ -192,7 +195,7 @@ async function fixture() {
 		assert(!h.mutations.some(call => call[0] === 'set' && call[3] === 'main_node'), 'save failure must not alter main node');
 	} finally { h.close(); }
 
-	console.log('PASS current node.js native Map.save -> rpc/uci apply -> wait -> confirm -> exec; failures, cancellation and single-flight');
+	console.log('PASS current node.js saves then imports subscriptions without UCI apply/confirm; failures, cancellation and single-flight');
 })().catch(err => {
 	console.error(err);
 	process.exitCode = 1;

@@ -1949,13 +1949,6 @@ return view.extend({
 		return value == null ? 'xudp' : (value || 'none');
 	};
 
-		o = s.taboption('subscription', form.Button, '_save_subscriptions', _('Save subscriptions settings'));
-		o.inputstyle = 'apply';
-		o.inputtitle = _('Save current settings');
-		o.onclick = function() {
-			return this.map.save(null, true).then(() => ui.changes.apply(true));
-		};
-
 		let subscriptionActionPending = false;
 		o = s.taboption('subscription', form.Button, '_update_subscriptions', _('Update nodes from subscriptions'),
 			_('Save and apply current settings before updating subscriptions.'));
@@ -1966,7 +1959,7 @@ return view.extend({
 				uci.get(data[0], section_id, 'subscription_url') ?? [];
 			const count = L.toArray(urls).filter(Boolean).length;
 			this.readonly = !!this.map.readonly || subscriptionActionPending || count === 0;
-			return count ? _('Save and update %s subscriptions').format(count) : _('No subscription available');
+			return count ? _('Save and update subscriptions') : _('No subscription available');
 		};
 		subscriptionURLs.onchange = function(ev, section_id) {
 			const title = updateSubscriptions.inputtitle(section_id);
@@ -1983,15 +1976,9 @@ return view.extend({
 			subscriptionActionPending = true;
 			try {
 				await this.map.save(null, true);
-				// Stable LuCI uci.apply() resolves before confirmation. Use its RPC
-				// primitives here; ui.changes.apply() also schedules a page reload.
-				const applied = await uci.callApply(10, true);
-				if (applied !== 0)
-					throw applied;
-				await new Promise(resolve => window.setTimeout(resolve, 1000));
-				const confirmed = await uci.callConfirm();
-				if (confirmed !== 0)
-					throw confirmed;
+				// Map.save() commits the edited UCI settings. The updater reads that
+				// committed state itself; an extra uci/apply() is unrelated to the
+				// import and can report a stale apply result after a successful save.
 				ui.changes.setIndicator(0);
 				const res = await fs.exec('/etc/homeproxy/scripts/update_subscriptions.sh');
 				if (res.code !== 0)
