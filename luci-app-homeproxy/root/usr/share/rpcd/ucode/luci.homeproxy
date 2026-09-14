@@ -196,13 +196,25 @@ const methods = {
 				}
 				push(staged, { file, temporary });
 			}
+			for (let path in staged)
+				path.backup = path.file + '.bak',
+				path.had_backup = readfile(path.file) !== null,
+				path.had_backup && writefile(path.backup, readfile(path.file));
 
 			for (let path in staged)
 				if (!rename(path.temporary, path.file)) {
+					for (let restore in staged) {
+						if (restore.had_backup)
+							rename(restore.backup, restore.file);
+						else
+							unlink(restore.file);
+					}
 					for (let pending in staged)
 						unlink(pending.temporary);
 					return { result: false, error: 'failed to install domain list' };
 				}
+			for (let path in staged)
+				unlink(path.backup);
 
 			return { result: true };
 		}
@@ -307,13 +319,17 @@ const methods = {
 					filecontent += '\n';
 
 				const certfile = `${HP_DIR}/certs/${filename}.pem`;
+				const newcert = `${certfile}.new`;
 				system(`/bin/mkdir -p ${shellQuote(HP_DIR + '/certs')}`);
-				if (writefile(certfile, filecontent) === null) {
+				if (writefile(newcert, filecontent) === null ||
+					lstat(newcert)?.size !== length(filecontent)) {
 					system(`/bin/rm -f ${shellQuote(tmpcert)}`);
+					system(`/bin/rm -f ${shellQuote(newcert)}`);
 					return { result: false, error: 'failed to write certificate file' };
 				}
-				if (kind === 'private' && system(`/bin/chmod 600 ${shellQuote(certfile)}`) !== 0) {
-					system(`/bin/rm -f ${shellQuote(tmpcert)} ${shellQuote(certfile)}`);
+				if (system(`/bin/chmod ${kind === 'private' ? '600' : '644'} ${shellQuote(newcert)}`) !== 0 ||
+					system(`/bin/mv -f ${shellQuote(newcert)} ${shellQuote(certfile)}`) !== 0) {
+					system(`/bin/rm -f ${shellQuote(tmpcert)} ${shellQuote(newcert)}`);
 					return { result: false, error: 'failed to protect private key file' };
 				}
 				system(`/bin/rm -f ${shellQuote(tmpcert)}`);

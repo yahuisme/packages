@@ -373,7 +373,9 @@ return baseclass.extend({
 				else if (!value[2])
 					value[2] = 65535;
 
-				if (value[1] < value[2] && value[2] <= 65535)
+				const start = Number(value[1]), end = Number(value[2]);
+				if (Number.isInteger(start) && Number.isInteger(end) &&
+					start >= 0 && start <= 65535 && end >= 0 && end <= 65535 && start < end)
 					return true;
 			}
 

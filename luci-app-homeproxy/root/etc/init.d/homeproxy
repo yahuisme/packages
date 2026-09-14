@@ -442,6 +442,8 @@ start_service() {
 	if [ "$server_ready" -eq 1 ]; then
 		touch "$RUN_DIR/sing-box-s.log" || return 1
 		mkdir -p "$HP_DIR/certs"
+		chown -R sing-box:sing-box "$HP_DIR/certs"
+		chmod 750 "$HP_DIR/certs"
 	fi
 
 	# Update permissions for ujail
