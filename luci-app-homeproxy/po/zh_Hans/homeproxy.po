@@ -1365,9 +1365,13 @@ msgstr "分（0-59）、时（0-23）、日（1-31）、月（1-12）、周（0-
 msgid "Mixed"
 msgstr "混合"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:497
-msgid "Mixed <code>System</code> TCP stack and <code>gVisor</code> UDP stack."
-msgstr "混合 <code>System</code> TCP 栈和 <code>gVisor</code> UDP 栈。"
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:482
+msgid "Automatic"
+msgstr "自动"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:494
+msgid "Automatically select the stack supported by the core."
+msgstr "自动选择内核支持的协议栈。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1415
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:489

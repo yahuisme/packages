@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 APP = Path(__file__).resolve().parents[1]
-BASE = Path(os.environ.get('OPENWRT_SOURCE', '/root/mx4200-config-check'))
+BASE = Path(os.environ['OPENWRT_SOURCE'])
 INIT = (APP / 'root/etc/init.d/homeproxy').read_text()
 RC = (BASE / 'package/base-files/files/etc/rc.common').read_text()
 PROCD = (BASE / 'package/system/procd/files/procd.sh').read_text()

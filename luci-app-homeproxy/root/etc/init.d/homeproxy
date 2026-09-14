@@ -565,5 +565,6 @@ reload_service() {
 
 service_triggers() {
 	procd_add_reload_trigger "$CONF"
-	procd_add_interface_trigger "interface.*.up" wan /etc/init.d/$CONF reload
+	# The next uplink may not exist yet; reload on any interface transition.
+	procd_add_raw_trigger "interface.*" 1000 /etc/init.d/$CONF reload
 }

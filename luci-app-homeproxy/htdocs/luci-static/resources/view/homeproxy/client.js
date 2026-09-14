@@ -479,10 +479,9 @@ return view.extend({
 
 		o = s.taboption('routing', form.ListValue, 'tcpip_stack', _('TCP/IP stack'),
 			_('TCP/IP stack.'));
-		if (features.with_gvisor) {
-			o.value('mixed', 'Mixed');
+		o.value('mixed', _('Automatic'));
+		if (features.with_gvisor)
 			o.value('gvisor', 'gVisor');
-		}
 		o.value('system', 'System');
 		o.default = 'mixed';
 		o.depends('routing_mode', 'bypass_mainland_china');
@@ -492,7 +491,7 @@ return view.extend({
 		o.onchange = function(ev, section_id, value) {
 			let desc = ev.target.nextElementSibling;
 			if (value === 'mixed')
-				desc.innerHTML = _('Mixed <code>System</code> TCP stack and <code>gVisor</code> UDP stack.')
+				desc.innerHTML = _('Automatically select the stack supported by the core.');
 			else if (value === 'gvisor')
 				desc.innerHTML = _('Based on Google/gVisor.');
 			else if (value === 'system')

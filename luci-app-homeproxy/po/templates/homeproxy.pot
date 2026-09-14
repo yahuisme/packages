@@ -1290,8 +1290,12 @@ msgstr ""
 msgid "Mixed"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:497
-msgid "Mixed <code>System</code> TCP stack and <code>gVisor</code> UDP stack."
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:482
+msgid "Automatic"
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:494
+msgid "Automatically select the stack supported by the core."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1415

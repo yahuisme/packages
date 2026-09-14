@@ -7,8 +7,8 @@ OPENWRT_SOURCE=/path/to/openwrt python3 luci-app-homeproxy/tests/test_reload.py 
 ```
 
 `OPENWRT_SOURCE` supplies native `package/base-files/files/etc/rc.common` and
-`package/system/procd/files/procd.sh`; the local default is
-`/root/mx4200-config-check`. No network or proxy is started. Production init
+`package/system/procd/files/procd.sh`. Set it to your OpenWrt source tree.
+No network or proxy is started. Production init
 functions and native rc/procd submission wrappers execute in BusyBox ash;
 UCI, generators/checker, JSON serialization, ubus, fw4, DNS and ownership
 are isolated platform boundaries.

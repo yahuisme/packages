@@ -4,7 +4,7 @@
 
 - 实机稳定基线：[b82dd32](https://github.com/yahuisme/packages/commit/b82dd3209bd8d9e6d5d47dc6b0cd285a3874c81a)，包含 IPv6 开关修复及上游连接测试逻辑。
 - 最后上游镜像：[a2f2057](https://github.com/yahuisme/packages/commit/a2f20573763a1df570c730eca1f9b076dc80314f)，对应 VIKINGYFY/packages `0d58e33f8f728dcd65c1f51210ff665f6ed931ed` 的 HomeProxy 内容。
-- 独立维护迁移：[141b76e](https://github.com/yahuisme/packages/commit/141b76e)。原 runtime/UI 补丁吸收进源码，删除补丁层；MX4200 配套接入：[600806e](https://github.com/yahuisme/mx4200-immortalwrt/commit/600806e)。
+- 独立维护迁移：[141b76e](https://github.com/yahuisme/packages/commit/141b76e)。原 runtime/UI 补丁吸收进源码，删除补丁层。
 
 ## 维护规则
 

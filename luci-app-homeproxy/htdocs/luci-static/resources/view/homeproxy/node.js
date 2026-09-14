@@ -1980,9 +1980,15 @@ return view.extend({
 			subscriptionActionPending = true;
 			try {
 				await this.map.save(null, true);
-				// ui.changes.apply() returns undefined and schedules a page reload.
-				// Use the promise-based UCI apply/confirm contract for this chained action.
-				await uci.apply();
+				// Stable LuCI uci.apply() resolves before confirmation. Use its RPC
+				// primitives here; ui.changes.apply() also schedules a page reload.
+				const applied = await uci.callApply(10, true);
+				if (applied !== 0)
+					throw applied;
+				await new Promise(resolve => window.setTimeout(resolve, 1000));
+				const confirmed = await uci.callConfirm();
+				if (confirmed !== 0)
+					throw confirmed;
 				ui.changes.setIndicator(0);
 				const res = await fs.exec('/etc/homeproxy/scripts/update_subscriptions.sh');
 				if (res.code !== 0)

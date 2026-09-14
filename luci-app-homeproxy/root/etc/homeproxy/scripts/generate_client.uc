@@ -66,7 +66,27 @@ function add_inline_domain_rule_set(rule_sets, group, type) {
 	});
 }
 
-let wan_dns = ubus.call('network.interface', 'status', {'interface': 'wan'})?.['dns-server']?.[0];
+let wan_dns;
+// Match LuCI's WAN discovery: active default routes in the main table.
+// Prefer IPv4, then IPv6; ignore LAN DNS and policy-routing tables.
+const interfaces = sort(ubus.call('network.interface', 'dump')?.interface || [],
+	(a, b) => (int(a.metric || 0) - int(b.metric || 0)) || (a.interface < b.interface ? -1 : a.interface > b.interface ? 1 : 0));
+for (let target in ['0.0.0.0', '::']) {
+	for (let iface in interfaces) {
+		if (!iface.up || !length(iface['dns-server']))
+			continue;
+		for (let route in (iface.route || [])) {
+			if (route.target === target && route.mask === 0 && !route.table) {
+				wan_dns = iface['dns-server'][0];
+				break;
+			}
+		}
+		if (wan_dns)
+			break;
+	}
+	if (wan_dns)
+		break;
+}
 if (!wan_dns)
 	wan_dns = (routing_mode === 'global') ? '9.9.9.9' : '223.5.5.5';
 
@@ -183,7 +203,10 @@ const tun_name = uci.get(uciconfig, uciinfra, 'tun_name') || 'singtun0';
 const tun_addr4 = uci.get(uciconfig, uciinfra, 'tun_addr4') || '172.19.0.1/30';
 const tun_addr6 = uci.get(uciconfig, uciinfra, 'tun_addr6') || 'fdfe:dcba:9876::1/126';
 const tun_mtu = uci.get(uciconfig, uciinfra, 'tun_mtu') || '9000';
-const tcpip_stack = uci.get(uciconfig, ucimain, 'tcpip_stack') || 'mixed';
+// An omitted stack lets sing-tun select mixed with gVisor, system without it.
+// Preserve explicit system/gvisor; the shipped mixed default must also work on tiny.
+const configured_stack = uci.get(uciconfig, ucimain, 'tcpip_stack') || 'mixed';
+const tcpip_stack = configured_stack === 'mixed' ? null : configured_stack;
 const udp_timeout = uci.get(uciconfig, 'infra', 'udp_timeout');
 
 const log_level = uci.get(uciconfig, ucimain, 'log_level') || 'warn';
