@@ -2,7 +2,7 @@
 
 include $(TOPDIR)/rules.mk
 
-PKG_VERSION:=20260912
+PKG_VERSION:=20260914
 PKG_RELEASE:=1
 
 LUCI_TITLE:=LuCI Support for Airoha NPU Status

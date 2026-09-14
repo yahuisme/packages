@@ -20,6 +20,11 @@ const tick=()=>new Promise(r=>setImmediate(r));
   };
   h.mods.uci.unload('wireless');await h.mods.uci.load('wireless');await h.tab(2);
   const map=h.mods.dom.findClassInstance(h.q('.mlo-map')),section=map.children[0];
+  const cardRoot=h.q('.mlo-map');
+  for(let i=0;i<3;i++){await h.tab(0);await h.tab(2);}
+  assert.equal(h.q('.mlo-map'),cardRoot,'WiFi7 reuses its loaded feature card');
+  assert.equal(h.node.querySelectorAll('.mlo-map').length,1,'one embedded feature owner');
+  assert.equal(h.node.querySelectorAll('.wifi7-map').length,0,'no nested standalone application');
   async function edit(value){
    await section.renderMoreOptionsModal('test');
    const edit=h.mods.dom.findClassInstance(h.w.document.querySelector('.modal .cbi-map'));

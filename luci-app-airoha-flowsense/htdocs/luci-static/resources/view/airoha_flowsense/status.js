@@ -16,12 +16,12 @@ var css = `
 .flowsense-dashboard .flowsense-status-message{text-align:right}
 .flowsense-dashboard .flowsense-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--flowsense-gap);margin:16px 0}
 .flowsense-dashboard .flowsense-card{min-width:0;min-height:96px;padding:8px 16px;display:flex;flex-direction:column;justify-content:center;gap:4px;line-height:1.5;overflow-wrap:anywhere;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:4px;background:var(--cbi-section-bg,transparent)}
-.flowsense-dashboard .flowsense-label{color:var(--cbi-muted-color,var(--text-muted,#666))}
+.flowsense-dashboard .flowsense-label{color:var(--cbi-muted-color,var(--text-muted,inherit))}
 .flowsense-dashboard .flowsense-value{display:block;font-size:1.125em;font-weight:600;font-variant-numeric:tabular-nums}
-.flowsense-dashboard .flowsense-sub{color:var(--cbi-muted-color,var(--text-muted,#888))}
+.flowsense-dashboard .flowsense-sub{color:var(--cbi-muted-color,var(--text-muted,inherit))}
 .flowsense-dashboard .flowsense-status{display:inline-flex;align-items:center;gap:8px;color:inherit;white-space:nowrap}
 .flowsense-dashboard .flowsense-status-arrow{color:inherit;font-weight:600}
-.flowsense-dashboard .flowsense-up > span{color:#16a34a}
+.flowsense-dashboard .flowsense-up > span{color:var(--success,light-dark(var(--success-color-low,#15803d),var(--success-color-high,#16a34a)))}
 .flowsense-dashboard .flowsense-port-name{font-size:1.125em;font-weight:600}
 .flowsense-dashboard .flowsense-section{margin:16px 0}.flowsense-dashboard .flowsense-section .cbi-value{margin:0;padding:8px 0}
 .flowsense-dashboard .flowsense-ports{container-type:inline-size}
@@ -39,7 +39,7 @@ var css = `
 .flowsense-dashboard .flowsense-acceleration-dot{flex:0 0 6px;width:6px;height:6px;border-radius:50%;background:currentColor}
 @container(min-width:1400px){.flowsense-dashboard .flowsense-controls .cbi-value{padding-right:128px}}
 @container(max-width:520px){.flowsense-dashboard .flowsense-controls .cbi-value{padding-right:17px}}
-.flowsense-dashboard .flowsense-active{color:#16a34a}
+.flowsense-dashboard .flowsense-active{color:var(--success,light-dark(var(--success-color-low,#15803d),var(--success-color-high,#16a34a)))}
 @container(max-width:1000px){.flowsense-dashboard .flowsense-controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @container(max-width:520px){.flowsense-dashboard .flowsense-controls{grid-template-columns:minmax(0,1fr)}}
 @container(max-width:800px){.flowsense-dashboard .flowsense-port{grid-template-columns:repeat(3,minmax(0,1fr))}.flowsense-dashboard .flowsense-port-title{grid-column:1 / -1}}
