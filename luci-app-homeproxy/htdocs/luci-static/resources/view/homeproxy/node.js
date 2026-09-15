@@ -16,6 +16,14 @@
 'require homeproxy as hp';
 'require tools.widgets as widgets';
 
+// Keep the native ubus status so an unchanged configuration is a no-op.
+const callSubscriptionApply = rpc.declare({
+	object: 'uci',
+	method: 'apply',
+	params: ['timeout', 'rollback'],
+	reject: false
+});
+
 const callNodeLatencyTest = rpc.declare({
 	object: 'luci.homeproxy',
 	method: 'node_latency_test',
@@ -1983,15 +1991,16 @@ return view.extend({
 			let updated = false;
 			try {
 				await this.map.save(null, true);
-				// Map.save writes session deltas. Apply and confirm before the
-				// standalone updater reads committed settings. RPC errors reject.
-				const applied = await uci.callApply(10, true);
-				if (applied !== 0)
+				// Map.save writes session deltas; the updater reads committed settings.
+				const applied = await callSubscriptionApply(10, true);
+				if (applied === 0) {
+					await new Promise((resolve) => setTimeout(resolve, 1000));
+					const confirmed = await uci.callConfirm();
+					if (confirmed !== 0)
+						throw new Error(_('exit code %d').format(confirmed));
+				} else if (applied !== 5) {
 					throw new Error(_('exit code %d').format(applied));
-				await new Promise((resolve) => setTimeout(resolve, 1000));
-				const confirmed = await uci.callConfirm();
-				if (confirmed !== 0)
-					throw new Error(_('exit code %d').format(confirmed));
+				}
 				ui.changes.setIndicator(0);
 				const res = await fs.exec('/etc/homeproxy/scripts/update_subscriptions.sh');
 				if (res.code !== 0)

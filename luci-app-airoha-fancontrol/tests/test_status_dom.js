@@ -48,12 +48,9 @@ const view = vm.runInContext('(function(){'+source+'})()', context);
  pending({fan_mode:2,uci_mode:'auto',uci_preset:'quiet',fan_rpm:1500,fan_pwm:80,...Object.fromEntries(keys.map((key,i)=>[key,temperatures[i]]))});
  await new Promise(resolve => setImmediate(resolve));
  const accents=[...node.querySelectorAll('.fan-temp-card')].map(e=>e.style.getPropertyValue('--fan-temp-accent'));
- ['success','success','warning','warning',null,null,'danger'].forEach((token,i)=>{
-  if (token) assert(accents[i].startsWith('var(--'+token+','),'temperature threshold '+temperatures[i]+' uses '+token);
-  else {
-   assert(accents[i].startsWith('color-mix(in srgb,var(--warning,'));
-   assert(accents[i].includes('var(--danger,'),'high temperature blends warning and danger');
-  }
+ ['success','success','warning','warning','orange','orange','danger'].forEach((token,i)=>{
+  assert(accents[i].startsWith('var(--'+token+','),'temperature threshold '+temperatures[i]+' uses '+token);
+  if (token === 'orange') assert.strictEqual(accents[i], 'var(--orange,light-dark(#c2410c,#fb923c))');
  });
  assert.notStrictEqual(accents[3],accents[4],'the 65-degree transition retains its stronger warning color');
  accents.forEach(color=>assert(color.includes('light-dark('),'semantic status colors have light/dark fallback'));

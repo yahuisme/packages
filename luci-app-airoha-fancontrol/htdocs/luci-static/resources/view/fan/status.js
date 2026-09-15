@@ -37,7 +37,7 @@ function tempColor(value) {
 	if (!validTemp(value)) return 'var(--cbi-muted-color,var(--text-muted,#888))';
 	if (value < 50) return 'var(--success,light-dark(#15803d,#51bd85))';
 	if (value <= 65) return 'var(--warning,light-dark(#a16207,#facc15))';
-	if (value <= 75) return 'color-mix(in srgb,var(--warning,light-dark(#a16207,#facc15)),var(--danger,light-dark(#b91c1c,#f17070)))';
+	if (value <= 75) return 'var(--orange,light-dark(#c2410c,#fb923c))';
 	return 'var(--danger,light-dark(#b91c1c,#f17070))';
 }
 

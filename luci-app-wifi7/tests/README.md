@@ -30,6 +30,7 @@ node tests/style-scope.cjs
 node tests/summary-cards.cjs
 node tests/survey-dom.cjs
 node tests/telemetry.test.js
+node tests/radio-attribution.cjs
 node tests/typography.cjs
 node tests/view.test.js
 for mode in text lifecycle rpc; do node tests/known-defects.cjs "$mode"; done

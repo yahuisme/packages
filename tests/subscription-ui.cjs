@@ -45,9 +45,9 @@ async function fixture() {
 				await gates[method].promise;
 			if (failures[method] === 'reject')
 				throw Error(`injected ${method} transport failure`);
-			if (failures[method] === 'status')
+			if (failures[method] === 'status' || failures[method] === 'no-data')
 				return { ok: true, status: 200, json: () => h.w.JSON.parse(JSON.stringify({
-					jsonrpc: '2.0', id: req.id, result: [ 6 ]
+					jsonrpc: '2.0', id: req.id, result: [ failures[method] === 'no-data' ? 5 : 6 ]
 				})) };
 			return { ok: true, status: 200, json: () => h.w.JSON.parse(JSON.stringify({
 				jsonrpc: '2.0', id: req.id, result: [ 0, failures[method] === 'payload' ? 6 : 0 ]
@@ -114,6 +114,15 @@ async function fixture() {
 
 (async () => {
 	let h;
+	h = await fixture();
+	try {
+		h.failures.apply = 'no-data';
+		await h.update();
+		assert(h.calls.includes('exec'), 'uci/apply code 5 must still update unchanged subscriptions');
+		assert(!h.calls.includes('confirm'), 'no-data apply must not confirm a nonexistent rollback');
+		assert.equal(h.notices.filter(x => x.level === 'error').length, 0);
+		assert(!h.notices[0].el.isConnected, 'no-data progress cleaned up');
+	} finally { h.close(); }
 	for (const stage of [ 'save', 'apply', 'confirm', 'exec' ]) {
 		h = await fixture();
 		try {
@@ -143,7 +152,7 @@ async function fixture() {
 		} finally { h.close(); }
 	}
 
-	for (const [stage, modes] of Object.entries({ save: ['reject'], apply: ['status', 'payload', 'reject'], confirm: ['status', 'payload', 'reject'], exec: ['status', 'reject'] })) {
+	for (const [stage, modes] of Object.entries({ save: ['reject'], apply: ['status', 'payload', 'reject'], confirm: ['status', 'no-data', 'payload', 'reject'], exec: ['status', 'reject'] })) {
 		for (const mode of modes) {
 			h = await fixture();
 			try {

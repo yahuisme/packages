@@ -344,7 +344,10 @@ return view.extend({
 				radioInfo.forEach(function(result, index) {
 					var value = result.ok ? result.value : {};
 					var id = radios[index]['.name'];
-					if (value.frequency) stats[id].current = Object.assign({}, value, { width: value.htmode ? String(value.htmode).replace(/^(?:HT|VHT|HE|EHT)/, '') + ' MHz' : null });
+					// Single-wiphy drivers may repeat another band's data for every radio.
+					// Keep frequency-attributed interface/MLO readings ahead of this fallback.
+					if (!stats[id].current && telemetry.band(value.frequency) === radios[index].band)
+						stats[id].current = Object.assign({}, value, { width: value.htmode ? String(value.htmode).replace(/^(?:HT|VHT|HE|EHT)/, '') + ' MHz' : null });
 				});
 				previous = nextPrevious;
 				parsed.hostapd.forEach(function(h) { var r = radioFor('', h.freq), u = telemetry.utilization(h.chan_util_avg); if (r && u != null) stats[r].util = u; });
