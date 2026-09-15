@@ -2579,7 +2579,7 @@ msgstr "正在保存设置并更新订阅…"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1997
 msgid "Subscriptions updated successfully."
-msgstr "订阅更新成功。"
+msgstr "订阅更新成功"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1998
 msgid "Reload the page to display the updated nodes."
@@ -2604,3 +2604,23 @@ msgstr "已删除"
 
 msgid "Updating…"
 msgstr "正在更新…"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Unable to save subscription settings."
+msgstr "无法保存订阅设置，请检查输入"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Unable to apply subscription settings."
+msgstr "无法应用订阅设置"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Unable to update subscriptions. Check the subscription log."
+msgstr "订阅更新失败，请查看订阅日志"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Subscriptions updated, but unable to refresh the node list."
+msgstr "订阅已更新，但节点列表刷新失败"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Add a subscription URL first."
+msgstr "请先填写订阅地址"

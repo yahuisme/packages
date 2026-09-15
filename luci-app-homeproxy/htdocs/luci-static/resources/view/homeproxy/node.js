@@ -745,7 +745,7 @@ function createNodeLatencyRowStateModel() {
 	};
 }
 
-function renderNodeSettings(section, data, features, main_node, node_latency_row_state) {
+function renderNodeSettings(section, data, features, node_latency_row_state) {
 	let s = section, o;
 	/* Keep native tables scrollable without widening the surrounding page. */
 	s.renderContents = function() {
@@ -839,7 +839,7 @@ function renderNodeSettings(section, data, features, main_node, node_latency_row
 	o.modalonly = false;
 	o.inputstyle = 'apply';
 	o.inputtitle = function(section_id) {
-		if (main_node == section_id) {
+		if (uci.get(data[0], 'config', 'main_node') == section_id) {
 			this.readonly = true;
 			return _('Applied');
 		} else {
@@ -1722,33 +1722,35 @@ return view.extend({
 
 	render(data) {
 		let m, s, o, ss, so;
-		let main_node = uci.get(data[0], 'config', 'main_node');
 		let features = data[1];
 		let node_latency_row_state = createNodeLatencyRowStateModel();
 
 		this.node_latency_row_state = node_latency_row_state;
 
-		/* Cache subscription information, it will be called multiple times */
-		let subinfo = [], seen_subscriptions = {};
-		for (let suburl of (uci.get(data[0], 'subscription', 'subscription_url') || [])) {
-			const urlhash = hp.calcStringMD5(suburl.replace(/#.*$/, ''));
-			if (seen_subscriptions[urlhash])
-				continue;
-			seen_subscriptions[urlhash] = true;
-			let title = suburl;
-			try {
-				const url = new URL(suburl);
-				if (url.hash) {
-					try {
-						title = decodeURIComponent(url.hash.slice(1));
-					} catch (e) {
-						title = url.hash.slice(1);
+		function subscriptionInfo() {
+			let subinfo = [], seen_subscriptions = {};
+			for (let suburl of (uci.get(data[0], 'subscription', 'subscription_url') || [])) {
+				const urlhash = hp.calcStringMD5(suburl.replace(/#.*$/, ''));
+				if (seen_subscriptions[urlhash])
+					continue;
+				seen_subscriptions[urlhash] = true;
+				let title = suburl;
+				try {
+					const url = new URL(suburl);
+					if (url.hash) {
+						try {
+							title = decodeURIComponent(url.hash.slice(1));
+						} catch (e) {
+							title = url.hash.slice(1);
+						}
+					} else {
+						title = url.hostname;
 					}
-				} else {
-					title = url.hostname;
-				}
-			} catch (e) { }
-			subinfo.push({ 'hash': urlhash, 'title': title });
+				} catch (e) { }
+				subinfo.push({ 'hash': urlhash, 'title': title });
+			}
+
+			return subinfo;
 		}
 
 		m = new form.Map('homeproxy', _('Edit Nodes'));
@@ -1765,7 +1767,7 @@ return view.extend({
 		/* User nodes start */
 		s.tab('node', _('Nodes'));
 		o = s.taboption('node', form.SectionValue, '_node', form.GridSection, 'node');
-		ss = renderNodeSettings(o.subsection, data, features, main_node, node_latency_row_state);
+		ss = renderNodeSettings(o.subsection, data, features, node_latency_row_state);
 		ss.addremove = true;
 		ss.filter = function(section_id) {
 			return !uci.get(data[0], section_id, 'grouphash');
@@ -1873,15 +1875,26 @@ return view.extend({
 
 		/* Subscription nodes start */
 		const subSections = Object.create(null);
-		for (const info of subinfo) {
-			s.tab('sub_' + info.hash, _('Sub (%s)').format(info.title));
-			o = s.taboption('sub_' + info.hash, form.SectionValue, '_sub_' + info.hash, form.GridSection, 'node');
-			ss = renderNodeSettings(o.subsection, data, features, main_node, node_latency_row_state);
-			ss.filter = function(section_id) {
-				return (uci.get(data[0], section_id, 'grouphash') === info.hash);
-			};
-			subSections[info.hash] = ss;
+		function refreshSubscriptionTabs() {
+			for (const hash of Object.keys(subSections)) {
+				const name = 'sub_' + hash;
+				s.children = s.children.filter(child => child.tab !== name);
+				s.tabs.splice(s.tabs.indexOf(s.tabs[name]), 1);
+				delete s.tabs[name];
+				s.tab_names = s.tab_names.filter(tab => tab !== name);
+				delete subSections[hash];
+			}
+			for (const info of subscriptionInfo()) {
+				s.tab('sub_' + info.hash, _('Sub (%s)').format(info.title));
+				o = s.taboption('sub_' + info.hash, form.SectionValue, '_sub_' + info.hash, form.GridSection, 'node');
+				ss = renderNodeSettings(o.subsection, data, features, node_latency_row_state);
+				ss.filter = function(section_id) {
+					return (uci.get(data[0], section_id, 'grouphash') === info.hash);
+				};
+				subSections[info.hash] = ss;
+			}
 		}
+		refreshSubscriptionTabs();
 		/* Subscription nodes end */
 		/* Node settings end */
 
@@ -1961,6 +1974,21 @@ return view.extend({
 	};
 
 		let subscriptionActionPending = false;
+		let subscriptionResult = '', subscriptionResultKind = '';
+		function renderSubscriptionResult() {
+			return E('span', {
+				'class': 'hp-subscription-result', 'role': 'status', 'aria-live': 'polite',
+				'style': 'overflow-wrap:anywhere;' + (subscriptionResultKind === 'success' ? 'color:var(--success-color,#008a00)' :
+					subscriptionResultKind === 'error' ? 'color:var(--error-color,#c62828)' : '')
+			}, [ subscriptionResult ]);
+		}
+		function setSubscriptionResult(text, kind) {
+			subscriptionResult = text;
+			subscriptionResultKind = kind || '';
+			const old = m.root?.querySelector('.hp-subscription-result');
+			if (old)
+				old.replaceWith(renderSubscriptionResult());
+		}
 		o = s.taboption('subscription', form.Button, '_update_subscriptions', _('Update nodes from subscriptions'),
 			_('Save and apply current settings before updating subscriptions.'));
 		const updateSubscriptions = o;
@@ -1970,27 +1998,44 @@ return view.extend({
 				uci.get(data[0], section_id, 'subscription_url') ?? [];
 			const count = L.toArray(urls).filter(Boolean).length;
 			this.readonly = !!this.map.readonly || subscriptionActionPending || count === 0;
+			if (!subscriptionActionPending && (!count || subscriptionResult === _('Add a subscription URL first.')))
+				setSubscriptionResult(count ? '' : _('Add a subscription URL first.'));
 			return subscriptionActionPending ? _('Updating subscriptions…') :
 				(count ? _('Save and update subscriptions') : _('No subscription available'));
 		};
 		subscriptionURLs.onchange = function(ev, section_id) {
-			const title = updateSubscriptions.inputtitle(section_id);
-			const hidden = document.getElementById(updateSubscriptions.cbid(section_id));
-			const button = hidden?.previousElementSibling?.querySelector('button');
-			if (button) {
-				button.textContent = title;
-				button.disabled = !!(this.map.readonly || updateSubscriptions.readonly);
+			for (const option of [ updateSubscriptions, removeSubscriptions ]) {
+				const title = option.inputtitle(section_id);
+				const hidden = document.getElementById(option.cbid(section_id));
+				const button = hidden?.previousElementSibling?.querySelector('button');
+				if (button) {
+					button.textContent = title;
+					button.disabled = !!(this.map.readonly || option.readonly);
+				}
 			}
+		};
+		o.renderWidget = function(section_id, option_index, cfgvalue) {
+			const widget = form.Button.prototype.renderWidget.call(this, section_id, option_index, cfgvalue);
+			const output = widget.querySelector('output');
+			output.style.cssText = 'display:flex;align-items:center;flex-wrap:wrap;gap:8px';
+			output.appendChild(renderSubscriptionResult());
+			return widget;
 		};
 		o.onclick = async function(ev, section_id) {
 			if (subscriptionActionPending || this.map.readonly)
 				return;
+			if (!L.toArray(subscriptionURLs.formvalue(section_id) ??
+				uci.get(data[0], section_id, 'subscription_url')).filter(Boolean).length) {
+				setSubscriptionResult(_('Add a subscription URL first.'));
+				return;
+			}
 			subscriptionActionPending = true;
 			subscriptionURLs.onchange(null, section_id);
-			const progress = ui.addNotification(null, E('p', [ _('Saving settings and updating subscriptions…') ]), 'info');
-			let updated = false;
+			setSubscriptionResult(_('Saving settings and updating subscriptions…'));
+			let failure = _('Unable to save subscription settings.');
 			try {
 				await this.map.save(null, true);
+				failure = _('Unable to apply subscription settings.');
 				// Map.save writes session deltas; the updater reads committed settings.
 				const applied = await callSubscriptionApply(10, true);
 				if (applied === 0) {
@@ -2002,26 +2047,24 @@ return view.extend({
 					throw new Error(_('exit code %d').format(applied));
 				}
 				ui.changes.setIndicator(0);
+				failure = _('Unable to update subscriptions. Check the subscription log.');
 				const res = await fs.exec('/etc/homeproxy/scripts/update_subscriptions.sh');
 				if (res.code !== 0)
 					throw new Error(res.stderr || _('exit code %d').format(res.code));
-				ui.showModal(_('Subscriptions updated successfully.'), [
-					E('p', [ _('The page will reload automatically.') ])
-				]);
-				updated = true;
-				setTimeout(() => {
-					ui.hideModal();
-					location.reload();
-				}, 1200);
+				failure = _('Subscriptions updated, but unable to refresh the node list.');
+				// reset() only renders cached form data. Invalidate UCI first, then
+				// rebuild URL-dependent tabs and load the options before rendering.
+				uci.unload(data[0]);
+				await uci.load(data[0]);
+				refreshSubscriptionTabs();
+				await this.map.load();
+				await this.map.reset();
+				setSubscriptionResult(_('Subscriptions updated successfully.'), 'success');
 			} catch (err) {
-				ui.addNotification(null, E('p', [ _('An error occurred during updating subscriptions: %s.').format(err) ]), 'error');
+				setSubscriptionResult(failure, 'error');
 			} finally {
-				progress.remove();
-				// Keep the lock until automatic navigation.
-				if (!updated) {
-					subscriptionActionPending = false;
-					await this.map.reset();
-				}
+				subscriptionActionPending = false;
+				subscriptionURLs.onchange(null, section_id);
 			}
 		};
 
@@ -2034,6 +2077,7 @@ return view.extend({
 			return ids;
 		}
 		o = s.taboption('subscription', form.Button, '_remove_subscriptions', _('Remove all nodes from subscriptions'));
+		const removeSubscriptions = o;
 		o.inputstyle = 'reset';
 		o.inputtitle = function() {
 			const count = subscriptionNodeIds().length;

@@ -21,6 +21,28 @@ failure retaining the complete backup. These are synchronous regression tests,
 not proof of daemon startup health, actual procd file hashing, power-loss
 atomicity or router firewall correctness.
 
+# Subscription UI regression
+
+```sh
+NODE_PATH=/usr/local/lib/node_modules \
+LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/resources \
+node tests/subscription-ui.cjs
+python3 -m unittest discover -s luci-app-homeproxy/tests -p 'test_subscription*.py' -v
+```
+
+The UI suite executes native LuCI Button, DynamicList, Map and RPC code with
+private UCI/apply/exec transport fixtures, not a router or host service. It covers
+inline neutral/progress/error/success results, real URL edits and unchanged
+apply status 5, fatal confirm status 5, retries, no navigation/notifications,
+updated node rows and subscription tabs after cache invalidation, held/failing
+list load/reset, retained results after reset, and deletion confirmation/cancel.
+Subscription refresh explicitly reloads UCI and option values: `Map.reset()`
+alone does not fetch the nodes written by the external updater. The regression
+also checks the exact refreshed primary-node row's Applied label. Timer-backed
+stages use a monotonic deadline and timer-phase yielding, not a count of
+`setImmediate` turns. A separate unaccelerated production 1s delay case verifies
+that confirmation waits and that held confirmation still blocks the updater.
+
 Reload guards/backup/submission adapter selectively reuse the repository's
 `e000a5c` implementation; current URLTest cleanup policy is retained. Cold
 `start` remains on native rc.common semantics; this regression targets `reload`.

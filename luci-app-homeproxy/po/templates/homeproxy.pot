@@ -2515,3 +2515,23 @@ msgstr ""
 
 msgid "Updating…"
 msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Unable to save subscription settings."
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Unable to apply subscription settings."
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Unable to update subscriptions. Check the subscription log."
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Subscriptions updated, but unable to refresh the node list."
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Add a subscription URL first."
+msgstr ""

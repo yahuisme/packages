@@ -227,7 +227,7 @@ function getResources(o) {
 		}
 	};
 	const showResult = (type, res, action) => {
-		let text, status = 'neutral';
+		let text, status = 'error';
 		if (res.rollback_failed)
 			text = _('Recovery failed. Check the log and retained backup before retrying.');
 		else if (res.apply_failed)
@@ -235,11 +235,13 @@ function getResources(o) {
 		else if (res.status === 0) {
 			text = action === 'remove' ? _('Deleted') : action === 'download' ? _('Downloaded') : _('Updated');
 			status = 'success';
-		} else if (res.status === 3)
+		} else if (res.status === 3) {
 			text = action === 'remove' ? _('Not installed') : _('Already at the latest version.');
-		else if (res.status === 2)
+			status = action === 'remove' ? 'neutral' : 'success';
+		} else if (res.status === 2) {
 			text = _('Update already in progress.');
-		else
+			status = 'neutral';
+		} else
 			text = _('Update failed.');
 		setResourceResult(type, text, status);
 	};
@@ -339,7 +341,7 @@ function getResources(o) {
 		cbi_update_table(table, rows);
 
 		return E('div', { 'class': 'cbi-map hp-resources' }, [
-			E('style', {}, [ '.hp-resources .hp-resource-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.hp-resources .hp-resource-result{color:inherit}.hp-resources .hp-resource-result[data-status="success"]{color:var(--success-color,var(--success,#008a00))}.hp-resources button{min-height:32px;font-weight:500}.hp-resources h3{flex-wrap:wrap;gap:8px}.hp-resources td{overflow-wrap:anywhere}.hp-resources .table{width:100%;table-layout:fixed}' ]),
+			E('style', {}, [ '.hp-resources .hp-resource-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.hp-resources .hp-resource-result{color:inherit}.hp-resources .hp-resource-result[data-status="success"]{color:var(--success,var(--success-color-high,light-dark(#15803d,#16a34a)))}.hp-resources .hp-resource-result[data-status="error"]{color:var(--danger,var(--error-color-high,light-dark(#b91c1c,#dc2626)))}.hp-resources button{min-height:32px;font-weight:500}.hp-resources h3{flex-wrap:wrap;gap:8px}.hp-resources td{overflow-wrap:anywhere}.hp-resources .table{width:100%;table-layout:fixed}' ]),
 	E('h3', { 'name': 'content', 'style': 'align-items:center;display:flex;flex-wrap:wrap;gap:8px' }, [
 				_('Resource Management'),
 				rulesButton(_('Update resources'), 'manual')

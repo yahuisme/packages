@@ -49,7 +49,8 @@ const view = vm.runInContext('(function(){'+source+'})()', context);
  await new Promise(resolve => setImmediate(resolve));
  const accents=[...node.querySelectorAll('.fan-temp-card')].map(e=>e.style.getPropertyValue('--fan-temp-accent'));
  ['success','success','warning','warning','orange','orange','danger'].forEach((token,i)=>{
-  if (token === 'orange') assert.strictEqual(accents[i], '#f97316', 'orange is fixed vivid orange');
+  if (token === 'warning') assert.strictEqual(accents[i], '#eab308', 'yellow is fixed clear yellow');
+  else if (token === 'orange') assert.strictEqual(accents[i], '#f97316', 'orange is fixed vivid orange');
   else assert(accents[i].startsWith('var(--'+token+','),'temperature threshold '+temperatures[i]+' uses '+token);
  });
  assert.notStrictEqual(accents[3],accents[4],'the 65-degree transition retains its stronger warning color');

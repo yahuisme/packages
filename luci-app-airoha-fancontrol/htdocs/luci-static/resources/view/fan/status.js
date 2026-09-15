@@ -36,7 +36,7 @@ function validTemp(value) {
 function tempColor(value) {
 	if (!validTemp(value)) return 'var(--cbi-muted-color,var(--text-muted,#888))';
 	if (value < 50) return 'var(--success,var(--success-color-high,#15803d))';
-	if (value <= 65) return 'var(--warning,var(--warn-color-high,#a16207))';
+	if (value <= 65) return '#eab308';
 	if (value <= 75) return '#f97316';
 	return 'var(--danger,var(--error-color-high,#b91c1c))';
 }
