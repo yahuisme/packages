@@ -1876,7 +1876,11 @@ return view.extend({
 		/* Subscription nodes start */
 		const subSections = Object.create(null);
 		function refreshSubscriptionTabs() {
+			const infos = subscriptionInfo();
+			const activePane = m.root?.querySelector('#cbi-homeproxy-subscription > [data-tab-active="true"]');
 			for (const hash of Object.keys(subSections)) {
+				if (infos.some(info => info.hash === hash))
+					continue;
 				const name = 'sub_' + hash;
 				s.children = s.children.filter(child => child.tab !== name);
 				s.tabs.splice(s.tabs.indexOf(s.tabs[name]), 1);
@@ -1884,7 +1888,11 @@ return view.extend({
 				s.tab_names = s.tab_names.filter(tab => tab !== name);
 				delete subSections[hash];
 			}
-			for (const info of subscriptionInfo()) {
+			for (const info of infos) {
+				if (subSections[info.hash]) {
+					s.tabs['sub_' + info.hash].title = _('Sub (%s)').format(info.title);
+					continue;
+				}
 				s.tab('sub_' + info.hash, _('Sub (%s)').format(info.title));
 				o = s.taboption('sub_' + info.hash, form.SectionValue, '_sub_' + info.hash, form.GridSection, 'node');
 				ss = renderNodeSettings(o.subsection, data, features, node_latency_row_state);
@@ -1892,6 +1900,18 @@ return view.extend({
 					return (uci.get(data[0], section_id, 'grouphash') === info.hash);
 				};
 				subSections[info.hash] = ss;
+			}
+			// Match initial registration order, retaining existing section objects.
+			// LuCI persists a pane index (path "subscription"), not its tab name.
+			const names = ['node', ...infos.map(info => 'sub_' + info.hash)];
+			if (s.tabs.subscription)
+				names.push('subscription');
+			s.tab_names = names;
+			s.tabs.sort((a, b) => names.indexOf(a.name) - names.indexOf(b.name));
+			s.children.sort((a, b) => names.indexOf(a.tab) - names.indexOf(b.tab));
+			if (activePane) {
+				const index = names.indexOf(activePane.getAttribute('data-tab'));
+				ui.tabs.setActiveTabId(activePane, index < 0 ? names.indexOf('subscription') : index);
 			}
 		}
 		refreshSubscriptionTabs();

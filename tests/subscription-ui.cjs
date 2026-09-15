@@ -118,6 +118,61 @@ async function fixture(translations = {}, realTimers = false) {
 
 (async () => {
 	let h;
+	h = await fixture();
+	try {
+		const tabNames = () => [...h.root().querySelectorAll('.cbi-tabmenu > li')].map(el => el.getAttribute('data-tab'));
+		const before = tabNames();
+		h.root().querySelector('.cbi-tabmenu li[data-tab="subscription"] a').click();
+		assert.equal(h.mods.ui.tabs.getActiveTabState().paths.subscription, 2, 'native click persists the settings tab index');
+		for (let i = 0; i < 2; i++) {
+			h.gates.exec = deferred();
+			const pending = h.update();
+			await settleUntil(() => h.calls.filter(call => call === 'exec').length === i + 1, 'save/apply did not reach held exec');
+			assert.equal(h.root().querySelector('[data-tab-title][data-tab-active="true"]').dataset.tab, 'subscription', 'native Map.save rerender must also retain settings');
+			h.gates.exec.resolve();
+			await pending;
+			assert.deepEqual(tabNames(), before, 'unchanged subscription tabs must retain their original order');
+			assert.equal(h.root().querySelector('[data-tab-title][data-tab-active="true"]').getAttribute('data-tab'), 'subscription', 'settings tab must remain active');
+			assert.equal(h.button(UPDATE).closest('[data-tab-title]').getAttribute('data-tab-active'), 'true', 'button and inline success must be in the visible pane');
+			assert.equal(h.root().querySelector('.hp-subscription-result').textContent, 'Subscriptions updated successfully.');
+		}
+		console.log('PASS native settings-tab click: stable order and visible inline result across repeated updates');
+	} finally { h.close(); }
+	h = await fixture();
+	try {
+		const urls = ['https://example.invalid/sub#Renamed', 'https://example.invalid/second#Second'];
+		const original = h.mods.request.post;
+		h.mods.request.post = async (url, req) => {
+			const response = await original(url, req);
+			if (req.params[1] === 'uci' && req.params[2] === 'get') {
+				const body = await response.json();
+				body.result[1].values.subscription.subscription_url = [...urls];
+				return { ...response, json: () => body };
+			}
+			return response;
+		};
+		const names = () => [...h.root().querySelectorAll('.cbi-tabmenu > li')].map(el => [el.dataset.tab, el.textContent]);
+		const check = () => {
+			const expected = [['node', 'Nodes'], ...urls.map(url => ['sub_' + h.mods.homeproxy.calcStringMD5(url.split('#')[0]), 'Sub (' + url.split('#')[1] + ')']), ['subscription', 'Subscriptions']];
+			assert.deepEqual(names(), expected, 'dynamic groups must follow initial-render URL order, before settings');
+			assert.equal(h.root().querySelector('[data-tab-title][data-tab-active="true"]').dataset.tab, 'subscription');
+			assert.equal(h.mods.ui.tabs.getActiveTabState().paths.subscription, expected.length - 1, 'native stored index follows the same settings pane');
+		};
+		h.root().querySelector('.cbi-tabmenu li[data-tab="subscription"] a').click();
+		await h.update(); check();
+		urls.reverse();
+		await h.update(); check();
+		urls.pop();
+		await h.update(); check();
+		await h.update(); check();
+		await h.map.reset(); check();
+		const beforeFresh = names();
+		h.root().remove();
+		const fresh = await h.app.render(['homeproxy', ...(await h.app.load()).slice(1)]);
+		h.w.document.querySelector('#view').append(fresh);
+		assert.deepEqual(names(), beforeFresh, 'fresh page render has identical names and order');
+		console.log('PASS native dynamic tabs: rename/add/reorder/remove/repeat/reset/fresh-render retain canonical order');
+	} finally { h.close(); }
 	// Exercise the production 1s delay without acceleration. A held confirm
 	// must still block exec after the real timer, not just in a fast fixture.
 	h = await fixture({}, true);
@@ -168,7 +223,11 @@ async function fixture(translations = {}, realTimers = false) {
 			}
 			return response;
 		};
+		h.root().querySelector('.cbi-tabmenu li[data-tab="subscription"] a').click();
 		await h.update();
+		assert.equal(h.button(UPDATE).closest('[data-tab-title]').getAttribute('data-tab-active'), 'true', 'updated nodes must not auto-switch away from settings');
+		assert.equal(h.root().querySelector('.hp-subscription-result').textContent, 'Subscriptions updated successfully.');
+		assert.deepEqual([...h.root().querySelectorAll('.cbi-tabmenu > li')].map(el => el.textContent), ['Nodes', 'Sub (New)', 'Subscriptions']);
 		assert(h.root().textContent.includes('NEW SUB NODE'), 'fresh backend node must appear without page reload');
 		assert(h.root().textContent.includes('Sub (New)'), 'new URL must rebuild subscription tabs');
 		const newRow = h.root().querySelector('[data-sid="newnode"]');
@@ -176,6 +235,12 @@ async function fixture(translations = {}, realTimers = false) {
 			'refreshed primary node must show Applied');
 		assert(!h.button('Remove 1 nodes').disabled, 'refreshed removal button must unlock too');
 		assert(!h.root().textContent.includes('Sub (示例订阅)'), 'old subscription tab must be removed');
+		const listPane = newRow.closest('[data-tab-title]');
+		assert.notEqual(listPane.getAttribute('data-tab-active'), 'true', 'refreshed list stays hidden until user selects it');
+		h.root().querySelector('.cbi-tabmenu li[data-tab="' + listPane.dataset.tab + '"] a').click();
+		assert.equal(listPane.getAttribute('data-tab-active'), 'true', 'manual native tab click reveals refreshed node row');
+		assert(listPane.textContent.includes('NEW SUB NODE'));
+		console.log('PASS native settings update → inline success → manual list-tab click reveals new Applied node');
 		assert(h.root().querySelector('.hp-subscription-result').getAttribute('style').includes('--success-color'));
 		await h.map.reset();
 		assert(h.root().textContent.includes('NEW SUB NODE'));
