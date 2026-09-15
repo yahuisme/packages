@@ -9,6 +9,12 @@ for (const scheme of ['https', 'hy2', 'hysteria2']) {
     assert.equal(n.label, 'test');
   }
 }
+for (const [scheme, version] of [['socks4a', '4a'], ['socks4', '4'], ['socks5', '5'], ['SOCKS4a', '4a'], ['SOCKS4', '4'], ['SOCKS5', '5']]) {
+ const n = parse(`${scheme}://user:pass@example.com:1080`, features);
+ assert.equal(n.socks_version, version);
+ assert.equal(n.username, 'user');
+ assert.equal(n.password, 'pass');
+}
 for (const scheme of ['trojan','vless']) {
  const credential = scheme === 'trojan' ? 'p%40ss' : '11111111-1111-4111-8111-111111111111';
  for (const transport of ['ws','httpupgrade']) {

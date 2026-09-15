@@ -116,7 +116,7 @@ print(sprintf('%J',{result,reads,calls}));'''
                     init=root/'init'; init.write_text('#!/bin/sh\n[ "$1" != reload ] || [ "$FAIL_RELOAD" != 1 ]\n'); init.chmod(0o755)
                     decoder=root/'decoder'; decoder.write_text('#!/bin/sh\nexit 0\n'); decoder.chmod(0o755)
                     wrapper=root/'ucode'; wrapper.write_text('#!/bin/sh\nexec /usr/local/bin/ucode -L "$UCODE_LIB_DIR" "$@"\n'); wrapper.chmod(0o755)
-                    env=dict(os.environ,PATH=str(root)+':'+os.environ['PATH'], UCODE_LIB_DIR=os.environ.get('UCODE_LIB_DIR','/root/homeproxy-runtime-quality-tools/build'),RESOURCES_DIR=str(resources),DASHBOARD_DIR=str(dashboard),RUN_DIR=str(root/'run'),SING_BOX=os.environ.get('SING_BOX_TEST',str(decoder)),HOMEPROXY_INIT=str(init))
+                    env=dict(os.environ,PATH=str(root)+':'+os.environ['PATH'], UCODE_LIB_DIR=os.environ['UCODE_LIB_DIR'],RESOURCES_DIR=str(resources),DASHBOARD_DIR=str(dashboard),RUN_DIR=str(root/'run'),SING_BOX=os.environ.get('SING_BOX_TEST',str(decoder)),HOMEPROXY_INIT=str(init))
                     # A real decoder may be supplied together with a real packaged SRS.
                     if os.environ.get('SING_BOX_TEST'):
                         payload=(APP/'root/etc/homeproxy/resources/geoip_cn.srs').read_bytes()

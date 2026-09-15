@@ -1198,11 +1198,13 @@ function main() {
 			const label_occurrences = {};
 			for (let node in nodes) {
 				try {
-					let config;
-					if (!isEmpty(node))
-						config = parse_uri(node);
-					if (isEmpty(config))
+					if (isEmpty(node))
 						continue;
+					const config = parse_uri(node);
+					if (isEmpty(config)) {
+						parse_complete = false;
+						continue;
+					}
 
 					const label = config.label;
 					config.label = null;

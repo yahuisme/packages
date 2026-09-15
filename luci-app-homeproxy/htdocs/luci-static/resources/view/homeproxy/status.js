@@ -160,7 +160,7 @@ function getConnectionStatus() {
 	}, [ _('Test all') ]);
 
 	const view = E('div', { 'class': 'cbi-map' }, [
-		E('h3', { 'name': 'content', 'style': 'align-items:center;display:flex' }, [
+		E('h3', { 'name': 'content', 'style': 'align-items:center;display:flex;flex-wrap:wrap;gap:8px' }, [
 			_('Connection Status'),
 			testButton
 		]),
@@ -291,6 +291,7 @@ function getResources(o) {
 			'click': ui.createHandlerFn(this, () => {
 				if (action !== 'remove') return runDashboard(action, result);
 				ui.showModal(_('Remove dashboard?'), [
+					E('style', {}, [ '#modal_overlay > .hp-resource-modal { max-width: 100%; }' ]),
 					E('p', {}, [ _('Dashboard files will be removed and the running service reloaded. Settings are retained. Rule sets are not affected.') ]),
 					E('div', { 'class': 'right' }, [
 						E('button', { 'class': 'btn', 'click': ui.hideModal }, [ _('Cancel') ]),
@@ -298,7 +299,7 @@ function getResources(o) {
 							ui.hideModal(); return runDashboard('remove', result);
 						}) }, [ _('Remove') ])
 					])
-				]);
+				], 'hp-resource-modal');
 			})
 		}, [ label ]);
 		buttons.push(button);
@@ -339,7 +340,7 @@ function getResources(o) {
 
 		return E('div', { 'class': 'cbi-map hp-resources' }, [
 			E('style', {}, [ '.hp-resources .hp-resource-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.hp-resources .hp-resource-result{color:inherit}.hp-resources .hp-resource-result[data-status="success"]{color:var(--success-color,var(--success,#008a00))}.hp-resources button{min-height:32px;font-weight:500}.hp-resources h3{flex-wrap:wrap;gap:8px}.hp-resources td{overflow-wrap:anywhere}.hp-resources .table{width:100%;table-layout:fixed}' ]),
-			E('h3', { 'name': 'content', 'style': 'align-items:center;display:flex' }, [
+	E('h3', { 'name': 'content', 'style': 'align-items:center;display:flex;flex-wrap:wrap;gap:8px' }, [
 				_('Resource Management'),
 				rulesButton(_('Update resources'), 'manual')
 			]),

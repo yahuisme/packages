@@ -140,6 +140,15 @@ return view.extend({
 		s.rowcolors = true;
 		s.sortable = true;
 		s.nodescriptions = true;
+		s.renderMoreOptionsModal = function() {
+			return form.GridSection.prototype.renderMoreOptionsModal.apply(this, arguments).then(() => {
+				const modal = this.getActiveModalMap()?.closest('.modal');
+				if (modal) {
+					modal.classList.add('hp-server-modal');
+					modal.appendChild(E('style', {}, [ '#modal_overlay > .hp-server-modal { max-width: 100%; }' ]));
+				}
+			});
+		};
 		s.modaltitle = L.bind(hp.loadModalTitle, this, _('Server'), _('Add a server'), data[0]);
 		s.sectiontitle = L.bind(hp.loadDefaultLabel, this, data[0]);
 		s.renderSectionAdd = L.bind(hp.renderSectionAdd, this, s);

@@ -108,6 +108,8 @@ function parseShareLink(uri, features) {
 	let config, url, params;
 
 	uri = uri.split('://');
+	if (uri[0])
+		uri[0] = uri[0].toLowerCase();
 	if (uri[0] && uri[1]) {
 		switch (uri[0]) {
 		case 'anytls':
@@ -219,7 +221,7 @@ function parseShareLink(uri, features) {
 				port: url.port || '80',
 				username: url.username ? decodeURIComponent(url.username) : null,
 				password: url.password ? decodeURIComponent(url.password) : null,
-				socks_version: (uri[0].includes('4')) ? '4' : '5'
+				socks_version: (uri[0] === 'socks4a') ? '4a' : (uri[0] === 'socks4') ? '4' : '5'
 			};
 
 			break;
