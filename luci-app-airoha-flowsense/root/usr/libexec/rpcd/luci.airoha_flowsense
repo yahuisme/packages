@@ -43,13 +43,26 @@ get_jitter() {
     printf '{"timestamp":%s,"target":"%s","last_ping":%s,"deviation":%s,"samples":%s,"received":%s,"loss":%s}' "$stamp" "$target" "$(json_decimal "$last")" "$(json_decimal "$deviation")" "$(json_number "$samples")" "$(json_number "$received")" "$(json_decimal "$loss" 100)"
 }
 
+get_monitor() (
+    local committed target enabled
+    umask 077
+    committed=$(mktemp -d /tmp/flowsense-committed.XXXXXX) || { printf null; return; }
+    trap 'rm -rf "$committed"' EXIT
+    trap 'exit 1' HUP INT TERM
+    # Match acceleration's committed-only reads, not another session's edits.
+    target=$(uci -c /etc/config -C "$committed" -t "$committed" -q get npu-monitor.@jitter[0].target) || { printf null; return; }
+    enabled=$(uci -c /etc/config -C "$committed" -t "$committed" -q get npu-monitor.@jitter[0].enabled) || { printf null; return; }
+    fs_target "$target" || { printf null; return; }
+    case "$enabled" in 0|1) ;; *) printf null; return;; esac
+    printf '{"enabled":%s,"target":"%s"}' "$(boolean "$enabled")" "$target"
+)
+
 get_overview() {
-    local target enabled flow sw now uptime
-    target=$(uci -q get npu-monitor.@jitter[0].target); fs_target "$target" || target=223.5.5.5
-    enabled=$(uci -q get npu-monitor.@jitter[0].enabled); [ "$enabled" = 0 ] || enabled=1
+    local flow sw now uptime
     flow=$(uci -q get firewall.@defaults[0].flow_offloading_hw); sw=$(uci -q get firewall.@defaults[0].flow_offloading)
     now=$(date +%s); read -r uptime _ < /proc/uptime
-    printf '{"timestamp":%s,"uptime":%s,"configured_hw":%s,"configured_sw":%s,"monitor":{"enabled":%s,"target":"%s"},"jitter":' "$now" "$uptime" "$(boolean "$flow")" "$(boolean "$sw")" "$(boolean "$enabled")" "$target"
+    printf '{"timestamp":%s,"uptime":%s,"configured_hw":%s,"configured_sw":%s,"monitor":' "$now" "$uptime" "$(boolean "$flow")" "$(boolean "$sw")"
+    get_monitor; printf ',"jitter":'
     get_jitter; printf ',"interfaces":'; get_interfaces; printf '}'
 }
 

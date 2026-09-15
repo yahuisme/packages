@@ -17,9 +17,9 @@ function validPoints(points) {
 }
 
 function curvePreview() {
-	return '<div class="fan-curve-preview"><p class="fan-curve-requirements">' + _('Temperatures must increase, PWM must not decrease, and the last point is fixed at full speed.') + '</p><svg role="img" aria-label="' + _('Curve preview') + '">' +
+	return '<div class="fan-curve-preview"><svg role="img" aria-label="' + _('Curve preview') + '">' +
 		'<g class="fan-curve-axes"></g>' +
-		'<polyline class="fan-curve-line" points="" fill="none" stroke="var(--cbi-primary-color,currentColor)" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>' +
+		'<polyline class="fan-curve-line" points="" fill="none" stroke="var(--cbi-primary-color,light-dark(#2563eb,#60a5fa))" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>' +
 		'<g class="fan-curve-dots"></g></svg><span class="fan-curve-message"></span></div>';
 }
 
@@ -85,8 +85,8 @@ var previewCSS = '\
 .fan-settings [data-name^="point"]{box-sizing:border-box}\
 .fan-settings .fan-curve-preview{max-width:none;margin:0;color:var(--cbi-text-color,currentColor)}\
 .fan-settings .fan-curve-preview svg{display:block;width:100%;height:360px;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:4px;background:var(--cbi-section-bg,transparent);box-sizing:border-box}\
-.fan-settings .fan-curve-dots{fill:var(--cbi-primary-color,currentColor)}.fan-settings .fan-curve-axes text{font-size:12px;fill:currentColor}.fan-settings .fan-curve-axes line{stroke:currentColor;stroke-opacity:.1;stroke-width:1;vector-effect:non-scaling-stroke}\
-.fan-settings .fan-curve-requirements,.fan-settings .fan-curve-message{display:block;margin:0 0 8px;color:var(--cbi-muted-color,var(--text-muted,#888))}.fan-settings .fan-curve-message{margin:8px 0 0}\
+.fan-settings .fan-curve-dots{fill:var(--cbi-primary-color,light-dark(#2563eb,#60a5fa))}.fan-settings .fan-curve-axes text{font-size:12px;fill:currentColor}.fan-settings .fan-curve-axes line{stroke:currentColor;stroke-opacity:.1;stroke-width:1;vector-effect:non-scaling-stroke}\
+.fan-settings .fan-curve-message{display:block;margin:8px 0 0;color:var(--cbi-muted-color,var(--text-muted,#888))}\
 .fan-settings .cbi-section:has(>[data-section-id="custom"]){container-type:inline-size}\
 .fan-settings .cbi-section-node[data-section-id="custom"]>.cbi-value{min-width:0}\
 .fan-settings .cbi-section-node[data-section-id="custom"]>.cbi-value:not(.hidden):not([data-name="_curve_preview"]){display:grid;grid-template-columns:minmax(0,1fr) minmax(80px,120px);gap:8px;align-items:center}\

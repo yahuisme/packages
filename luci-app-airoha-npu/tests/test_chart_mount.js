@@ -41,9 +41,13 @@ const results = [];
     window.queue = new Set();
     if (noRO) window.ResizeObserver = undefined;
     window.app = new (new Function('view', 'rpc', 'poll', source)(mods.view.extend({ __init__() {} }), { declare: () => () => Promise.resolve({}) }, { add: fn => queue.add(fn), remove: fn => queue.delete(fn) }))();
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--success)';
+    if (!getComputedStyle(document.documentElement).getPropertyValue('--success').trim()) throw Error('Aurora success token missing');
+    document.getElementById('view').before(probe);
     window.measure = stage => {
      const svg = document.querySelector('.npu-frequency-chart svg'), box = svg.getBoundingClientRect(), m = svg.getScreenCTM();
-     return { stage, width: box.width, viewBox: svg.viewBox.baseVal.width, scaleX: m.a, scaleY: m.d, inset: m.e - box.x, points: svg.querySelectorAll('circle').length, stroke: getComputedStyle(svg.querySelector('.npu-chart-line')).stroke, lineWidth: getComputedStyle(svg.querySelector('.npu-chart-line')).strokeWidth };
+     return { stage, themeStroke: getComputedStyle(probe).color, width: box.width, viewBox: svg.viewBox.baseVal.width, scaleX: m.a, scaleY: m.d, inset: m.e - box.x, points: svg.querySelectorAll('circle').length, stroke: getComputedStyle(svg.querySelector('.npu-chart-line')).stroke, lineWidth: getComputedStyle(svg.querySelector('.npu-chart-line')).strokeWidth };
     };
     window.mount = () => {
      window.node = app.render([{ soc_compat: 'airoha,fixture' }, { cpu_cur_freq: 600000, cpu_max_freq: 1200000 }, { enabled: true }]);
@@ -64,7 +68,7 @@ const results = [];
     assert(Math.abs(immediate.inset) < 1, 'fallback must not letterbox: ' + JSON.stringify(immediate));
     for (const row of frames) {
      assert(Math.abs(row.viewBox - row.width) <= 1 && Math.abs(row.inset) < 1, 'first frame must use mounted width: ' + JSON.stringify(row));
-     assert.equal(row.points, 1); assert.equal(row.stroke, 'rgb(34, 160, 107)'); assert.equal(row.lineWidth, '1.5px');
+     assert.equal(row.points, 1); assert.equal(row.stroke, row.themeStroke); assert.equal(row.lineWidth, '1.5px');
     }
     // Container-only resize (sidebar/layout), without a window resize event.
     if (!noRO) {

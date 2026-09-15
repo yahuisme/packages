@@ -160,18 +160,26 @@ get_info() {
 }
 
 UCI=${NPU_UCI:-uci}
-uci_read() { "$UCI" -q -c "$ROOT/etc/config" -P "$ROOT/tmp/luci-airoha-npu-read" "$@"; }
-get_flow() {
-	local sw hw
-	[ "$(uci_read get 'firewall.@defaults[0]')" = defaults ] || { printf '{"enabled":null}\n'; return; }
-	sw=$(uci_read get 'firewall.@defaults[0].flow_offloading')
-	hw=$(uci_read get 'firewall.@defaults[0].flow_offloading_hw')
+uci_read() { "$UCI" -q -c "$ROOT/etc/config" -C "$flow_tmp" -t "$flow_tmp" "$@"; }
+get_flow() (
+	local sw=0 hw=0 flow_tmp options
+	umask 077
+	flow_tmp=$(mktemp -d "$ROOT/tmp/luci-airoha-npu-read.XXXXXX" 2>/dev/null) || { printf '{"enabled":null}\n'; exit; }
+	trap 'rm -rf "$flow_tmp"' EXIT
+	trap 'exit 1' HUP INT TERM
+	options=$(uci_read get 'firewall.@defaults[0]') && [ "$options" = defaults ] || { printf '{"enabled":null}\n'; return; }
+	# Only confirmed absent options use firewall's disabled default.
+	options=$(uci_read show 'firewall.@defaults[0]') || { printf '{"enabled":null}\n'; exit; }
+	case "$options" in *.flow_offloading=*)
+		sw=$(uci_read get 'firewall.@defaults[0].flow_offloading') || { printf '{"enabled":null}\n'; exit; };; esac
+	case "$options" in *.flow_offloading_hw=*)
+		hw=$(uci_read get 'firewall.@defaults[0].flow_offloading_hw') || { printf '{"enabled":null}\n'; exit; };; esac
 	case "$sw:$hw" in
 		1:1) printf '{"enabled":true}\n';;
-		*[!01:]*) printf '{"enabled":null}\n';;
-		*) printf '{"enabled":false}\n';;
+		0:0|0:1|1:0) printf '{"enabled":false}\n';;
+		*) printf '{"enabled":null}\n';;
 	esac
-}
+)
 case "$1" in
 	list)
 		printf '%s\n' '{"getSettings":{},"saveSettings":{"governor":"str","freq":"str"},"applySettings":{},"getStatus":{},"getInfo":{},"getFlowOffload":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"str"}}';;

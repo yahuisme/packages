@@ -35,10 +35,10 @@ function validTemp(value) {
 
 function tempColor(value) {
 	if (!validTemp(value)) return 'var(--cbi-muted-color,var(--text-muted,#888))';
-	if (value < 50) return '#10b981';
-	if (value <= 65) return '#f59e0b';
-	if (value <= 75) return '#f97316';
-	return '#ef4444';
+	if (value < 50) return 'var(--success,light-dark(#15803d,#51bd85))';
+	if (value <= 65) return 'var(--warning,light-dark(#a16207,#facc15))';
+	if (value <= 75) return 'color-mix(in srgb,var(--warning,light-dark(#a16207,#facc15)),var(--danger,light-dark(#b91c1c,#f17070)))';
+	return 'var(--danger,light-dark(#b91c1c,#f17070))';
 }
 
 function modeInfo(mode) {
@@ -146,18 +146,21 @@ return view.extend({
 			])
 		]);
 
+		var pending;
 		var refresh = function() {
 			if (!viewEl.isConnected) {
 				poll.remove(refresh);
 				return Promise.resolve();
 			}
-			return callFanStatus().then(function(current) {
+			if (pending) return pending;
+			pending = callFanStatus().then(function(current) {
 				if (viewEl.isConnected) updateView(viewEl, current);
 			}).catch(function() {
 				if (!viewEl.isConnected) return;
 				updateView(viewEl, {});
 				viewEl.querySelectorAll('.fan-card-sub').forEach(function(el) { el.textContent = _('Read failed'); });
-			});
+			}).finally(function() { pending = null; });
+			return pending;
 		};
 		poll.add(refresh, 5);
 		requestAnimationFrame(function() {

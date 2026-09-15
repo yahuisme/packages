@@ -15,6 +15,7 @@ node tests/test_frontend.js
 node tests/test_settings_form.js
 node tests/test_status_dom.js
 node tests/test_status_rpc.js
+node tests/test_status_poll.js
 python3 tests/test_fan.py
 python3 tests/test_real_tools.py
 ```

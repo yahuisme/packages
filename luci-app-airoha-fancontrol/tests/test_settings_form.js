@@ -33,7 +33,9 @@ const w = j.window;
   assert.equal(node.querySelectorAll('[data-section-id="custom"] .cbi-section-node').length,0,'section id is on the node itself, not its ancestor');
   assert.equal(section.querySelectorAll('[data-name^="point"] input').length,10);
   assert.equal(section.querySelectorAll('.cbi-value').length,11);
-  assert(section.textContent.includes('Temperatures must increase, PWM must not decrease, and the last point is fixed at full speed.'));
+  const constraint = 'Temperatures must increase, PWM must not decrease, and the last point is fixed at full speed.';
+  assert.equal(section.parentNode.querySelector(':scope > .cbi-section-descr').textContent, constraint);
+  assert.equal(node.textContent.split(constraint).length - 1, 1, 'one native visible constraint, no duplicate preview description');
   assert.equal(section.lastElementChild.dataset.name,'_curve_preview','CSS reorders preview visually without changing native form DOM order');
   assert.deepEqual([...section.querySelectorAll('[data-name^="point"]')].map(e=>e.dataset.name),
    Array.from({length:5},(_,i)=>[`point${i+1}_temp`,`point${i+1}_pwm`]).flat(),'preserve parameter and keyboard order');

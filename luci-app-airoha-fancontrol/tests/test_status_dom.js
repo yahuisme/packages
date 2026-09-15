@@ -43,8 +43,20 @@ const view = vm.runInContext('(function(){'+source+'})()', context);
  assert.strictEqual(polls[0].interval, 5);
  assert.strictEqual(node.querySelectorAll('.fan-summary-card').length, 4);
  assert.strictEqual(node.querySelectorAll('.fan-temp-card').length, 7);
- pending({fan_mode:2,uci_mode:'auto',uci_preset:'quiet',fan_rpm:1500,fan_pwm:80});
+ const temperatures=[-128,49.9,50,65,65.1,75,75.1];
+ const keys=['temp_cpu','temp_board','temp_phy2','temp_phy1','wifi_24g','wifi_5g','wifi_6g'];
+ pending({fan_mode:2,uci_mode:'auto',uci_preset:'quiet',fan_rpm:1500,fan_pwm:80,...Object.fromEntries(keys.map((key,i)=>[key,temperatures[i]]))});
  await new Promise(resolve => setImmediate(resolve));
+ const accents=[...node.querySelectorAll('.fan-temp-card')].map(e=>e.style.getPropertyValue('--fan-temp-accent'));
+ ['success','success','warning','warning',null,null,'danger'].forEach((token,i)=>{
+  if (token) assert(accents[i].startsWith('var(--'+token+','),'temperature threshold '+temperatures[i]+' uses '+token);
+  else {
+   assert(accents[i].startsWith('color-mix(in srgb,var(--warning,'));
+   assert(accents[i].includes('var(--danger,'),'high temperature blends warning and danger');
+  }
+ });
+ assert.notStrictEqual(accents[3],accents[4],'the 65-degree transition retains its stronger warning color');
+ accents.forEach(color=>assert(color.includes('light-dark('),'semantic status colors have light/dark fallback'));
  assert(node.querySelector('#fan-summary-rpm').textContent.includes('1500'));
  assert(node.querySelector('#fan-summary-preset').textContent.includes('Configured Curve'));
  assert.strictEqual(node.querySelectorAll(':scope > style').length, 1);

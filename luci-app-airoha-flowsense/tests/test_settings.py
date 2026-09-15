@@ -21,7 +21,40 @@ class SettingsTest(unittest.TestCase):
         source = (ROOT / 'root/usr/libexec/flowsense-settings.sh').read_text().replace('/usr/share/libubox/jshn.sh', str(TOOLS / 'share/libubox/jshn.sh')).replace('/etc/flowsense', str(self.d / 'etc/flowsense')).replace('/var/run/flowsense-settings.lock', str(self.d / 'var/run/flowsense-settings.lock'))
         (self.d / 'settings.sh').write_text(source)
         rpc = (self.d / 'rpc').read_text().replace('/usr/libexec/flowsense-settings.sh', str(self.d / 'settings.sh')).replace('/etc/init.d/npu-jitter restart', str(self.d / 'bin/monitor_restart'))
+        for prefix in ('/etc/config', '/tmp/flowsense-committed', '/var/run/npu-jitter.json', '/sys/class/net/*', '/proc/uptime'):
+            rpc = rpc.replace(prefix, str(self.d) + prefix)
+        (self.d / 'proc/uptime').write_text('100.0 0\n')
         (self.d / 'rpc').write_text(rpc)
+
+    def test_monitor_getter_ignores_staged_delta_and_override(self):
+        config = self.d / 'etc/config/npu-monitor'
+        before = (config.read_bytes(), config.stat().st_mtime_ns)
+        for setting in ('target=unsaved.example', 'enabled=0'):
+            subprocess.run([str(self.d / 'bin/uci'), 'set', 'npu-monitor.@jitter[0].' + setting],
+                           env=self.env, check=True)
+        delta = (self.d / 'delta/npu-monitor').read_bytes()
+        self.assertEqual(self.call('getOverview')['monitor'], dict(target='example.com', enabled=True))
+        (self.d / 'override/npu-monitor').write_text("config jitter\n option target 'override.example'\n option enabled '0'\n")
+        self.assertEqual(self.call('getOverview')['monitor'], dict(target='example.com', enabled=True))
+        self.assertEqual((config.read_bytes(), config.stat().st_mtime_ns), before)
+        self.assertEqual((self.d / 'delta/npu-monitor').read_bytes(), delta)
+        self.assertFalse((self.d / 'monitor-restarts').exists())
+        self.assertEqual(list((self.d / 'tmp').iterdir()), [])
+
+    def test_monitor_getter_read_failure_is_unknown(self):
+        config = self.d / 'etc/config/npu-monitor'
+        for contents in ("config jitter\n option target 'example.com'\n",
+                         "config jitter\n option enabled '0'\n",
+                         "config jitter\n option target 'bad/target'\n option enabled '0'\n",
+                         "config jitter\n option target 'example.com'\n option enabled 'bad'\n",
+                         "not valid uci '\n"):
+            with self.subTest(contents=contents):
+                config.write_text(contents)
+                self.assertIsNone(self.call('getOverview')['monitor'])
+        config.unlink()
+        self.assertIsNone(self.call('getOverview')['monitor'])
+        self.assertEqual(list((self.d / 'tmp').iterdir()), [])
+        self.assertFalse((self.d / 'monitor-restarts').exists())
 
     def stage(self, **values):
         return self.call('saveSettings', dict(dict.fromkeys(('hardware', 'vlan', 'pppoe', 'ap', 'enabled'), -1), target='', **values))
@@ -54,6 +87,25 @@ class SettingsTest(unittest.TestCase):
         self.assertTrue(self.call('saveSettings', dict(payload, hardware=1, target='both.example', enabled=1))['success'])
         self.assertEqual(self.call('applySettings'), dict(success=True, acceleration='applied', monitor='applied'))
         self.assertTrue(self.call()['hardware']['enabled'])
+
+    def test_directory_pending_is_storage_error_for_all_methods(self):
+        pending = self.d / 'etc/flowsense/pending.json'
+        pending.mkdir(parents=True)
+        before = self.snapshot()
+        mtimes = {path: (self.d / path).stat().st_mtime_ns for path in before}
+        for method in ('saveSettings', 'getSettings', 'applySettings'):
+            with self.subTest(method=method):
+                result = self.call('saveSettings', dict(hardware=0, vlan=-1, pppoe=-1, ap=-1, target='saved.example', enabled=0)) if method == 'saveSettings' else self.call(method)
+                self.assertEqual(result, dict(success=False, error='storage'))
+        self.assertEqual(list(pending.iterdir()), [])
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual({path: (self.d / path).stat().st_mtime_ns for path in before}, mtimes)
+        self.assertFalse((self.d / 'restarts').exists())
+        self.assertFalse((self.d / 'monitor-restarts').exists())
+        pending.rmdir()
+        self.assertTrue(self.stage(hardware=0)['success'])
+        self.assertEqual(self.call('getSettings')['pending']['hardware'], 0)
+        self.assertTrue(self.call('applySettings')['success'])
 
     def test_invalid_lock_and_acceleration_failure(self):
         payload = dict(hardware=0, vlan=-1, pppoe=-1, ap=-1, target='', enabled=-1)

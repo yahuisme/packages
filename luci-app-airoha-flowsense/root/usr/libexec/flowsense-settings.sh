@@ -44,6 +44,7 @@ settings_rpc() (
         exit
     fi
     mkdir -p "$fs_settings_dir" && chmod 700 "$fs_settings_dir" || { settings_error storage; exit; }
+    [ ! -e "$fs_settings_dir/pending.json" ] || [ -f "$fs_settings_dir/pending.json" ] || { settings_error storage; exit; }
     [ ! -L "$fs_settings_dir/pending.json" ] || { settings_error storage; exit; }
     mkdir /var/run/flowsense-settings.lock 2>/dev/null || { settings_error busy; exit; }
     trap 'rmdir /var/run/flowsense-settings.lock' EXIT

@@ -61,7 +61,7 @@ clean_args = []
 for arg in it:
     if arg == '-q': pass
     elif arg == '-c': config_dir = Path(next(it))
-    elif arg == '-P': next(it)
+    elif arg in ('-P', '-C', '-t'): next(it)
     else: clean_args.append(arg)
 
 if not clean_args:
@@ -89,6 +89,14 @@ def read_firewall():
                 val = parts[2].strip("'\"")
                 res[cur_sec][key] = val
     return res
+
+if cmd == 'show':
+    data = read_firewall()
+    if 'defaults' not in data: sys.exit(1)
+    print('firewall.@defaults[0]=defaults')
+    for key, value in data['defaults'].items():
+        print("firewall.@defaults[0].%s='%s'" % (key, value))
+    sys.exit(0)
 
 if cmd == 'get':
     target = clean_args[1]
@@ -198,6 +206,75 @@ class Backend(unittest.TestCase):
             self.assertIs(self.call('getFlowOffload')['enabled'], expected)
             self.assertEqual(self.call('setFlowOffload', {'enabled': '1'})['error'], 'unsupported')
             self.assertEqual(firewall.read_text(), original)
+
+    @unittest.skipUnless(UCI_PATH, 'requires real UCI (set UCI_BIN)')
+    def test_committed_flow_ignores_staging_and_overrides(self):
+        config = self.root / 'etc/config'
+        config.mkdir(parents=True)
+        (self.root / 'tmp').mkdir()
+        stage, override = self.root / 'staged', self.root / 'override'
+        stage.mkdir(); override.mkdir()
+        firewall = config / 'firewall'
+        wrapper = self.root / 'uci-private'
+        # Explicit isolation from the backend must not inherit wrapper -t paths.
+        wrapper.write_text('#!/bin/sh\ncase " $* " in *" -C "*) exec "$REAL_UCI" "$@";; esac\n'
+                           'exec "$REAL_UCI" -C "$TEST_OVERRIDE" -t "$TEST_STAGE" "$@"\n')
+        wrapper.chmod(0o700)
+        self.env.update(NPU_UCI=str(wrapper), REAL_UCI=str(UCI_PATH),
+                        TEST_OVERRIDE=str(override), TEST_STAGE=str(stage))
+        def uci(*args):
+            return subprocess.check_output([str(UCI_PATH), '-c', str(config), '-C', str(override),
+                                            '-t', str(stage), *args], env=self.env, text=True)
+        for committed, staged in [('1', '0'), ('0', '1')]:
+            with self.subTest(committed=committed):
+                firewall.write_text("config defaults\n option flow_offloading '1'\n option flow_offloading_hw '%s'\n" % committed)
+                before = (firewall.read_bytes(), firewall.stat().st_mtime_ns)
+                uci('set', 'firewall.@defaults[0].flow_offloading_hw=' + staged)
+                delta = uci('changes', 'firewall')
+                self.assertIn("flow_offloading_hw='%s'" % staged, delta)
+                self.assertIs(self.call('getFlowOffload')['enabled'], committed == '1')
+                self.assertEqual(uci('changes', 'firewall'), delta)
+                self.assertEqual((firewall.read_bytes(), firewall.stat().st_mtime_ns), before)
+                uci('revert', 'firewall')
+                (override / 'firewall').write_text("config defaults\n option flow_offloading '1'\n option flow_offloading_hw '%s'\n" % staged)
+                self.assertIs(self.call('getFlowOffload')['enabled'], committed == '1')
+                (override / 'firewall').unlink()
+        self.assertEqual(list((self.root / 'tmp').iterdir()), [])
+
+    @unittest.skipUnless(UCI_PATH, 'requires real UCI (set UCI_BIN)')
+    def test_flow_read_failures_and_defaults(self):
+        config = self.root / 'etc/config'
+        config.mkdir(parents=True)
+        (self.root / 'tmp').mkdir()
+        firewall = config / 'firewall'
+        original = "config defaults\n option flow_offloading '1'\n option flow_offloading_hw '1'\n"
+        firewall.write_text(original)
+        wrapper = self.root / 'uci-failure'
+        wrapper.write_text('#!/bin/sh\ncase " $* " in *"$FAIL_READ"*) exit 1;; esac\nexec "$REAL_UCI" "$@"\n')
+        wrapper.chmod(0o700)
+        self.env.update(NPU_UCI=str(wrapper), REAL_UCI=str(UCI_PATH))
+        before = (firewall.read_bytes(), firewall.stat().st_mtime_ns)
+        for target in ['get firewall.@defaults[0].flow_offloading ',
+                       'get firewall.@defaults[0].flow_offloading_hw ',
+                       'get firewall.@defaults[0] ', 'show firewall.@defaults[0] ']:
+            with self.subTest(failure=target):
+                self.env['FAIL_READ'] = target
+                self.assertIsNone(self.call('getFlowOffload')['enabled'])
+                self.assertEqual((firewall.read_bytes(), firewall.stat().st_mtime_ns), before)
+        self.env['NPU_UCI'] = str(UCI_PATH)
+        # Real UCI drops empty option values, so these are also absent/default-off.
+        for content, expected in [("config defaults\n", False),
+                                 ("config defaults\n option flow_offloading '1'\n", False),
+                                 ("config defaults\n option flow_offloading_hw '1'\n", False),
+                                 ("config defaults\n option flow_offloading '11'\n", None),
+                                 ("config defaults\n option flow_offloading ''\n", False),
+                                 ("config rule\n", None), ("config defaults\n option broken '\n", None)]:
+            with self.subTest(content=content):
+                firewall.write_text(content)
+                self.assertIs(self.call('getFlowOffload')['enabled'], expected)
+        self.assertEqual(list((self.root / 'tmp').iterdir()), [])
+        (self.root / 'tmp').rmdir()
+        self.assertIsNone(self.call('getFlowOffload')['enabled'])
 
     def test_info_and_missing(self):
         dt = self.root / 'proc/device-tree'
