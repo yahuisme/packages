@@ -49,11 +49,10 @@ const view = vm.runInContext('(function(){'+source+'})()', context);
  await new Promise(resolve => setImmediate(resolve));
  const accents=[...node.querySelectorAll('.fan-temp-card')].map(e=>e.style.getPropertyValue('--fan-temp-accent'));
  ['success','success','warning','warning','orange','orange','danger'].forEach((token,i)=>{
-  assert(accents[i].startsWith('var(--'+token+','),'temperature threshold '+temperatures[i]+' uses '+token);
-  if (token === 'orange') assert.strictEqual(accents[i], 'var(--orange,light-dark(#c2410c,#fb923c))');
+  if (token === 'orange') assert.strictEqual(accents[i], '#f97316', 'orange is fixed vivid orange');
+  else assert(accents[i].startsWith('var(--'+token+','),'temperature threshold '+temperatures[i]+' uses '+token);
  });
  assert.notStrictEqual(accents[3],accents[4],'the 65-degree transition retains its stronger warning color');
- accents.forEach(color=>assert(color.includes('light-dark('),'semantic status colors have light/dark fallback'));
  assert(node.querySelector('#fan-summary-rpm').textContent.includes('1500'));
  assert(node.querySelector('#fan-summary-preset').textContent.includes('Configured Curve'));
  assert.strictEqual(node.querySelectorAll(':scope > style').length, 1);

@@ -35,6 +35,12 @@ mods.request.post=async(url,req)=>{
   if(injected.transport) throw Error(hostile + ' RPC pending_changes');
   result=[0,injected.result];
  }
+ else if(process.env.MONITOR_RPC && ['getOverview','getSettings','saveSettings','applySettings'].includes(method)) {
+  const output=require('child_process').execFileSync(process.env.MONITOR_BUSYBOX,
+   ['ash',process.env.MONITOR_RPC,'call',method],{input:JSON.stringify({...v,ubus_rpc_session:'0123456789abcdef0123456789abcdef'}),
+    env:{...process.env,PATH:process.env.MONITOR_PATH},encoding:'utf8'});
+  result=[0,JSON.parse(output)];
+ }
  else if(method==='getOverview')result=overviewError?[6]:[0,sample];
  else if(method==='getAcceleration')result=accelerationError?[6]:[0,accelerationSample];
  else if(method==='getSettings')result=[0,{success:true,pending:staged}];
@@ -53,6 +59,7 @@ load('rpc');mods.ui={addNotification:(title,node)=>{notification=node;w.document
 load('validation');load('uci');mods.session={};mods.fs={};load('ui');mods.network={};mods.uci.load=()=>Promise.resolve();mods.uci.get=()=>null;load('form');
 w.LuCI.prototype.hasViewPermission=()=>writable;
 const nativeNotify=mods.ui.addNotification.bind(mods.ui);mods.ui.addNotification=(title,node,type)=>{notification=node;return nativeNotify(title,node,type)};
+if(process.env.MONITOR_RPC)for(const key of ['hardware','vlan','pppoe','ap'])accelerationSample[key]={supported:true,enabled:true,configured:true};
 load('app',fs.readFileSync(path.join(__dirname,'../htdocs/luci-static/resources/view/airoha_flowsense/settings.js'),'utf8'));
 const settle=()=>new Promise(r=>setTimeout(r,25));
 function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};}
@@ -64,6 +71,41 @@ function computedColor(node) {
 function count(name){return calls.filter(n=>n===name).length;}
 (async()=>{
  await settle();await settle();let root=w.document.querySelector('.flowsense-settings');
+ if(process.env.MONITOR_RPC) {
+  const expected=JSON.parse(process.env.MONITOR_EXPECTED);
+  const control=id=>root.querySelector('[data-name="'+id+'"] input:not([type="hidden"])');
+  const edit=(id,value)=>{const n=control(id);if(n.type==='checkbox')n.checked=value;else n.value=value;n.dispatchEvent(new w.Event(n.type==='checkbox'?'change':'input'));};
+  const base=path.dirname(process.env.MONITOR_RPC),config=path.join(base,'etc/config/npu-monitor');
+  const snapshot=()=>[fs.readFileSync(config,'utf8'),fs.statSync(config).mtimeMs];
+  const before=snapshot();
+  assert.equal(control('target').disabled,expected===null,'probe target must be editable for a confirmed default');
+  assert.equal(control('enabled').disabled,expected===null);
+  assert.equal(control('hardware').disabled,false);
+  if(expected===null) {
+   assert.equal(control('target').value,'');
+   await mods.app.handleSave();assert.equal((await mods.app.load())[2].pending.enabled,-1);
+   assert.deepEqual(snapshot(),before);assert(!fs.existsSync(path.join(base,'monitor-restarts')));
+  } else {
+   assert.equal(control('target').value,expected.target);assert.equal(control('enabled').checked,expected.enabled);
+   edit('target','saved.example');edit('enabled',!expected.enabled);
+   w.document.querySelector('.cbi-button-save').click();await settle();await settle();
+   assert(notification.textContent.includes('not yet applied'));
+   assert.deepEqual(snapshot(),before,'Save must not commit config');
+   assert(!fs.existsSync(path.join(base,'monitor-restarts')));
+   edit('target','discard.example');edit('enabled',expected.enabled);
+   await mods.app.handleReset();assert.equal(control('target').value,'saved.example');assert.equal(control('enabled').checked,!expected.enabled);
+   root.remove();root=await mods.app.render(await mods.app.load());w.document.querySelector('#view').prepend(root);
+   assert.equal(control('target').value,'saved.example');assert.equal(control('enabled').checked,!expected.enabled);
+   w.document.querySelector('.cbi-button-apply').click();await settle();await settle();
+   assert(notification.textContent.includes('saved and applied'));
+   const readback=await mods.app.load();
+   assert.equal(readback[0].monitor.target,'saved.example');assert.equal(readback[0].monitor.enabled,!expected.enabled);
+   assert.equal(readback[2].pending,null);
+   edit('target','discard-after-apply.example');await mods.app.handleReset();assert.equal(control('target').value,'saved.example');
+   assert(fs.existsSync(path.join(base,'monitor-restarts')));
+  }
+  assert.equal(count('apply'),0);console.log('PASS real UCI monitor -> real LuCI controls, Save, reload, Apply/readback, Reset');w.close();return;
+ }
  if(errorTest) {
   const expected={pending_changes:'存在尚未处理的配置更改，请先应用或撤销这些更改后重试。',invalid:'设置无效，请检查输入后重试。',busy:'另一项设置操作正在进行，请稍后重试。',storage:'无法读写已保存的设置，请检查存储空间和访问权限。',prepare:'无法准备配置更新，请检查可用空间后重试。',read:'无法读取当前配置或运行状态，请刷新页面后重试。',unsupported:'设备不支持此设置，或相关系统参数不可写。',ap_requires_vlan:'启用 AP 兼容模式需要同时启用 VLAN 加速。',apply:'应用失败，已恢复原配置。请检查服务状态后重试。',rollback:'应用失败，且未能完整恢复原配置。请立即检查当前配置和服务状态。'};
   const unknown='操作失败，无法确定原因。请刷新页面并检查系统日志后重试。';

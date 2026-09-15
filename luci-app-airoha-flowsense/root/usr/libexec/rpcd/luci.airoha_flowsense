@@ -44,14 +44,18 @@ get_jitter() {
 }
 
 get_monitor() (
-    local committed target enabled
+    local committed section target enabled=1
     umask 077
     committed=$(mktemp -d /tmp/flowsense-committed.XXXXXX) || { printf null; return; }
     trap 'rm -rf "$committed"' EXIT
     trap 'exit 1' HUP INT TERM
     # Match acceleration's committed-only reads, not another session's edits.
+    section=$(uci -c /etc/config -C "$committed" -t "$committed" -q show npu-monitor.@jitter[0]) || { printf null; return; }
     target=$(uci -c /etc/config -C "$committed" -t "$committed" -q get npu-monitor.@jitter[0].target) || { printf null; return; }
-    enabled=$(uci -c /etc/config -C "$committed" -t "$committed" -q get npu-monitor.@jitter[0].enabled) || { printf null; return; }
+    # npu-jitter defaults to enabled only when the option is confirmed absent.
+    if printf '%s\n' "$section" | grep -q '^[^.]*\.[^.]*\.enabled='; then
+        enabled=$(uci -c /etc/config -C "$committed" -t "$committed" -q get npu-monitor.@jitter[0].enabled) || { printf null; return; }
+    fi
     fs_target "$target" || { printf null; return; }
     case "$enabled" in 0|1) ;; *) printf null; return;; esac
     printf '{"enabled":%s,"target":"%s"}' "$(boolean "$enabled")" "$target"

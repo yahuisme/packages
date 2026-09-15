@@ -41,10 +41,77 @@ class SettingsTest(unittest.TestCase):
         self.assertFalse((self.d / 'monitor-restarts').exists())
         self.assertEqual(list((self.d / 'tmp').iterdir()), [])
 
+    def test_monitor_shipped_default_real_form_save_apply_reset(self):
+        config = self.d / 'etc/config/npu-monitor'
+        config.write_bytes((ROOT / 'root/etc/config/npu-monitor').read_bytes())
+        before = (config.read_bytes(), config.stat().st_mtime_ns)
+        # A normal first visit must not change the shipped configuration.
+        monitor = self.call('getOverview')['monitor']
+        self.assertEqual((config.read_bytes(), config.stat().st_mtime_ns), before)
+        self.assertFalse((self.d / 'monitor-restarts').exists())
+        self.run_monitor_form(dict(target='223.5.5.5', enabled=True))
+        self.assertEqual(monitor, dict(target='223.5.5.5', enabled=True))
+        self.assertNotEqual(config.read_bytes(), before[0])  # only the explicit Apply commits
+        self.assertEqual(self.call('getOverview')['monitor'], dict(target='saved.example', enabled=False))
+        self.assertEqual(list((self.d / 'tmp').iterdir()), [])
+
+    def test_monitor_explicit_zero_real_form_save_apply_reset(self):
+        (self.d / 'etc/config/npu-monitor').write_text("config jitter\n option target 'example.com'\n option enabled '0'\n")
+        self.run_monitor_form(dict(target='example.com', enabled=False))
+
+    def test_monitor_explicit_one_real_form_save_apply_reset(self):
+        self.run_monitor_form(dict(target='example.com', enabled=True))
+
+    def test_monitor_present_option_read_failure_real_form_stays_locked(self):
+        wrapper = (self.d / 'bin/uci').read_text()
+        self.script('uci', wrapper.replace('#!/bin/sh\n', '#!/bin/sh\ncase "$*" in *"get npu-monitor.@jitter[0].enabled") exit 1;; esac\n', 1))
+        self.run_monitor_form(None)
+
+    def test_monitor_default_and_individual_read_failures(self):
+        config = self.d / 'etc/config/npu-monitor'
+        wrapper = (self.d / 'bin/uci').read_text()
+        for option in ('', " option enabled '0'\n", " option enabled '1'\n"):
+            config.write_text("config jitter\n option target '223.5.5.5'\n" + option)
+            before = (config.read_bytes(), config.stat().st_mtime_ns)
+            for command in ('show npu-monitor.@jitter[0]', 'get npu-monitor.@jitter[0].target',
+                            'get npu-monitor.@jitter[0].enabled'):
+                with self.subTest(option=option, failure=command):
+                    self.script('uci', wrapper.replace('#!/bin/sh\n', '#!/bin/sh\ncase "$*" in *"' + command + '") exit 1;; esac\n', 1))
+                    monitor = self.call('getOverview')['monitor']
+                    if not option and command.endswith('.enabled'):
+                        self.assertEqual(monitor, dict(target='223.5.5.5', enabled=True))
+                    else:
+                        self.assertIsNone(monitor)
+                    self.assertEqual((config.read_bytes(), config.stat().st_mtime_ns), before)
+                    self.assertEqual(list((self.d / 'tmp').iterdir()), [])
+        self.assertFalse((self.d / 'monitor-restarts').exists())
+
+    def test_monitor_default_ignores_staged_enabled(self):
+        config = self.d / 'etc/config/npu-monitor'
+        config.write_bytes((ROOT / 'root/etc/config/npu-monitor').read_bytes())
+        before = (config.read_bytes(), config.stat().st_mtime_ns)
+        subprocess.run([str(self.d / 'bin/uci'), 'set', 'npu-monitor.@jitter[0].enabled=0'], env=self.env, check=True)
+        delta = (self.d / 'delta/npu-monitor').read_bytes()
+        (self.d / 'override/npu-monitor').write_text("config jitter\n option target 'override.example'\n option enabled '0'\n")
+        self.assertEqual(self.call('getOverview')['monitor'], dict(target='223.5.5.5', enabled=True))
+        self.assertEqual((config.read_bytes(), config.stat().st_mtime_ns), before)
+        self.assertEqual((self.d / 'delta/npu-monitor').read_bytes(), delta)
+        self.assertEqual(list((self.d / 'tmp').iterdir()), [])
+
+    def run_monitor_form(self, expected):
+        import os
+        result = subprocess.run(['node', str(ROOT / 'tests/test_view.js')],
+                                env=dict(os.environ, MONITOR_RPC=str(self.d / 'rpc'),
+                                         MONITOR_BUSYBOX=self.busybox,
+                                         MONITOR_PATH=self.env['PATH'],
+                                         MONITOR_EXPECTED=json.dumps(expected)),
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('PASS real UCI monitor', result.stdout)
+
     def test_monitor_getter_read_failure_is_unknown(self):
         config = self.d / 'etc/config/npu-monitor'
-        for contents in ("config jitter\n option target 'example.com'\n",
-                         "config jitter\n option enabled '0'\n",
+        for contents in ("config jitter\n option enabled '0'\n",
                          "config jitter\n option target 'bad/target'\n option enabled '0'\n",
                          "config jitter\n option target 'example.com'\n option enabled 'bad'\n",
                          "not valid uci '\n"):
