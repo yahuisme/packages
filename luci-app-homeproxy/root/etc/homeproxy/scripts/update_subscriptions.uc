@@ -592,6 +592,7 @@ function parse_uri(uri) {
 		}
 	} else if (type(uri) === 'string') {
 		uri = split(trim(uri), '://');
+		uri[0] = lc(uri[0]);
 
 		switch (uri[0]) {
 	case 'anytls':

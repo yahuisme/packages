@@ -16,7 +16,7 @@ const callServiceList = rpc.declare({
 	object: 'service',
 	method: 'list',
 	params: ['name'],
-	expect: { '': {} }
+	reject: true
 });
 
 return baseclass.extend({
@@ -94,12 +94,10 @@ return baseclass.extend({
 	}),
 
 	getServiceStatus(instance) {
-		return L.resolveDefault(callServiceList('homeproxy'), {}).then((res) => {
-			try {
-				return res.homeproxy.instances[instance].running === true;
-			} catch (e) {
-				return false;
-			}
+		return callServiceList('homeproxy').then((res) => {
+			if (!res || typeof res !== 'object' || Array.isArray(res))
+				throw new Error('Invalid service status response');
+			return res.homeproxy?.instances?.[instance]?.running === true;
 		});
 	},
 

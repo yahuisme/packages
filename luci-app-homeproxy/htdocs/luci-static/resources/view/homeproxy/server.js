@@ -36,12 +36,12 @@ const CBIGenValue = form.Value.extend({
 });
 
 function renderStatus(isRunning, version) {
-	let statusColor = isRunning ? 'var(--success, light-dark(#15803d, #16a34a))' : 'var(--danger, light-dark(#b91c1c, #dc2626))';
+	let statusColor = isRunning == null ? 'inherit' : isRunning ? 'var(--success, light-dark(#15803d, #16a34a))' : 'var(--danger, light-dark(#b91c1c, #dc2626))';
 	let renderHTML = ('<span style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:100%%">' +
 		'<span style="min-width:0;overflow-wrap:anywhere">%h (sing-box v%h)</span>' +
 		'<span style="display:inline-flex;align-items:center;gap:8px;white-space:nowrap;color:%s">' +
 		'<span aria-hidden="true" style="width:6px;height:6px;flex:none;border-radius:50%%;background:currentColor"></span><strong>%h</strong></span></span>')
-		.format(_('HomeProxy Server'), version, statusColor, isRunning ? _('RUNNING') : _('NOT RUNNING'));
+		.format(_('HomeProxy Server'), version, statusColor, isRunning == null ? _('Status unavailable') : isRunning ? _('RUNNING') : _('NOT RUNNING'));
 
 	return renderHTML;
 }
@@ -122,7 +122,7 @@ return view.extend({
 				'aria-atomic': 'true'
 			}, _('Collecting data...'));
 			lifecycle.poll(status, 'server-status',
-				() => L.resolveDefault(hp.getServiceStatus('sing-box-s')),
+				() => L.resolveDefault(hp.getServiceStatus('sing-box-s'), null),
 				(res) => { dom.content(status, renderStatus(res, features.version)); });
 
 			return E('div', { class: 'cbi-section', id: 'status_bar' }, [

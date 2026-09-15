@@ -49,6 +49,19 @@ function log_error(...args){warn(sprintf('%J',args));}
         self.assertEqual(r.returncode, 0, r.stderr)
         return json.loads(r.stdout)
 
+    def test_scheme_case_full_main(self):
+        import base64
+        for scheme in ('socks4a', 'https'):
+            suffix = '://User:p%40Ss@example.com:8443#MixedCase'
+            def run(link):
+                return self.run_main(base64.b64encode(link.encode()).decode())
+            expected = run(scheme + suffix)
+            self.assertEqual(len(expected['nodes']), 1)
+            self.assertEqual(expected['commits'], 1)
+            for variant in (scheme.upper(), 'SOCKS4a' if scheme == 'socks4a' else 'hTtPs'):
+                with self.subTest(scheme=variant):
+                    self.assertEqual(run(variant + suffix), expected)
+
     def test_null_parse_preserves_unmatched_group(self):
         r = self.run_main(GOOD + BAD)
         self.assertFalse(r['reconcile_group'][GROUP])

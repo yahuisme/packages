@@ -12,6 +12,7 @@ probe() {
 # available on Radio Status even when hostapd omits chan_util_avg.
 devices=$(iw dev 2>/dev/null)
 code=$?
+printf '@@ devices %s\n%s\n' "$code" "$devices"
 if [ "$code" -eq 0 ]; then
 	for iface in $(printf '%s\n' "$devices" | awk '$1 == "Interface" {print $2}'); do
 		case "$iface" in ''|*[!a-zA-Z0-9_.:-]*) continue;; esac

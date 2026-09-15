@@ -39,6 +39,16 @@ class SubscriptionParsing(unittest.TestCase):
             with self.subTest(proto=proto):
                 uri = f'{proto}://p%2540ss@example.com:443'
                 self.assertEqual(self.parse('parse_uri('+json.dumps(uri)+')')['password'], 'p%40ss')
+    def test_scheme_case(self):
+        for scheme in ('socks4a', 'https'):
+            for port in ('', ':8443'):
+                suffix = '://User:p%40Ss@example.com' + port + '#MixedCase'
+                expected = self.parse('parse_uri(' + json.dumps(scheme + suffix) + ')')
+                self.assertIsNotNone(expected)
+                for variant in (scheme.upper(), 'SOCKS4a' if scheme == 'socks4a' else 'hTtPs'):
+                    with self.subTest(scheme=variant, port=port):
+                        self.assertEqual(self.parse('parse_uri(' + json.dumps(variant + suffix) + ')'), expected)
+
     def test_socks4a(self):
         self.assertEqual(self.parse("parse_uri('socks4a://example.com:1080')")['socks_version'],'4a')
     def test_yaml(self):

@@ -42,7 +42,7 @@ if(require.main===module){
    await Promise.all(pending);await tick();assert.equal(detached.innerHTML,detachedHTML);assert.equal(h.root().innerHTML,freshHTML,'stale errors cannot write fresh view');
    h.setHandler(()=>Promise.reject(Error('injected current transport failure')));
    await Promise.all(h.polls().map(f=>f()));assert(h.root().textContent.includes('Status unavailable'),'failure uses unavailable state');
-   h.setHandler(null);await Promise.all(h.polls().map(f=>f()));assert(h.root().querySelector('.hp-service-state.'+(name==='client'?'running':'stopped')),'recovers after failed transport');
+   h.setHandler(null);await Promise.all(h.polls().map(f=>f()));assert.equal(h.root().querySelector('#service_status strong').textContent,name==='client'?'RUNNING':'NOT RUNNING','recovers after failed transport');
    h.mods.poll.stop();h.mods.poll.start();h.mods.poll.stop();await tick();assert.equal(h.polls().length,expected,'scheduler stop/start preserves bounded queue');
    h.root().remove();await tick();assert.equal(h.polls().length,0);
    const before=h.calls.length;await Promise.all(stale.map(f=>f()));assert.equal(h.calls.length,before);

@@ -251,6 +251,50 @@ else:
         self.assertEqual(self.config.read_bytes(), before)
         self.assertEqual(list((self.d / 'tmp').iterdir()), [])
 
+    def test_individual_committed_uci_read_failure_stays_unknown(self):
+        wrapper = (self.d / 'bin/uci').read_text()
+        before, stamps = self.snapshot(), self.write_stamps()
+        for key in ('flow_offloading', 'flow_offloading_hw'):
+            with self.subTest(key=key):
+                self.script('uci', wrapper.replace('#!/bin/sh\n',
+                    '#!/bin/sh\ncase "$*" in *"get firewall.@defaults[0].' + key +
+                    '") exit 1;; esac\n', 1))
+                self.assertIsNone(self.call()['hardware']['configured'])
+                self.assertIs(self.call()['hardware']['enabled'], True)
+                for value in (0, 1):
+                    self.assertEqual(self.save(hardware=value), {'success': False, 'error': 'read'})
+                self.assertEqual(self.snapshot(), before)
+                self.assertEqual(self.write_stamps(), stamps)
+                self.assertFalse((self.d / 'restarts').exists())
+                self.assertEqual(list((self.d / 'tmp').iterdir()), [])
+        self.script('uci', wrapper)
+        self.assertIs(self.call()['hardware']['configured'], True)
+
+    def test_committed_offload_defaults_require_successful_section_read(self):
+        for sw, hw, expected in ((None, None, False), (None, '1', False),
+                                 ('1', None, False), ('0', '1', False),
+                                 ('1', '0', False), ('1', '1', True),
+                                 # Real UCI drops empty-string options on load.
+                                 ('', '1', False), ('1', '11', None)):
+            with self.subTest(sw=sw, hw=hw):
+                self.config.write_text('config defaults\n' + ''.join(
+                    " option %s '%s'\n" % (key, value)
+                    for key, value in (('flow_offloading', sw), ('flow_offloading_hw', hw))
+                    if value is not None))
+                before, stamps = self.snapshot(), self.write_stamps()
+                self.assertIs(self.call()['hardware']['configured'], expected)
+                self.assertEqual(self.snapshot(), before)
+                self.assertEqual(self.write_stamps(), stamps)
+                self.assertEqual(list((self.d / 'tmp').iterdir()), [])
+        self.config.write_text('config defaults\n')
+        wrapper = (self.d / 'bin/uci').read_text()
+        self.script('uci', wrapper.replace('#!/bin/sh\n',
+            '#!/bin/sh\ncase "$*" in *"show firewall.@defaults[0]") exit 1;; esac\n', 1))
+        self.assertIsNone(self.call()['hardware']['configured'])
+        self.assertEqual(self.save(hardware=0), {'success': False, 'error': 'read'})
+        self.assertFalse((self.d / 'restarts').exists())
+        self.assertEqual(list((self.d / 'tmp').iterdir()), [])
+
     def test_vlan_enable_preserves_explicit_ap_off(self):
         # AP is off solely because VLAN is off, although its other knobs are on.
         self.knob('filter-vlan-tagged').write_text('0\n')

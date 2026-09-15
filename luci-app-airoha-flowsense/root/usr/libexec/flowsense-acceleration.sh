@@ -67,16 +67,22 @@ acc_hardware() {
 acc_hw_config() (
     # A normal UCI read includes other sessions' saved deltas and overrides.
     # Use only committed /etc/config bytes and a private empty search path.
-    local sw hw committed
+    local sw=0 hw=0 committed section key value
     umask 077
     committed=$(mktemp -d /tmp/flowsense-committed.XXXXXX) || { printf null; return; }
     trap 'rm -rf "$committed"' EXIT
     trap 'exit 1' HUP INT TERM
-    uci -c /etc/config -C "$committed" -t "$committed" -q export firewall >/dev/null || { printf null; return; }
-    sw=$(uci -c /etc/config -C "$committed" -t "$committed" -q get firewall.@defaults[0].flow_offloading)
-    hw=$(uci -c /etc/config -C "$committed" -t "$committed" -q get firewall.@defaults[0].flow_offloading_hw)
-    # firewall4 defaults both absent options to false.
-    case "$sw:$hw" in 1:1) printf 1;; *[!01:]*) printf null;; *) printf 0;; esac
+    section=$(uci -c /etc/config -C "$committed" -t "$committed" -q show firewall.@defaults[0]) || { printf null; return; }
+    # Only confirmed absent options inherit firewall4's false defaults.
+    # A failed get of a present option is unknown, not an empty false value.
+    for key in flow_offloading flow_offloading_hw; do
+        if printf '%s\n' "$section" | grep -q "^[^.]*\\.[^.]*\\.$key="; then
+            value=$(uci -c /etc/config -C "$committed" -t "$committed" -q get "firewall.@defaults[0].$key") || { printf null; return; }
+            case "$value" in 0|1) ;; *) printf null; return;; esac
+            case "$key" in flow_offloading) sw=$value;; *) hw=$value;; esac
+        fi
+    done
+    case "$sw:$hw" in 1:1) printf 1;; *) printf 0;; esac
 )
 acc_and() {
     local v result=1

@@ -45,4 +45,6 @@ Requires BusyBox and gettext `msgfmt`; localization additionally requires LuCI `
 
 Error reasons follow LuCI `rpc.getStatusText()` and `uci.apply()`: numeric ubus status and the native `RPCError` ubus envelope are recognized; JSON-RPC/HTTP error numbers and arbitrary exception text are not ubus codes. Unknown failures use a translated fallback, without raw transport details. `wifi7/telemetry.js` owns the small shared reason helper; both configuration action surfaces use it.
 
+`radio-attribution.cjs` runs the production summary collector under BusyBox with temporary `iw`/`hostapd_cli` fixtures, then feeds its unmodified output through real LuCI RPC and DOM. It covers single-wiphy MLO/ordinary-interface frequency attribution, fallback, zero power, failed/empty enumeration and overview recovery, while asserting one `iw dev` enumeration and no station scans.
+
 `harness.js` and `mlo-luci-dom.cjs` are support modules, not test entrypoints. `integration.cjs` is both a harness and executable test. Typography-named DOM checks stay because they also assert real Map.reset, scoped modal ownership/reopen and teardown; `native-tabs.cjs` checks actual tab/poll behavior. All collector commands use temporary boundary fixtures.

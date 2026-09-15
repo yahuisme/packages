@@ -59,15 +59,15 @@ if (require.main === module) (async()=>{
  const h=await boot();try {
   if(process.argv.includes('--repro-reset')) {
    h.button('Test all').click();await tick();await h.settle({results:[{site:'baidu',result:true,latency_ms:18}]});
-   assert.match(h.row().textContent,/18 ms/);h.button('Update all').click();await tick();await tick();
+   assert.match(h.row().textContent,/18 ms/);h.button('Update resources').click();await tick();await tick();
    assert.match(h.row().textContent,/18 ms/,'resource Map.reset must retain results');return;
   }
   assert.equal(h.count(),1,'mount must automatically run exactly once');
   h.button('Test all').click();assert.equal(h.count(),1,'manual/auto single flight');
   await h.settle({results:[{site:'baidu',result:true,latency_ms:0}]});assert.match(h.row().textContent,/Success0 ms/);
   for(const p of h.polls)await p();assert.equal(h.count(),1,'poll must not retest');
-  h.button('Update all').click();await tick();await tick();assert.match(h.row().textContent,/Success0 ms/);assert.equal(h.count(),1);
-  const map=h.mods.dom.findClassInstance(h.root().querySelector('#cbi-homeproxy'));
+  h.button('Update resources').click();await tick();await tick();assert.match(h.row().textContent,/Success0 ms/);assert.equal(h.count(),1);
+  const map=h.mods.dom.findClassInstance(h.root());
   await map.reset();await map.reset();assert.match(h.row().textContent,/Success0 ms/);assert.equal(h.count(),1);
   const links=h.root().querySelectorAll('table a');
   assert(links.length>0,'resource source links rendered after reset');
@@ -75,7 +75,7 @@ if (require.main === module) (async()=>{
    assert.equal(a.target,'_blank');assert.equal(a.rel,'noreferrer noopener');
    assert.equal(a.getAttribute('href'),a.textContent);
   }
-  assert.equal(await h.app.render(),h.root(),'repeat view render reuses current root');assert.equal(h.count(),1);
+  const repeated=await h.app.render();assert.equal(repeated.id,'cbi-homeproxy');assert.notEqual(repeated,h.root(),'native render creates a fresh detached Map');assert.match(repeated.textContent,/Success0 ms/,'repeat render retains session results');assert.equal(h.count(),1);
   for(const payload of [{results:null},{results:{}},{results:[null,{site:'baidu',result:'true',latency_ms:5}]}]) {
    h.button('Test all').click();await tick();await h.settle(payload);assert.match(h.row().textContent,/Failed-/);assert(!h.button('Test all').disabled);
   }

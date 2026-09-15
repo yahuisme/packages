@@ -1773,6 +1773,11 @@ msgid ""
 "ServerName field is empty."
 msgstr "当 ClientHello 的 ServerName 字段为空时，选择证书所使用的服务器名称。"
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:146
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:44
+msgid "Status unavailable"
+msgstr "状态读取失败"
+
 #: luci-app-homeproxy/root/usr/share/luci/menu.d/luci-app-homeproxy.json:38
 msgid "Service Status"
 msgstr "服务状态"
