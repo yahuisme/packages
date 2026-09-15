@@ -1,6 +1,31 @@
 'use strict';
 'require baseclass';
 
+// LuCI uci.apply() rejects numeric ubus status; rpc.js wraps ubus failures
+// in RPCError.message (including a stack), without a structured code field.
+// Never use transport text as a reason or interpret JSON-RPC/HTTP codes as ubus.
+function errorText(error) {
+	var code = typeof error === 'number' ? error : null;
+	if (error && error.name === 'RPCError' && typeof error.message === 'string') {
+		var match = error.message.match(/^RPC call to uci\/(?:apply|confirm|get|set|add|delete|order|changes|revert) failed with ubus code (\d+): [^\n]*(?:\n|$)/);
+		if (match) code = Number(match[1]);
+	}
+	// Status contract: LuCI rpc.getStatusText(), ubus status 1..10.
+	switch (code) {
+	case 1: return _('Invalid command');
+	case 2: return _('Invalid argument');
+	case 3: return _('Method not found');
+	case 4: return _('Resource not found');
+	case 5: return _('No data received');
+	case 6: return _('Permission denied');
+	case 7: return _('Request timeout');
+	case 8: return _('Not supported');
+	case 9: return _('Unspecified error');
+	case 10: return _('Connection lost');
+	default: return _('Operation failed. Please retry.');
+	}
+}
+
 function band(frequency) {
 	var f = Number(frequency);
 	return f >= 2400 && f < 2500 ? '2g' : f >= 4900 && f < 5925 ? '5g' : f >= 5925 && f <= 7125 ? '6g' : null;
@@ -77,4 +102,4 @@ function parse(raw) {
 	return out;
 }
 
-return baseclass.extend({ parse: parse, band: band, utilization: utilization, delta: delta, dfs: dfs });
+return baseclass.extend({ errorText: errorText, parse: parse, band: band, utilization: utilization, delta: delta, dfs: dfs });

@@ -1,5 +1,5 @@
 const fs=require('fs'),assert=require('assert/strict');
-const {JSDOM}=require('jsdom');global.document=new JSDOM('<body/>').window.document;
+const {JSDOM}=require('jsdom');global.document=new JSDOM('<body/>').window.document;global.MutationObserver=document.defaultView.MutationObserver;
 String.prototype.format=function(...a){let i=0;return this.replace(/%[sd]/g,()=>a[i++]);};
 const E=(tag,attrs,children)=>{if(Array.isArray(attrs)||typeof attrs==='string'){children=attrs;attrs={}};let n=document.createElement(tag);for(let [k,v]of Object.entries(attrs||{})){if(typeof v==='function')n.addEventListener(k,v);else if(v!=null)n.setAttribute(k,v)};for(let c of [children].flat(Infinity))if(c!=null)n.append(c);return n};
 const root=process.env.LUCI_RESOURCE_DIR+'/';
@@ -7,12 +7,13 @@ function extract(file,name,last=false){let src=fs.readFileSync(root+file,'utf8')
 const nativeAdd=extract('form.js','handleAdd',true),nativeCancel=extract('form.js','handleModalCancel',true);
 let grid,map,records={},modalCalls=0;
 const uci={load:()=>Promise.resolve(),sections:(c,t)=>Object.values(records).filter(r=>r['.type']===t),get:(c,s,k)=>k?records[s]?.[k]:records[s],add:(c,t,s)=>{s=s||'new0';records[s]={'.name':s,'.type':t};return s},set:(c,s,k,v)=>records[s][k]=v,remove:(c,s)=>delete records[s]};
-const form={GridSection:{prototype:{handleAdd:nativeAdd,renderMoreOptionsModal:()=>{modalCalls++;return Promise.resolve()},renderRowActions:()=>E('td',{},E('button',{},'Edit'))}},Map:function(c){map=this;this.config=c;this.data=uci;this.chain=()=>{};this.section=()=>grid={map:this,sectiontype:'wifi-iface',children:[],tab:()=>{},getPreviousModalMap:()=>null,renderMoreOptionsModal:form.GridSection.prototype.renderMoreOptionsModal,super:()=>Promise.resolve(),option:function(type,name,title){let o={option:name,title,section:this,choices:[],value:function(v){this.choices.push(v)},depends:()=>{},formvalue:s=>uci.get(c,s,name)};this.children.push(o);return o},taboption:function(t,...args){return this.option(...args)}};this.render=()=>Promise.reject(Error('STOP'));}};
+const form={GridSection:{prototype:{handleAdd:nativeAdd,renderMoreOptionsModal:()=>{modalCalls++;return Promise.resolve()},renderRowActions:()=>E('td',{},E('button',{},'Edit'))}},Map:function(c){map=this;this.config=c;this.data=uci;this.chain=()=>{};this.section=()=>grid={map:this,sectiontype:'wifi-iface',children:[],tab:()=>{},getPreviousModalMap:()=>null,renderMoreOptionsModal:form.GridSection.prototype.renderMoreOptionsModal,super:()=>Promise.resolve(),option:function(type,name,title){let o={option:name,title,section:this,choices:[],value:function(v){this.choices.push(v)},depends:()=>{},formvalue:s=>uci.get(c,s,name)};this.children.push(o);return o},taboption:function(t,...args){return this.option(...args)}};this.render=()=>this.renderContents().then(n=>{document.body.append(n);return n});}};
+form.Map.prototype.renderContents=()=>Promise.resolve(E('div',{},[]));
 const L={toArray:v=>v==null?[]:Array.isArray(v)?v:String(v).split(/\s+/),naturalCompare:(a,b)=>a.localeCompare(b),url:(...x)=>x.join('/'),hasViewPermission:()=>true};
 const src=fs.readFileSync(require('path').join(__dirname, '../htdocs/luci-static/resources/wifi7/mlo.js'),'utf8');
-const view=Function('baseclass','form','uci','ui','poll','rpc','L','_','E',src)({extend:v=>v},form,uci,{createHandlerFn:(c,fn)=>fn,addNotification:()=>{}},{},{declare:()=>()=>Promise.resolve({})},L,s=>s,E);
+const view=Function('baseclass','form','uci','ui','poll','rpc','L','_','E',src)({extend:v=>v},form,uci,{createHandlerFn:(c,fn)=>fn,addNotification:()=>{}},{add(){},remove(){}},{declare:()=>()=>Promise.resolve({})},L,s=>s,E);
 (async()=>{records={radio0:{'.name':'radio0','.type':'wifi-device'},radio1:{'.name':'radio1','.type':'wifi-device'},wan:{'.name':'wan','.type':'interface'},mesh:{'.name':'mesh','.type':'wifi-iface',mode:'mesh'},legacy:{'.name':'legacy','.type':'wifi-iface',mode:'ap',encryption:'psk2+ccmp'}};
-try{await view.render([null,null,{radios:[],sections:{},activeMldIfnames:[] }])}catch(e){assert.equal(e.message,'STOP')}
+await view.render([null,null,{radios:[],sections:{},activeMldIfnames:[] }]);
 await grid.handleAdd({preventDefault(){}});let added=Object.values(records).find(r=>r['.type']==='wifi-iface'&&!['mesh','legacy'].includes(r['.name']));assert(added);assert.equal(map.addedSection,added['.name']);assert(!added.device?.length);assert(!added.network?.length);assert.equal(added.mode,'ap');await nativeCancel.call(grid,{},{});assert(!records[added['.name']]);console.log('PASS native cancel cleanup and safe empty defaults');
 if(process.argv.includes('--add-only'))return;
 assert.deepEqual(grid.children.filter(o=>!o.modalonly).map(o=>o.option),['_overview']);

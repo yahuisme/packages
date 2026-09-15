@@ -334,3 +334,37 @@ msgstr "应用所有已暂存的配置更改？无线连接可能会中断。"
 
 msgid "Failed to update configuration: %s"
 msgstr "更新配置失败：%s"
+
+
+msgid "Invalid command"
+msgstr "无效命令"
+
+msgid "Invalid argument"
+msgstr "无效参数"
+
+msgid "Method not found"
+msgstr "方法不存在"
+
+msgid "Resource not found"
+msgstr "资源不存在"
+
+msgid "No data received"
+msgstr "未收到数据"
+
+msgid "Permission denied"
+msgstr "权限被拒绝"
+
+msgid "Request timeout"
+msgstr "请求超时"
+
+msgid "Not supported"
+msgstr "不支持此操作"
+
+msgid "Unspecified error"
+msgstr "未指定的错误"
+
+msgid "Connection lost"
+msgstr "连接已断开"
+
+msgid "Operation failed. Please retry."
+msgstr "操作失败，请重试。"

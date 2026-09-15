@@ -70,7 +70,15 @@ return view.extend({
 		var radios = uci.sections('wireless', 'wifi-device');
 		var cells = {}, controls = [], previous = {}, busy = false, channelLists = {}, clientNodes = {};
 		var activeTab = 0, clientCache = { rows: [], empty: _('Client data unavailable') };
-		var saving = false;
+		var operation = {
+			pending: false,
+			changed: function() { lockControls(); if (operation.lockMlo) operation.lockMlo(); },
+			acquire: function() {
+				if (operation.pending || !root || !root.isConnected || !L.hasViewPermission()) return false;
+				operation.pending = true; operation.changed(); return true;
+			},
+			release: function() { operation.pending = false; operation.changed(); }
+		};
 		(data[0] || []).forEach(function(item) { channelLists[item.id] = item; });
 		var notice = E('div', { 'class': 'wifi7-notice', role: 'status' });
 		var grid = E('div', { 'class': 'wifi7-grid' });
@@ -145,7 +153,7 @@ return view.extend({
 				var anchor = E('a', { href: url, download: 'wifi7-diagnostics.txt' });
 				document.body.appendChild(anchor); anchor.click(); anchor.remove();
 				window.setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
-			}).catch(function(err) { ui.addNotification(null, E('p', {}, [err.message]), 'error'); })
+			}).catch(function() { ui.addNotification(null, E('p', {}, [_('Diagnostic collection failed')]), 'error'); })
 				.finally(function() { download.disabled = false; });
 		} }, _('Export wireless diagnostics'));
 		overview.appendChild(download);
@@ -162,7 +170,7 @@ return view.extend({
 						mloLoading = true;
 						mloView.load().then(function(data) {
 							if (!root.isConnected) return null;
-							return mloView.render(data);
+							return mloView.render(data, operation);
 						}).then(function(node) {
 							if (!root.isConnected || !node) { mloView.pause(); return; }
 							mloLoaded = true;
@@ -190,7 +198,7 @@ return view.extend({
 		});
 		var save = E('button', { 'class': 'cbi-button cbi-button-apply', click: function() {
 			lockControls();
-			if (saving || !L.hasViewPermission()) return;
+			if (operation.pending || !root.isConnected || !L.hasViewPermission()) return;
 			if (controls.some(function(c) { return !c.channel.reportValidity() || !c.power.reportValidity() || !c.country.reportValidity(); })) return;
 			var changes = [];
 			controls.forEach(function(c) {
@@ -211,6 +219,7 @@ return view.extend({
 				return ['channel', 'htmode', 'country'].indexOf(change.key) !== -1 || change.key === 'disabled' && change.value === '1';
 			});
 			if (disruptive && !window.confirm(_('These changes may interrupt wireless connections, including MLO links. Apply?'))) return;
+			if (!operation.acquire()) return;
 			changes.forEach(function(change) {
 				// Failed applies may leave server-side deltas; overwrite them on retry.
 				var control = controls.find(function(c) { return c.id === change.id; });
@@ -219,7 +228,6 @@ return view.extend({
 				if (change.value) uci.set('wireless', change.id, change.key, change.value);
 				else uci.unset('wireless', change.id, change.key);
 			});
-			saving = true;
 			lockControls();
 			return uci.save().then(function() { return uci.apply(); }).then(function() {
 				uci.unload('wireless');
@@ -250,16 +258,16 @@ return view.extend({
 				ui.addNotification(null, E('p', {}, _('Configuration applied. Runtime status will refresh.')), 'info');
 				return update();
 			}).catch(function(err) {
-				ui.addNotification(null, E('p', {}, [_('Failed to apply configuration: %s').format(err && err.message != null ? err.message : String(err))]), 'error');
-			}).finally(function() { saving = false; lockControls(); });
+				ui.addNotification(null, E('p', {}, [_('Failed to apply configuration: %s').format(telemetry.errorText(err))]), 'error');
+			}).finally(function() { operation.release(); });
 		} }, _('Save & Apply'));
 		settings.appendChild(E('div', { 'class': 'wifi7-save-bar' }, save));
 		function lockControls() {
 			var readonly = !L.hasViewPermission();
-			save.disabled = saving || readonly;
+			save.disabled = operation.pending || readonly;
 			controls.forEach(function(c) {
-				['enabled', 'channel', 'width', 'power', 'country', 'radar'].forEach(function(key) { if (c[key]) c[key].disabled = saving || readonly || c.missing; });
-				c.channel.disabled = saving || readonly || c.missing || c.country.value.toUpperCase() !== (c.original.country || '').toUpperCase();
+				['enabled', 'channel', 'width', 'power', 'country', 'radar'].forEach(function(key) { if (c[key]) c[key].disabled = operation.pending || readonly || c.missing; });
+				c.channel.disabled = operation.pending || readonly || c.missing || c.country.value.toUpperCase() !== (c.original.country || '').toUpperCase();
 			});
 		}
 

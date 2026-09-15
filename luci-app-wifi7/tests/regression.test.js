@@ -37,7 +37,7 @@ const assert=require('node:assert/strict');
  const before=counters().saves; save.click(); await tick(); assert.equal(counters().saves,before,'new baseline prevents repeated writes');
  power.value='24'; uci.apply=async()=>{await apply();throw 6};
  save.click(); await tick();
- assert.ok(notices.at(-1)[1].textContent.endsWith('6'),'numeric apply failure is visible');
+ assert.equal(notices.at(-1)[1].textContent,'Failed to apply configuration: Permission denied','numeric apply failure explains permission denial');
  assert.equal(power.value,'24'); assert.equal(power.disabled,false);
  const failed=counters().applies; uci.apply=apply; save.click(); await tick();
  assert.equal(counters().applies,failed+1,'failed change must retry apply');

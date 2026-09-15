@@ -5,6 +5,7 @@
 'require ui';
 'require poll';
 'require rpc';
+'require wifi7.telemetry as telemetry';
 
 var callWirelessDevices = rpc.declare({
 	object: 'luci-rpc',
@@ -47,7 +48,7 @@ function wirelessLink() {
 	return E('a', { href: L.url('admin/network/wireless') }, _('Manage in Wireless'));
 }
 
-function radioLabel(radio) {
+function radioLabel(radio, grouped) {
 	let label = [ radio['.name'] ];
 
 	if (radio.band)
@@ -57,7 +58,7 @@ function radioLabel(radio) {
 	if (radio.disabled == '1')
 		label.push(_('Disabled'));
 
-	return label.join(' · ');
+	return grouped ? label.map((part, index) => E('span', {}, [ (index ? '· ' : '') + part ])) : label.join(' · ');
 }
 
 function radioMap(radios) {
@@ -156,7 +157,7 @@ function overview(sectionId, radiosByName, runtime) {
 	let devices = uniqueValues(section.device);
 	let state = runtime.sections[sectionId];
 	let stateText = runtime.unknown ? _('Unavailable') : !state ? _('No runtime state') : state.up ? _('Active') : _('Down');
-	let radioText = devices.map(device => radiosByName[device] ? radioLabel(radiosByName[device]) : device).join(', ') || _('None');
+	let radioText = devices.length ? E('span', { class: 'mlo-overview-radios' }, devices.map(device => E('span', {}, radiosByName[device] ? radioLabel(radiosByName[device], true) : [ device ]))) : _('None');
 
 	return E('div', { class: 'mlo-overview', 'data-mlo-overview-section': sectionId }, [
 		E('span', { class: 'mlo-overview-primary' }, [ section.ssid || _('Unnamed network') ]),
@@ -179,7 +180,7 @@ return baseclass.extend({
 		return mloRefresh ? mloRefresh() : Promise.resolve();
 	},
 
-	render: function(data) {
+	render: function(data, operation) {
 		let runtime = data[2];
 		let radios = uci.sections('wireless', 'wifi-device');
 		let radiosByName = radioMap(radios);
@@ -188,18 +189,35 @@ return baseclass.extend({
 		let map = new form.Map('wireless', null, _('Configure Wi-Fi 7 Multi-Link Operation interfaces.'));
 		map.chain('network');
 		let actionPending = false, actionRoot;
+		operation ||= {
+			pending: false,
+			acquire: function() { if (this.pending) return false; this.pending = true; lockActions(); return true; },
+			release: function() { this.pending = false; lockActions(); }
+		};
+		operation.lockMlo = lockActions;
+		function blocked() { return operation.pending || !L.hasViewPermission() || map.readonly; }
+		const disabledBeforeLock = new WeakMap();
 		function lockActions() {
-			let node = actionRoot;
-			if (node) node.querySelectorAll('[data-mlo-action]').forEach(button => {
-				button.disabled = actionPending || !L.hasViewPermission() || map.readonly;
+			let node = actionRoot, locked = blocked();
+			if (node) node.querySelectorAll('button').forEach(button => {
+				if (button.hasAttribute('data-mlo-action')) button.disabled = locked;
+				else if (locked) {
+					if (!disabledBeforeLock.has(button)) disabledBeforeLock.set(button, button.disabled);
+					button.disabled = true;
+				}
+				else if (disabledBeforeLock.has(button)) {
+					button.disabled = disabledBeforeLock.get(button);
+					disabledBeforeLock.delete(button);
+				}
 			});
 		}
 		function runAction(reset) {
 			lockActions();
-			if (actionPending || !L.hasViewPermission() || map.readonly) return;
+			if (blocked() || !actionRoot.isConnected) return;
 			if (!window.confirm(reset
 				? _('Discard all staged wireless changes?')
 				: _('Apply all staged configuration changes? Wireless connections may be interrupted.'))) return;
+			if (!operation.acquire()) return;
 			actionPending = true;
 			lockActions();
 			return Promise.resolve().then(function() {
@@ -208,8 +226,8 @@ return baseclass.extend({
 				uci.unload('wireless');
 				return uci.load('wireless');
 			}).then(function() { return map.reset(); }).catch(function(error) {
-				ui.addNotification(null, E('p', {}, [ _('Failed to update configuration: %s').format(error && error.message != null ? error.message : String(error)) ]), 'error');
-			}).finally(function() { actionPending = false; lockActions(); });
+				ui.addNotification(null, E('p', {}, [ (reset ? _('Failed to update configuration: %s') : _('Failed to apply configuration: %s')).format(telemetry.errorText(error)) ]), 'error');
+			}).finally(function() { actionPending = false; operation.release(); });
 		}
 
 		let section = map.section(form.GridSection, 'wifi-iface', _('MLO Interfaces'));
@@ -232,7 +250,7 @@ return baseclass.extend({
 		section.handleAdd = function(event) {
 			if (event)
 				event.preventDefault();
-			if (this.map.readonly)
+			if (blocked() || !actionRoot.isConnected)
 				return Promise.resolve();
 			return form.GridSection.prototype.handleAdd.call(this, event, nextSectionName('mlo')).catch(function(error) {
 				if (section.map.addedSection != null) {
@@ -243,7 +261,7 @@ return baseclass.extend({
 			});
 		};
 		section.renderMoreOptionsModal = function(sectionId, event) {
-			if (this.map.readonly)
+			if (blocked())
 				return Promise.resolve();
 			if (this.map.addedSection == sectionId) {
 				uci.set('wireless', sectionId, 'mode', 'ap');
@@ -255,7 +273,8 @@ return baseclass.extend({
 				ui.addNotification(null, E('p', {}, [ _('This mode or encryption is not supported by this editor.'), ' ', wirelessLink() ]));
 				return Promise.resolve();
 			}
-			return form.GridSection.prototype.renderMoreOptionsModal.call(this, sectionId, event).then(function(result) {
+			if (!operation.acquire()) return Promise.resolve();
+			return Promise.resolve().then(() => form.GridSection.prototype.renderMoreOptionsModal.call(this, sectionId, event)).then(function(result) {
 				let modal = document.querySelector('body.modal-overlay-active > #modal_overlay > .modal.cbi-modal');
 				if (modal) {
 					modal.classList.add('wifi7-mlo-modal', 'wifi7-modal');
@@ -263,12 +282,28 @@ return baseclass.extend({
 						modal.appendChild(E('style', { 'data-wifi7-modal-style': '' }, '#modal_overlay > .wifi7-mlo-modal{max-width:calc(100vw - 32px)}.wifi7-mlo-modal input:not([type="checkbox"]),.wifi7-mlo-modal select,.wifi7-mlo-modal .cbi-button{height:32px}.wifi7-mlo-modal .cbi-button{padding-top:0;padding-bottom:0}'));
 				}
 				return result;
-			});
+			}).finally(() => operation.release());
 		};
 		section.renderRowActions = function(sectionId) {
 			return this.map.readonly || !editableSection(sectionId)
 				? E('td', { class: 'td cbi-section-actions' }, wirelessLink())
 				: form.GridSection.prototype.renderRowActions.call(this, sectionId);
+		};
+
+		// Guard native staging entry points without replacing native form semantics.
+		for (let method of [ 'handleRemove', 'handleModalSave' ]) {
+			let native = section[method];
+			section[method] = function() {
+				if (blocked() || !operation.acquire()) return Promise.resolve();
+				let args = arguments;
+				return Promise.resolve().then(() => native.apply(this, args)).finally(() => operation.release());
+			};
+		}
+		let nativeSort = section.handleSort;
+		section.handleSort = function(event) {
+			if (blocked() || !operation.acquire()) return;
+			try { nativeSort.call(this, event); }
+			finally { window.requestAnimationFrame(() => operation.release()); }
 		};
 
 		let option = section.option(form.DummyValue, '_overview', _('Interface'));
@@ -340,7 +375,7 @@ return baseclass.extend({
 			return form.Map.prototype.renderContents.apply(this, arguments).then(function(nodes) {
 				nodes.classList.add('mlo-map');
 				actionRoot = nodes;
-				nodes.appendChild(E('style', {}, '.mlo-map .mlo-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 16px}.mlo-map .mlo-summary-item{min-width:0;min-height:96px;padding:8px 16px;gap:4px;line-height:1.5;overflow-wrap:anywhere;box-sizing:border-box;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:6px;background:var(--cbi-section-bg,transparent);display:flex;flex-direction:column;justify-content:center}.mlo-map .mlo-summary-item strong{font-size:1.125em;font-weight:600}.mlo-map .mlo-summary-item small{font-size:inherit;color:var(--cbi-muted-color,var(--text-muted,inherit));overflow-wrap:anywhere}.mlo-map .mlo-active{color:inherit}.mlo-map .mlo-muted{color:var(--cbi-muted-color,var(--text-muted,inherit))}.mlo-map{container-type:inline-size}.mlo-map .wifi7-save-bar{gap:8px;flex-wrap:wrap}@container(max-width:600px){.mlo-map .cbi-section-table-titles .th:first-child,.mlo-map .cbi-section-table-row > .td:first-child{min-width:104px;width:30%}.mlo-map .cbi-section-actions > div{display:flex;flex-direction:column;gap:8px}.mlo-map .cbi-section-actions .cbi-button{margin:0}.mlo-map .mlo-overview [data-mlo-runtime-section]{white-space:nowrap}}.mlo-map .mlo-overview{display:grid;gap:8px;min-width:0;overflow-wrap:break-word;word-break:keep-all}.mlo-map .mlo-overview-primary{overflow-wrap:anywhere}@media(max-width:760px){.mlo-map .mlo-summary{grid-template-columns:1fr}}'));
+				nodes.appendChild(E('style', {}, '.mlo-map .mlo-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 16px}.mlo-map .mlo-summary-item{min-width:0;min-height:96px;padding:8px 16px;gap:4px;line-height:1.5;overflow-wrap:anywhere;box-sizing:border-box;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:6px;background:var(--cbi-section-bg,transparent);display:flex;flex-direction:column;justify-content:center}.mlo-map .mlo-summary-item strong{font-size:1.125em;font-weight:600}.mlo-map .mlo-summary-item small{font-size:inherit;color:var(--cbi-muted-color,var(--text-muted,inherit));overflow-wrap:anywhere}.mlo-map .mlo-active{color:inherit}.mlo-map .mlo-muted{color:var(--cbi-muted-color,var(--text-muted,inherit))}.mlo-map{container-type:inline-size}.mlo-map .wifi7-save-bar{gap:8px;flex-wrap:wrap}@container(max-width:600px){.mlo-map .cbi-section-table-titles .th:first-child,.mlo-map .cbi-section-table-row > .td:first-child{min-width:104px;width:30%}.mlo-map .cbi-section-actions > div{display:flex;flex-direction:column;gap:8px}.mlo-map .cbi-section-actions .cbi-button{margin:0}.mlo-map .mlo-overview [data-mlo-runtime-section]{white-space:nowrap}}.mlo-map .mlo-overview{display:grid;gap:8px;min-width:0;overflow-wrap:break-word;word-break:keep-all}.mlo-map .mlo-overview-radios{display:grid;gap:4px}.mlo-map .mlo-overview-radios > span{display:flex;flex-wrap:wrap;column-gap:4px}.mlo-map .mlo-overview-radios > span > span{white-space:nowrap}.mlo-map .mlo-overview-primary{overflow-wrap:anywhere}@media(max-width:760px){.mlo-map .mlo-summary{grid-template-columns:1fr}}'));
 				nodes.appendChild(E('div', { class: 'wifi7-save-bar' }, [
 					E('button', { class: 'cbi-button cbi-button-apply', 'data-mlo-action': 'apply', disabled: actionPending || map.readonly || !L.hasViewPermission() ? true : null, click: function() { return runAction(false); } }, _('Apply staged changes')),
 					E('button', { class: 'cbi-button cbi-button-reset', 'data-mlo-action': 'reset', disabled: actionPending || map.readonly || !L.hasViewPermission() ? true : null, click: function() { return runAction(true); } }, _('Reset wireless changes'))
@@ -348,6 +383,7 @@ return baseclass.extend({
 				let description = nodes.querySelector('.cbi-map-descr');
 				let status = summary(runtime, radios);
 				description && description.parentNode.insertBefore(status, description.nextSibling);
+				lockActions();
 				return nodes;
 			});
 		};

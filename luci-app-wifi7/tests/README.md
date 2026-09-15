@@ -14,6 +14,7 @@ Fixtures do not connect to a router or run host services. These checks are not f
 node tests/error-text.cjs
 node tests/integration.cjs
 node tests/mlo-actions.cjs
+node tests/cross-actions.cjs
 for mode in revoked pending reentry; do node tests/permissions-reentry.cjs "$mode"; done
 node tests/lazy-regression.cjs
 node tests/lifecycle.test.js
@@ -39,4 +40,8 @@ python3 tests/probes.test.py
 python3 tests/test_summary_survey.py
 ```
 
-Requires BusyBox and gettext `msgfmt`; localization additionally requires LuCI `src/po2lmo` (or `PO2LMO`). `harness.js` and `mlo-luci-dom.cjs` are support modules, not test entrypoints. `integration.cjs` is both a harness and executable test. Typography-named DOM checks stay because they also assert real Map.reset, scoped modal ownership/reopen and teardown; `native-tabs.cjs` checks actual tab/poll behavior. All collector commands use temporary boundary fixtures.
+Requires BusyBox and gettext `msgfmt`; localization additionally requires LuCI `src/po2lmo` (or `PO2LMO`). `error-text.cjs` compiles the Chinese catalog and uses native LuCI notifications for radio Apply, MLO Apply/Reset and diagnostics, covering ubus 1–10, numeric Apply rejection, unknown/hostile replies and transport failure. It locates the diagnostics button by its translated label, and re-queries MLO actions after native Map redraw. Optional `ERROR_MODE=save|mlo-apply|mlo-reset|diagnostics` selects a single branch; the default runs all four. Do not leak translation or fixture-mode environment variables into fixed-English tests.
+
+Error reasons follow LuCI `rpc.getStatusText()` and `uci.apply()`: numeric ubus status and the native `RPCError` ubus envelope are recognized; JSON-RPC/HTTP error numbers and arbitrary exception text are not ubus codes. Unknown failures use a translated fallback, without raw transport details. `wifi7/telemetry.js` owns the small shared reason helper; both configuration action surfaces use it.
+
+`harness.js` and `mlo-luci-dom.cjs` are support modules, not test entrypoints. `integration.cjs` is both a harness and executable test. Typography-named DOM checks stay because they also assert real Map.reset, scoped modal ownership/reopen and teardown; `native-tabs.cjs` checks actual tab/poll behavior. All collector commands use temporary boundary fixtures.

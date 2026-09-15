@@ -333,3 +333,36 @@ msgstr ""
 
 msgid "Failed to update configuration: %s"
 msgstr ""
+
+msgid "Invalid command"
+msgstr ""
+
+msgid "Invalid argument"
+msgstr ""
+
+msgid "Method not found"
+msgstr ""
+
+msgid "Resource not found"
+msgstr ""
+
+msgid "No data received"
+msgstr ""
+
+msgid "Permission denied"
+msgstr ""
+
+msgid "Request timeout"
+msgstr ""
+
+msgid "Not supported"
+msgstr ""
+
+msgid "Unspecified error"
+msgstr ""
+
+msgid "Connection lost"
+msgstr ""
+
+msgid "Operation failed. Please retry."
+msgstr ""
