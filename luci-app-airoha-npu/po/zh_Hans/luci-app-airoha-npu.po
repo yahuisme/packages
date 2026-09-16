@@ -20,7 +20,7 @@ msgid "Airoha SoC Settings"
 msgstr "Airoha SoC 设置"
 
 msgid "Another operation is in progress. Retry later."
-msgstr "另一项操作正在进行，请稍后重试。"
+msgstr "另一项操作正在进行，请稍后重试"
 
 msgid "Bound"
 msgstr "已绑定"
@@ -95,7 +95,7 @@ msgid "NPU Core"
 msgstr "NPU 核心"
 
 msgid "Settings saved."
-msgstr "设置已保存。"
+msgstr "设置已保存"
 
 msgid "Not bound"
 msgstr "未绑定"
@@ -119,7 +119,7 @@ msgid "Settings"
 msgstr "设置"
 
 msgid "Settings applied."
-msgstr "设置已应用。"
+msgstr "设置已应用"
 
 msgid "SoC & CPU Architecture"
 msgstr "SoC 与 CPU 架构"
@@ -134,19 +134,19 @@ msgid "Status"
 msgstr "状态"
 
 msgid "The change failed and recovery could not be verified. Check the system settings."
-msgstr "更改失败且无法验证恢复结果，请检查系统设置。"
+msgstr "更改失败且无法验证恢复结果，请检查系统设置"
 
 msgid "The change failed. Previous settings were restored."
-msgstr "更改失败，已恢复原设置。"
+msgstr "更改失败，已恢复原设置"
 
 msgid "The operation failed. Refresh the page and try again."
-msgstr "操作失败，请刷新页面后重试。"
+msgstr "操作失败，请刷新页面后重试"
 
 msgid "The requested value is not supported by the kernel or is invalid."
-msgstr "请求的值无效或不受内核支持。"
+msgstr "请求的值无效或不受内核支持"
 
 msgid "The required system interface is unavailable."
-msgstr "所需的系统接口不可用。"
+msgstr "所需的系统接口不可用"
 
 msgid "Unknown"
 msgstr "未知"

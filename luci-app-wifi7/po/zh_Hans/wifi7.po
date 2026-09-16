@@ -71,7 +71,7 @@ msgid "Channel Utilization"
 msgstr "信道占用率"
 
 msgid "Channel discovery unavailable; only the current setting is preserved."
-msgstr "无法获取可用信道，仅保留当前配置。"
+msgstr "无法获取可用信道，仅保留当前配置"
 
 msgid "Channels reported by the driver; current configuration is preserved."
 msgstr "信道列表由驱动提供，当前配置予以保留。"
@@ -83,7 +83,7 @@ msgid "Client data unavailable"
 msgstr "无法获取客户端数据"
 
 msgid "Configuration applied. Runtime status will refresh."
-msgstr "配置已应用，运行状态将自动刷新。"
+msgstr "配置已应用，运行状态将自动刷新"
 
 msgid "Configure Wi-Fi 7 Multi-Link Operation interfaces."
 msgstr "配置 Wi-Fi 7 多链路操作接口。"
@@ -167,7 +167,7 @@ msgid "MLO Interfaces"
 msgstr "MLO 接口"
 
 msgid "MLO configuration is unavailable."
-msgstr "MLO 配置不可用。"
+msgstr "MLO 配置不可用"
 
 msgid "MLO interfaces"
 msgstr "MLO 接口"
@@ -242,7 +242,7 @@ msgid "Runtime status unavailable"
 msgstr "运行状态不可用"
 
 msgid "SAE and OWE require Management Frame Protection: select Required."
-msgstr "SAE 和 OWE 需要管理帧保护：请选择“必须”。"
+msgstr "SAE 和 OWE 需要管理帧保护：请选择“必须”"
 
 msgid "SSID"
 msgstr "SSID"
@@ -254,7 +254,7 @@ msgid "Security"
 msgstr "安全"
 
 msgid "Select at least two radios for MLO."
-msgstr "为 MLO 选择至少两个射频。"
+msgstr "为 MLO 选择至少两个射频"
 
 msgid "Signal"
 msgstr "信号强度"
@@ -281,7 +281,7 @@ msgid "These changes may interrupt wireless connections, including MLO links. Ap
 msgstr "这些更改可能中断无线连接及相关 MLO 链路，是否应用？"
 
 msgid "This mode or encryption is not supported by this editor."
-msgstr "此模式或加密方式不受此编辑器支持。"
+msgstr "此模式或加密方式不受此编辑器支持"
 
 msgid "Unavailable"
 msgstr "无法获取"
@@ -367,4 +367,4 @@ msgid "Connection lost"
 msgstr "连接已断开"
 
 msgid "Operation failed. Please retry."
-msgstr "操作失败，请重试。"
+msgstr "操作失败，请重试"

@@ -107,7 +107,7 @@ function count(name){return calls.filter(n=>n===name).length;}
   assert.equal(count('apply'),0);console.log('PASS real UCI monitor -> real LuCI controls, Save, reload, Apply/readback, Reset');w.close();return;
  }
  if(errorTest) {
-  const expected={pending_changes:'存在尚未处理的配置更改，请先应用或撤销这些更改后重试。',invalid:'设置无效，请检查输入后重试。',busy:'另一项设置操作正在进行，请稍后重试。',storage:'无法读写已保存的设置，请检查存储空间和访问权限。',prepare:'无法准备配置更新，请检查可用空间后重试。',read:'无法读取当前配置或运行状态，请刷新页面后重试。',unsupported:'设备不支持此设置，或相关系统参数不可写。',ap_requires_vlan:'启用 AP 兼容模式需要同时启用 VLAN 加速。',apply:'应用失败，已恢复原配置。请检查服务状态后重试。',rollback:'应用失败，且未能完整恢复原配置。请立即检查当前配置和服务状态。'};
+  const expected={pending_changes:'存在尚未处理的配置更改，请先应用或撤销这些更改后重试',invalid:'设置无效，请检查输入后重试',busy:'另一项设置操作正在进行，请稍后重试',storage:'无法读写已保存的设置，请检查存储空间和访问权限',prepare:'无法准备配置更新，请检查可用空间后重试',read:'无法读取当前配置或运行状态，请刷新页面后重试',unsupported:'设备不支持此设置，或相关系统参数不可写',ap_requires_vlan:'启用 AP 兼容模式需要同时启用 VLAN 加速',apply:'应用失败，已恢复原配置。请检查服务状态后重试。',rollback:'应用失败，且未能完整恢复原配置。请立即检查当前配置和服务状态。'};
   const unknown='操作失败，无法确定原因。请刷新页面并检查系统日志后重试。';
   let cases=0;
   for(const field of ['acceleration_error','monitor_error','error'])for(const [code,message] of [...Object.entries(expected),['future_code',unknown],['constructor',unknown],[hostile,unknown]]) {
@@ -124,7 +124,7 @@ function count(name){return calls.filter(n=>n===name).length;}
    assert(!/pending_changes|RPC|<img|Error/.test(notification.textContent),notification.textContent);
    assert(/[\u4e00-\u9fff]/.test(notification.textContent));cases++;
   }
-  injected=null;await mods.app.handleSaveApply();assert.equal(staged,null);assert.equal(notification.textContent,'设置已保存并应用。');
+  injected=null;await mods.app.handleSaveApply();assert.equal(staged,null);assert.equal(notification.textContent,'设置已保存并应用');
   assert.equal(count('apply'),0);console.log(`PASS ${cases} Chinese failure notification cases through real LuCI RPC/form/UI; retry passed`);w.close();return;
  }
  const footer=w.document.querySelector('.cbi-page-actions');assert(footer);assert(footer.querySelector('.cbi-button-save'));assert(footer.querySelector('.cbi-button-reset'));assert(footer.querySelector('.cbi-button-apply'));assert(footer.querySelector('.cbi-dropdown'));

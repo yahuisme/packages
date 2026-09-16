@@ -47,7 +47,7 @@ msgid "CPU"
 msgstr "CPU"
 
 msgid "Complete valid curve points to preview."
-msgstr "请完善有效的曲线参数以显示预览。"
+msgstr "请完善有效的曲线参数以显示预览"
 
 msgid "Configure fan control mode and speed curves."
 msgstr "配置风扇控制模式和速度曲线。"
@@ -77,7 +77,7 @@ msgid "Custom Curve"
 msgstr "自定义曲线"
 
 msgid "Enter an integer from 0 to 255 without leading zeros."
-msgstr "请输入 0–255 的整数，不要使用前导零。"
+msgstr "请输入 0–255 的整数，不要使用前导零"
 
 msgid "Fan Control"
 msgstr "Airoha 风扇控制"

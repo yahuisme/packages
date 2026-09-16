@@ -49,7 +49,7 @@ const old=process.env.WIFI7_LMO;
      assert.equal(notices.length,before+1);
      const node=notices.at(-1);assert(node.isConnected,'real UI mounted notification');
      const prefix=mode==='diagnostics'?'无线诊断采集失败':mode==='mlo-reset'?'更新配置失败：':'应用配置失败：';
-     const expected=mode==='diagnostics'?prefix:prefix+(fault.reason||'操作失败，请重试。');
+     const expected=mode==='diagnostics'?prefix:prefix+(fault.reason||'操作失败，请重试');
      assert.equal(node.textContent,expected,mode+' '+JSON.stringify(fault));
      assert.equal(node.querySelectorAll('*').length,0,'no HTML descendants');
      assert.equal(h.w.auditXss,undefined);

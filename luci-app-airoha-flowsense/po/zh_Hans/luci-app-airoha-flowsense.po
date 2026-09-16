@@ -36,7 +36,7 @@ msgid "Data unavailable"
 msgstr "数据不可用"
 
 msgid "Data unavailable; previous readings cleared."
-msgstr "数据获取失败，旧读数已清除。"
+msgstr "数据获取失败，旧读数已清除"
 
 msgid "Disconnected"
 msgstr "未连接"
@@ -48,7 +48,7 @@ msgid "Enabled"
 msgstr "已开启"
 
 msgid "Enter a valid IPv4 address or hostname."
-msgstr "请输入有效的 IPv4 地址或主机名。"
+msgstr "请输入有效的 IPv4 地址或主机名"
 
 msgid "Ethernet Links"
 msgstr "以太网链路"
@@ -81,7 +81,7 @@ msgid "Not enabled"
 msgstr "未开启"
 
 msgid "Not verified; check current settings."
-msgstr "未能验证，请检查当前设置。"
+msgstr "未能验证，请检查当前设置"
 
 msgid "PPPoE acceleration"
 msgstr "PPPoE 加速"
@@ -108,10 +108,10 @@ msgid "Settings"
 msgstr "设置"
 
 msgid "Settings saved and applied."
-msgstr "设置已保存并应用。"
+msgstr "设置已保存并应用"
 
 msgid "Settings saved; not yet applied."
-msgstr "设置已保存，尚未应用。"
+msgstr "设置已保存，尚未应用"
 
 msgid "Speed"
 msgstr "协商速率"
@@ -126,10 +126,10 @@ msgid "Total Port Transmit Rate"
 msgstr "网口发送总速率"
 
 msgid "Unable to save settings."
-msgstr "无法保存设置。"
+msgstr "无法保存设置"
 
 msgid "Unable to verify saved settings."
-msgstr "无法验证已保存的设置。"
+msgstr "无法验证已保存的设置"
 
 msgid "Unchanged"
 msgstr "未更改"
@@ -153,28 +153,28 @@ msgid "Window packet loss"
 msgstr "采样窗口丢包率"
 
 msgid "There are pending configuration changes. Apply or revert them before retrying."
-msgstr "存在尚未处理的配置更改，请先应用或撤销这些更改后重试。"
+msgstr "存在尚未处理的配置更改，请先应用或撤销这些更改后重试"
 
 msgid "Invalid settings. Check your input and try again."
-msgstr "设置无效，请检查输入后重试。"
+msgstr "设置无效，请检查输入后重试"
 
 msgid "Another settings operation is in progress. Try again later."
-msgstr "另一项设置操作正在进行，请稍后重试。"
+msgstr "另一项设置操作正在进行，请稍后重试"
 
 msgid "Unable to read or write saved settings. Check storage space and access permissions."
-msgstr "无法读写已保存的设置，请检查存储空间和访问权限。"
+msgstr "无法读写已保存的设置，请检查存储空间和访问权限"
 
 msgid "Unable to prepare the configuration update. Check available space and try again."
-msgstr "无法准备配置更新，请检查可用空间后重试。"
+msgstr "无法准备配置更新，请检查可用空间后重试"
 
 msgid "Unable to read the current configuration or runtime state. Refresh the page and try again."
-msgstr "无法读取当前配置或运行状态，请刷新页面后重试。"
+msgstr "无法读取当前配置或运行状态，请刷新页面后重试"
 
 msgid "The device does not support this setting, or the relevant system parameters are not writable."
-msgstr "设备不支持此设置，或相关系统参数不可写。"
+msgstr "设备不支持此设置，或相关系统参数不可写"
 
 msgid "AP compatibility mode requires VLAN acceleration to be enabled."
-msgstr "启用 AP 兼容模式需要同时启用 VLAN 加速。"
+msgstr "启用 AP 兼容模式需要同时启用 VLAN 加速"
 
 msgid "Apply failed; the previous configuration was restored. Check service status and try again."
 msgstr "应用失败，已恢复原配置。请检查服务状态后重试。"
