@@ -34,16 +34,16 @@ msgid "Recovery failed. Check the log and retained backup before retrying."
 msgstr "恢复失败。请检查日志和保留的备份后再重试。"
 
 msgid "HomeProxy failed to reload. The previous dashboard was restored."
-msgstr "HomeProxy 重载失败，已恢复此前的仪表盘。"
+msgstr "HomeProxy 重载失败，已恢复此前的仪表盘"
 
 msgid "No changes needed."
-msgstr "无需更改。"
+msgstr "无需更改"
 
 msgid "Dashboard operation completed."
-msgstr "仪表盘操作完成。"
+msgstr "仪表盘操作完成"
 
 msgid "Dashboard operation failed. Check the log for details."
-msgstr "仪表盘操作失败，请查看日志了解详情。"
+msgstr "仪表盘操作失败，请查看日志了解详情"
 
 msgid "Remove dashboard?"
 msgstr "移除仪表盘？"
@@ -63,7 +63,7 @@ msgstr "%s 日志"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:245
 msgid "%s contains an invalid domain."
-msgstr "%s 包含无效域名。"
+msgstr "%s 包含无效域名"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:520
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:78
@@ -196,7 +196,7 @@ msgstr "请求中允许的载荷大小。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:239
 msgid "Already at the latest version."
-msgstr "已是最新版本。"
+msgstr "已是最新版本"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1208
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:380
@@ -214,12 +214,12 @@ msgstr "备用 TLS 端口"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1953
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1960
 msgid "An error occurred during updating subscriptions: %s."
-msgstr "更新订阅时发生错误：%s。"
+msgstr "更新订阅时发生错误：%s"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:846
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:882
 msgid "An exit node cannot be used and advertised at the same time."
-msgstr "不能同时使用和通告出口节点。"
+msgstr "不能同时使用和通告出口节点"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:869
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:159
@@ -245,7 +245,7 @@ msgstr "应用"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:134
 msgid "Approve this device in the Tailscale admin console."
-msgstr "请在 Tailscale 管理控制台批准此设备。"
+msgstr "请在 Tailscale 管理控制台批准此设备"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:27
 msgid "Are you sure to allow insecure?"
@@ -546,7 +546,7 @@ msgstr "分流列表"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:252
 msgid "Domain %s in %s conflicts with %s in %s."
-msgstr "域名 %s（%s）与 %s（%s）冲突。"
+msgstr "域名 %s（%s）与 %s（%s）冲突"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:741
 msgid "Domain List"
@@ -807,16 +807,16 @@ msgstr "失败"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:69
 msgid "Failed to generate %s, error: %s."
-msgstr "生成 %s 失败，错误：%s。"
+msgstr "生成 %s 失败，错误：%s"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:286
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:767
 msgid "Failed to save domain lists."
-msgstr "保存域名列表失败。"
+msgstr "保存域名列表失败"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/homeproxy.js:344
 msgid "Failed to upload %s, error: %s."
-msgstr "上传 %s 失败，错误：%s。"
+msgstr "上传 %s 失败，错误：%s"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:287
 msgid "Fatal"
@@ -1131,11 +1131,11 @@ msgstr "发送心跳包以保持连接存活的时间间隔（单位：秒）。
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1593
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1595
 msgid "Invalid ECH DNS query settings."
-msgstr "ECH DNS 查询设置无效。"
+msgstr "ECH DNS 查询设置无效"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:90
 msgid "Invalid ECH configuration."
-msgstr "ECH 配置无效。"
+msgstr "ECH 配置无效"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:319
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:502
@@ -1233,7 +1233,7 @@ msgstr "本地地址"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:349
 msgid "Log file does not exist."
-msgstr "日志文件不存在。"
+msgstr "日志文件不存在"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:130
 msgid "Log in to Tailscale"
@@ -1241,7 +1241,7 @@ msgstr "登录 Tailscale"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:346
 msgid "Log is empty."
-msgstr "日志为空。"
+msgstr "日志为空"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:793
 msgid "Login status"
@@ -1380,7 +1380,7 @@ msgstr "多路复用协议。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:984
 msgid "Must be greater than or equal to the hop interval."
-msgstr "必须大于或等于端口跳跃间隔。"
+msgstr "必须大于或等于端口跳跃间隔"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:148
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:43
@@ -1435,7 +1435,7 @@ msgstr "无订阅节点"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1792
 msgid "No valid share link found."
-msgstr "找不到有效分享链接。"
+msgstr "找不到有效分享链接"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:730
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:736
@@ -1544,7 +1544,7 @@ msgstr "端口"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:474
 msgid "Port %s already exists!"
-msgstr "端口 %s 已存在！"
+msgstr "端口 %s 已存在"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:967
 msgid "Port hopping interval in seconds."
@@ -1682,7 +1682,7 @@ msgstr "资源管理"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:224
 msgid "HomeProxy failed to reload. The previous resources were restored."
-msgstr "HomeProxy 重载失败，已恢复原资源。"
+msgstr "HomeProxy 重载失败，已恢复原资源"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:874
 msgid "Reuse address"
@@ -1748,7 +1748,7 @@ msgstr "Salamander"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:124
 msgid "Save and apply to enable Tailscale."
-msgstr "保存并应用后启用 Tailscale。"
+msgstr "保存并应用后启用 Tailscale"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1962
 msgid "Save and update subscriptions"
@@ -1797,7 +1797,7 @@ msgstr "Shadowsocks"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:242
 msgid "Some resources failed to update. Check the log for details."
-msgstr "部分资源更新失败，请查看日志了解详情。"
+msgstr "部分资源更新失败，请查看日志了解详情"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:191
 msgid "Source"
@@ -1866,11 +1866,11 @@ msgstr "成功"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1794
 msgid "Successfully imported %s nodes of total %s."
-msgstr "成功导入 %s 个节点，共 %s 个。"
+msgstr "成功导入 %s 个节点，共 %s 个"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:229
 msgid "Successfully updated."
-msgstr "更新成功。"
+msgstr "更新成功"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1759
 msgid "Supports AnyTLS, HTTP(S), Hysteria, Hysteria2, Shadowsocks, SOCKS4/4A/5, Trojan, TUIC, VLESS and VMess share links."
@@ -2216,20 +2216,20 @@ msgstr "UUID"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:246
 msgid "Unknown error."
-msgstr "未知错误。"
+msgstr "未知错误"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1802
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:351
 msgid "Unknown error: %s."
-msgstr "未知错误：%s。"
+msgstr "未知错误：%s"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1630
 msgid "Unsupported fingerprint!"
-msgstr "不支持的指纹！"
+msgstr "不支持的指纹"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:455
 msgid "Unsupported transport: %s."
-msgstr "不支持的传输方式：%s。"
+msgstr "不支持的传输方式：%s"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1944
 msgid "Update %s subscriptions"
@@ -2241,11 +2241,11 @@ msgstr "全部更新"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:236
 msgid "Update already in progress."
-msgstr "正在更新中。"
+msgstr "正在更新中"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:232
 msgid "Update failed."
-msgstr "更新失败。"
+msgstr "更新失败"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1939
 msgid "Update nodes from subscriptions"
@@ -2291,7 +2291,7 @@ msgstr "上传..."
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:870
 msgid "Use \"Advertise as exit node\" instead of a default route."
-msgstr "请使用“通告为出口节点”，不要填写默认路由。"
+msgstr "请使用“通告为出口节点”，不要填写默认路由"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:590
 msgid "Use ACME TLS certificate issuer."
@@ -2560,14 +2560,14 @@ msgid "Unavailable node: %s"
 msgstr "失效节点：%s"
 
 msgid "Node unavailable; using the main node."
-msgstr "节点已失效，将使用主节点。"
+msgstr "节点已失效，将使用主节点"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:434
 msgid "Log unavailable."
-msgstr "日志不可用。"
+msgstr "日志不可用"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:434
 msgid "Log updated."
-msgstr "日志已更新。"
+msgstr "日志已更新"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1963
 msgid "Updating subscriptions…"
