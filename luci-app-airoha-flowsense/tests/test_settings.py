@@ -155,6 +155,27 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(self.call('applySettings'), dict(success=True, acceleration='applied', monitor='applied'))
         self.assertTrue(self.call()['hardware']['enabled'])
 
+    def test_native_bridge_saved_apply_failure_and_retry(self):
+        fixture.AccelerationTest.native_bridge(self)
+        for value in (0, 1):
+            before = self.config.read_bytes()
+            payload = dict(hardware=value, vlan=-1, pppoe=-1, ap=-1, target='', enabled=-1)
+            self.assertTrue(self.call('saveSettings', payload)['success'])
+            self.assertEqual(self.config.read_bytes(), before)
+            self.assertEqual(self.call('getSettings')['pending'], payload)
+            if value == 0:
+                self.assertFalse((self.d / 'events').exists())
+                result = self.call('applySettings', STALE_BRIDGE='1')
+                self.assertEqual(result, dict(success=False, acceleration='failed',
+                    monitor='unchanged', acceleration_error='apply'))
+                self.assertEqual(self.config.read_bytes(), before)
+                self.assertEqual(self.call('getSettings')['pending'], payload)
+            self.assertEqual(self.call('applySettings'), dict(success=True,
+                acceleration='applied', monitor='unchanged'))
+            self.assertIsNone(self.call('getSettings')['pending'])
+            self.assertIs(self.call()['hardware']['enabled'], bool(value))
+            self.assertIs(self.call()['hardware']['configured'], bool(value))
+
     def test_directory_pending_is_storage_error_for_all_methods(self):
         pending = self.d / 'etc/flowsense/pending.json'
         pending.mkdir(parents=True)

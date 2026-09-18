@@ -121,19 +121,9 @@ acc_put() { printf '%s\n' "$2" > "/proc/sys/net/bridge/bridge-nf-$1" && [ "$(acc
 acc_pending() { local changes; changes=$(uci -q changes firewall) && [ -z "$changes" ]; }
 acc_private() { uci -c "$tmp/config" -C "$tmp/override" -t "$tmp/delta" "$@"; }
 acc_restart_firewall() {
-    local failed=0
-    # procd's config.change trigger is asynchronous. Call the optional native
-    # reload handler synchronously so its bridge include is regenerated before
-    # restarting fw4; an event acknowledgement alone cannot prove application.
-    # Detect the service, not a firmware/distribution. Older images keep their
-    # existing firewall-only path. Use the same ordering during rollback.
-    if [ -x /etc/init.d/bridge-hw-offload ]; then
-        /etc/init.d/bridge-hw-offload reload >/dev/null 2>&1 || failed=1
-    fi
-    # Attempt firewall recovery even if bridge regeneration failed, but retain
-    # that failure. The caller still verifies committed UCI and live nft state.
-    /etc/init.d/firewall restart >/dev/null 2>&1 || failed=1
-    return "$failed"
+    # Native fw4 owns both inet and bridge flowtables and their cleanup.
+    # Apply and rollback share one synchronous restart and UCI/nft readback.
+    /etc/init.d/firewall restart >/dev/null 2>&1
 }
 acc_apply() {
     local key file

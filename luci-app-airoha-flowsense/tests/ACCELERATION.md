@@ -3,7 +3,7 @@
 Run `python3 luci-app-airoha-flowsense/tests/test_acceleration.py -v` from the
 packages root. `OPENWRT_TOOLS` selects a native OpenWrt-tools prefix containing
 `bin/uci`, `bin/jshn`, `share/libubox/jshn.sh`, and `lib/` (default:
-`/root/.local/opt/openwrt-audit-tools`). BusyBox and Python 3 are required.
+`/opt/test-tools/openwrt`). BusyBox and Python 3 are required.
 The tests run the real shell handler, jshn and UCI, redirect every kernel,
 configuration, lock and temporary path, and replace nft/firewall boundaries.
 They never reload the host firewall or write host sysctls. The applet PATH
@@ -50,27 +50,26 @@ Source evidence:
   AP remains the bridge-netfilter compatibility control, not an independent
   switch for W1700K's native bridge flowtable (which follows hardware UCI).
 
-Hardware application and rollback both synchronously call the optional
-`/etc/init.d/bridge-hw-offload reload` before restarting firewall. This invokes
-the same native handler as the upstream `config.change` firewall trigger,
-without queuing an additional asynchronous event. Service presence, not a
-firmware name, selects the path; images without it retain firewall-only apply.
-Upstream `reload_service()` runs `apply-rules.sh` in the foreground, publishing
-or removing `ruleset-post/30-bridge-offload.nft`, but backgrounds its own firewall
-reload. An event acknowledgement cannot establish rule publication or runtime
-completion. The explicit synchronous restart consumes the regenerated include;
-service/restart failure and final UCI/nft readback still gate RPC success.
-The isolated service fixture checks both directions, stale-include avoidance,
-reload/restart failures, include regeneration during rollback, and no-op/sysctl-only
-requests without any service calls. Existing tests cover images without the service.
+Hardware application and rollback use one synchronous firewall restart.
+Current W1700K firewall4 owns `inet fw4 ft` and `bridge fw4 fb` directly;
+there is no optional generator service or separate include publication step.
+The upstream `001-add-bridge-flowtable-support.patch` filters bridge devices
+from the native offload-device list (gated by `flow_offloading`), and applies
+`flags offload` according to `flow_offloading_hw`. The setter changes both
+options together. Native fw4 flushes the bridge table and deletes the previous
+`fb` before optional recreation, so disabling both options cleans live rules.
+AP compatibility sysctls remain independent of this native bridge path.
 
-This is not a global transaction with hotplug or other configuration writers.
-Upstream's generator does not check every file operation and its background
-firewall reload is not joined; the existing nft getter reports aggregate owned
-hardware enablement, not proof that every desired bridge port/table is present.
-Thus this fixes deterministic stale-include ordering, not upstream write-error,
-concurrent-writer or hardware-traffic guarantees. Live procd/fw4 and reboot
-validation on both firmware images remain necessary.
+The isolated boundary fixture covers ft/fb creation and removal in both
+directions, missing JSON flags with exact-name text reads, stale bridge rules
+rejecting disable, restart failure, failed rollback, and no-op/sysctl-only
+requests without restarts. The historical device JSON remains unchanged;
+the new fb fixture is a source-derived model, not captured device output.
+These tests execute real BusyBox/jshn/UCI and RPC code, but mock nft and
+firewall service boundaries: they do not prove full fw4 rendering, kernel
+cleanup or hardware traffic. The getter reports aggregate owned hardware
+enablement, not proof that every bridge port/table is present. Concurrent
+hotplug/configuration writers and physical reboot acceptance remain separate.
 
 The setter uses an application lock and private UCI config/override/delta
 paths, rejects preexisting firewall deltas, rechecks deltas and committed

@@ -84,78 +84,80 @@ class AccelerationTest(unittest.TestCase):
         return {str(p.relative_to(self.d)): p.read_bytes() for base in ('etc', 'proc')
                 for p in (self.d / base).rglob('*') if p.is_file()}
 
-    def bridge_service(self):
-        # Model the upstream contract: reload publishes an include, while its
-        # background firewall reload is NOT a completion barrier. The explicit
-        # firewall restart must consume the newly published include.
-        service = self.d / 'etc/init.d/bridge-hw-offload'
-        service.parent.mkdir(parents=True, exist_ok=True)
-        self.rules = self.d / 'bridge-rules'
-        self.rules.write_text(self.hw.read_text())
-        self.events = self.d / 'service-events'
-        service.write_text('''#!/bin/sh
-[ "$1" = reload ] || exit 1
-printf 'bridge\\n' >> "EVENTS"
-if [ "$BRIDGE_FAIL" = always ]; then exit 1; fi
-if [ "$BRIDGE_FAIL" = once ] && [ ! -e "RULES.failed" ]; then
-    touch "RULES.failed"; exit 1
-fi
-uci -q get firewall.@defaults[0].flow_offloading_hw | tr -d '\\n' > "RULES"
-'''.replace('EVENTS', str(self.events)).replace('RULES', str(self.rules)))
-        service.chmod(0o755)
+    def native_bridge(self):
+        # Native fw4 boundary model, not a kernel or full-render fixture.
+        self.script('nft', '''#!/usr/bin/python3
+import json, os, sys
+from pathlib import Path
+if os.getenv('NFT_FAIL'): exit(1)
+state = Path(HARDWARE).read_text().strip()
+a = sys.argv[1:]
+if a == ['-j', 'list', 'flowtables']:
+    tables = [('inet', 'ft'), ('bridge', 'fb')] if state == '1' else []
+    if os.getenv('STALE_BRIDGE') and state == '0': tables = [('bridge', 'fb')]
+    print(json.dumps({'nftables': [{'flowtable': {'family': f, 'table': 'fw4', 'name': n}} for f, n in tables]}))
+else:
+    assert a in (['list', 'flowtable', 'inet', 'fw4', 'ft'], ['list', 'flowtable', 'bridge', 'fw4', 'fb'])
+    if os.getenv('TEXT_FAIL'): exit(1)
+    print('table %s fw4 {' % a[2])
+    print(' flowtable %s {' % a[4])
+    print('  flags offload;')
+    print(' }')
+    print('}')
+'''.replace('HARDWARE', repr(str(self.hw))))
         self.script('restart', '''#!/bin/sh
-printf 'firewall\\n' >> "EVENTS"
-if [ "$RESTART_FAIL" = 1 ] && [ ! -e "RULES.restart-failed" ]; then
-    touch "RULES.restart-failed"; exit 1
-fi
-cp "RULES" "HARDWARE"
-'''.replace('EVENTS', str(self.events)).replace('RULES', str(self.rules)).replace('HARDWARE', str(self.hw)))
+printf 'firewall\n' >> "EVENTS"
+if [ "$RESTART_FAIL" = always ]; then exit 1; fi
+if [ "$RESTART_FAIL" = 1 ] && [ ! -e "FAILED" ]; then touch "FAILED"; exit 1; fi
+sw=$(uci -q get firewall.@defaults[0].flow_offloading)
+hw=$(uci -q get firewall.@defaults[0].flow_offloading_hw)
+value=0
+[ "$sw:$hw" != 1:1 ] || value=1
+printf %s "$value" > "HARDWARE"
+'''.replace('EVENTS', str(self.d / 'events')).replace('FAILED', str(self.d / 'failed')).replace('HARDWARE', str(self.hw)))
 
-    def test_bridge_include_is_regenerated_before_firewall_both_directions(self):
-        self.bridge_service()
-        for value in (0, 1):
+    def test_native_bridge_enable_disable_and_cleanup(self):
+        self.native_bridge()
+        for value in (0, 1, 0):
             self.assertEqual(self.save(hardware=value), {'success': True})
-            self.assertEqual(self.rules.read_text(), str(value))
-            self.assertIs(self.call()['hardware']['enabled'], bool(value))
-            self.assertIs(self.call()['hardware']['configured'], bool(value))
-        self.assertEqual(self.events.read_text().splitlines(),
-                         ['bridge', 'firewall', 'bridge', 'firewall'])
+            state = self.call()['hardware']
+            self.assertIs(state['enabled'], bool(value))
+            self.assertIs(state['configured'], bool(value))
+            for key in ('flow_offloading', 'flow_offloading_hw'):
+                self.assertEqual(subprocess.check_output([str(self.d / 'bin/uci'), 'get',
+                    'firewall.@defaults[0].' + key], env=self.env).strip(), str(value).encode())
+            tables = json.loads(subprocess.check_output([str(self.d / 'bin/nft'), '-j', 'list', 'flowtables'], env=self.env))
+            self.assertEqual([x['flowtable']['name'] for x in tables['nftables']], ['ft', 'fb'] if value else [])
+        self.assertEqual((self.d / 'events').read_text().splitlines(), ['firewall'] * 3)
 
-    def test_bridge_reload_failure_is_not_success_and_recovery_runs(self):
-        self.bridge_service()
+    def test_native_bridge_firewall_failure_and_rollback(self):
+        self.native_bridge()
         before = self.snapshot()
-        for mode, error in (('once', 'apply'), ('always', 'rollback')):
+        for mode, error in (('1', 'apply'), ('always', 'rollback')):
             with self.subTest(mode=mode):
-                self.events.unlink(missing_ok=True)
-                result = self.call('setAcceleration', dict(hardware=0, vlan=-1, pppoe=-1, ap=-1),
-                                   BRIDGE_FAIL=mode)
+                result = self.call('setAcceleration', dict(hardware=0, vlan=-1, pppoe=-1, ap=-1), RESTART_FAIL=mode)
                 self.assertEqual(result, {'success': False, 'error': error})
                 self.assertEqual(self.snapshot(), before)
-                self.assertEqual(self.rules.read_text(), '1')
                 self.assertEqual(self.hw.read_text(), '1')
-                self.assertEqual(self.events.read_text().splitlines(),
-                                 ['bridge', 'firewall', 'bridge', 'firewall'])
 
-    def test_bridge_include_restored_after_firewall_failure(self):
-        self.bridge_service()
+    def test_native_bridge_stale_table_rejects_disable(self):
+        self.native_bridge()
         before = self.snapshot()
-        result = self.call('setAcceleration', dict(hardware=0, vlan=-1, pppoe=-1, ap=-1),
-                           RESTART_FAIL='1')
+        result = self.call('setAcceleration', dict(hardware=0, vlan=-1, pppoe=-1, ap=-1), STALE_BRIDGE='1')
         self.assertEqual(result, {'success': False, 'error': 'apply'})
         self.assertEqual(self.snapshot(), before)
-        self.assertEqual(self.rules.read_text(), '1')
         self.assertEqual(self.hw.read_text(), '1')
-        self.assertEqual(self.events.read_text().splitlines(),
-                         ['bridge', 'firewall', 'bridge', 'firewall'])
+        self.assertEqual((self.d / 'events').read_text().splitlines(), ['firewall'] * 2)
 
-    def test_bridge_service_not_called_for_noop_or_sysctl_only(self):
-        self.bridge_service()
+    def test_native_bridge_noop_sysctl_only_and_unknown(self):
+        self.native_bridge()
         self.assertEqual(self.save(hardware=1), {'success': True})
         self.assertEqual(self.save(pppoe=0), {'success': True})
-        self.assertFalse(self.events.exists())
+        self.assertFalse((self.d / 'events').exists())
+        self.assertIsNone(self.call(TEXT_FAIL='1')['hardware']['enabled'])
 
     def test_w1700k_bridge_family_readback(self):
-        self.script('nft', '#!/usr/bin/python3\nimport json,os,sys\nfrom pathlib import Path\nassert sys.argv[1:] == ["-j","list","flowtables"]\nif os.getenv("NFT_FAIL"): exit(1)\nprint(json.dumps({"nftables":[{"flowtable":{"family":"bridge","table":"fw4","name":"br_offload","flags":["offload"] if Path("' + str(self.hw) + '").read_text()=="1" else []}}]}))\n')
+        self.script('nft', '#!/usr/bin/python3\nimport json,os,sys\nfrom pathlib import Path\nassert sys.argv[1:] == ["-j","list","flowtables"]\nif os.getenv("NFT_FAIL"): exit(1)\nprint(json.dumps({"nftables":[{"flowtable":{"family":"bridge","table":"fw4","name":"fb","flags":["offload"] if Path("' + str(self.hw) + '").read_text()=="1" else []}}]}))\n')
         self.assertTrue(self.call()['hardware']['enabled'])
         for value in (0, 1):
             self.assertEqual(self.save(hardware=value), {'success': True})
