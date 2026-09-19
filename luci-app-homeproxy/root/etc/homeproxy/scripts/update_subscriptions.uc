@@ -113,13 +113,13 @@ function filter_check(name) {
 }
 /* String helper end */
 
-function restart_service(message) {
+function reload_service(message) {
 	if (!service_running)
 		return true;
 
-	log(message || 'Restarting service...');
-	if (system('/etc/init.d/homeproxy restart >/dev/null 2>&1') !== 0) {
-		log('Failed to restart HomeProxy; the updated configuration has not been applied.');
+	log(message || 'Reloading service...');
+	if (system('/etc/init.d/homeproxy reload >/dev/null 2>&1') !== 0) {
+		log('Failed to reload HomeProxy; the updated configuration has not been applied.');
 		return false;
 	}
 
@@ -127,7 +127,7 @@ function restart_service(message) {
 }
 
 function apply_updated_resources() {
-	return !resources_updated || restart_service('Restarting service to apply updated resources...');
+	return !resources_updated || reload_service('Reloading service to apply updated resources...');
 }
 
 function has_value(value) {
@@ -1358,9 +1358,11 @@ function main() {
 			log('No available node, disabling the client.');
 	}
 	const config_changed = !isEmpty(uci.changes(uciconfig));
+	/* Reload reads committed UCI. Keep imported nodes on apply failure, but
+	 * return failure and let transactional reload preserve the old runtime. */
 	if (config_changed && uci.commit(uciconfig) !== true)
 		die('failed to commit subscription changes');
-	if ((config_changed || resources_updated) && !restart_service())
+	if ((config_changed || resources_updated) && !reload_service())
 		return false;
 
 	log(sprintf('%s added, %s updated, %s removed.', added, updated, removed));

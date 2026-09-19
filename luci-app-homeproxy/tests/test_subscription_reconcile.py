@@ -35,7 +35,7 @@ function filter_check(label){return label in blacklist;}
 function synchronizeNodeLabels(){return {used:{},changed:0};}
 function reserveUniqueLabel(used,label){return label;}
 function reconcileUrltestNodes(){}
-function restart_service(){return true;}
+function reload_service(){return true;}
 function apply_updated_resources(){return true;}
 function log_error(...args){warn(sprintf('%J',args));}
 '''

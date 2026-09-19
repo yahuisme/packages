@@ -98,6 +98,71 @@ class SettingsTest(unittest.TestCase):
                     self.assertEqual(list((self.d / 'tmp').iterdir()), [])
         self.assertFalse((self.d / 'monitor-restarts').exists())
 
+    def test_monitor_apply_rejects_unknown_old_enabled_and_retains_pending(self):
+        config = self.d / 'etc/config/npu-monitor'
+        config.write_text("config jitter\n option target 'example.com'\n option enabled '0'\n")
+        before = (config.read_bytes(), config.stat().st_mtime_ns)
+        wrapper = (self.d / 'bin/uci').read_text()
+        marker = self.d / 'read-failed'
+        self.script('uci', wrapper.replace('#!/bin/sh\n', '#!/bin/sh\ncase "$*" in *"get npu-monitor.@jitter[0].enabled") if [ ! -e "' + str(marker) + '" ]; then touch "' + str(marker) + '"; exit 1; fi;; esac\n', 1))
+        restart_marker = self.d / 'restart-failed'
+        self.script('monitor_restart', '#!/bin/sh\nif [ ! -e "' + str(restart_marker) + '" ]; then touch "' + str(restart_marker) + '"; exit 1; fi\nexit 0\n')
+        payload = dict(hardware=-1, vlan=-1, pppoe=-1, ap=-1, target='new.example', enabled=1)
+        self.assertTrue(self.call('saveSettings', payload)['success'])
+        result = self.call('applySettings')
+        self.assertEqual((config.read_bytes(), config.stat().st_mtime_ns), before)
+        self.assertEqual(result, dict(success=False, acceleration='unchanged', monitor='failed', monitor_error='read'))
+        self.assertTrue(marker.exists(), 'the real old-value get must fail')
+        self.assertFalse(restart_marker.exists(), 'unknown rollback baseline must prevent writes/restart')
+        self.assertEqual(self.call('getOverview')['monitor'], dict(target='example.com', enabled=False))
+        self.assertEqual(self.call('getSettings')['pending'], payload)
+        self.assertEqual(subprocess.check_output([str(self.d / 'bin/uci'), '-q', 'changes', 'npu-monitor'], env=self.env), b'')
+        self.script('monitor_restart', '#!/bin/sh\nexit 0\n')
+        self.assertTrue(self.call('applySettings')['success'])
+        self.assertIsNone(self.call('getSettings')['pending'])
+
+    def test_monitor_absent_enabled_first_set_failure_is_restored(self):
+        config = self.d / 'etc/config/npu-monitor'
+        config.write_bytes((ROOT / 'root/etc/config/npu-monitor').read_bytes())
+        before = config.read_bytes()
+        wrapper = (self.d / 'bin/uci').read_text()
+        marker = self.d / 'set-failed'
+        self.script('uci', wrapper.replace('#!/bin/sh\n', '#!/bin/sh\ncase "$*" in "set npu-monitor.@jitter[0].target="*) if [ ! -e "' + str(marker) + '" ]; then touch "' + str(marker) + '"; exit 1; fi;; esac\n', 1))
+        result = self.call('setMonitor', dict(target='new.example', enabled=0))
+        self.assertEqual(config.read_bytes(), before)
+        self.assertEqual(result, dict(success=False, error='apply'))
+        self.assertTrue(marker.exists())
+        self.assertEqual(self.call('getOverview')['monitor'], dict(target='223.5.5.5', enabled=True))
+        self.assertEqual(subprocess.check_output([str(self.d / 'bin/uci'), '-q', 'changes', 'npu-monitor'], env=self.env), b'')
+        self.assertTrue(self.call('setMonitor', dict(target='new.example', enabled=0))['success'])
+
+    def test_monitor_rollback_verifies_original_section(self):
+        config = self.d / 'etc/config/npu-monitor'
+        wrapper = (self.d / 'bin/uci').read_text()
+        for original, failure, expected in (
+                ('0', '', 'apply'), ('1', '', 'apply'), ('', '', 'apply'),
+                ('', 'delete', 'rollback'), ('0', 'show', 'rollback')):
+            with self.subTest(original=original, failure=failure):
+                config.write_text("config jitter\n option target 'example.com'\n" +
+                                  (" option enabled '%s'\n" % original if original else ''))
+                marker = self.d / 'restart-failed'
+                marker.unlink(missing_ok=True)
+                self.script('monitor_restart', '#!/bin/sh\nif [ ! -e "' + str(marker) + '" ]; then touch "' + str(marker) + '"; exit 1; fi\nexit 0\n')
+                # A lying delete leaves enabled behind; a failed section read
+                # must never be accepted as verified recovery.
+                injection = ('case "$*" in *"delete npu-monitor.@jitter[0].enabled") exit 0;; esac\n' if failure == 'delete' else
+                             'case "$*" in *"show npu-monitor.@jitter[0]") [ ! -e "' + str(marker) + '" ] || exit 1;; esac\n' if failure == 'show' else '')
+                self.script('uci', wrapper.replace('#!/bin/sh\n', '#!/bin/sh\n' + injection, 1))
+                old = subprocess.check_output([str(self.d / 'bin/uci'), '-q', 'show', 'npu-monitor.@jitter[0]'], env=self.env)
+                self.assertEqual(self.call('setMonitor', dict(target='new.example', enabled=1)), dict(success=False, error=expected))
+                self.script('uci', wrapper)
+                restored = subprocess.check_output([str(self.d / 'bin/uci'), '-q', 'show', 'npu-monitor.@jitter[0]'], env=self.env)
+                if failure == 'delete':
+                    self.assertNotEqual(restored, old)
+                else:
+                    self.assertEqual(restored, old)
+                self.assertEqual(subprocess.check_output([str(self.d / 'bin/uci'), '-q', 'changes', 'npu-monitor'], env=self.env), b'')
+
     def test_monitor_default_ignores_staged_enabled(self):
         config = self.d / 'etc/config/npu-monitor'
         config.write_bytes((ROOT / 'root/etc/config/npu-monitor').read_bytes())
