@@ -23,6 +23,14 @@
 		"action": {
 			"type": "view",
 			"path": "airoha_npu/settings"
+		},
+		"depends": {
+			"fs": {
+				"/sys/devices/system/cpu/cpufreq/policy0/scaling_available_governors": "file",
+				"/sys/devices/system/cpu/cpufreq/policy0/scaling_available_frequencies": "file",
+				"/sys/devices/system/cpu/cpufreq/policy0/scaling_governor": "file",
+				"/sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq": "file"
+			}
 		}
 	}
 }

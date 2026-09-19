@@ -28,6 +28,11 @@ never applied at boot; CPU controls retain their existing runtime-only semantics
 External kernel/config writers are outside the package lock. Settings notification
 regressions cover localized known/unknown errors and transport failures at Save,
 saved readback, Apply and runtime readback, followed by a successful retry.
+Without policy0 CPUFreq capability files, native LuCI filesystem dependencies hide
+the Settings menu. Direct/stale settings views render no form or action footer when
+capabilities are unavailable (including retained pending settings and fixed runtime
+readings). RPC failures retain the retry error instead of claiming missing hardware.
+The status view and its real CPU telemetry remain independent.
 
 Python RPC tests use real BusyBox ash and private sysfs/config/locks. Flow offloading is read-only here; tests verify status and rejection of the removed setter without modifying firewall configuration. Optional `UCI_BIN` and `JSONFILTER_BIN` select real tools; without them the suite uses adapters, not real-UCI verification. `/dev/null` and `/dev/full` model read/write failures. `l10n.js` is a support module, not an entrypoint.
 

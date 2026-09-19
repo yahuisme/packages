@@ -26,6 +26,18 @@ class SettingsTest(unittest.TestCase):
         (self.d / 'proc/uptime').write_text('100.0 0\n')
         (self.d / 'rpc').write_text(rpc)
 
+    def test_official_inet_saved_apply_readback(self):
+        fixture.AccelerationTest.official_inet(self)
+        for value in (0, 1):
+            before = self.snapshot()
+            self.assertTrue(self.stage(hardware=value)['success'])
+            self.assertEqual(self.config.read_bytes(), before['etc/config/firewall'])
+            self.assertIs(self.call()['hardware']['enabled'], not bool(value))
+            self.assertTrue(self.call('applySettings')['success'])
+            self.assertIs(self.call()['hardware']['enabled'], bool(value))
+            self.assertIs(self.call()['hardware']['configured'], bool(value))
+            self.assertIsNone(self.call('getSettings')['pending'])
+
     def test_monitor_getter_ignores_staged_delta_and_override(self):
         config = self.d / 'etc/config/npu-monitor'
         before = (config.read_bytes(), config.stat().st_mtime_ns)

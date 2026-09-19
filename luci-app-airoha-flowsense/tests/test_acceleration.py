@@ -84,6 +84,38 @@ class AccelerationTest(unittest.TestCase):
         return {str(p.relative_to(self.d)): p.read_bytes() for base in ('etc', 'proc')
                 for p in (self.d / base).rglob('*') if p.is_file()}
 
+    def official_inet(self):
+        # Source-derived official fw4 boundary, not real nft/kernel execution.
+        self.script('nft', '''#!/usr/bin/python3
+import json, os, sys
+from pathlib import Path
+a = sys.argv[1:]
+if os.getenv('NFT_FAIL'): exit(1)
+if a == ['-j', 'list', 'flowtables']:
+    entries = [{'flowtable': {'family': 'inet', 'table': 'fw4', 'name': 'ft'}}] if Path(HARDWARE).read_text().strip() == '1' else []
+    print(json.dumps({'nftables': entries}))
+else:
+    assert a == ['list', 'flowtable', 'inet', 'fw4', 'ft']
+    if os.getenv('TEXT_FAIL'): exit(1)
+    print('table inet fw4 {\\n flowtable ft {\\n  flags offload;\\n }\\n}')
+'''.replace('HARDWARE', repr(str(self.hw))))
+
+    def test_official_inet_only_and_missing_interfaces(self):
+        self.official_inet()
+        for value in (0, 1, 0, 1):
+            self.assertEqual(self.save(hardware=value), {'success': True})
+            self.assertIs(self.call()['hardware']['enabled'], bool(value))
+            self.assertIs(self.call()['hardware']['configured'], bool(value))
+        self.assertIsNone(self.call(TEXT_FAIL='1')['hardware']['enabled'])
+        for key in self.keys:
+            self.knob(key).unlink()
+        for name in ('vlan', 'pppoe', 'ap'):
+            self.assertIs(self.call()[name]['supported'], False)
+            self.assertIsNone(self.call()[name]['enabled'])
+        before = self.snapshot()
+        self.assertEqual(self.save(vlan=1), {'success': False, 'error': 'unsupported'})
+        self.assertEqual(self.snapshot(), before)
+
     def native_bridge(self):
         # Native fw4 boundary model, not a kernel or full-render fixture.
         self.script('nft', '''#!/usr/bin/python3

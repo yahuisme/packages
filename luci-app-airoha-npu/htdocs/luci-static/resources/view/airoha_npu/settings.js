@@ -59,6 +59,19 @@ return view.extend({
 		};
 
 		var words = function(value) { return typeof value === 'string' ? value.trim().split(/\s+/).filter(Boolean) : []; };
+		var govList = words(info.governors).filter(function(v) { return /^[a-zA-Z0-9_-]+$/.test(v); });
+		var freqList = words(info.frequencies).filter(function(v) { return /^[1-9][0-9]{0,9}$/.test(v); });
+		// A runtime reading or retained pending pair is not a writable CPUFreq interface.
+		var cpuAvailable = govList.length > 0 && freqList.length > 0 &&
+			govList.indexOf(status.cpu_governor) >= 0 && freqList.indexOf(String(status.cpu_max_freq)) >= 0;
+
+		if (!cpuAvailable) {
+			this.handleSave = this.handleSaveApply = this.handleReset = null;
+			return E('div', {}, [
+				E('h2', {}, _('Airoha SoC Settings')),
+				E('p', {}, [message(data[0] && data[1] ? 'unavailable' : null)])
+			]);
+		}
 
 		var m, s, o;
 		// NamedSection renders only sections present in the JSON data model.
@@ -74,16 +87,12 @@ return view.extend({
 		s.anonymous = true;
 
 		o = s.option(form.ListValue, 'governor', _('Governor'));
-		var govList = words(info.governors).filter(function(v) { return /^[a-zA-Z0-9_-]+$/.test(v); });
-		if (!govList.length && status.cpu_governor) govList.push(status.cpu_governor);
 		govList.forEach(function(v) {
 			o.value(v, governorLabel(v));
 		});
 		o.default = baseline.governor;
 
 		o = s.option(form.ListValue, 'frequency', _('Maximum CPU frequency'));
-		var freqList = words(info.frequencies).filter(function(v) { return /^[1-9][0-9]{0,9}$/.test(v); });
-		if (!freqList.length && status.cpu_max_freq) freqList.push(String(status.cpu_max_freq));
 		freqList.forEach(function(v) {
 			o.value(v, frequency(Number(v)));
 		});

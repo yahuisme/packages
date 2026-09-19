@@ -9,7 +9,7 @@ if (!root) throw new Error('Set LUCI_RESOURCE_DIR to trusted upstream LuCI resou
 const source = fs.readFileSync(process.env.NPU_SETTINGS_JS || path.join(__dirname,
  '../htdocs/luci-static/resources/view/airoha_npu/settings.js'), 'utf8');
 
-async function scenario(readonly = false, loadFailure = false) {
+async function scenario(readonly = false, loadFailure = false, capability = 'present') {
  const j = new JSDOM('<!doctype html><div id="maincontent"><div id="view"></div></div>',
   { url: 'http://localhost/cgi-bin/luci/admin/system/npu', runScripts: 'outside-only' });
  const w = j.window;
@@ -30,7 +30,7 @@ async function scenario(readonly = false, loadFailure = false) {
   L.require = n => Promise.resolve(mods[n]); L.hasViewPermission = () => !readonly;
   w.E = mods.dom.create.bind(mods.dom);
   mods.uci = { load: async () => {}, loadPackage: async () => {}, get: () => null };
-  const calls = [], notices = []; let rejectSave = false, staged = null, fault = null;
+  const calls = [], notices = []; let rejectSave = false, staged = capability === 'fixed' ? { governor: 'schedutil', freq: '800000' } : null, fault = null;
   const runtime = { cpu_governor: 'performance', cpu_max_freq: 1000000 };
   mods.rpc = { declare: spec => async (...args) => {
    calls.push([spec.method, ...args]);
@@ -39,8 +39,9 @@ async function scenario(readonly = false, loadFailure = false) {
     if (fault.transport) throw new Error('<img src=x onerror=alert(1)> transport details');
     return { error: fault.code };
    }
-   if (spec.method === 'getInfo') return { governors: 'performance schedutil', frequencies: '1000000 800000' };
-   if (spec.method === 'getStatus') return { ...runtime };
+   if (spec.method === capability) throw Error('offline');
+   if (spec.method === 'getInfo') return capability === 'present' ? { governors: 'performance schedutil', frequencies: '1000000 800000' } : { governors: '', frequencies: '' };
+   if (spec.method === 'getStatus') return capability === 'absent' ? { cpu_governor: '', cpu_max_freq: null } : { ...runtime };
    if (spec.method === 'getSettings') { if (loadFailure) throw Error('offline'); return { result: 'ok', pending: staged }; }
    if (rejectSave) return { error: 'write_failed' };
    if (spec.method === 'saveSettings') staged = { governor: args[0], freq: args[1] };
@@ -65,6 +66,16 @@ async function scenario(readonly = false, loadFailure = false) {
   const app = new C(), node = await app.render(await app.load());
   w.document.getElementById('view').append(node);
   w.document.getElementById('view').append(app.addFooter());
+  if (capability !== 'present') {
+   assert.equal(node.querySelectorAll('.cbi-map, .cbi-value, select, input').length, 0, 'no unsupported CPU form');
+   assert.equal(w.document.querySelectorAll('.cbi-page-actions button').length, 0, 'no unusable settings footer');
+   assert.equal(app.settingsMap, undefined);
+   assert.equal(app.handleSave, null); assert.equal(app.handleSaveApply, null); assert.equal(app.handleReset, null);
+   assert(node.textContent.includes(w._(['getInfo', 'getStatus'].includes(capability)
+    ? 'The operation failed. Refresh the page and try again.' : 'The required system interface is unavailable.')));
+   assert.equal(calls.filter(c => /^(set|save|apply)/.test(c[0])).length, 0);
+   return;
+  }
   assert(node.querySelector('style'), 'settings style belongs to view root');
   assert.equal(w.document.head.querySelectorAll('style').length, 0, 'no persistent head styles');
   const map = mods.dom.findClassInstance(node);
@@ -167,6 +178,8 @@ async function scenario(readonly = false, loadFailure = false) {
  } finally { w.close(); }
 }
 (async () => {
+ await scenario(false, false, 'absent'); await scenario(false, false, 'fixed');
+ await scenario(false, false, 'getInfo'); await scenario(false, false, 'getStatus');
  await scenario(true); await scenario(false, true); await scenario();
  console.log('PASS real LuCI form: CPU-only controls, RPC defaults, no-op/save/reset, failure and read-only');
 })().catch(e => { console.error(e); process.exitCode = 1; });

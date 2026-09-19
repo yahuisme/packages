@@ -276,6 +276,24 @@ class Backend(unittest.TestCase):
         (self.root / 'tmp').rmdir()
         self.assertIsNone(self.call('getFlowOffload')['enabled'])
 
+    def test_official_without_cpufreq(self):
+        for path in self.policy.iterdir():
+            path.unlink()
+        self.policy.rmdir()
+        status = self.call('getStatus')
+        self.assertIsNone(status['cpu_cur_freq'])
+        self.assertIsNone(status['cpu_max_freq'])
+        self.assertEqual(status['cpu_governor'], '')
+        info = self.call('getInfo')
+        self.assertEqual(info['governors'], '')
+        self.assertEqual(info['frequencies'], '')
+        self.assertEqual(self.call('getSettings'), {'result': 'ok', 'pending': None})
+        payload = {'governor': 'performance', 'freq': '1400000'}
+        self.assertEqual(self.call('saveSettings', payload), {'error': 'invalid'})
+        self.assertEqual(self.call('setMaxFreq', payload), {'error': 'unavailable'})
+        self.assertFalse(self.policy.exists())
+        self.assertFalse((self.root / 'etc/airoha-npu/pending.json').exists())
+
     def test_info_and_missing(self):
         dt = self.root / 'proc/device-tree'
         dt.mkdir(parents=True)

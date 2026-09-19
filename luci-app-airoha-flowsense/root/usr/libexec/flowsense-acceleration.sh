@@ -1,5 +1,5 @@
 #!/bin/sh
-# Bridge knobs follow the firmware's br_netfilter/nft bridging patches.
+# Bridge compatibility knobs require the corresponding br_netfilter interfaces.
 . /usr/share/libubox/jshn.sh
 
 acc_keys='call-iptables call-ip6tables call-arptables filter-vlan-tagged filter-pppoe-tagged pass-vlan-input-dev'
@@ -27,8 +27,8 @@ acc_vlan_filtering() {
 }
 acc_hardware() {
     local data entries entry kind family table name text flags flag value result=0
-    # W1700K owns both inet fw4 and bridge fw4. One successful snapshot
-    # distinguishes an absent bridge table from a failed read.
+    # Official fw4 uses inet; some firmware also owns bridge fw4 flowtables.
+    # Discover either without requiring a bridge table. Failed reads stay unknown.
     data=$(nft -j list flowtables 2>/dev/null) || { printf null; return; }
     json_load "$data" >/dev/null 2>&1 || { printf null; return; }
     json_get_type kind nftables
@@ -121,7 +121,7 @@ acc_put() { printf '%s\n' "$2" > "/proc/sys/net/bridge/bridge-nf-$1" && [ "$(acc
 acc_pending() { local changes; changes=$(uci -q changes firewall) && [ -z "$changes" ]; }
 acc_private() { uci -c "$tmp/config" -C "$tmp/override" -t "$tmp/delta" "$@"; }
 acc_restart_firewall() {
-    # Native fw4 owns both inet and bridge flowtables and their cleanup.
+    # fw4 owns its flowtables and cleanup; bridge tables are not required.
     # Apply and rollback share one synchronous restart and UCI/nft readback.
     /etc/init.d/firewall restart >/dev/null 2>&1
 }
