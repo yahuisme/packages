@@ -202,7 +202,8 @@ function getResources(o) {
 	const callResStatus = rpc.declare({
 		object: 'luci.homeproxy',
 		method: 'resources_get',
-		expect: { '': {} }
+		expect: { '': {} },
+		reject: true
 	});
 
 	const callResUpdate = rpc.declare({
@@ -249,13 +250,14 @@ function getResources(o) {
 		if (state.busy) return;
 		state.busy = true;
 		buttons.forEach((b) => { b.disabled = true; });
-		const targets = scope === 'manual' ? ['geoip_cn', 'geosite_cn'] :
+		const targets = scope === 'status' ? [] : scope === 'manual' ? ['geoip_cn', 'geosite_cn'] :
 			[scope === 'geoip' ? 'geoip_cn' : scope === 'geosite' ? 'geosite_cn' : 'dashboard'];
 		// Manual participation comes from the locked backend transaction, not the DOM.
 		if (scope === 'manual') {
 			resources.forEach((r) => setResourceResult(r.type, '', 'neutral'));
 		} else targets.forEach((type) => setResourceResult(type, _('Updating…'), 'pending'));
-		return L.resolveDefault(scope === 'dashboard' ? callDashboard(action === 'remove' ? 'remove' : 'update') : callResUpdate(scope), {}).then((res) => {
+		return L.resolveDefault(scope === 'status' ? Promise.resolve({}) :
+			scope === 'dashboard' ? callDashboard(action === 'remove' ? 'remove' : 'update') : callResUpdate(scope), {}).then((res) => {
 			if (scope === 'manual' && Array.isArray(res.resources) && res.resources.length) {
 				res.resources.forEach((item) => {
 					if (resourceResults[item.type])
@@ -307,10 +309,11 @@ function getResources(o) {
 		buttons.push(button);
 		return button;
 	};
-	return L.resolveDefault(callResStatus(), { resources: [] }).then((result) => {
+	return L.resolveDefault(callResStatus(), {}).then((result) => {
 		const status = {};
-		(result.resources || []).forEach((resource) => {
-			status[resource.type] = resource;
+		(Array.isArray(result.resources) ? result.resources : []).forEach((resource) => {
+			if (resource && typeof resource.type === 'string')
+				status[resource.type] = resource;
 		});
 		const table = E('table', { 'class': 'table' }, [
 			E('tr', { 'class': 'tr table-titles' }, [
@@ -324,6 +327,7 @@ function getResources(o) {
 			const available = resourceStatus.version;
 			const source = resourceStatus.source;
 			const dashboard = resource.type === 'dashboard';
+			const known = typeof resourceStatus.installed === 'boolean';
 			const installed = resourceStatus.installed === true;
 			const result = E('span', { 'class': 'hp-resource-result', 'aria-live': 'polite' }, []);
 			resourceResults[resource.type] = result;
@@ -332,8 +336,8 @@ function getResources(o) {
 
 			return [
 				source ? E('a', { 'href': source, 'target': '_blank', 'rel': 'noreferrer noopener' }, [ resource.name ]) : resource.name,
-				E('span', {}, [ dashboard && !installed ? _('Not installed') : available || _('Unknown version') ]),
-				dashboard ? E('div', { 'class': 'hp-resource-actions' }, installed ? [ dashboardButton(_('Update'), 'update', result), dashboardButton(_('Remove'), 'remove', result), result ] : [ dashboardButton(_('Download'), 'download', result), result ]) :
+				E('span', {}, [ dashboard && !known ? _('Status unavailable') : dashboard && !installed ? _('Not installed') : available || _('Unknown version') ]),
+				dashboard ? E('div', { 'class': 'hp-resource-actions' }, !known ? [ rulesButton(_('Retry'), 'status'), result ] : installed ? [ dashboardButton(_('Update'), 'update', result), dashboardButton(_('Remove'), 'remove', result), result ] : [ dashboardButton(_('Download'), 'download', result), result ]) :
 				E('div', { 'class': 'hp-resource-actions' }, [ rulesButton(_('Update'), resource.type === 'geoip_cn' ? 'geoip' : 'geosite', result), result ])
 
 			];
@@ -458,7 +462,10 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 				E('button', {
 					'class': 'btn cbi-button cbi-button-action',
 					'click': ui.createHandlerFn(this, () => {
-						return L.resolveDefault(callLogClean(filename), {});
+						return L.resolveDefault(callLogClean(filename), {}).then((result) => {
+							if (result.result !== true)
+								ui.addNotification(null, E('p', [ _('Unable to clear log.') ]), 'error');
+						});
 					})
 				}, [ _('Clean log') ])
 			]),

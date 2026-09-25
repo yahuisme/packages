@@ -8,6 +8,7 @@
 'require dom';
 'require form';
 'require fs';
+'require homeproxy.lifecycle as lifecycle';
 'require rpc';
 'require uci';
 'require ui';
@@ -2191,25 +2192,23 @@ return view.extend({
 
 				updateBulkButtonVisibility();
 
-				if (!tabmenu_observer) {
-					let tabmenu = el.querySelector('.cbi-tabmenu');
-					if (tabmenu) {
-						tabmenu_observer = new MutationObserver(() => updateBulkButtonVisibility());
-						tabmenu_observer.observe(tabmenu, {
-							subtree: true,
-							attributes: true,
-							attributeFilter: [ 'class', 'aria-selected' ]
-						});
-					}
-				}
-
 				return true;
 			};
 
-			if (!attachBulkButton()) {
-				window.setTimeout(attachBulkButton, 0);
-				window.setTimeout(attachBulkButton, 300);
-			}
+			lifecycle.watch(el, () => {
+				attachBulkButton();
+				// Map.reset replaces the tabmenu, but preserves the Map root.
+				tabmenu_observer = new MutationObserver(updateBulkButtonVisibility);
+				tabmenu_observer.observe(el, {
+					childList: true,
+					subtree: true,
+					attributes: true,
+					attributeFilter: [ 'class', 'aria-selected' ]
+				});
+			}, () => {
+				tabmenu_observer.disconnect();
+				bulk_button.remove();
+			});
 
 			return E('div', {}, [
 				E('style', {}, [

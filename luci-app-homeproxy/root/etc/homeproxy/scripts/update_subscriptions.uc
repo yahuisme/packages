@@ -1266,10 +1266,26 @@ function main() {
 		return false;
 	}
 
+	/* Abort before commit on any write failure, including shared helpers. */
+	const writer = {
+		foreach: (...args) => uci.foreach(...args),
+		get: (...args) => uci.get(...args),
+		get_first: (...args) => uci.get_first(...args),
+		set: function(...args) {
+			if (uci.set(...args) !== true)
+				die('failed to set subscription UCI value');
+			return true;
+		},
+		delete: function(...args) {
+			if (uci.delete(...args) !== true)
+				die('failed to delete subscription UCI value');
+			return true;
+		}
+	};
 	const incoming_sections = {};
 	for (let node in node_result)
 		incoming_sections[node.__section_id] = true;
-	const label_state = synchronizeNodeLabels(uci, uciconfig, (cfg) => {
+	const label_state = synchronizeNodeLabels(writer, uciconfig, (cfg) => {
 		const cached_group = cfg.grouphash ? node_cache[cfg.grouphash] : null;
 		const preserving_node = !cfg.grouphash || (cached_group &&
 			(length(cached_group) === 0 || reconcile_group[cfg.grouphash] !== true));
@@ -1287,7 +1303,7 @@ function main() {
 
 		/* Subscription URL was removed from the configuration. */
 		if (!(cfg.grouphash in node_cache)) {
-			uci.delete(uciconfig, cfg['.name']);
+			writer.delete(uciconfig, cfg['.name']);
 			removed++;
 
 			log(sprintf('Removing node: %s.', cfg.label || cfg['.name']));
@@ -1296,11 +1312,14 @@ function main() {
 
 		/* Empty object - failed to fetch nodes */
 		const cached_group = node_cache[cfg.grouphash];
-		if (!cached_group || length(cached_group) === 0 || reconcile_group[cfg.grouphash] !== true)
+		if (!cached_group || length(cached_group) === 0)
 			return null;
 
 		if (!cached_group[cfg['.name']]) {
-			uci.delete(uciconfig, cfg['.name']);
+			/* Partial responses protect only nodes without a valid match. */
+			if (reconcile_group[cfg.grouphash] !== true)
+				return null;
+			writer.delete(uciconfig, cfg['.name']);
 			removed++;
 
 			log(sprintf('Removing node: %s.', cfg.label || cfg['.name']));
@@ -1308,14 +1327,15 @@ function main() {
 			const next = cached_group[cfg['.name']];
 			let changed = false;
 			for (let option in keys(cfg))
-				if (!match(option, /^\./) && !(option in next)) {
-					uci.delete(uciconfig, cfg['.name'], option);
+				if (!match(option, /^\./) && (!(option in next) || next[option] === null)) {
+					writer.delete(uciconfig, cfg['.name'], option);
 					changed = true;
 				}
 
 			for (let option in keys(next))
-				if (!match(option, /^__/) && option !== 'isExisting' && !values_equal(cfg[option], next[option])) {
-					uci.set(uciconfig, cfg['.name'], option, next[option]);
+				if (!match(option, /^__/) && option !== 'isExisting' && next[option] !== null &&
+				    !values_equal(cfg[option], next[option])) {
+					writer.set(uciconfig, cfg['.name'], option, next[option]);
 					changed = true;
 				}
 
@@ -1330,28 +1350,23 @@ function main() {
 			return null;
 
 		const nameHash = node.__section_id;
-		try {
-			uci.set(uciconfig, nameHash, 'node');
-			map(keys(node), (v) => {
-				if (!match(v, /^__/))
-					uci.set(uciconfig, nameHash, v, node[v]);
-			});
+		writer.set(uciconfig, nameHash, 'node');
+		map(keys(node), (v) => {
+			if (!match(v, /^__/) && node[v] !== null)
+				writer.set(uciconfig, nameHash, v, node[v]);
+		});
 
-			added++;
-			log(sprintf('Adding node: %s.', node.label));
-		} catch (e) {
-			uci.delete(uciconfig, nameHash);
-			log_error(sprintf('Skipping node %s because it could not be saved', node.label), e);
-		}
+		added++;
+		log(sprintf('Adding node: %s.', node.label));
 	});
 
-	reconcileUrltestNodes(uci, uciconfig, (message) => log(message));
+	reconcileUrltestNodes(writer, uciconfig, (message) => log(message));
 
 	const current_main_node = uci.get(uciconfig, ucimain, 'main_node') || 'nil';
 	if (current_main_node !== 'nil' && current_main_node !== 'urltest' &&
 	    uci.get(uciconfig, current_main_node) !== ucinode) {
 		const first_server = uci.get_first(uciconfig, ucinode);
-		uci.set(uciconfig, ucimain, 'main_node', first_server || 'nil');
+		writer.set(uciconfig, ucimain, 'main_node', first_server || 'nil');
 		if (first_server)
 			log('Main node is gone, switching to the first node.');
 		else

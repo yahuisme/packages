@@ -10,8 +10,8 @@ ImmortalWrt / OpenWrt 专属定制软件包源。
 | `luci-app-airoha-flowsense` | `20260919-r1` | Airoha 硬件流控监控 |
 | `luci-app-airoha-fancontrol` | `20260916-r1` | Airoha 温控与风扇调速面板 |
 | `luci-app-wifi7` | `20260916-r1` | WiFi 7 射频、MLO 与运行状态管理面板 |
-| `luci-app-homeproxy` | `20260919-r1` | 独立维护 HomeProxy |
-| `sing-box` | `1.14.1` | 跟随 SagerNet 官方最新正式版 |
+| `luci-app-homeproxy` | `20260926-r1` | 独立维护 HomeProxy |
+| `sing-box` | `1.14.2` | 跟随 SagerNet 官方最新正式版 |
 
 ## 使用方法
 

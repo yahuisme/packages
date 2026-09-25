@@ -21,6 +21,34 @@ failure retaining the complete backup. These are synchronous regression tests,
 not proof of daemon startup health, actual procd file hashing, power-loss
 atomicity or router firewall correctness.
 
+# Subscription cron regression
+
+```sh
+python3 luci-app-homeproxy/tests/test_subscription_cron.py -v
+```
+
+Runs production cron functions in BusyBox ash with private files; lock and cron
+service calls are isolated. Covers add/change/remove/no-op, first install,
+invalid schedules, notification append/failure, and client/auto-update gating.
+No host service is touched; this does not reproduce procd killing a cron job.
+
+# Subscription state regression
+
+```sh
+. /opt/test-tools/env.sh
+python3 -m unittest discover -s luci-app-homeproxy/tests -p 'test_subscription*.py' -v
+node tests/ui-state-regressions.cjs
+```
+
+The subscription suite uses real ucode and private native libuci CLI storage
+through an explicit cursor adapter, with fixture downloads/service calls. It
+checks committed UCI and rendered outbound fields after optional-value removal,
+partial responses, repeated imports and injected write failures. Override
+`UCI_BIN`, `UCI_LIBRARY` and `UCODE_LIB_DIR` for another host tools installation.
+The UI suite uses native LuCI with private RPC transport: repeated reset/reentry,
+bulk-test visibility, unknown resource status/read-only retry, and log-clear
+failure/success. No router service or proxy is started.
+
 # Subscription UI regression
 
 ```sh
