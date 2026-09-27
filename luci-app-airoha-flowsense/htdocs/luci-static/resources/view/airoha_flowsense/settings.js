@@ -115,6 +115,12 @@ return view.extend({
 				return Promise.resolve();
 			}
 			var values = accelerationKeys.map(function(key) { return editable(key) && (baseline && baseline[key] !== -1 || accelerationInputs[key].checked !== accelerationState[key].configured || accelerationState[key].enabled !== accelerationState[key].configured) ? +accelerationInputs[key].checked : -1; });
+			// AP's effective state includes VLAN on filtering bridges. Carry both
+			// visible choices when either changes, including an unchanged AP-off.
+			if (values[1] !== -1 || values[3] !== -1) {
+				if (editable('vlan')) values[1] = +accelerationInputs.vlan.checked;
+				if (editable('ap')) values[3] = +accelerationInputs.ap.checked;
+			}
 			var desired = {};
 			accelerationKeys.forEach(function(key, i) { desired[key] = values[i]; });
 			var monitorChanged = monitorState && (baseline && baseline.enabled !== -1 || target.value.trim() !== monitorState.target || enabled.checked !== monitorState.enabled);

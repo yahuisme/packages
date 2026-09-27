@@ -1,4 +1,5 @@
 """Execute backend functions with isolated producers; never read device PPE or write UCI."""
+import os
 import json
 import pathlib
 import subprocess
@@ -11,7 +12,20 @@ FUNCTIONS = SOURCE[SOURCE.index('json_number()'):SOURCE.index('case "$1:$2" in')
 
 class SamplingTest(unittest.TestCase):
     def run_shell(self, script, args=()):
-        return subprocess.check_output(['busybox', 'ash', '-c', script, 'test', *args], text=True)
+        with tempfile.TemporaryDirectory() as td:
+            env = dict(os.environ, TMPDIR=td)
+            # Guard before creation: even a broken redirect must not touch /tmp.
+            guard = '''mktemp() {
+ case "$2" in "$TMPDIR"/*) command mktemp "$@";;
+ *) printf 'unsafe temporary path: %s\\n' "$2" >&2; return 1;; esac
+}
+'''
+            script = script.replace('/tmp/flowsense-committed', td + '/flowsense-committed')
+            result = subprocess.run(['busybox', 'ash', '-c', guard + script, 'test', *args],
+                                    text=True, capture_output=True, env=env, check=True)
+            self.assertEqual(result.stderr, '')
+            self.assertEqual(list(pathlib.Path(td).iterdir()), [])
+            return result.stdout
 
     def test_decimal_json_and_bounds(self):
         for value in ['1..2', '.', '01', '00.2', '-1', 'NaN', '1e2', '60000.1', '1\n2', '']:

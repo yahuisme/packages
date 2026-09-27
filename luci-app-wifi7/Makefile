@@ -4,7 +4,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-wifi7
-PKG_VERSION:=20260916
+PKG_VERSION:=20260927
 PKG_RELEASE:=1
 
 LUCI_PKGNAME:=luci-app-wifi7

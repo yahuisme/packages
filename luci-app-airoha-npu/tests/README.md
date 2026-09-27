@@ -28,6 +28,10 @@ never applied at boot; CPU controls retain their existing runtime-only semantics
 External kernel/config writers are outside the package lock. Settings notification
 regressions cover localized known/unknown errors and transport failures at Save,
 saved readback, Apply and runtime readback, followed by a successful retry.
+Held native-footer tests cover Save/Apply in both orders and Reset: conflicting
+actions report busy without replacing the active operation or discarding edits.
+The retired single-field CPU setters reject calls without changing sysfs; only
+the validated staged CPU pair can be applied.
 Without policy0 CPUFreq capability files, native LuCI filesystem dependencies hide
 the Settings menu. Direct/stale settings views render no form or action footer when
 capabilities are unavailable (including retained pending settings and fixed runtime

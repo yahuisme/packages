@@ -26,6 +26,31 @@ class SettingsTest(unittest.TestCase):
         (self.d / 'proc/uptime').write_text('100.0 0\n')
         (self.d / 'rpc').write_text(rpc)
 
+    def test_vlan_ap_native_form_preserves_intent(self):
+        import os
+        self.knob('filter-vlan-tagged').write_text('0\n')
+        self.conf('14-vlan-offload.conf').write_text('net.bridge.bridge-nf-filter-vlan-tagged=0\n')
+        result = subprocess.run(['node', str(ROOT / 'tests/test_coupling.js')],
+                                env=dict(os.environ, MONITOR_RPC=str(self.d / 'rpc'),
+                                         MONITOR_BUSYBOX=self.busybox,
+                                         MONITOR_PATH=self.env['PATH']),
+                                capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('PASS real UCI + native LuCI', result.stdout)
+
+    def test_overview_only_reads_monitor_configuration(self):
+        wrapper = (self.d / 'bin/uci').read_text()
+        log = self.d / 'uci-calls'
+        self.script('uci', wrapper.replace('#!/bin/sh\n',
+                    '#!/bin/sh\nprintf "%s\\n" "$*" >> "' + str(log) + '"\n', 1))
+        result = self.call('getOverview')
+        self.assertEqual(set(result), {'timestamp', 'uptime', 'monitor', 'jitter', 'interfaces'})
+        calls = log.read_text().splitlines()
+        self.assertEqual(len(calls), 3)
+        self.assertTrue(all('npu-monitor.@jitter[0]' in call for call in calls), calls)
+        self.assertFalse(any('firewall' in call for call in calls), calls)
+        self.assertEqual(list((self.d / 'tmp').iterdir()), [])
+
     def test_official_inet_saved_apply_readback(self):
         fixture.AccelerationTest.official_inet(self)
         for value in (0, 1):

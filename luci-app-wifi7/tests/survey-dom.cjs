@@ -39,11 +39,13 @@ const {boot}=require('./integration.cjs');
     assert.equal(state.firstChild.getAttribute('aria-hidden'),'true');
    }
   }
-  const getDevices=h.mods.network.getWifiDevices;
+  const runtimePost=h.mods.request.post;
   assertStates(['↑Enabled','↑Enabled','↑Enabled']);
-  h.mods.network.getWifiDevices=async()=>[{getName:()=>'radio0',isUp:()=>false}];
+  h.mods.request.post=async(url,req)=>req.params[1]==='luci-rpc'&&req.params[2]==='getWirelessDevices'
+   ? {ok:true,status:200,json:()=>h.w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result:[0,{radio0:{up:false,interfaces:[]}}]}))}
+   : runtimePost(url,req);
   await h.poll();assertStates(['↓Disabled','—Unknown','—Unknown']);
-  h.mods.network.getWifiDevices=getDevices;
+  h.mods.request.post=runtimePost;
   await h.poll();assertStates(['↑Enabled','↑Enabled','↑Enabled']);
   console.log('PASS three-band summary-only surveys, zero busy, delta units, reset/outage, no station scans');
  }finally{h.w.close();}

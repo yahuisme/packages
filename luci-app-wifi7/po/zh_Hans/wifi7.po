@@ -22,8 +22,8 @@ msgstr "%d 待完善"
 msgid "%d seconds remaining"
 msgstr "剩余 %d 秒"
 
-msgid "1-%d dBm, leave empty for regulatory auto"
-msgstr "1–%d dBm，留空则自动跟随国家监管上限"
+msgid "0-%d dBm, leave empty for regulatory auto"
+msgstr "0–%d dBm，留空则自动跟随国家监管上限"
 
 msgid "5GHz DFS Status"
 msgstr "5 GHz DFS 状态"

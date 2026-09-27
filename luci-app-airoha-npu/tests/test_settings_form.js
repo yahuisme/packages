@@ -31,6 +31,7 @@ async function scenario(readonly = false, loadFailure = false, capability = 'pre
   w.E = mods.dom.create.bind(mods.dom);
   mods.uci = { load: async () => {}, loadPackage: async () => {}, get: () => null };
   const calls = [], notices = []; let rejectSave = false, staged = capability === 'fixed' ? { governor: 'schedutil', freq: '800000' } : null, fault = null;
+  let holdSave = null;
   const runtime = { cpu_governor: 'performance', cpu_max_freq: 1000000 };
   mods.rpc = { declare: spec => async (...args) => {
    calls.push([spec.method, ...args]);
@@ -44,6 +45,7 @@ async function scenario(readonly = false, loadFailure = false, capability = 'pre
    if (spec.method === 'getStatus') return capability === 'absent' ? { cpu_governor: '', cpu_max_freq: null } : { ...runtime };
    if (spec.method === 'getSettings') { if (loadFailure) throw Error('offline'); return { result: 'ok', pending: staged }; }
    if (rejectSave) return { error: 'write_failed' };
+   if (spec.method === 'saveSettings' && holdSave) await holdSave;
    if (spec.method === 'saveSettings') staged = { governor: args[0], freq: args[1] };
    if (spec.method === 'applySettings') { runtime.cpu_governor = staged.governor; runtime.cpu_max_freq = Number(staged.freq); }
    assert(!spec.method.includes('Flow'), 'CPU settings must never query or manage flow offloading');
@@ -110,6 +112,36 @@ async function scenario(readonly = false, loadFailure = false, capability = 'pre
    return;
   }
   exportDOM('');
+  // Native footer disables only the clicked action. Distinct intents must not
+  // silently share a Save-only promise or reset a form while saving.
+  for (const firstApply of [false, true]) {
+   let release;
+   holdSave = new Promise(resolve => { release = resolve; });
+   const nativeSave = map.save, operations = [];
+   map.save = function(...args) { const task = nativeSave.apply(this, args); operations.push(task); return task; };
+   const before = calls.length;
+   const first = w.document.querySelector(firstApply ? '.cbi-button-apply' : '.cbi-button-save');
+   const second = w.document.querySelector(firstApply ? '.cbi-button-save' : '.cbi-button-apply');
+   first.click();
+   await new Promise(r => setImmediate(r));
+   assert(!second.disabled, 'exercise an actual enabled native sibling action');
+   second.click();
+   await new Promise(r => setImmediate(r));
+   assert.equal(notices.at(-1), w._('Another operation is in progress. Retry later.'), 'different pending intent must be explicitly rejected');
+   const input = map.lookupOption('governor', 'cpu')[0].getUIElement('cpu');
+   input.setValue('schedutil');
+   w.document.querySelector('.cbi-button-reset').click();
+   await new Promise(r => setImmediate(r));
+   assert.equal(notices.at(-1), w._('Another operation is in progress. Retry later.'));
+   assert.equal(map.lookupOption('governor', 'cpu')[0].formvalue('cpu'), 'schedutil', 'busy Reset must leave edits alone');
+   release(); await Promise.all(operations); await new Promise(r => setImmediate(r));
+   holdSave = null; map.save = nativeSave;
+   assert.equal(calls.slice(before).filter(c => c[0] === 'saveSettings').length, 1);
+   assert.equal(calls.slice(before).filter(c => c[0] === 'applySettings').length, firstApply ? 1 : 0);
+   assert.equal(notices.at(-1), w._(firstApply ? 'Settings applied.' : 'Settings saved.'));
+   await map.reset();
+   assert.equal(map.lookupOption('governor', 'cpu')[0].formvalue('cpu'), 'performance');
+  }
   {
    await saveClick();
    assert.equal(calls.filter(c => c[0].startsWith('set')).length, 0, 'unchanged form must not write');

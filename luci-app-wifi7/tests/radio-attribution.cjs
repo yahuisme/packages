@@ -37,11 +37,12 @@ printf 'Survey data from ap-mld\\n frequency: 5180 MHz [in use]\\n channel activ
   const original = h.mods.request.post;
   let summary = collect('phy#0\n Interface ap-mld\n - link ID 7 link addr aa:bb:cc:dd:ee:03\n channel 36 (5180 MHz), width: 80 MHz\n txpower 23.00 dBm\n');
   let reading = { frequency: 2462, channel: 11, htmode: 'HE20', txpower: 25 };
-  h.mods.network.getWifiDevices = async () => ['radio0', 'radio1', 'radio2'].map(id => ({ getName: () => id, isUp: () => id !== 'radio2' }));
+  let runtime = {radio0:{up:true,interfaces:[]},radio1:{up:true,interfaces:[]},radio2:{up:false,interfaces:[]}};
   h.mods.request.post = async (url, req) => {
    const [, object, method, p] = req.params;
    let value;
-   if (object === 'iwinfo' && method === 'info') value = reading;
+   if (object === 'luci-rpc' && method === 'getWirelessDevices') value = runtime;
+   else if (object === 'iwinfo' && method === 'info') value = reading;
    else if (object === 'file' && method === 'exec' && p.command === '/usr/libexec/wifi7-status-summary') value = { code: 0, stdout: summary };
    else return original(url, req);
    return { ok: true, status: 200, json: () => h.w.JSON.parse(JSON.stringify({ jsonrpc: '2.0', id: req.id, result: [0, value] })) };
@@ -62,7 +63,7 @@ printf 'Survey data from ap-mld\\n frequency: 5180 MHz [in use]\\n channel activ
   assert.deepEqual(values(), [['—', '—'], ['—', '—'], ['—', '—']], 'frequency-less results cannot establish a band');
   // Ordinary interfaces are attributed by frequency, not their parent radio.
   summary = collect('Interface ap-mld\n channel 37 (6135 MHz), width: 160 MHz\n txpower 0.00 dBm\n');
-  h.mods.network.getWifiDevices = async () => [];
+  runtime = {};
   await h.poll();
   assert.deepEqual(values(), [['—', '—'], ['—', '—'], ['37 / 160 MHz', '0 dBm']]);
   assert.deepEqual([...h.node.querySelectorAll('.wifi7-status-badge')].map(n => n.textContent), ['—Unknown', '—Unknown', '—Unknown']);

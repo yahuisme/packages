@@ -7,7 +7,7 @@ const OUT=process.env.AUDIT_OUT;
 const SOURCE=fs.readFileSync(APP,'utf8'), TELEMETRY=fs.readFileSync(path.join(path.dirname(APP),'../../wifi7/telemetry.js'),'utf8'), MLO=fs.readFileSync(path.join(path.dirname(APP),'../../wifi7/mlo.js'),'utf8');
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
 const tick=()=>new Promise(r=>setImmediate(r));
-async function boot({readonly=false,missing=false,frequencyFailure=false}={}) {
+async function boot({readonly=false,missing=false,frequencyFailure=false,zeroPower=false}={}) {
  const j=new JSDOM('<!doctype html><html><head><meta charset="utf-8"></head><body><div id="maincontent"><div id="view"></div></div></body></html>',{url:'http://localhost/cgi-bin/luci/admin/network/wifi7',runScripts:'outside-only',pretendToBeVisual:true}),w=j.window;
  const translations=process.env.WIFI7_TRANSLATIONS?JSON.parse(fs.readFileSync(process.env.WIFI7_TRANSLATIONS,'utf8')):{};
  w._=s=>translations[s]||s;w.N_=(n,a,b)=>n===1?a:b;w.scrollTo=()=>{};w.confirm=()=>true;
@@ -26,6 +26,7 @@ async function boot({readonly=false,missing=false,frequencyFailure=false}={}) {
  const clone=x=>w.JSON.parse(JSON.stringify(x));
  const initial={radio0:{'.name':'radio0','.type':'wifi-device','.index':0,band:'2g',channel:'13',country:'00',htmode:'HE20'},radio1:{'.name':'radio1','.type':'wifi-device','.index':1,band:'5g',channel:'104',country:'AU',htmode:'VENDOR_UNKNOWN'},radio2:{'.name':'radio2','.type':'wifi-device','.index':2,band:'6g',channel:'37',country:'AU',htmode:'EHT160'}};
  if(missing)delete initial.radio0.htmode;
+ if(zeroPower)initial.radio0.txpower='0';
  let staged=clone(initial),committed=clone(initial);const calls=[],notifications=[],errors=[];
  w.addEventListener('error',e=>errors.push(String(e.error||e.message)));
  const state={applyCode:0,generation:0,frequencyFailure};
@@ -40,7 +41,7 @@ async function boot({readonly=false,missing=false,frequencyFailure=false}={}) {
    else if(method==='apply'){assert.equal(p.rollback,true);if(!state.applyCode)committed=clone(staged);result=state.applyCode?(state.ubusFailure?[state.applyCode]:[0,state.applyCode]):[0];}
    else if(method==='confirm')result=[0];
    else throw Error('Unhandled UCI method '+method);
-  } else if(object==='luci-rpc'&&method==='getWirelessDevices')result=[0,{radio0:{up:true,interfaces:[]},radio1:{up:true,interfaces:[{section:'mlo0',ifname:'ap-mld0',mld:true}]},radio2:{up:true,interfaces:[]}}];
+  } else if(object==='luci-rpc'&&method==='getWirelessDevices')result=[0,{radio0:{up:true,interfaces:[]},radio1:{up:true,interfaces:[{section:'mlo0',ifname:'ap-mld',mld:true}]},radio2:{up:true,interfaces:[]}}];
   else if(object==='iwinfo') {
    if(method==='freqlist')result=state.frequencyFailure?[6]:[0,{results:[{channel:13,mhz:2472},{channel:36,mhz:5180},{channel:40,mhz:5200,restricted:true,flags:['no_ir']},{channel:37,mhz:6135},...(staged.radio0.country==='US'?[{channel:11,mhz:2462}]:[])]}];
    else if(method==='devices')result=[0,{devices:['ap-mld']}];

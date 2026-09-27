@@ -1,6 +1,7 @@
 'use strict';
 'require baseclass';
 'require form';
+'require dom';
 'require uci';
 'require ui';
 'require poll';
@@ -110,9 +111,9 @@ function flattenRuntime(status) {
 	return runtime;
 }
 
-function fetchRuntime() {
-	return callWirelessDevices().then(function(status) {
-		if (!status || typeof status != 'object' || Array.isArray(status) ||
+function fetchRuntime(readWireless) {
+	return (readWireless ? readWireless() : callWirelessDevices()).then(function(status) {
+		if (!status || typeof status != 'object' || Array.isArray(status) || !Object.keys(status).length ||
 			Object.values(status).some(radio => !radio || typeof radio.up != 'boolean'))
 			throw new Error('Invalid wireless status');
 		return flattenRuntime(status);
@@ -167,8 +168,8 @@ function overview(sectionId, radiosByName, runtime) {
 }
 
 return baseclass.extend({
-	load: function() {
-		return Promise.all([ uci.load('wireless'), uci.load('network'), fetchRuntime() ]);
+	load: function(operation) {
+		return Promise.all([ uci.load('wireless'), uci.load('network'), fetchRuntime(operation && operation.readWireless) ]);
 	},
 
 	pause: function() {
@@ -318,7 +319,33 @@ return baseclass.extend({
 		option = section.taboption('general', form.ListValue, 'mode', _('Mode'));
 		option.value('ap', _('Access Point')); option.value('sta', _('Client')); option.default = 'ap'; option.rmempty = false;
 		option = section.taboption('general', form.MultiValue, 'device', _('Radio devices'), _('Select at least two radios for MLO.'));
-		for (let radio of radios) option.value(radio['.name'], radioLabel(radio));
+		let radioOption = option;
+		function refreshRadios(updateEditor) {
+			radios = uci.sections('wireless', 'wifi-device');
+			radiosByName = radioMap(radios);
+			radioOption.keylist = [];
+			radioOption.vallist = [];
+			for (let radio of radios) radioOption.value(radio['.name'], radioLabel(radio));
+			// Update only radio choices in an open native editor, not its draft fields.
+			let modalNode = updateEditor && actionRoot && section.getActiveModalMap && section.getActiveModalMap();
+			let modal = modalNode && dom.findClassInstance(modalNode);
+			for (let iface of modal ? mloSections() : []) {
+				let option = modal.lookupOption('device', iface['.name']);
+				let widget = option && option[0].getUIElement(iface['.name']);
+				if (!widget) continue;
+				let selected = widget.getValue();
+				widget.clearChoices(true);
+				widget.addChoices(radioOption.keylist, radioOption.transformChoices());
+				widget.setValue(selected);
+			}
+			if (actionRoot) for (let node of actionRoot.querySelectorAll('[data-mlo-overview-section]')) {
+				let next = overview(node.getAttribute('data-mlo-overview-section'), radiosByName, runtime);
+				let label = node.querySelector('.mlo-overview-radios');
+				if (label) label.replaceWith(next.querySelector('.mlo-overview-radios'));
+			}
+		}
+		operation.refreshMloConfiguration = function() { refreshRadios(true); };
+		refreshRadios();
 		option.widget = 'select'; option.rmempty = true;
 		option.validate = function(sectionId, value) {
 			return uniqueValues(value).length >= 2 || _('MLO requires at least two radio devices');
@@ -372,6 +399,7 @@ return baseclass.extend({
 
 		// Include local presentation in every native Map reset/save redraw.
 		map.renderContents = function() {
+			refreshRadios();
 			return form.Map.prototype.renderContents.apply(this, arguments).then(function(nodes) {
 				nodes.classList.add('mlo-map');
 				actionRoot = nodes;
@@ -398,7 +426,7 @@ return baseclass.extend({
 					return Promise.resolve();
 				if (inflight)
 					return inflight;
-				inflight = fetchRuntime().then(function(nextRuntime) {
+				inflight = fetchRuntime(operation.readWireless).then(function(nextRuntime) {
 					if (!nodes.isConnected)
 						return;
 					runtime = nextRuntime;

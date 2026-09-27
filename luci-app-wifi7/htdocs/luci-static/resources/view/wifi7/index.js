@@ -1,6 +1,5 @@
 'use strict';
 'require view';
-'require network';
 'require rpc';
 'require uci';
 'require ui';
@@ -8,6 +7,7 @@
 'require wifi7.telemetry as telemetry';
 'require wifi7.mlo as mloView';
 
+var wireless = rpc.declare({ object: 'luci-rpc', method: 'getWirelessDevices', reject: true });
 var devices = rpc.declare({ object: 'iwinfo', method: 'devices', expect: { devices: [] }, reject: true });
 var assoc = rpc.declare({ object: 'iwinfo', method: 'assoclist', params: ['device'], expect: { results: [] }, reject: true });
 var info = rpc.declare({ object: 'iwinfo', method: 'info', params: ['device'], reject: true });
@@ -69,9 +69,16 @@ return view.extend({
 	render: function(data) {
 		var radios = uci.sections('wireless', 'wifi-device');
 		var cells = {}, controls = [], previous = {}, busy = false, channelLists = {}, clientNodes = {};
+		var wirelessSnapshot;
 		var activeTab = 0, clientCache = { rows: [], empty: _('Client data unavailable') };
 		var operation = {
 			pending: false,
+			readWireless: function() {
+				return update(activeTab === 3).then(function() {
+					if (!wirelessSnapshot || !wirelessSnapshot.ok) throw new Error('Wireless status unavailable');
+					return wirelessSnapshot.value;
+				});
+			},
 			changed: function() { lockControls(); if (operation.lockMlo) operation.lockMlo(); },
 			acquire: function() {
 				if (operation.pending || !root || !root.isConnected || !L.hasViewPermission()) return false;
@@ -118,7 +125,7 @@ return view.extend({
 			}) : [];
 			if (!r.htmode) modes.unshift('');
 			var width = select(prefix + 'width', modes, r.htmode);
-			var power = E('input', { id: prefix + 'power', name: prefix + 'power', type: 'number', min: '1', max: '30', step: '1', value: r.txpower || '', placeholder: _('Auto'), 'class': 'cbi-input-text wifi7-narrow-input' });
+			var power = E('input', { id: prefix + 'power', name: prefix + 'power', type: 'number', min: '0', max: '30', step: '1', value: r.txpower || '', placeholder: _('Auto'), 'class': 'cbi-input-text wifi7-narrow-input' });
 			var country = E('input', { id: prefix + 'country', name: prefix + 'country', value: r.country || '', maxlength: '2', pattern: '[A-Za-z0-9]{2}', placeholder: _('Auto'), 'class': 'cbi-input-text wifi7-narrow-input' });
 			country.addEventListener('change', function() {
 				channel.value = controls.find(function(c) { return c.id === id; }).original.channel || 'auto';
@@ -126,7 +133,7 @@ return view.extend({
 			});
 			var box = E('div', { 'class': 'cbi-section-node wifi7-settings-card' }, [ E('h4', {}, id + (names[band] ? ' (' + names[band] + ')' : '')),
 				field(_('Enabled'), enabled), field(_('Operating Channel'), channel, choices.length ? _('Channels reported by the driver; current configuration is preserved.') : _('Channel discovery unavailable; only the current setting is preserved.')),
-				field(_('Bandwidth / Mode'), width), field(_('TX Power (dBm)'), power, _('1-%d dBm, leave empty for regulatory auto').format(30)), field(_('Country Code'), country, _('After changing country, apply and reload to refresh permitted channels.')) ]);
+				field(_('Bandwidth / Mode'), width), field(_('TX Power (dBm)'), power, _('0-%d dBm, leave empty for regulatory auto').format(30)), field(_('Country Code'), country, _('After changing country, apply and reload to refresh permitted channels.')) ]);
 			var radar = null;
 			if (band === '5g') {
 				radar = E('input', { type: 'checkbox', id: prefix + 'radar', name: prefix + 'radar' });
@@ -168,7 +175,7 @@ return view.extend({
 						mloView.resume();
 					else if (!mloLoading) {
 						mloLoading = true;
-						mloView.load().then(function(data) {
+						mloView.load(operation).then(function(data) {
 							if (!root.isConnected) return null;
 							return mloView.render(data, operation);
 						}).then(function(node) {
@@ -234,6 +241,7 @@ return view.extend({
 				return uci.load('wireless');
 			}).then(function() {
 				var fresh = uci.sections('wireless', 'wifi-device');
+				if (operation.refreshMloConfiguration) operation.refreshMloConfiguration();
 				return Promise.all(controls.map(function(c) {
 					var original = fresh.find(function(r) { return r['.name'] === c.id; });
 					c.missing = !original;
@@ -277,18 +285,28 @@ return view.extend({
 			if (root && !root.isConnected) return Promise.resolve();
 			if (busy) return busy;
 			busy = Promise.all([
-				settled(network.flushCache().then(function() { return Promise.all([network.getWifiDevices(), network.getWifiNetworks()]); })),
+				settled(wireless()),
 				includeClients ? settled(devices().then(function(list) { return Promise.all(Array.from(new Set(list)).map(function(d) { return Promise.all([settled(assoc(d)), settled(info(d))]).then(function(r) { return { name: d, stations: r[0], info: r[1] }; }); })); })) : Promise.resolve({ ok: true, value: [] }),
 				settled(probe(includeClients ? '/usr/libexec/wifi7-status' : '/usr/libexec/wifi7-status-summary', [])),
 				Promise.all(radios.map(function(r) { return settled(info(r['.name'])); }))
 			]).then(function(result) {
 				if (!root || !root.isConnected) return;
+				wirelessSnapshot = result[0];
 				var runtime = result[0], native = result[1], shell = result[2], radioInfo = result[3];
 				var parsed = telemetry.parse(shell.ok && shell.value.code === 0 ? shell.value.stdout : '');
 				var ssids = {}, ifaceRadio = {}, runtimeRadios = {}, nativeByName = {}, stats = {}, rows = [], nextPrevious = {};
-				if (runtime.ok) {
-					runtime.value[0].forEach(function(d) { runtimeRadios[d.getName()] = d; });
-					runtime.value[1].forEach(function(n) { ifaceRadio[n.getIfname()] = n.getWifiDeviceName(); ssids[n.getIfname()] = n.getSSID(); });
+				if (runtime.ok && runtime.value && typeof runtime.value === 'object' && !Array.isArray(runtime.value)) {
+					Object.keys(runtime.value).forEach(function(id) {
+						var radio = runtime.value[id];
+						if (!radio || typeof radio.up !== 'boolean') return;
+						runtimeRadios[id] = radio;
+						(Array.isArray(radio.interfaces) ? radio.interfaces : []).forEach(function(iface) {
+							var ifname = iface && (iface.ifname || (iface.iwinfo || {}).ifname);
+							if (!ifname) return;
+							ifaceRadio[ifname] = id;
+							ssids[ifname] = (iface.config || {}).ssid || uci.get('wireless', iface.section, 'ssid') || '';
+						});
+					});
 				}
 				if (native.ok) native.value.forEach(function(n) { nativeByName[n.name] = n; });
 				radios.forEach(function(r) { stats[r['.name']] = { count: 0, known: false, failed: false, util: null, current: null }; });
@@ -353,8 +371,8 @@ return view.extend({
 				parsed.hostapd.forEach(function(h) { var r = radioFor('', h.freq), u = telemetry.utilization(h.chan_util_avg); if (r && u != null) stats[r].util = u; });
 				radios.forEach(function(r) {
 					var id = r['.name'], s = stats[id], c = cells[id], d = runtimeRadios[id];
-					var isUp = d && d.isUp();
-					var isDis = d && !d.isUp();
+					var isUp = d && d.up;
+					var isDis = d && !d.up;
 					c.state.replaceChildren(E('span', { 'class': 'wifi7-status-arrow', 'aria-hidden': 'true' }, [d ? (isUp ? '↑' : '↓') : '—']), E('span', {}, [d ? (isUp ? _('Enabled') : _('Disabled')) : _('Unknown')]));
 					c.state.className = 'wifi7-status-badge' + (isUp ? ' wifi7-badge-up' : isDis ? ' wifi7-badge-disabled' : '');
 					c.util.textContent = s.util == null ? '—' : s.util + '%';

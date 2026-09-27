@@ -103,10 +103,19 @@ return view.extend({
 			return opt && opt[0] ? opt[0].formvalue(section) : null;
 		}
 
-		var inFlight = null;
+		var inFlight = null, applying = false;
+		function busyNotice() {
+			ui.addNotification(null, E('p', {}, [message('busy')]), 'warning');
+			return Promise.resolve();
+		}
+		var reset = m.reset;
+		m.reset = function() {
+			return inFlight ? busyNotice() : reset.apply(this, arguments);
+		};
 		m.save = function(apply) {
 			if (m.readonly || !L.hasViewPermission()) return Promise.resolve();
-			if (inFlight) return inFlight;
+			if (inFlight) return applying === (apply === true) ? inFlight : busyNotice();
+			applying = apply === true;
 			var failureMessage = message();
 			function fail(code) {
 				failureMessage = message(code);

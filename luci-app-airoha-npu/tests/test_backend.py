@@ -160,37 +160,36 @@ class Backend(unittest.TestCase):
                          input=json.dumps(args or {}).encode(), env=self.env))
 
     def test_cpu_validation(self):
-        for bad in ['.*', '-e', 'performance powersave', 'sched', '', None, ['performance']]:
-            self.assertIn('error', self.call('setGovernor', {'governor': bad}))
-            self.assertEqual((self.policy / 'scaling_governor').read_text().strip(), 'schedutil')
-        self.assertEqual(self.call('setGovernor', {'governor': 'performance'})['result'], 'ok')
-        for bad in ['0500000', '500000.0', '5e5', '+500000', '500000\n', '50000', 500000, None]:
-            self.assertIn('error', self.call('setMaxFreq', {'freq': bad}))
-        self.assertEqual(self.call('setMaxFreq', {'freq': '1400000'})['result'], 'ok')
+        payload = {'governor': 'performance', 'freq': '1400000'}
+        before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()}
+        for field, values in {
+                'governor': ['.*', '-e', 'performance powersave', 'sched', '', None, ['performance']],
+                'freq': ['0500000', '500000.0', '5e5', '+500000', '500000\n', '50000', 500000, None]
+        }.items():
+            for bad in values:
+                self.assertEqual(self.call('saveSettings', dict(payload, **{field: bad})), {'error': 'invalid'})
+                self.assertEqual(before, {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()})
+        self.assertEqual(self.call('saveSettings', payload), {'result': 'ok'})
+        self.assertEqual(self.call('applySettings'), {'result': 'ok'})
+        self.assertEqual((self.policy / 'scaling_governor').read_text().strip(), 'performance')
         self.assertEqual((self.policy / 'scaling_max_freq').read_text().strip(), '1400000')
         self.assertEqual((self.policy / 'scaling_min_freq').read_text().strip(), '500000')
         self.assertEqual(self.call('getStatus')['cpu_cur_freq'], 500000)
-        self.assertNotIn('actual_mhz', self.call('setMaxFreq', {'freq': '1200000'}))
 
-    def test_write_and_readback_failures(self):
-        # /dev/null accepts writes but returns an empty string, triggering write_failed or unavailable.
+    def test_unavailable_readback_preserves_other_field(self):
+        self.assertEqual(self.call('saveSettings', {'governor': 'performance', 'freq': '1400000'}), {'result': 'ok'})
         target = self.policy / 'scaling_max_freq'
         target.unlink()
         target.symlink_to('/dev/null')
-        self.assertEqual(self.call('setMaxFreq', {'freq': '1400000'})['error'], 'unavailable')
-        # Override the copied backend's fixed read helper to emulate kernel clamping.
-        copied = self.root / 'rpc'
-        copied.write_text(BACKEND.read_text().replace(
-            'read_value() { cat "$1" 2>/dev/null; }',
-            'read_value() { case "$1" in */scaling_max_freq) printf "1200000\\n";; *) cat "$1" 2>/dev/null;; esac; }'))
-        result = json.loads(subprocess.check_output(['sh', str(copied), 'call', 'setMaxFreq'],
-                            input=b'{"freq":"1400000"}', env=self.env))
-        self.assertEqual(result['error'], 'write_failed')
-        target.unlink()
-        target.symlink_to('/dev/full')
-        result = json.loads(subprocess.check_output(['sh', str(copied), 'call', 'setMaxFreq'],
-                            input=b'{"freq":"1400000"}', env=self.env))
-        self.assertEqual(result['error'], 'rollback_failed')
+        self.assertEqual(self.call('applySettings'), {'error': 'unavailable'})
+        self.assertEqual((self.policy / 'scaling_governor').read_text().strip(), 'schedutil')
+
+    def test_removed_setters_cannot_mutate_cpu(self):
+        before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()}
+        for method in ('setGovernor', 'setMaxFreq'):
+            self.assertEqual(self.call(method, {'governor': 'performance', 'freq': '1400000'}), {'error': 'unsupported'})
+            self.assertEqual(before, {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()})
+        self.assertFalse((self.root / 'etc/airoha-npu').exists())
 
     def test_read_only_flow_status(self):
         config = self.root / 'etc/config'
@@ -290,7 +289,7 @@ class Backend(unittest.TestCase):
         self.assertEqual(self.call('getSettings'), {'result': 'ok', 'pending': None})
         payload = {'governor': 'performance', 'freq': '1400000'}
         self.assertEqual(self.call('saveSettings', payload), {'error': 'invalid'})
-        self.assertEqual(self.call('setMaxFreq', payload), {'error': 'unavailable'})
+        self.assertEqual(self.call('applySettings'), {'error': 'unavailable'})
         self.assertFalse(self.policy.exists())
         self.assertFalse((self.root / 'etc/airoha-npu/pending.json').exists())
 
@@ -380,7 +379,7 @@ class Backend(unittest.TestCase):
         for forbidden in ('devmem', 'setOverclock', 'getPpeEntries', 'modprobe', 'bridge-nf-', '_run_with_deadline'):
             self.assertNotIn(forbidden, source)
         methods = json.loads(subprocess.check_output(['sh', str(BACKEND), 'list']))
-        self.assertEqual(set(methods), {'getStatus', 'getInfo', 'getFlowOffload', 'setGovernor', 'setMaxFreq', 'getSettings', 'saveSettings', 'applySettings'})
+        self.assertEqual(set(methods), {'getStatus', 'getInfo', 'getFlowOffload', 'getSettings', 'saveSettings', 'applySettings'})
 
 if __name__ == '__main__':
     unittest.main()

@@ -26,7 +26,7 @@ URL.createObjectURL=()=>'blob:test'; URL.revokeObjectURL=()=>{}; dom.window.HTML
 const rpcPath = process.env.LUCI_RPC || (process.env.LUCI_RESOURCE_DIR ? require('path').join(process.env.LUCI_RESOURCE_DIR, 'rpc.js') : null) || '/tmp/luci-upstream/modules/luci-base/htdocs/luci-static/resources/rpc.js';
 const rpcSource = fs.readFileSync(rpcPath, 'utf8');
 const upstream=new Function('baseclass','request','L',rpcSource)({extend:x=>x},{},{env:{},url:()=>'',isObject:x=>x&&typeof x==='object',raise:(...x)=>{throw Error(x.join(' '))}});
-const rpc={declare:spec=>(...args)=>new Promise((resolve,reject)=>{
+const rpc={declare:spec=>(...args)=>Promise.resolve().then(()=>spec.method==='getWirelessDevices' && rpc.beforeWireless ? rpc.beforeWireless() : null).then(()=>new Promise((resolve,reject)=>{
  calls.push([spec.method,...args]);
  if(args[0]==='/usr/libexec/wifi7-firmware'){resolve({code:0,stdout:'Firmware test version'});return;}
  if(args[0]==='/usr/libexec/wifi7-diagnostics'){diagnosticCalls++;resolve({code:0,stdout:'diagnostic fixture'});return;}
@@ -34,11 +34,11 @@ const rpc={declare:spec=>(...args)=>new Promise((resolve,reject)=>{
  const payload=process.env.MLO_TEST && spec.method==='exec'?{code:0,stdout:'@@ devices 0\nInterface ap-mld\n - link ID  7 link addr aa:bb:cc:dd:ee:03\n channel 36 (5180 MHz), width: 80 MHz\n@@ stations ap-mld 0\nStation aa:bb:cc:dd:ee:01 (on ap-mld)\n Link 7:\n signal: -42 [-43, -44] dBm\n tx bitrate: 1200.0 MBit/s 80MHz EHT-MCS 11\n Link 8:\n tx bitrate: 600.0 MBit/s 40MHz HE-MCS 5\n@@ hostapd ap-mld_link7 0\nstate=DFS\nfreq=5260\nchan_util_avg=128\ncac_time_left_seconds=37\n'}:spec.method==='freqlist'?{results:[{channel:13,mhz:2472,band:2,flags:[]},{channel:36,mhz:5180,band:5,flags:[]},{channel:40,mhz:5200,band:5,restricted:true,flags:['no_ir']},{channel:37,mhz:6135,band:6,flags:[]}]}:spec.method==='devices'?{devices:fixture?['wlan5','wlan5']:[]}:spec.method==='assoclist'?{results:[{mac:'aa:bb:cc:dd:ee:01',signal:-40,tx:{rate:1200000,he:true,mhz:80},rx:{rate:600000,he:true,mhz:80}}]}:spec.method==='info'?{frequency:5180,channel:36,txpower:25,htmode:'HE80',htmodes:['HE20','HE40','HE80']}:spec.method==='exec'?{code:1,stdout:''}:{};
  const denied=process.env.DENIED_TEST;
  try { upstream.handleCallReply({...spec,resolve,reject},{jsonrpc:'2.0',result:denied?[6]:[0,payload]}); } catch(e){reject(e);}
-})};
+}))};
 const notices=[];
 const telemetry=new Function('baseclass','_',fs.readFileSync(require('path').join(__dirname,'../htdocs/luci-static/resources/wifi7/telemetry.js'),'utf8'))({extend:x=>x},x=>x);
 const mloView={load:async()=>[],render:async()=>E('div',{},'MLO fixture'),pause:()=>{},resume:()=>Promise.resolve()};
 const app=new Function('view','network','rpc','uci','ui','poll','document','E','_','cbi_update_table','telemetry','mloView',source)({extend:x=>x},network,rpc,uci,{addNotification:(...a)=>notices.push(a)},{add:f=>pollFn=f,remove:()=>{}},document,E,x=>x,(t,rows)=>clientRows=rows,telemetry,mloView);
 
 
-module.exports = { mloView, network, app, document, dom, uci, config, staged, writes, calls, notices, tick:()=>new Promise(r=>setImmediate(r)), poll:()=>pollFn(), counters:()=>({saves,applies,loads,diagnosticCalls}) };
+module.exports = { rpc, mloView, network, app, document, dom, uci, config, staged, writes, calls, notices, tick:()=>new Promise(r=>setImmediate(r)), poll:()=>pollFn(), counters:()=>({saves,applies,loads,diagnosticCalls}) };

@@ -31,7 +31,7 @@ async function boot({readonly=false,unknown=false,iface={},radios=null}={}) {
  mods.fs={};load('validation');load('ui');load('form');
  mods.poll.add=()=>{};
  const T=w.Function('baseclass',fs.readFileSync(require('path').join(require('path').dirname(APP),'telemetry.js'),'utf8'))(mods.baseclass);mods.telemetry=new T();
- const src=SOURCE;const deps=['baseclass','form','uci','ui','poll','rpc','telemetry'];let C=w.Function(...deps,src)(...deps.map(n=>mods[n]));const app=new C();
+ const src=SOURCE;const deps=['baseclass','form','dom','uci','ui','poll','rpc','telemetry'];let C=w.Function(...deps,src)(...deps.map(n=>mods[n]));const app=new C();
  const node=await app.render(await app.load());w.document.getElementById('view').append(node);
  const map=mods.dom.findClassInstance(node);return {j,w,mods,db,writes,node,map,app,clone,hash:crypto.createHash('sha256').update(src).digest('hex')};
 }

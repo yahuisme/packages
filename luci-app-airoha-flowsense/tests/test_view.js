@@ -15,7 +15,7 @@ L.loaded=true;L.require=n=>Promise.resolve(mods[n]);w.E=mods.dom.create.bind(mod
 const hostile='<img src=x onerror="window.auditXss=1"><svg onload="window.auditXss=2"></svg>&';
 let notification;
 const calls=[],polls=new Map();let overviewError=false,waitOverview=null,waitSave=null,saveError=false;
-const sample={timestamp:1000,uptime:100,configured_hw:true,configured_sw:false,monitor:{target:'example.com',enabled:true},jitter:{last_ping:12,deviation:3,loss:4},interfaces:[{device:'lan1',speed:2500,carrier:1,stats:{rx_bytes:10,tx_bytes:20,rx_errors:7,tx_errors:9}}]};
+const sample={timestamp:1000,uptime:100,monitor:{target:'example.com',enabled:true},jitter:{last_ping:12,deviation:3,loss:4},interfaces:[{device:'lan1',speed:2500,carrier:1,stats:{rx_bytes:10,tx_bytes:20,rx_errors:7,tx_errors:9}}]};
 const accelerationSample={hardware:{supported:true,enabled:true,configured:false},vlan:{supported:true,enabled:false,configured:true},pppoe:{supported:false,enabled:null,configured:null},ap:{supported:true,enabled:null,configured:true}};
 let accelerationError=false, accelerationSaveError=false, waitAcceleration=null, waitAccelerationSave=null, accelerationPayload;
 let staged=null, failure='', hold=null, injected=null;
@@ -35,7 +35,7 @@ mods.request.post=async(url,req)=>{
   if(injected.transport) throw Error(hostile + ' RPC pending_changes');
   result=[0,injected.result];
  }
- else if(process.env.MONITOR_RPC && ['getOverview','getSettings','saveSettings','applySettings'].includes(method)) {
+ else if(process.env.MONITOR_RPC && ['getOverview','getAcceleration','getSettings','saveSettings','applySettings'].includes(method)) {
   const output=require('child_process').execFileSync(process.env.MONITOR_BUSYBOX,
    ['ash',process.env.MONITOR_RPC,'call',method],{input:JSON.stringify({...v,ubus_rpc_session:'0123456789abcdef0123456789abcdef'}),
     env:{...process.env,PATH:process.env.MONITOR_PATH},encoding:'utf8'});
@@ -59,7 +59,6 @@ load('rpc');mods.ui={addNotification:(title,node)=>{notification=node;w.document
 load('validation');load('uci');mods.session={};mods.fs={};load('ui');mods.network={};mods.uci.load=()=>Promise.resolve();mods.uci.get=()=>null;load('form');
 w.LuCI.prototype.hasViewPermission=()=>writable;
 const nativeNotify=mods.ui.addNotification.bind(mods.ui);mods.ui.addNotification=(title,node,type)=>{notification=node;return nativeNotify(title,node,type)};
-if(process.env.MONITOR_RPC)for(const key of ['hardware','vlan','pppoe','ap'])accelerationSample[key]={supported:true,enabled:true,configured:true};
 load('app',fs.readFileSync(path.join(__dirname,'../htdocs/luci-static/resources/view/airoha_flowsense/settings.js'),'utf8'));
 const settle=()=>new Promise(r=>setTimeout(r,25));
 function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};}

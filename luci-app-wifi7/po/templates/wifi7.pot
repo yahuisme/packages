@@ -21,7 +21,7 @@ msgstr ""
 msgid "%d seconds remaining"
 msgstr ""
 
-msgid "1-%d dBm, leave empty for regulatory auto"
+msgid "0-%d dBm, leave empty for regulatory auto"
 msgstr ""
 
 msgid "5GHz DFS Status"

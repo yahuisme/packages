@@ -35,30 +35,6 @@ lock() {
 	trap 'rmdir "$ROOT/var/lock/luci-airoha-npu" 2>/dev/null' EXIT
 	trap 'exit 1' HUP INT TERM
 }
-set_cpu() {
-	local field available old value
-	case "$1" in
-		governor)
-			argument governor || { error invalid; return; }
-			case "$value" in ''|*[!a-zA-Z0-9_-]*) error invalid; return;; esac
-			field=scaling_governor; available=scaling_available_governors;;
-		freq)
-			argument freq && positive "$value" || { error invalid; return; }
-			field=scaling_max_freq; available=scaling_available_frequencies;;
-	esac
-	lock || { error busy; return; }
-	old=$(read_value "$POLICY/$field")
-	[ -n "$old" ] && [ -w "$POLICY/$field" ] || { error unavailable; return; }
-	contains "$value" "$(read_value "$POLICY/$available")" || { error invalid; return; }
-	if { printf '%s\n' "$value" > "$POLICY/$field"; } 2>/dev/null &&
-		[ "$(read_value "$POLICY/$field")" = "$value" ]; then
-		printf '{"result":"ok"}\n'
-	else
-		if { printf '%s\n' "$old" > "$POLICY/$field"; } 2>/dev/null &&
-			[ "$(read_value "$POLICY/$field")" = "$old" ]; then error write_failed;
-		else error rollback_failed; fi
-	fi
-}
 # Fixed, private persistent staging. Runtime is touched only by applySettings.
 SETTINGS="$ROOT/etc/airoha-npu"
 settings_parse() {
@@ -182,7 +158,7 @@ get_flow() (
 )
 case "$1" in
 	list)
-		printf '%s\n' '{"getSettings":{},"saveSettings":{"governor":"str","freq":"str"},"applySettings":{},"getStatus":{},"getInfo":{},"getFlowOffload":{},"setGovernor":{"governor":"str"},"setMaxFreq":{"freq":"str"}}';;
+		printf '%s\n' '{"getSettings":{},"saveSettings":{"governor":"str","freq":"str"},"applySettings":{},"getStatus":{},"getInfo":{},"getFlowOffload":{}}';;
 	call)
 		input=$(cat)
 		case "$2" in
@@ -190,8 +166,6 @@ case "$1" in
 			getStatus) get_status;;
 			getInfo) get_info;;
 			getFlowOffload) get_flow;;
-			setGovernor) set_cpu governor;;
-			setMaxFreq) set_cpu freq;;
 			*) error unsupported;;
 		esac;;
 esac

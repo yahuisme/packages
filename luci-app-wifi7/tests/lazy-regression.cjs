@@ -8,6 +8,6 @@ const assert=require('assert/strict');const h=require('./harness.js');
  tabs[2].dispatchEvent(new h.dom.window.MouseEvent('click', {bubbles:true,cancelable:true}));await h.tick();assert(node.textContent.includes('MLO configuration is unavailable'));
  tabs[0].dispatchEvent(new h.dom.window.MouseEvent('click', {bubbles:true,cancelable:true}));tabs[2].dispatchEvent(new h.dom.window.MouseEvent('click', {bubbles:true,cancelable:true}));tabs[2].dispatchEvent(new h.dom.window.MouseEvent('click', {bubbles:true,cancelable:true}));assert.equal(loads,2,'retry allowed but no duplicate loading');
  tabs[0].dispatchEvent(new h.dom.window.MouseEvent('click', {bubbles:true,cancelable:true}));resolve([]);await h.tick();assert(node.querySelector('[data-wifi7-pane=mlo]').textContent.includes('MLO fixture'));assert.equal(pauses,1,'late MLO render paused on hidden tab');
- let release;h.network.flushCache=()=>new Promise(r=>release=r);const pending=h.poll();node.remove();await h.tick();const html=node.innerHTML;release();await pending;assert.equal(node.innerHTML,html,'late telemetry does not mutate detached root');
+ let release;h.rpc.beforeWireless=()=>new Promise(r=>release=r);const pending=h.poll();await h.tick();node.remove();await h.tick();const html=node.innerHTML;release();await pending;assert.equal(node.innerHTML,html,'late telemetry does not mutate detached root');
  console.log('PASS empty-interface iwinfo, retry/single-flight/hidden MLO, detached telemetry');h.dom.window.close();
 })().catch(e=>{console.error(e);process.exitCode=1});

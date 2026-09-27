@@ -21,7 +21,7 @@ const {boot}=require('./integration.cjs');
  assert.equal(panes.length,4);
  const expensive=c=>c.method==='assoclist'||c.params.command==='/usr/libexec/wifi7-status';
  const mlo=c=>c.method==='getWirelessDevices';
- assert.equal(h.calls.filter(expensive).length,0);assert.equal(h.calls.filter(mlo).length,0);
+ assert.equal(h.calls.filter(expensive).length,0);assert.equal(h.calls.filter(mlo).length,1);
  const out=process.env.TAB_OUT;if(out)fs.mkdirSync(out,{recursive:true});
  for(const i of [0,1,2,3,0,2,1,3,0]){
   await h.tab(i);refNav.children[i].querySelector('a').click();
@@ -31,7 +31,7 @@ const {boot}=require('./integration.cjs');
   panes.forEach((p,n)=>assert.equal(p.style.display,n===i?'':'none'));
   const before=h.calls.length;await h.poll();const fresh=h.calls.slice(before);
   assert.equal(fresh.some(expensive),i===3,'client diagnostics only while clients active');
-  assert.equal(fresh.some(mlo),i===2,'MLO runtime only while MLO active');
+  assert.equal(fresh.filter(mlo).length,1,'one shared wireless runtime sample in every tab');
   if(i===2)assert(h.q('.mlo-map'),'embedded real form stays mounted');
   assert(h.node.isConnected);
   if(out)fs.writeFileSync(path.join(out,'tab-'+i+'.html'),h.j.serialize());
