@@ -5,16 +5,26 @@
 acc_keys='call-iptables call-ip6tables call-arptables filter-vlan-tagged filter-pppoe-tagged pass-vlan-input-dev'
 acc_files='12-apmode-offload.conf 14-vlan-offload.conf 15-pppoe-offload.conf'
 acc_read() { local v; v=$(cat "/proc/sys/net/bridge/bridge-nf-$1" 2>/dev/null); case "$v" in 0|1) printf %s "$v";; *) printf null;; esac; }
-acc_config() {
+acc_config_load() {
     # sysctl init applies these in this order; a missing optional file is not
     # missing support. Kernel defaults: call-*=1, filter/pass=0 (Linux 6.18).
-    local key=$1 default=0
-    case "$key" in call-*) default=1;; esac
-    awk -v key="net.bridge.bridge-nf-$key" -v value="$default" '
+    awk -v keys="$acc_keys" '
+        BEGIN { count=split(keys,k," "); for(i=1;i<=count;i++) values[k[i]]=(k[i]~/^call-/)?1:0 }
         { sub(/[;#].*$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); n=split($0,a,"=");
           gsub(/[ \t]/,"",a[1]); gsub(/\//,".",a[1]);
-          if(a[1]==key) { gsub(/[ \t]/,"",a[2]); value=(n==2 && a[2]~/^[01]$/)?a[2]:"null" } }
-        END { print value }' /dev/null $(for f in /etc/sysctl.d/*.conf /etc/sysctl.conf; do [ ! -e "$f" ] || printf '%s\n' "$f"; done) 2>/dev/null || printf null
+          if(sub(/^net\.bridge\.bridge-nf-/, "", a[1]) && a[1] in values) {
+              gsub(/[ \t]/,"",a[2]); values[a[1]]=(n==2 && a[2]~/^[01]$/)?a[2]:"null"
+          } }
+        END { for(i=1;i<=count;i++) print k[i] "=" values[k[i]] }' /dev/null $(for f in /etc/sysctl.d/*.conf /etc/sysctl.conf; do [ ! -e "$f" ] || printf '%s\n' "$f"; done) 2>/dev/null
+}
+acc_config() {
+    local values entry
+    # Only getAcceleration owns a snapshot; transaction checks always read fresh.
+    values=${acc_config_snapshot:-$(acc_config_load)} || { printf null; return; }
+    for entry in $values; do
+        case "$entry" in "$1="*) printf '%s' "${entry#*=}"; return;; esac
+    done
+    printf null
 }
 acc_vlan_filtering() {
     local f v result=0
@@ -108,7 +118,8 @@ acc_support() {
     printf %s "$result"
 }
 get_acceleration() {
-    local hw=null apkeys='call-iptables call-ip6tables call-arptables'
+    local hw=null apkeys='call-iptables call-ip6tables call-arptables' acc_config_snapshot
+    acc_config_snapshot=$(acc_config_load) || acc_config_snapshot=null
     [ ! -d /sys/kernel/debug/ppe ] || { command -v nft >/dev/null && hw=true; }
     [ "$(acc_vlan_filtering)" = 0 ] || apkeys="$apkeys filter-vlan-tagged pass-vlan-input-dev"
     printf '{"hardware":{"supported":%s,"enabled":%s,"configured":%s},' "$hw" "$(boolean "$(acc_hardware)")" "$(boolean "$(acc_hw_config)")"

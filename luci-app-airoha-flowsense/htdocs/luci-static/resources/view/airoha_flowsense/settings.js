@@ -91,8 +91,13 @@ return view.extend({
 			});
 			lockAcceleration();
 		}
+		function settingsBusy() {
+			if (!accelerationSaving) return false;
+			ui.addNotification(null, E('p', {}, [settingsError('busy')]), 'warning');
+			return true;
+		}
 		self.resetSettings = function() {
-			if (accelerationSaving || !L.hasViewPermission()) return;
+			if (!root.isConnected || !L.hasViewPermission() || settingsBusy()) return;
 			dirty = false; accelerationDirty = {};
 			paintAcceleration(accelerationState, true);
 			paintMonitor();
@@ -105,7 +110,7 @@ return view.extend({
 			lockAcceleration();
 		}
 		self.saveSettings = function(apply) {
-			if (accelerationSaving || !settingsReady || !root.isConnected || !L.hasViewPermission()) return Promise.resolve();
+			if (!settingsReady || !root.isConnected || !L.hasViewPermission() || settingsBusy()) return Promise.resolve();
 			if (baseline && (accelerationKeys.some(function(key) { return baseline[key] !== -1 && !editable(key); }) || baseline.enabled !== -1 && !monitorState)) {
 				ui.addNotification(null, E('p', {}, _('Unable to verify saved settings.')), 'error');
 				return Promise.resolve();

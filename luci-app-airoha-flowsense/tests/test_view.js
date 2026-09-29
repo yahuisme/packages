@@ -105,6 +105,37 @@ function count(name){return calls.filter(n=>n===name).length;}
   }
   assert.equal(count('apply'),0);console.log('PASS real UCI monitor -> real LuCI controls, Save, reload, Apply/readback, Reset');w.close();return;
  }
+ // Native footer siblings remain clickable while LuCI disables the clicked control.
+ const originalMonitor={...sample.monitor},originalAcceleration=JSON.parse(JSON.stringify(accelerationSample));
+ const busyMessage=w._('Another settings operation is in progress. Try again later.');
+ const button=name=>w.document.querySelector('.cbi-button-'+name);
+ const until=async predicate=>{for(let i=0;i<100;i++){if(predicate())return;await settle();}throw Error('Timed out waiting for footer operation');};
+ for(const first of ['save','apply'])for(const rejectSave of [false,true]) {
+  const input=root.querySelector('[data-name="target"] input[type="text"]');
+  const desired=first+'-busy.example',oldRuntime=sample.monitor.target;
+  input.value=desired;input.dispatchEvent(new w.Event('input'));
+  const start=calls.length;hold=deferred();if(rejectSave)failure='save';
+  button(first).click();await until(()=>calls.slice(start).includes('saveSettings'));
+  const sibling=button(first==='save'?'apply':'save');
+  assert(!sibling.disabled&&!sibling.hasAttribute('disabled'));
+  sibling.click();await settle();
+  assert.equal(notification && notification.textContent,busyMessage,'conflicting native action must explain busy state');
+  assert.equal(calls.slice(start).filter(n=>n==='saveSettings').length,1);
+  notification=null;button('reset').click();await settle();
+  assert.equal(notification && notification.textContent,busyMessage,'Reset must explain busy state');
+  assert.equal(input.value,desired,'busy Reset preserves edits');
+  hold.resolve();await until(()=>!input.disabled);hold=null;failure='';await settle();
+  assert.equal(calls.slice(start).filter(n=>n==='applySettings').length,first==='apply'&&!rejectSave?1:0);
+  assert.equal(sample.monitor.target,first==='apply'&&!rejectSave?desired:oldRuntime);
+  if(rejectSave)assert(notification.closest('.alert-message').classList.contains('error'));
+  else assert.equal(notification.textContent,w._(first==='apply'?'Settings saved and applied.':'Settings saved; not yet applied.'));
+  button('apply').click();await until(()=>!input.disabled&&sample.monitor.target===desired);await settle();
+  assert.equal(staged,null,'retry must apply after the operation settles');
+  input.value='discard.example';input.dispatchEvent(new w.Event('input'));
+  button('reset').click();await settle();assert.equal(input.value,desired);
+ }
+ sample.monitor=originalMonitor;Object.assign(accelerationSample,originalAcceleration);staged=null;
+ root.remove();root=await mods.app.render(await mods.app.load());w.document.querySelector('#view').prepend(root);
  if(errorTest) {
   const expected={pending_changes:'存在尚未处理的配置更改，请先应用或撤销这些更改后重试',invalid:'设置无效，请检查输入后重试',busy:'另一项设置操作正在进行，请稍后重试',storage:'无法读写已保存的设置，请检查存储空间和访问权限',prepare:'无法准备配置更新，请检查可用空间后重试',read:'无法读取当前配置或运行状态，请刷新页面后重试',unsupported:'设备不支持此设置，或相关系统参数不可写',ap_requires_vlan:'启用 AP 兼容模式需要同时启用 VLAN 加速',apply:'应用失败，已恢复原配置。请检查服务状态后重试。',rollback:'应用失败，且未能完整恢复原配置。请立即检查当前配置和服务状态。'};
   const unknown='操作失败，无法确定原因。请刷新页面并检查系统日志后重试。';

@@ -100,6 +100,32 @@ else:
     print('table inet fw4 {\\n flowtable ft {\\n  flags offload;\\n }\\n}')
 '''.replace('HARDWARE', repr(str(self.hw))))
 
+    def test_acceleration_config_is_scanned_once_per_snapshot(self):
+        trace = self.d / 'awk-calls'
+        self.script('awk', '#!/bin/sh\nprintf x >> "' + str(trace) + '"\nexec "' + self.busybox + '" awk "$@"\n')
+        final = self.d / 'etc/sysctl.conf'
+        for filtering in (0, 1):
+            (self.d / 'sys/class/net/br-lan/bridge/vlan_filtering').write_text(str(filtering))
+            for value, expected in (('0', False), ('invalid', None), ('1', True)):
+                with self.subTest(filtering=filtering, value=value):
+                    self.conf('99-override.conf').write_text('net.bridge.bridge-nf-filter-vlan-tagged=0\n')
+                    final.write_text(' net/bridge/bridge-nf-filter-vlan-tagged = ' + value + ' # final override\n')
+                    trace.write_text('')
+                    before = self.snapshot()
+                    result = self.call()
+                    self.assertIs(result['vlan']['configured'], expected)
+                    self.assertIs(result['ap']['configured'], expected if filtering else True)
+                    self.assertIs(result['pppoe']['configured'], True)
+                    self.assertEqual(trace.read_text(), 'x', 'one acceleration snapshot must scan sysctl files once')
+                    self.assertEqual(self.snapshot(), before)
+        # A failed scan must not leak partial output or trigger per-key retries.
+        self.script('awk', '#!/bin/sh\nprintf x >> "' + str(trace) + '"\nprintf "filter-vlan-tagged=1\\n"\nexit 1\n')
+        trace.write_text('')
+        result = self.call()
+        for key in ('vlan', 'pppoe', 'ap'):
+            self.assertIsNone(result[key]['configured'])
+        self.assertEqual(trace.read_text(), 'x')
+
     def test_official_inet_only_and_missing_interfaces(self):
         self.official_inet()
         for value in (0, 1, 0, 1):
