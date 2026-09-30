@@ -359,23 +359,11 @@ _homeproxy_start_service() {
 
 		# QUIC-GO GSO is broken on kernel 6.6 currently
 		uname -r | grep -Eq "^6\.6" && procd_set_param env "QUIC_GO_DISABLE_GSO"="true"
-		if [ -x "/sbin/ujail" ] && [ "$dashboard_ready" -ne 1 ] && \
-		   ! grep -Eq '"type": "(wireguard|tun)"' "$RUN_DIR/sing-box-c.json"; then
-			procd_add_jail "sing-box-c" log procfs
-			procd_add_jail_mount "$RUN_DIR/sing-box-c.json"
-			procd_add_jail_mount_rw "$RUN_DIR/sing-box-c.log"
-			[ "$routing_mode" != "bypass_mainland_china" ] || procd_add_jail_mount_rw "$CACHE_PATH"
-			[ "$routing_mode" != "bypass_mainland_china" ] || procd_add_jail_mount "$HP_DIR/resources/"
-			procd_add_jail_mount "$HP_DIR/diversion/"
-			procd_add_jail_mount "$HP_DIR/certs/"
-			procd_add_jail_mount "/etc/ssl/"
-			procd_add_jail_mount "/etc/localtime"
-			procd_add_jail_mount "/etc/TZ"
-			procd_set_param capabilities "/etc/capabilities/homeproxy.json"
-			procd_set_param no_new_privs 1
-			procd_set_param user sing-box
-			procd_set_param group sing-box
-		fi
+		# The client always creates a TUN inbound with auto_route and
+		# auto_redirect, so it cannot run inside the ujail setup used for the
+		# server instance below: the jail would need /dev/net/tun plus the
+		# netlink access sing-box uses to install its nftables redirect rules.
+		# The client is therefore started outside a jail by design.
 
 		procd_set_param limits core="unlimited"
 		procd_set_param limits nofile="1000000 1000000"

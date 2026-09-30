@@ -129,6 +129,7 @@ if (routing_mode === 'bypass_mainland_china') {
 		china_dns_server = wan_dns;
 }
 const dns_default_strategy = (ipv6_support !== '1') ? 'ipv4_only' : null;
+const dns_evaluate_timeout = '3s';
 
 let domain_groups = [];
 
@@ -207,7 +208,9 @@ const tun_mtu = uci.get(uciconfig, uciinfra, 'tun_mtu') || '9000';
 // Preserve explicit system/gvisor; the shipped mixed default must also work on tiny.
 const configured_stack = uci.get(uciconfig, ucimain, 'tcpip_stack') || 'mixed';
 const tcpip_stack = configured_stack === 'mixed' ? null : configured_stack;
-const udp_timeout = uci.get(uciconfig, 'infra', 'udp_timeout');
+const udp_timeout_option = uci.get(uciconfig, uciinfra, 'udp_timeout');
+/* 5m is sing-box's default, so only pass through an explicit override. */
+const udp_timeout = (udp_timeout_option !== '300') ? strToTime(udp_timeout_option) : null;
 
 const log_level = uci.get(uciconfig, ucimain, 'log_level') || 'warn';
 const dashboard_path = HP_DIR + '/dashboard';
@@ -376,6 +379,10 @@ function add_control_pre_match_fallback_rules(rules, control) {
 function add_control_policy_rules(rules, proxy_outbound) {
 	const control = get_control_matches();
 
+	/* Unqualified bypass only applies during auto-redirect pre-match. */
+	if (control.restrict_to_list)
+		push_route(rules, tun_unlisted_match(control.listed_source), 'direct-out');
+
 	push_route(rules, control.direct_source, 'direct-out');
 
 	if (proxy_outbound) {
@@ -483,18 +490,11 @@ config.dns = {
 			type: 'udp',
 			server: wan_dns,
 			detour: null
-		},
-		{
-			tag: 'system-dns',
-			type: 'local',
-			detour: null
 		}
 	],
 	rules: [],
 	reverse_mapping: true,
-	strategy: dns_default_strategy,
-	disable_cache: false,
-	disable_expire: false
+	strategy: dns_default_strategy
 };
 
 if (!isEmpty(main_node)) {
@@ -508,7 +508,7 @@ if (!isEmpty(main_node)) {
 		detour: 'main-out',
 		...parse_dnsserver(dns_server, 'tcp')
 	});
-	config.dns.final = 'main-dns';
+	config.dns.final = (routing_mode === 'bypass_mainland_china') ? 'china-dns' : 'main-dns';
 
 	if (tailscale_enabled) {
 		push(config.dns.servers, {
@@ -585,7 +585,8 @@ if (!isEmpty(main_node)) {
 		});
 		push(config.dns.rules, {
 			action: 'evaluate',
-			server: 'main-dns'
+			server: 'main-dns',
+			timeout: dns_evaluate_timeout
 		});
 		push(config.dns.rules, {
 			rule_set: 'geoip-cn',
@@ -596,10 +597,6 @@ if (!isEmpty(main_node)) {
 		push(config.dns.rules, {
 			match_response: true,
 			action: 'respond'
-		});
-		push(config.dns.rules, {
-			action: 'route',
-			server: 'china-dns'
 		});
 	}
 }
@@ -620,7 +617,7 @@ push(config.inbounds, {
 	tag: 'mixed-in',
 	listen: '::',
 	listen_port: int(mixed_port),
-	udp_timeout: strToTime(udp_timeout),
+	udp_timeout,
 	set_system_proxy: false
 });
 
@@ -633,10 +630,9 @@ push(config.inbounds, {
 	mtu: strToInt(tun_mtu),
 	auto_route: true,
 	auto_redirect: true,
-	dns_mode: 'hijack',
 	route_exclude_address_set: fast_bypass_mainland ? ['geoip-cn'] : null,
 	include_interface: length(listen_interfaces) ? listen_interfaces : null,
-	udp_timeout: strToTime(udp_timeout),
+	udp_timeout,
 	stack: tcpip_stack
 });
 /* Inbound end */

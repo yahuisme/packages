@@ -1,3 +1,34 @@
+# Client generator regression
+
+```sh
+. /opt/test-tools/env.sh
+python3 luci-app-homeproxy/tests/test_client_routing.py -v
+python3 luci-app-homeproxy/tests/test_ss_uot_generation.py -v
+python3 luci-app-homeproxy/tests/test_client_defaults.py -v
+```
+
+Runs the complete production client generator and outbound helper in real ucode.
+UCI, ubus, URL-query decoding and datatype validation are explicit fixtures;
+files are private. Covers list-mode pre-match/normal-path pairing, IP/MAC/empty
+lists, mainland fast-path eligibility, forced-proxy exclusions, SS UoT/multiplex
+priority, and unchanged IPv6/cache behavior. Set `SING_BOX_CHECK` to an official
+binary to also check every generated JSON. This is not router traffic evidence.
+
+For DNS timeout/fallback checks:
+
+```sh
+DNS_RUNTIME_BINARY=/path/to/verified/sing-box-1.14.2 \
+SING_BOX_CHECK=/path/to/verified/sing-box-1.14.2 \
+python3 luci-app-homeproxy/tests/test_dns_fallback.py -v
+```
+
+The runtime test verifies a separate loopback-only network namespace before
+starting the official prebuilt core. Production-generated DNS rules run against
+private upstream servers and synthetic rule sets: normal/delayed responses,
+3-second timeout fallback, explicit domain precedence, caching and global mode.
+It does not test live proxy transport or TUN routing. Without `DNS_RUNTIME_BINARY`,
+only the runtime test is skipped; generator regressions still run.
+
 # Reload regression
 
 Run from the repository root (Python 3 and BusyBox required):

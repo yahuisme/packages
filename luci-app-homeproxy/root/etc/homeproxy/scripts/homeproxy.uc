@@ -303,14 +303,12 @@ export function hasForceProxyRules(uci, config, hasDomainProxyRules) {
 	if (hasDomainProxyRules)
 		return true;
 
-	let options = [
+	/* Rule-proxy devices still send mainland traffic direct. Only forced
+	   proxy targets conflict with the kernel mainland fast path. */
+	const options = [
 		'lan_proxy_ipv4_ips', 'lan_proxy_mac_addrs',
 		'wan_proxy_ipv4_ips', 'wan_proxy_ipv6_ips'
 	];
-	if (lanPolicy.use_rule_proxy_list) {
-		push(options, 'lan_auto_proxy_ipv4_ips');
-		push(options, 'lan_auto_proxy_mac_addrs');
-	}
 
 	for (let option in options)
 		if (!isEmpty(uci.get(config, 'control', option)))
@@ -523,7 +521,7 @@ export function renderOutbound(node) {
 		outbound.password = node.password;
 		outbound.plugin = node.shadowsocks_plugin;
 		outbound.plugin_opts = node.shadowsocks_plugin_opts;
-		outbound.udp_over_tcp = (node.udp_over_tcp === '1') ? {
+		outbound.udp_over_tcp = (node.udp_over_tcp === '1' && node.multiplex !== '1') ? {
 			enabled: true,
 			version: strToInt(node.udp_over_tcp_version)
 		} : null;
