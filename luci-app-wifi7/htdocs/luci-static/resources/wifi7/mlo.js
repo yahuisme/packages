@@ -126,44 +126,61 @@ function mloSections() {
 	return uci.sections('wireless', 'wifi-iface').filter(section => section.mlo == '1');
 }
 
-function summary(runtime, radios) {
+function summary(runtime, radios, node) {
 	let sections = mloSections();
 	let radioNames = new Set(radios.map(radio => radio['.name']));
 	let invalid = sections.filter(section => uniqueValues(section.device).filter(name => radioNames.has(name)).length < 2).length;
 	let state = runtime.unknown ? _('Unavailable') : runtime.activeMldIfnames.length ? _('Active') : _('Inactive');
 	let detail = runtime.unknown ? _('Runtime status unavailable') :
 		runtime.activeMldIfnames.length ? runtime.activeMldIfnames.join(', ') : _('No active MLD interface');
+	let incomplete = sections.length ? _('%d incomplete').format(invalid) : _('Pending addition');
+	let bands = uniqueValues(radios.map(radio => radio.band).filter(Boolean)).join(' / ') || _('Unknown');
+	let stateClass = runtime.unknown || !runtime.activeMldIfnames.length ? 'mlo-muted' : 'mlo-active';
+
+	if (node) {
+		let values = [ String(sections.length), incomplete, state, detail, String(radios.length), bands ];
+		node.querySelectorAll('strong, small').forEach(function(cell, index) {
+			if (cell.textContent !== values[index]) cell.textContent = values[index];
+		});
+		let active = node.children[1].querySelector('strong');
+		if (active.className !== stateClass) active.className = stateClass;
+		return node;
+	}
 
 	return E('div', { class: 'mlo-summary', 'data-mlo-summary-status': '' }, [
 		E('div', { class: 'mlo-summary-item' }, [
 			E('span', { class: 'wifi7-label' }, _('MLO interfaces')),
 			E('strong', {}, String(sections.length)),
-			E('small', {}, sections.length ? _('%d incomplete').format(invalid) : _('Pending addition'))
+			E('small', {}, incomplete)
 		]),
 		E('div', { class: 'mlo-summary-item' }, [
 			E('span', { class: 'wifi7-label' }, _('Active MLD')),
-			E('strong', { class: runtime.unknown ? 'mlo-muted' : runtime.activeMldIfnames.length ? 'mlo-active' : 'mlo-muted' }, state),
+			E('strong', { class: stateClass }, state),
 			E('small', {}, [ detail ])
 		]),
 		E('div', { class: 'mlo-summary-item' }, [
 			E('span', { class: 'wifi7-label' }, _('Configured radios')),
 			E('strong', {}, String(radios.length)),
-			E('small', {}, [ uniqueValues(radios.map(radio => radio.band).filter(Boolean)).join(' / ') || _('Unknown') ])
+			E('small', {}, [ bands ])
 		])
 	]);
+}
+
+function runtimeState(sectionId, runtime) {
+	let state = runtime.sections[sectionId];
+	let stateText = runtime.unknown ? _('Unavailable') : !state ? _('No runtime state') : state.up ? _('Active') : _('Down');
+	return E('span', { class: runtime.unknown || !state || !state.up ? 'mlo-muted' : 'mlo-active', 'data-mlo-runtime-section': sectionId }, stateText);
 }
 
 function overview(sectionId, radiosByName, runtime) {
 	let section = uci.get('wireless', sectionId) || {};
 	let devices = uniqueValues(section.device);
-	let state = runtime.sections[sectionId];
-	let stateText = runtime.unknown ? _('Unavailable') : !state ? _('No runtime state') : state.up ? _('Active') : _('Down');
 	let radioText = devices.length ? E('span', { class: 'mlo-overview-radios' }, devices.map(device => E('span', {}, radiosByName[device] ? radioLabel(radiosByName[device], true) : [ device ]))) : _('None');
 
 	return E('div', { class: 'mlo-overview', 'data-mlo-overview-section': sectionId }, [
 		E('span', { class: 'mlo-overview-primary' }, [ section.ssid || _('Unnamed network') ]),
 		E('span', {}, [ radioText ]),
-		E('span', { class: runtime.unknown || !state || !state.up ? 'mlo-muted' : 'mlo-active', 'data-mlo-runtime-section': sectionId }, stateText)
+		runtimeState(sectionId, runtime)
 	]);
 }
 
@@ -431,10 +448,10 @@ return baseclass.extend({
 						return;
 					runtime = nextRuntime;
 					let oldSummary = nodes.querySelector('[data-mlo-summary-status]');
-					oldSummary && oldSummary.replaceWith(summary(runtime, radios));
+					oldSummary && summary(runtime, radios, oldSummary);
 					for (let oldState of nodes.querySelectorAll('[data-mlo-runtime-section]')) {
 						let sectionId = oldState.getAttribute('data-mlo-runtime-section');
-						let nextState = overview(sectionId, radiosByName, runtime).querySelector('[data-mlo-runtime-section]');
+						let nextState = runtimeState(sectionId, runtime);
 						oldState.replaceWith(nextState);
 					}
 				}).then(function(result) { inflight = null; return result; }, function(error) { inflight = null; throw error; });

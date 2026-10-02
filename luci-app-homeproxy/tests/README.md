@@ -1,3 +1,40 @@
+# Service status and current-node performance regressions
+
+From the repository root, with host ucode and native LuCI/jsdom dependencies:
+
+```sh
+python3 -m unittest discover -s luci-app-homeproxy/tests -p 'test_current_node.py' -v
+export NODE_PATH=/usr/local/lib/node_modules
+export LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/resources
+node tests/service-status-stability.cjs
+node tests/service-status-ui.cjs
+node tests/helpers/test_page_lifecycle.cjs
+```
+
+Run these inside the caller's bounded test cgroup and set `TMPDIR` to a private
+scratch directory. They do not compile, start a proxy, launch a browser or touch
+router configuration. `test_current_node.py` executes the production RPC method,
+complete tag registration and legacy full-filter oracle in real ucode. It covers
+first/middle/last/missing matches, registration order, reserved/duplicate/suffix
+and special labels, fresh calls, API failures and complete-generator tags.
+Only UCI/curl are fixtures. `HP_NODE_EVIDENCE=/path/result.json` retains measured
+comparisons and the executed ucode; counts are not router CPU measurements.
+
+The stability test runs complete views through native LuCI with private RPC
+transport. Equal output retains DOM nodes with no child-list mutations while
+poll RPC order remains unchanged. Running/failure/same-node recovery, unknown,
+stopped, literal malicious labels, readonly, reset and reentry are covered;
+the existing page-lifecycle test covers held replies across reset/reentry.
+`HP_STATUS_EVIDENCE=/path/result.json` saves final DOM/text and RPC sequences.
+For explicit pre-optimization comparisons only, `HP_STATUS_ALLOW_REBUILD=1` and
+`HP_NODE_ALLOW_FULL_SCAN=1` disable the respective performance assertion, not
+semantic assertions. Never enable them for the optimized regression run.
+
+**No-build boundary:** exclude `test_portability.py` when local compilation is
+forbidden (it compiles a C trigger probe). Leave `DNS_RUNTIME_BINARY` unset when
+proxy execution is forbidden. Use unittest discovery rather than executing
+every Python file directly: some test modules have no `unittest.main()` entry.
+
 # Client generator regression
 
 ```sh

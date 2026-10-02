@@ -310,6 +310,7 @@ return view.extend({
 				'aria-live': 'polite',
 				'aria-atomic': 'true'
 			}, _('Collecting data...'));
+			let lastStatus;
 			lifecycle.poll(status, 'client-status', () => {
 				return Promise.all([
 					L.resolveDefault(hp.getServiceStatus('sing-box-c'), null),
@@ -326,7 +327,11 @@ return view.extend({
 
 						current_label = _('URLTest: %s').format(nodeName);
 					}
-					dom.content(status, renderStatus(isRunning, features.version, current_label));
+					const nextStatus = renderStatus(isRunning, features.version, current_label);
+					if (nextStatus !== lastStatus) {
+						dom.content(status, nextStatus);
+						lastStatus = nextStatus;
+					}
 			});
 
 			return E('div', { class: 'cbi-section', id: 'status_bar' }, [

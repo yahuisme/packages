@@ -121,9 +121,16 @@ return view.extend({
 				'aria-live': 'polite',
 				'aria-atomic': 'true'
 			}, _('Collecting data...'));
+			let lastStatus;
 			lifecycle.poll(status, 'server-status',
 				() => L.resolveDefault(hp.getServiceStatus('sing-box-s'), null),
-				(res) => { dom.content(status, renderStatus(res, features.version)); });
+				(res) => {
+					const nextStatus = renderStatus(res, features.version);
+					if (nextStatus !== lastStatus) {
+						dom.content(status, nextStatus);
+						lastStatus = nextStatus;
+					}
+				});
 
 			return E('div', { class: 'cbi-section', id: 'status_bar' }, [
 					status

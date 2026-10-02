@@ -373,16 +373,21 @@ return view.extend({
 					var id = r['.name'], s = stats[id], c = cells[id], d = runtimeRadios[id];
 					var isUp = d && d.up;
 					var isDis = d && !d.up;
-					c.state.replaceChildren(E('span', { 'class': 'wifi7-status-arrow', 'aria-hidden': 'true' }, [d ? (isUp ? '↑' : '↓') : '—']), E('span', {}, [d ? (isUp ? _('Enabled') : _('Disabled')) : _('Unknown')]));
-					c.state.className = 'wifi7-status-badge' + (isUp ? ' wifi7-badge-up' : isDis ? ' wifi7-badge-disabled' : '');
-					c.util.textContent = s.util == null ? '—' : s.util + '%';
-					c.channel.textContent = s.current && s.current.channel ? s.current.channel + ' / ' + (s.current.width || '—') : '—';
-					c.power.textContent = s.current && s.current.txpower != null ? s.current.txpower + ' dBm' : '—';
+					// The error path clears the badge; recreate its children only then or on first load.
+					if (!c.state.firstElementChild)
+						c.state.replaceChildren(E('span', { 'class': 'wifi7-status-arrow', 'aria-hidden': 'true' }), E('span'));
+					text(c.state.firstElementChild, d ? (isUp ? '↑' : '↓') : '—');
+					text(c.state.lastElementChild, d ? (isUp ? _('Enabled') : _('Disabled')) : _('Unknown'));
+					var className = 'wifi7-status-badge' + (isUp ? ' wifi7-badge-up' : isDis ? ' wifi7-badge-disabled' : '');
+					if (c.state.className !== className) c.state.className = className;
+					text(c.util, s.util == null ? '—' : s.util + '%');
+					text(c.channel, s.current && s.current.channel ? s.current.channel + ' / ' + (s.current.width || '—') : '—');
+					text(c.power, s.current && s.current.txpower != null ? s.current.txpower + ' dBm' : '—');
 				});
 				var state = telemetry.dfs(parsed.hostapd);
 				var remaining = parsed.hostapd.filter(function(h) { return telemetry.band(h.freq) === '5g' && h.state === 'DFS'; }).map(function(h) { return /^\d+$/.test(h.cac_time_left_seconds || '') ? Number(h.cac_time_left_seconds) : null; });
-				dfs.textContent = state === 'cac' ? _('DFS CAC in progress') + (remaining.length && remaining.every(function(n) { return n !== null; }) ? ' · ' + _('%d seconds remaining').format(Math.max.apply(null, remaining)) : '') : state === 'active' ? _('Operating') : _('Unknown');
-				notice.textContent = '';
+				text(dfs, state === 'cac' ? _('DFS CAC in progress') + (remaining.length && remaining.every(function(n) { return n !== null; }) ? ' · ' + _('%d seconds remaining').format(Math.max.apply(null, remaining)) : '') : state === 'active' ? _('Operating') : _('Unknown'));
+				text(notice, '');
 				clientCache = { rows: rows, empty: anyKnown && !anyFailed ? _('No connected clients') : _('Client data unavailable') };
 				if (activeTab === 3) renderClients();
 			}).catch(function() {

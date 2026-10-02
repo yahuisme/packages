@@ -521,7 +521,13 @@ const methods = {
 				};
 
 			const node_tags = createNodeOutboundTags(uci, 'homeproxy');
-			const section_id = filter(keys(node_tags), (id) => node_tags[id] === tag)[0];
+			let section_id = null;
+			for (let id in keys(node_tags)) {
+				if (node_tags[id] === tag) {
+					section_id = id;
+					break;
+				}
+			}
 
 			return {
 				mode: 'urltest',
