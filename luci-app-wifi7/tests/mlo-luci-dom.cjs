@@ -4,7 +4,7 @@ const {JSDOM}=require('jsdom');
 const ROOT=process.env.LUCI_RESOURCE_DIR.replace(/\/$/,'')+'/';
 const APP=process.env.MLO_JS||require('path').join(__dirname,'../htdocs/luci-static/resources/wifi7/mlo.js');
 const SOURCE=fs.readFileSync(APP,'utf8');
-async function boot({readonly=false,unknown=false,iface={},radios=null}={}) {
+async function boot({readonly=false,unknown=false,iface={},radios=null,pollSetup=null,runtimeValue=null}={}) {
  const j=new JSDOM('<!doctype html><html><body><div id="maincontent"><div id="view"></div></div></body></html>',{url:'http://localhost/cgi-bin/luci/admin/network/mlo',runScripts:'outside-only',pretendToBeVisual:true});
  const w=j.window;w.scrollTo=()=>{};
  let core=fs.readFileSync(ROOT+'luci.js','utf8');
@@ -27,12 +27,12 @@ async function boot({readonly=false,unknown=false,iface={},radios=null}={}) {
  mods.uci={load:async()=>{},loadPackage:async()=>{},get:(c,s,k)=>k==null?db[c]?.[s]:db[c]?.[s]?.[k],get_first:()=>null,sections:(c,t,fn)=>{let a=w.Array.from(Object.values(db[c]||{}).filter(s=>!t||s['.type']===t));if(fn)a.forEach(fn);return a;},set:(c,s,k,v)=>{writes.push(['set',c,s,k,v]);db[c][s][k]=v;},unset:(c,s,k)=>{writes.push(['unset',c,s,k]);delete db[c][s][k];},add:(c,t,s)=>{s=s||'cfgnew';db[c][s]={'.name':s,'.type':t};return s;},remove:(c,s)=>{delete db[c][s];},save:async()=>{},unload:()=>{},changes:async()=>({}),reorder:()=>{},apply:async()=>{}};
  function load(n){const source=fs.readFileSync(ROOT+n+'.js','utf8');const deps=[...source.matchAll(/'require ([^';]+)';/g)].map(m=>m[1]);const names=deps.map(x=>x.split(' as ')[1]||x.split('.').at(-1));const values=deps.map(x=>mods[x.split(' as ')[0]]);let C=w.Function(...names,source).apply({},values);mods[n]=typeof C==='function'?new C():C;return mods[n];}
  load('rpc');const rpc=mods.rpc; const replies=[];
- rpc.declare=spec=>async(...args)=>{if(unknown&&spec.object!=='session')throw new Error('fixture RPC unavailable');let value=spec.object==='session'?{access:!readonly}:{radio0:{up:true,config:{band:'5g'},interfaces:[{section:'test',ifname:'ap-mld0',config:{device:['radio0','radio1'],mode:'ap'}}]}};replies.push({spec,args});return new Promise((resolve,reject)=>rpc.handleCallReply({...spec,resolve,reject,priv:[]},clone({jsonrpc:'2.0',result:[0,value]})));};
+ rpc.declare=spec=>async(...args)=>{if(unknown&&spec.object!=='session')throw new Error('fixture RPC unavailable');let value=spec.object==='session'?{access:!readonly}:runtimeValue?await runtimeValue():{radio0:{up:true,config:{band:'5g'},interfaces:[{section:'test',ifname:'ap-mld0',config:{device:['radio0','radio1'],mode:'ap'}}]}};replies.push({spec,args});return new Promise((resolve,reject)=>rpc.handleCallReply({...spec,resolve,reject,priv:[]},clone({jsonrpc:'2.0',result:[0,value]})));};
  mods.fs={};load('validation');load('ui');load('form');
- mods.poll.add=()=>{};
+ if(pollSetup)pollSetup(w,mods.poll);else mods.poll.add=()=>{};
  const T=w.Function('baseclass',fs.readFileSync(require('path').join(require('path').dirname(APP),'telemetry.js'),'utf8'))(mods.baseclass);mods.telemetry=new T();
  const src=SOURCE;const deps=['baseclass','form','dom','uci','ui','poll','rpc','telemetry'];let C=w.Function(...deps,src)(...deps.map(n=>mods[n]));const app=new C();
  const node=await app.render(await app.load());w.document.getElementById('view').append(node);
- const map=mods.dom.findClassInstance(node);return {j,w,mods,db,writes,node,map,app,clone,hash:crypto.createHash('sha256').update(src).digest('hex')};
+ const map=mods.dom.findClassInstance(node);return {j,w,mods,db,writes,node,map,app,clone,replies,hash:crypto.createHash('sha256').update(src).digest('hex')};
 }
 module.exports={boot};

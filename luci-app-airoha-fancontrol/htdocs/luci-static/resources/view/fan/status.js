@@ -178,7 +178,6 @@ return view.extend({
 			}).finally(function() { pending = null; });
 			return pending;
 		};
-		poll.add(refresh, 5);
 		requestAnimationFrame(function() {
 			if (!viewEl.isConnected) return;
 			var removal = new MutationObserver(function() {
@@ -187,6 +186,7 @@ return view.extend({
 				removal.disconnect();
 			});
 			removal.observe(document.body, { childList: true, subtree: true });
+			poll.add(refresh, 5);
 			refresh();
 		});
 		return viewEl;

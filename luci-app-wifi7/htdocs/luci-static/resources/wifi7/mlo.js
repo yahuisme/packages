@@ -458,10 +458,16 @@ return baseclass.extend({
 				return inflight;
 			};
 			mloRefresh = refresh;
-			poll.add(refresh, 5);
+			let mounted = false;
 			let observer = new MutationObserver(function() {
-				if (nodes.isConnected)
+				if (nodes.isConnected) {
+					if (!mounted) {
+						mounted = true;
+						poll.add(refresh, 5);
+					}
 					return;
+				}
+				if (!mounted) return;
 				poll.remove(refresh);
 				if (mloRefresh === refresh) mloRefresh = null;
 				observer.disconnect();

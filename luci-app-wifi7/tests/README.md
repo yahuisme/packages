@@ -23,6 +23,7 @@ node tests/mlo-integration.cjs
 node tests/mlo-localization.cjs
 node tests/mlo-modal-layout.cjs
 node tests/mlo-poll.cjs
+node tests/mlo-poll-lifecycle.cjs
 node tests/mlo-runtime.cjs
 node tests/native-tabs.cjs
 node tests/regression.test.js
