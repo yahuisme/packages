@@ -75,6 +75,38 @@ apply_settings
   self.config(**{'fan.balanced.point5_pwm':'254'})
   r=self.run_init(); self.assertNotEqual(r.returncode,0); self.assertEqual(self.log.read_text(),'')
 
+ def test_status_uci_get_avoids_wrapper_subshells(self):
+  source=(ROOT/'root/usr/libexec/rpcd/luci.fan').read_text()
+  self.assertNotIn('$(uci_value ',source,'capture each UCI get directly, with fallback in the parent shell')
+  for output in ('', 'manual\\n', 'balanced\\n', '127\\n', 'auto'):
+   (self.d/'uci').write_text('#!/bin/sh\nprintf '+shlex.quote(output)+'\nexit 1\n')
+   data=json.loads(self.rpc('getStatus').stdout)
+   self.assertEqual([data[k] for k in ('uci_mode','uci_preset','uci_manual_pwm')],['unknown','unknown',None])
+
+ def test_status_available_without_substitution(self):
+  source=(ROOT/'root/usr/libexec/rpcd/luci.fan').read_text()
+  self.assertNotRegex(source, r'\$\(\s*\[', 'availability needs no command-substitution shell')
+  self.assertTrue(json.loads(self.rpc('getStatus').stdout)['available'])
+  (self.hw/'pwm1').unlink()
+  self.assertFalse(json.loads(self.rpc('getStatus').stdout)['available'])
+
+ def test_status_short_reads_without_substitutions(self):
+  source=(ROOT/'root/usr/libexec/rpcd/luci.fan').read_text()
+  self.assertNotRegex(source, r'\$\(read_(?:integer|temp|value)\b', 'short sensor reads must not spawn command-substitution shells')
+  for value,expected in [('42000\n',42),(' 42000 \n',42),('-12999\n',-12),('-128000\n',-128),('150000\n',150),('150001\n',None),('-128001\n',None),('',None),('42000',None),('42000\n999\n',42),('42 000\n',None),('-0\n',0),('null\n',None)]:
+   with self.subTest(value=value):
+    (self.hw/'temp1_input').write_text(value)
+    result=self.rpc('getStatus')
+    self.assertEqual(result.returncode,0,result.stderr); self.assertEqual(result.stderr,'')
+    self.assertEqual(json.loads(result.stdout)['temp_board'],expected)
+  (self.hw/'temp1_input').unlink()
+  self.assertIsNone(json.loads(self.rpc('getStatus').stdout)['temp_board'])
+  (self.hw/'fan1_input').write_text('broken\n')
+  self.assertIsNone(json.loads(self.rpc('getStatus').stdout)['fan_rpm'])
+  (self.hw/'name').unlink()
+  data=json.loads(self.rpc('getStatus').stdout)
+  self.assertFalse(data['available']); self.assertIsNone(data['fan_pwm'])
+
  def test_status_rejects_malformed_integer(self):
   for value in ('--1','1-2','-','08','012','9999999999999999999999999'):
    with self.subTest(value=value):

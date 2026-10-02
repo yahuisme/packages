@@ -86,32 +86,49 @@ function createTempGauge(label, value, id) {
 	]);
 }
 
-function updateTempGauge(root, id, value) {
-	var card = root.querySelector('#' + id);
-	if (!card) return;
-	var temp = validTemp(value) ? value : null;
-	card.style.setProperty('--fan-temp-accent', tempColor(temp));
-	var valueEl = card.querySelector('.fan-temp-value');
-	var fill = card.querySelector('.fan-temp-fill');
-	if (valueEl) valueEl.textContent = temp == null ? '—' : temp + '\u00b0C';
-	if (fill) fill.style.width = (temp == null ? 0 : Math.min(100, Math.max(3, temp))) + '%';
+function statusNodes(viewEl) {
+	if (viewEl._fanNodes) return viewEl._fanNodes;
+	var nodes = { summary: {}, temps: {} };
+	summaryData({}).forEach(function(card) {
+		var root = viewEl.querySelector('#' + card.id);
+		nodes.summary[card.id] = {
+			value: root.querySelector('.fan-card-value'), sub: root.querySelector('.fan-card-sub')
+		};
+	});
+	['cpu', 'board', 'phy1', 'phy2', 'wifi24g', 'wifi5g', 'wifi6g'].forEach(function(name) {
+		var card = viewEl.querySelector('#temp-' + name);
+		nodes.temps[name] = {
+			card: card, value: card.querySelector('.fan-temp-value'), fill: card.querySelector('.fan-temp-fill')
+		};
+	});
+	return viewEl._fanNodes = nodes;
 }
 
-function updateView(viewEl, status) {
+function updateText(node, value) {
+	if (node.textContent !== value) node.textContent = value;
+}
+
+function updateTempGauge(nodes, value) {
+	var temp = validTemp(value) ? value : null;
+	var color = tempColor(temp), width = (temp == null ? 0 : Math.min(100, Math.max(3, temp))) + '%';
+	if (nodes.card.style.getPropertyValue('--fan-temp-accent') !== color)
+		nodes.card.style.setProperty('--fan-temp-accent', color);
+	updateText(nodes.value, temp == null ? '—' : temp + '\u00b0C');
+	if (nodes.fill.style.width !== width) nodes.fill.style.width = width;
+}
+
+function updateView(viewEl, status, failed) {
 	status = status || {};
+	var nodes = statusNodes(viewEl);
 	summaryData(status).forEach(function(card) {
-		var root = viewEl.querySelector('#' + card.id);
-		if (!root) return;
-		var value = root.querySelector('.fan-card-value');
-		var sub = root.querySelector('.fan-card-sub');
-		if (value) value.textContent = card.value;
-		if (sub) sub.textContent = card.sub;
+		updateText(nodes.summary[card.id].value, card.value);
+		updateText(nodes.summary[card.id].sub, failed ? _('Read failed') : card.sub);
 	});
-		var values = {
-			cpu: status.temp_cpu, board: status.temp_board, phy1: status.temp_phy1, phy2: status.temp_phy2,
-			wifi24g: status.wifi_24g, wifi5g: status.wifi_5g, wifi6g: status.wifi_6g
-		};
-		Object.keys(values).forEach(function(name) { updateTempGauge(viewEl, 'temp-' + name, values[name]); });
+	var values = {
+		cpu: status.temp_cpu, board: status.temp_board, phy1: status.temp_phy1, phy2: status.temp_phy2,
+		wifi24g: status.wifi_24g, wifi5g: status.wifi_5g, wifi6g: status.wifi_6g
+	};
+	Object.keys(values).forEach(function(name) { updateTempGauge(nodes.temps[name], values[name]); });
 }
 
 return view.extend({
@@ -157,8 +174,7 @@ return view.extend({
 				if (viewEl.isConnected) updateView(viewEl, current);
 			}).catch(function() {
 				if (!viewEl.isConnected) return;
-				updateView(viewEl, {});
-				viewEl.querySelectorAll('.fan-card-sub').forEach(function(el) { el.textContent = _('Read failed'); });
+				updateView(viewEl, {}, true);
 			}).finally(function() { pending = null; });
 			return pending;
 		};

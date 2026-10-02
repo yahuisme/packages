@@ -22,6 +22,8 @@ python3 tests/test_real_tools.py
 
 Requires BusyBox. `test_real_tools.py` skips unless `REAL_UCI=/path/to/uci` selects a real CLI; skipped cases are not passes. All writes use private sysfs/config/delta/override fixtures. Real LuCI form tests retain validation, scoped modal reuse/Escape and save callbacks.
 
+Core performance regressions also cover same-size curve/marker reuse, no-op input/change/resize, invalid/recovery and reset/disposal; view-scoped status references and differential writes across failure/recovery; and BusyBox short-file reads without substitution shells. Real UCI edge cases retain `get` semantics for lists, quotes, missing values and embedded/trailing newlines. The three independent `get` calls intentionally remain: a single `show`/batch snapshot cannot be substituted using naive line parsing without changing those semantics. Operation-count reports belong outside the repository; these checks do not claim router CPU or browser layout savings.
+
 The browser curve test remains because it executes production resize, invalid/recovery and observer disposal (not just screenshots). Requires Playwright/Chromium and optionally Aurora:
 
 ```sh

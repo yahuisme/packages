@@ -126,6 +126,32 @@ else:
             self.assertIsNone(result[key]['configured'])
         self.assertEqual(trace.read_text(), 'x')
 
+    def test_runtime_snapshot_reads_each_file_once_without_cat(self):
+        log = self.d / 'runtime-reads'
+        self.script('cat', '#!/bin/sh\nprintf "cat\\n" >> "' + str(log) + '"\nexec "' + self.busybox + '" cat "$@"\n')
+        source = (self.d / 'acc.sh').read_text()
+        # Instrument shell redirections as well as external commands.
+        source = source.replace('acc_bit_file() {', 'acc_bit_file() { printf "read %s\\n" "$1" >> "' + str(log) + '";')
+        (self.d / 'acc.sh').write_text(source)
+        for filtering in ('0', '1'):
+            (self.d / 'sys/class/net/br-lan/bridge/vlan_filtering').write_text(filtering + '\n')
+            log.write_text('')
+            before = self.snapshot()
+            result = self.call()
+            self.assertTrue(result['ap']['enabled'])
+            self.assertEqual(self.snapshot(), before)
+            calls = log.read_text().splitlines()
+            self.assertNotIn('cat', calls)
+            self.assertEqual(len(calls), 7, calls)
+            self.assertEqual(len(set(calls)), 7, 'each of six knobs and bridge filtering read once')
+        # Every request must observe newly changed, malformed or missing values.
+        for value, expected in [('0', False), ('1', True), ('1\n\n', True), ('1\n0\n', None), (' 1\n', None), ('', None)]:
+            self.knob('filter-pppoe-tagged').write_text(value)
+            self.assertIs(self.call()['pppoe']['enabled'], expected)
+        self.knob('filter-pppoe-tagged').unlink()
+        self.assertFalse(self.call()['pppoe']['supported'])
+        self.assertIsNone(self.call()['pppoe']['enabled'])
+
     def test_official_inet_only_and_missing_interfaces(self):
         self.official_inet()
         for value in (0, 1, 0, 1):

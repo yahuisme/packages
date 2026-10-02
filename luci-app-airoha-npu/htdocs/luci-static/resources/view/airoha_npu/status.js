@@ -80,26 +80,52 @@ return view.extend({
 		}
 		// The detached fallback viewBox must fill the viewport, not letterbox.
 		var chart = svgNode('svg', { role: 'img', 'aria-label': _('CPU Frequency Changes'), preserveAspectRatio: 'none' });
+		var areaNode = svgNode('path', { 'class': 'npu-chart-area' });
+		var lineNode = svgNode('path', { 'class': 'npu-chart-line', 'vector-effect': 'non-scaling-stroke' });
+		var unitNode = svgNode('text', { x: 48, y: 14, fill: 'currentColor', 'font-size': 12 }, 'MHz');
+		chart.appendChild(areaNode);
+		chart.appendChild(unitNode);
+		chart.appendChild(lineNode);
+		var ticks = [], axisKey;
 		function drawChart() {
 			var now = Date.now();
-			samples = samples.filter(function(p) { return p.time >= now - 120000; });
+			samples = samples.filter(function(p) {
+				if (p.time >= now - 120000) return true;
+				if (p.node) chart.removeChild(p.node);
+				return false;
+			});
 			var width = chart.clientWidth || 600, left = 48, right = width - 16;
 			var top = 24, bottom = 168;
 			var peak = Math.max(ceiling, 100, ...samples.map(function(p) { return p.value || 0; }));
 			var step = Math.ceil(peak / 6 / 100) * 100, max = Math.ceil(peak / step) * step;
 			chart.setAttribute('viewBox', '0 0 ' + width + ' 200');
-			while (chart.firstChild) chart.removeChild(chart.firstChild);
-			chart.appendChild(svgNode('text', { x: left, y: 14, fill: 'currentColor', 'font-size': 12 }, 'MHz'));
-			for (var value = 0; value <= max; value += step) {
-				var y = bottom - value / max * (bottom - top);
-				chart.appendChild(svgNode('line', { x1: left, x2: right, y1: y, y2: y, 'class': 'npu-chart-grid' }));
-				chart.appendChild(svgNode('text', { x: left - 8, y: y + 4, 'text-anchor': 'end', fill: 'currentColor', 'font-size': 12 }, value));
-			}
-			var timeStep = width < 480 ? 30 : width < 800 ? 20 : 15;
-			for (var seconds = -120; seconds <= 0; seconds += timeStep) {
-				var x = left + (seconds + 120) / 120 * (right - left);
-				chart.appendChild(svgNode('line', { x1: x, x2: x, y1: top, y2: bottom, 'class': 'npu-chart-grid' }));
-				chart.appendChild(svgNode('text', { x: x, y: 190, 'text-anchor': 'middle', fill: 'currentColor', 'font-size': 12 }, seconds + ' s'));
+			var key = width + ':' + max + ':' + step;
+			if (key !== axisKey) {
+				var tickIndex = 0;
+				function tick(lineAttrs, textAttrs, label) {
+					var pair = ticks[tickIndex++];
+					if (!pair) {
+						pair = [svgNode('line', { 'class': 'npu-chart-grid' }), svgNode('text', { fill: 'currentColor', 'font-size': 12 })];
+						ticks.push(pair);
+						var anchor = samples.find(function(p) { return p.node; });
+						chart.insertBefore(pair[0], anchor ? anchor.node : lineNode);
+						chart.insertBefore(pair[1], anchor ? anchor.node : lineNode);
+					}
+					Object.keys(lineAttrs).forEach(function(k) { pair[0].setAttribute(k, lineAttrs[k]); });
+					Object.keys(textAttrs).forEach(function(k) { pair[1].setAttribute(k, textAttrs[k]); });
+					pair[1].textContent = label;
+				}
+				for (var value = 0; value <= max; value += step) {
+					var y = bottom - value / max * (bottom - top);
+					tick({ x1: left, x2: right, y1: y, y2: y }, { x: left - 8, y: y + 4, 'text-anchor': 'end' }, value);
+				}
+				var timeStep = width < 480 ? 30 : width < 800 ? 20 : 15;
+				for (var seconds = -120; seconds <= 0; seconds += timeStep) {
+					var x = left + (seconds + 120) / 120 * (right - left);
+					tick({ x1: x, x2: x, y1: top, y2: bottom }, { x: x, y: 190, 'text-anchor': 'middle' }, seconds + ' s');
+				}
+				while (ticks.length > tickIndex) ticks.pop().forEach(function(n) { chart.removeChild(n); });
+				axisKey = key;
 			}
 			var path = '', area = '', areaStart = null, areaEnd = null, previous = null;
 			function closeArea() {
@@ -118,13 +144,19 @@ return view.extend({
 				if (!connected) { closeArea(); areaStart = x; }
 				path += segment; area += segment; areaEnd = x;
 				var isolated = !connected && !(next && next.value != null && next.time - p.time < 4500);
-				chart.appendChild(svgNode('circle', { cx: x, cy: y, r: isolated ? 2 : 1, 'class': 'npu-chart-point', 'data-time': p.time, 'data-mhz': p.value }));
+				if (!p.node) {
+					p.node = svgNode('circle', { 'class': 'npu-chart-point', 'data-time': p.time, 'data-mhz': p.value });
+					chart.insertBefore(p.node, lineNode);
+				}
+				p.node.setAttribute('cx', x);
+				p.node.setAttribute('cy', y);
+				p.node.setAttribute('r', isolated ? 2 : 1);
 				previous = p;
 			});
 			if (previous && now - previous.time <= 3000) { path += ' H ' + right; area += ' H ' + right; areaEnd = right; }
 			closeArea();
-			chart.insertBefore(svgNode('path', { d: area, 'class': 'npu-chart-area' }), chart.firstChild);
-			chart.appendChild(svgNode('path', { d: path, 'class': 'npu-chart-line', 'vector-effect': 'non-scaling-stroke' }));
+			areaNode.setAttribute('d', area);
+			lineNode.setAttribute('d', path);
 		}
 		function sample(s) {
 			var value = s && s.cpu_cur_freq;

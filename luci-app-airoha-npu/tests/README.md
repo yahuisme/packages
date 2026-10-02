@@ -40,6 +40,13 @@ The status view and its real CPU telemetry remain independent.
 
 Python RPC tests use real BusyBox ash and private sysfs/config/locks. Flow offloading is read-only here; tests verify status and rejection of the removed setter without modifying firewall configuration. Optional `UCI_BIN` and `JSONFILTER_BIN` select real tools; without them the suite uses adapters, not real-UCI verification. `/dev/null` and `/dev/full` model read/write failures. `l10n.js` is a support module, not an entrypoint.
 
+The status DOM test also verifies retained SVG grid/tick/path/sample identity during
+expiry, resize and new samples, alongside cadence, outages and teardown. Backend
+status tests compare complete short-file output with the cat-based reader (missing,
+empty, no final newline, multiple lines and escaped characters) and enforce no
+status-file cat commands; transactional reads remain separate. Flow getters retain
+per-read failure checks and committed-only UCI isolation.
+
 The first-frame test remains: complete production render, mount/reentry/resize/fallback/disposal with intervals frozen. Requires Playwright/Chromium and unchanged Aurora:
 
 ```sh

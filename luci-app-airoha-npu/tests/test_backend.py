@@ -159,6 +159,37 @@ class Backend(unittest.TestCase):
         return json.loads(subprocess.check_output(['busybox', 'ash', str(BACKEND), 'call', method],
                          input=json.dumps(args or {}).encode(), env=self.env))
 
+    def test_status_builtin_reads_preserve_complete_file_values(self):
+        # Compare byte-for-byte with the original cat-based getter, including
+        # legacy multiline online output; do not silently normalize malformed data.
+        oracle = self.root / 'cat-oracle'
+        source = BACKEND.read_text()
+        prefix, getter = source.split('get_status() {', 1)
+        getter, suffix = getter.split('get_info() {', 1)
+        oracle.write_text(prefix + 'get_status() {' + getter.replace('read_status_value', 'read_value') + 'get_info() {' + suffix)
+        paths = [self.policy / ('scaling_' + name) for name in
+                 ('cur_freq', 'max_freq', 'min_freq', 'governor')]
+        paths += [self.root / 'sys/kernel/debug/clk/npu/clk_rate',
+                  self.root / 'sys/devices/system/cpu/online']
+        for p in paths:
+            p.parent.mkdir(parents=True, exist_ok=True)
+        values = [None, b'', b'500000', b'500000\n', b'500000\n\n',
+                  b'500000\n600000', b'\n500000\n', b'0-1\n4-5\n',
+                  b' schedutil\t\\test\r\nmore\n', b'bad"\\\x01\tend']
+        for content in values:
+            with self.subTest(content=content):
+                for p in paths:
+                    if p.exists(): p.unlink()
+                    if content is not None: p.write_bytes(content)
+                def run(script):
+                    return subprocess.run(['busybox', 'ash', '-x', str(script), 'call', 'getStatus'],
+                                          input=b'{}', env=self.env, capture_output=True, check=True)
+                expected, actual = run(oracle), run(BACKEND)
+                self.assertEqual(actual.stdout, expected.stdout)
+                # One cat still consumes RPC stdin; none may read status files.
+                cats = re.findall(rb'^\++ cat(?: |$)', actual.stderr, re.M)
+                self.assertEqual(len(cats), 1, 'six status file reads must use shell builtins')
+
     def test_cpu_validation(self):
         payload = {'governor': 'performance', 'freq': '1400000'}
         before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()}

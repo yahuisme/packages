@@ -29,17 +29,24 @@ get_interfaces() {
 }
 
 get_jitter() {
-    local file=/var/run/npu-jitter.json stamp now last deviation samples received loss target
+    local file=/var/run/npu-jitter.json stamp now last deviation samples received loss target key type
     [ -r "$file" ] || { printf null; return; }
-    stamp=$(jsonfilter -i "$file" -e '@.timestamp' 2>/dev/null)
+    . /usr/share/libubox/jshn.sh
+    # One parse of one published sample, never a mix of successive windows.
+    json_load "$(cat "$file" 2>/dev/null)" >/dev/null 2>&1 || { printf null; return; }
+    for key in timestamp target last_ping deviation samples received loss; do
+        json_get_type type "$key"
+        case "$type" in string|int|double) ;; *) json_add_null "$key";; esac
+    done
+    json_get_var stamp timestamp
     now=$(date +%s)
     fs_uint "$stamp" && [ "$stamp" -le "$now" ] && [ "$((now-stamp))" -le 20 ] || { printf null; return; }
-    target=$(jsonfilter -i "$file" -e '@.target' 2>/dev/null); fs_target "$target" || target=unknown
-    last=$(jsonfilter -i "$file" -e '@.last_ping' 2>/dev/null)
-    deviation=$(jsonfilter -i "$file" -e '@.deviation' 2>/dev/null)
-    samples=$(jsonfilter -i "$file" -e '@.samples' 2>/dev/null)
-    received=$(jsonfilter -i "$file" -e '@.received' 2>/dev/null)
-    loss=$(jsonfilter -i "$file" -e '@.loss' 2>/dev/null)
+    json_get_var target target; fs_target "$target" || target=unknown
+    json_get_var last last_ping
+    json_get_var deviation deviation
+    json_get_var samples samples
+    json_get_var received received
+    json_get_var loss loss
     printf '{"timestamp":%s,"target":"%s","last_ping":%s,"deviation":%s,"samples":%s,"received":%s,"loss":%s}' "$stamp" "$target" "$(json_decimal "$last")" "$(json_decimal "$deviation")" "$(json_number "$samples")" "$(json_number "$received")" "$(json_decimal "$loss" 100)"
 }
 

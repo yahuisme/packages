@@ -20,7 +20,7 @@ class SettingsTest(unittest.TestCase):
         self.script('monitor_restart', '#!/bin/sh\nprintf restart >> "' + str(self.d / 'monitor-restarts') + '"\n[ "$MONITOR_FAIL" != 1 ]\n')
         source = (ROOT / 'root/usr/libexec/flowsense-settings.sh').read_text().replace('/usr/share/libubox/jshn.sh', str(TOOLS / 'share/libubox/jshn.sh')).replace('/etc/flowsense', str(self.d / 'etc/flowsense')).replace('/var/run/flowsense-settings.lock', str(self.d / 'var/run/flowsense-settings.lock'))
         (self.d / 'settings.sh').write_text(source)
-        rpc = (self.d / 'rpc').read_text().replace('/usr/libexec/flowsense-settings.sh', str(self.d / 'settings.sh')).replace('/etc/init.d/npu-jitter restart', str(self.d / 'bin/monitor_restart'))
+        rpc = (self.d / 'rpc').read_text().replace('/usr/share/libubox/jshn.sh', str(TOOLS / 'share/libubox/jshn.sh')).replace('/usr/libexec/flowsense-settings.sh', str(self.d / 'settings.sh')).replace('/etc/init.d/npu-jitter restart', str(self.d / 'bin/monitor_restart'))
         for prefix in ('/etc/config', '/tmp/flowsense-committed', '/var/run/npu-jitter.json', '/sys/class/net/*', '/proc/uptime'):
             rpc = rpc.replace(prefix, str(self.d) + prefix)
         (self.d / 'proc/uptime').write_text('100.0 0\n')

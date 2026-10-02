@@ -27,6 +27,7 @@ function curveAxes(svg) {
 	// Use CSS-pixel coordinates: resizing must not magnify text or markers.
 	var width = svg.clientWidth || 320, left = 40, right = width - 24;
 	var top = 28, bottom = 284, axes = svg.querySelector('.fan-curve-axes');
+	if (axes._fanScale && axes._fanScale.width === width) return axes._fanScale;
 	function element(tag, attrs, text) {
 		var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
 		Object.keys(attrs).forEach(function(key) { el.setAttribute(key, attrs[key]); });
@@ -47,7 +48,7 @@ function curveAxes(svg) {
 	});
 	element('text', { x: left, y: 16 }, 'PWM');
 	element('text', { x: right, y: 348, 'text-anchor': 'end' }, '°C');
-	return { x: x, y: y };
+	return axes._fanScale = { width: width, x: x, y: y };
 }
 
 function updateCurvePreview(node) {
@@ -63,20 +64,25 @@ function updateCurvePreview(node) {
 	if (!line || !dots || !message) return;
 	var axes = curveAxes(line.ownerSVGElement);
 	if (!validPoints(points)) {
-		line.setAttribute('points', ''); dots.textContent = '';
-		message.textContent = _('Complete valid curve points to preview.'); return;
+		if (line.getAttribute('points') !== '') line.setAttribute('points', '');
+		if (dots.firstChild) dots.textContent = '';
+		var invalid = _('Complete valid curve points to preview.');
+		if (message.textContent !== invalid) message.textContent = invalid;
+		return;
 	}
-	line.setAttribute('points', points.map(function(point) {
-		return axes.x(+point.temp) + ',' + axes.y(+point.pwm);
-	}).join(' '));
-	dots.textContent = '';
-	points.forEach(function(point) {
-		var dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-		dot.setAttribute('cx', axes.x(+point.temp));
-		dot.setAttribute('cy', axes.y(+point.pwm));
-		dot.setAttribute('r', '2.5'); dots.appendChild(dot);
+	var coordinates = points.map(function(point) { return [axes.x(+point.temp), axes.y(+point.pwm)]; });
+	var geometry = coordinates.map(function(point) { return point.join(','); }).join(' ');
+	if (line.getAttribute('points') !== geometry) line.setAttribute('points', geometry);
+	coordinates.forEach(function(point, index) {
+		var dot = dots.children[index];
+		if (!dot) {
+			dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+			dot.setAttribute('r', '2.5'); dots.appendChild(dot);
+		}
+		if (dot.getAttribute('cx') !== String(point[0])) dot.setAttribute('cx', point[0]);
+		if (dot.getAttribute('cy') !== String(point[1])) dot.setAttribute('cy', point[1]);
 	});
-	message.textContent = '';
+	if (message.textContent !== '') message.textContent = '';
 }
 
 var previewCSS = '\

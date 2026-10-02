@@ -4,7 +4,23 @@
 
 acc_keys='call-iptables call-ip6tables call-arptables filter-vlan-tagged filter-pppoe-tagged pass-vlan-input-dev'
 acc_files='12-apmode-offload.conf 14-vlan-offload.conf 15-pppoe-offload.conf'
-acc_read() { local v; v=$(cat "/proc/sys/net/bridge/bridge-nf-$1" 2>/dev/null); case "$v" in 0|1) printf %s "$v";; *) printf null;; esac; }
+acc_bit_file() {
+    local v line invalid=0
+    # Match cat's trailing-newline removal without accepting extra data lines.
+    { IFS= read -r v || [ -n "$v" ]
+      while IFS= read -r line || [ -n "$line" ]; do [ -z "$line" ] || invalid=1; done
+    } < "$1" 2>/dev/null || { printf null; return; }
+    case "$invalid:$v" in 0:0|0:1) printf %s "$v";; *) printf null;; esac
+}
+acc_read() {
+    local entry
+    if [ -n "$acc_runtime_snapshot" ]; then
+        for entry in $acc_runtime_snapshot; do
+            case "$entry" in "$1="*) printf %s "${entry#*=}"; return;; esac
+        done
+    fi
+    acc_bit_file "/proc/sys/net/bridge/bridge-nf-$1"
+}
 acc_config_load() {
     # sysctl init applies these in this order; a missing optional file is not
     # missing support. Kernel defaults: call-*=1, filter/pass=0 (Linux 6.18).
@@ -28,9 +44,10 @@ acc_config() {
 }
 acc_vlan_filtering() {
     local f v result=0
+    if [ -n "$acc_filtering_snapshot" ]; then printf %s "$acc_filtering_snapshot"; return; fi
     for f in /sys/class/net/*/bridge/vlan_filtering; do
         [ -e "$f" ] || continue
-        v=$(cat "$f" 2>/dev/null)
+        v=$(acc_bit_file "$f")
         case "$v" in 1) result=1;; 0) :;; *) printf null; return;; esac
     done
     printf %s "$result"
@@ -118,8 +135,11 @@ acc_support() {
     printf %s "$result"
 }
 get_acceleration() {
-    local hw=null apkeys='call-iptables call-ip6tables call-arptables' acc_config_snapshot
+    local hw=null apkeys='call-iptables call-ip6tables call-arptables' acc_config_snapshot acc_runtime_snapshot= acc_filtering_snapshot= key
     acc_config_snapshot=$(acc_config_load) || acc_config_snapshot=null
+    # Getter-local snapshots only; setters and rollback always read fresh.
+    acc_filtering_snapshot=$(acc_vlan_filtering)
+    acc_runtime_snapshot=$(for key in $acc_keys; do printf '%s=%s\n' "$key" "$(acc_read "$key")"; done)
     [ ! -d /sys/kernel/debug/ppe ] || { command -v nft >/dev/null && hw=true; }
     [ "$(acc_vlan_filtering)" = 0 ] || apkeys="$apkeys filter-vlan-tagged pass-vlan-input-dev"
     printf '{"hardware":{"supported":%s,"enabled":%s,"configured":%s},' "$hw" "$(boolean "$(acc_hardware)")" "$(boolean "$(acc_hw_config)")"

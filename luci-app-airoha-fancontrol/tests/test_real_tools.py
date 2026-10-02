@@ -48,6 +48,29 @@ exec "$REAL_UCI" -c "$TESTDIR/config" -C "$TESTDIR/override" -t "$TESTDIR/delta"
    self.assertNotEqual(result.returncode,0)
    self.assertEqual(self.uci('export','fan').stdout,before)
 
+ def test_status_uci_edge_values_keep_get_semantics(self):
+  cases=[
+   (['set','fan.settings.mode=manual\n'], 'manual'),
+   (['set','fan.settings.mode=auto\nmanual'], 'unknown'),
+   (['set','fan.settings.mode=auto'], 'auto'),
+   (['delete','fan.settings.mode'], 'unknown'),
+   (['add_list','fan.settings.mode=manual'], 'manual'),
+   (['add_list','fan.settings.mode=auto'], 'unknown'),
+   (['set',"fan.settings.mode='auto'"], 'unknown'),
+   (['set','fan.settings.mode='], 'unknown'),
+  ]
+  for command,expected in cases:
+   with self.subTest(command=command):
+    self.assertEqual(self.uci(*command).returncode,0)
+    before=self.uci('export','fan').stdout
+    result=self.call('getStatus',{})
+    self.assertEqual(result.returncode,0,result.stderr)
+    self.assertEqual(json.loads(result.stdout)['uci_mode'],expected)
+    self.assertEqual(self.uci('export','fan').stdout,before)
+  for value,expected in [('0',0),('255\n',255),('255\n0',None),('08',None),('-1',None),('256',None)]:
+   self.assertEqual(self.uci('set','fan.settings.manual_pwm='+value).returncode,0)
+   self.assertEqual(json.loads(self.call('getStatus',{}).stdout)['uci_manual_pwm'],expected)
+
  def test_init_with_real_uci_and_real_file_writes(self):
   hw=self.d/'sys/class/hwmon/hwmon9'; hw.mkdir(parents=True)
   for name,value in {'name':'nct7802','pwm1':'0','pwm1_enable':'2'}.items(): (hw/name).write_text(value+'\n')

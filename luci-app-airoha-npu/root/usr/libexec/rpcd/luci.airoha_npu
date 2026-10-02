@@ -91,17 +91,24 @@ settings_rpc() (
 			fi;;
 	esac
 )
+# Status-only text reads; retain every line (including an unterminated last
+# line). The caller's command substitution strips trailing newlines as before.
+# Keep transaction read_value and its exit-status semantics untouched.
+read_status_value() {
+	local line
+	{ while IFS= read -r line || [ -n "$line" ]; do printf '%s\n' "$line"; done < "$1"; } 2>/dev/null
+}
 get_status() {
 	local field value first=1
 	printf '{'
 	for field in cur_freq max_freq min_freq; do
 		[ "$first" = 1 ] || printf ','; first=0
-		printf '"cpu_%s":' "$field"; number "$(read_value "$POLICY/scaling_$field")"
+		printf '"cpu_%s":' "$field"; number "$(read_status_value "$POLICY/scaling_$field")"
 	done
-	printf ',"cpu_governor":'; quote "$(read_value "$POLICY/scaling_governor")"
-	printf ',"npu_clock":'; number "$(read_value "$ROOT/sys/kernel/debug/clk/npu/clk_rate")"
+	printf ',"cpu_governor":'; quote "$(read_status_value "$POLICY/scaling_governor")"
+	printf ',"npu_clock":'; number "$(read_status_value "$ROOT/sys/kernel/debug/clk/npu/clk_rate")"
 	printf ',"cpu_count":'
-	value=$(read_value "$ROOT/sys/devices/system/cpu/online")
+	value=$(read_status_value "$ROOT/sys/devices/system/cpu/online")
 	printf '%s\n' "$value" | awk '/^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$/ { n=split($0,a,","); for(i=1;i<=n;i++) { k=split(a[i],b,"-"); if(k==2 && b[2]<b[1]) exit; count+=k==2?b[2]-b[1]+1:1 } print count; ok=1 } END { if(!ok) print "null" }'
 	printf ',"npu_bound":'
 	if [ ! -d "$ROOT/sys/bus/platform/drivers" ]; then printf null

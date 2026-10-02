@@ -91,6 +91,11 @@ async function tick(ms = 3000) {
   // Keep the remaining lifecycle assertions attached to the current root.
   node = reset;
   const svg = node.querySelector('svg');
+  const retained = [...svg.children];
+  for (const fn of timers.values()) fn();
+  assert([...svg.children].every((n, i) => n === retained[i]), 'expiry redraw reuses unchanged grid, ticks, paths and samples');
+  const firstGrid = svg.querySelector('.npu-chart-grid');
+  const firstPoint = points()[0], firstLine = svg.querySelector('.npu-chart-line');
   for (const width of [240, 360, 600, 960]) {
    Object.defineProperty(svg, 'clientWidth', { configurable: true, value: width });
    for (const fn of timers.values()) fn();
@@ -101,6 +106,9 @@ async function tick(ms = 3000) {
    assert.equal(times.length, width < 480 ? 5 : width < 800 ? 7 : 9, 'responsive time ticks');
    assert.equal(svg.querySelectorAll('.npu-chart-grid').length, 7 + times.length);
   }
+  assert.equal(svg.querySelector('.npu-chart-grid'), firstGrid, 'resize updates retained grid nodes');
+  assert.equal(svg.querySelector('.npu-chart-line'), firstLine, 'resize retains trace');
+  assert.equal(points()[0], firstPoint, 'resize retains actual sample nodes');
   const lineStyle = w.getComputedStyle(node.querySelector('.npu-chart-line'));
   assert.equal(lineStyle.stroke, 'var(--npu-chart-accent)');
   assert.match(node.querySelector(':scope > style').textContent, /--npu-chart-accent:var\(--success,light-dark\(#15803d,#16a34a\)\)/);
@@ -111,6 +119,7 @@ async function tick(ms = 3000) {
   const before = calls; await app.pollFn(); assert.equal(calls, before, 'no immediate duplicate');
   await tick(2999); assert.equal(points().length, 1); await tick(1); assert.equal(points().length, 2);
   value = 800000; await tick(); assert.equal(points().at(-1).getAttribute('data-mhz'), '800'); assert.equal(segments(), 1);
+  assert.equal(points()[0], firstPoint, 'new sample does not recreate previous samples');
   assert.match(node.querySelector('.npu-chart-line').getAttribute('d'), / H .* V /, 'normal readings use previous-value steps');
   assert(points().every(p => p.getAttribute('r') === '1'), 'connected samples are restrained');
   const actualSamples = points().map(p => [p.dataset.time, p.dataset.mhz]);
