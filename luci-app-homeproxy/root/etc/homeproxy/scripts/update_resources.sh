@@ -46,6 +46,10 @@ mark_updated() { UPDATED_BRANCHES="${UPDATED_BRANCHES:+$UPDATED_BRANCHES,}$1"; }
 mark_failed() { FAILED_BRANCHES="${FAILED_BRANCHES:+$FAILED_BRANCHES,}$1"; log "[RESOURCES] Failed: $1"; }
 finish() {
 	local status="$1"
+	if type cleanup >/dev/null 2>&1 && ! cleanup; then
+		mark_failed cleanup
+		status=1
+	fi
 	# Staging is not publication: a failed transaction never reports an update.
 	if [ "$status" != 0 ] && [ "$status" != 3 ]; then
 		[ "$GEOIP_RESULT" != 0 ] || GEOIP_RESULT=1
@@ -100,7 +104,8 @@ verify_blob() {
 
 exec 9>"$RUN_DIR/update_resources.lock"
 flock -n 9 >/dev/null 2>&1 || exit 2
-TMP_DIR="$(mktemp -d "$RUN_DIR/resources-update.XXXXXX")" || finish 1
+
+TMP_DIR=""
 RESOURCE_STAGE="${RESOURCES_DIR}.new.$$"
 RESOURCE_BACKUP="${RESOURCES_DIR}.old.$$"
 DASHBOARD_STAGE="${DASHBOARD_DIR}.new.$$"
@@ -131,9 +136,87 @@ rollback() {
 		DASHBOARD_SWAPPED=0
 	fi
 }
-cleanup() { rm -rf "$TMP_DIR" "$RESOURCE_STAGE" "$DASHBOARD_STAGE"; rm -f "$RESULT_PATH.$$"; }
+cleanup() {
+	local path status=0
+	for path in "$TMP_DIR" "$RESOURCE_STAGE" "$DASHBOARD_STAGE"; do
+		[ -n "$path" ] || continue
+		rm -rf "$path" || status=1
+		{ [ ! -e "$path" ] && [ ! -L "$path" ]; } || status=1
+	done
+	rm -f "$RESULT_PATH.$$" || status=1
+	return "$status"
+}
 trap cleanup EXIT
 trap 'rollback; exit 1' INT TERM HUP
+
+# Only committed backups may be discarded; unresolved recovery copies block
+# another transaction instead of accumulating more copies.
+prune_backups() {
+	local base="$1" path suffix marker identity
+	for path in "$base".old.*; do
+		[ -e "$path" ] || [ -L "$path" ] || continue
+		suffix="${path##*.old.}"
+		case "$suffix" in ''|*[!0-9]*) continue ;; esac
+		marker="$path.cleanup-ready"
+		identity="$(stat -c '%d:%i' "$path" 2>/dev/null)"
+		if [ -L "$path" ] || [ ! -d "$path" ] || [ -L "$marker" ] || [ ! -f "$marker" ] ||
+		   [ -z "$identity" ] || ! ucode -l fs -e '
+			exit(fs.readfile(ARGV[0]) != "committed " + ARGV[1] + " " + ARGV[2] + "\n");
+		   ' "$marker" "$path" "$identity"; then
+			log "[RESOURCES] Recovery backup retained at $path; update blocked."
+			return 1
+		fi
+		rm -rf "$path" || return 1
+		[ ! -e "$path" ] && [ ! -L "$path" ] || return 1
+		rm -f "$marker" || return 1
+		[ ! -e "$marker" ] && [ ! -L "$marker" ] || return 1
+	done
+	# A backup deletion may succeed while its proof unlink fails.
+	for marker in "$base".old.*.cleanup-ready; do
+		[ -e "$marker" ] || [ -L "$marker" ] || continue
+		path="${marker%.cleanup-ready}"
+		suffix="${path##*.old.}"
+		case "$suffix" in ''|*[!0-9]*) return 1 ;; esac
+		[ ! -e "$path" ] && [ ! -L "$path" ] &&
+		[ ! -L "$marker" ] && [ -f "$marker" ] || return 1
+		ucode -l fs -e '
+			let proof = fs.readfile(ARGV[0]);
+			let identity = match(proof || "", / ([0-9]+:[0-9]+)\n$/);
+			exit(!identity || proof != "committed " + ARGV[1] + " " + identity[1] + "\n");
+		' "$marker" "$path" || return 1
+		rm -f "$marker" || return 1
+		[ ! -e "$marker" ] && [ ! -L "$marker" ] || return 1
+	done
+}
+# Staging is never a recovery copy. Under the shared lock, remove remnants
+# before allocating another generation, including interrupted downloads.
+prune_staging() {
+	local path suffix
+	for path in "$RESOURCES_DIR".new.* "$DASHBOARD_DIR".new.*; do
+		[ -e "$path" ] || [ -L "$path" ] || continue
+		suffix="${path##*.new.}"
+		case "$suffix" in ''|*[!0-9]*) continue ;; esac
+		rm -rf "$path" || return 1
+		[ ! -e "$path" ] && [ ! -L "$path" ] || return 1
+	done
+	for path in "$RUN_DIR"/resources-update.??????; do
+		[ -e "$path" ] || [ -L "$path" ] || continue
+		rm -rf "$path" || return 1
+		[ ! -e "$path" ] && [ ! -L "$path" ] || return 1
+	done
+}
+if ! prune_staging || ! prune_backups "$RESOURCES_DIR" || ! prune_backups "$DASHBOARD_DIR"; then
+	mark_failed cleanup
+	finish 1
+fi
+# Never let a reused PID's preexisting proof authorize this transaction.
+for path in "$RESOURCE_BACKUP.cleanup-ready" "$DASHBOARD_BACKUP.cleanup-ready"; do
+	if [ -e "$path" ] || [ -L "$path" ]; then
+		mark_failed cleanup
+		finish 1
+	fi
+done
+TMP_DIR="$(mktemp -d "$RUN_DIR/resources-update.XXXXXX")" || finish 1
 
 if [ "$MODE" = rules ]; then
 cp -a "$RESOURCES_DIR" "$RESOURCE_STAGE" || finish 1
@@ -260,7 +343,24 @@ if [ "$CORE_UPDATED" -eq 1 ] || [ "$DASHBOARD_UPDATED" -eq 1 ]; then
 	fi
 fi
 RESOURCE_SWAPPED=0 DASHBOARD_SWAPPED=0
-rm -rf "$RESOURCE_BACKUP" "$DASHBOARD_BACKUP"
+cleanup_failed=0
+for path in "$RESOURCE_BACKUP" "$DASHBOARD_BACKUP"; do
+	[ -e "$path" ] || [ -L "$path" ] || continue
+	# Keep commit proof outside inherited resource contents, bound to this
+	# generation's directory identity. noclobber also rejects existing links.
+	identity="$(stat -c '%d:%i' "$path")"
+	if [ -z "$identity" ] ||
+	   ! (set -C; printf 'committed %s %s\n' "$path" "$identity" > "$path.cleanup-ready") ||
+	   ! rm -rf "$path" || [ -e "$path" ] || [ -L "$path" ] ||
+	   ! rm -f "$path.cleanup-ready" || [ -e "$path.cleanup-ready" ] || [ -L "$path.cleanup-ready" ]; then
+		cleanup_failed=1
+		log "[RESOURCES] Failed to remove committed recovery backup: $path"
+	fi
+done
+if [ "$cleanup_failed" -eq 1 ]; then
+	mark_failed cleanup
+	finish 1
+fi
 if [ -n "$FAILED_BRANCHES" ]; then
 	[ -z "$UPDATED_BRANCHES" ] && finish 1
 	finish 4

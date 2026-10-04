@@ -146,10 +146,17 @@ function bool_to_uci(value) {
 	return null;
 }
 
+function option_value(value) {
+	if (type(value) !== 'array')
+		return to_string(value);
+	value = map(value, to_string);
+	return length(value) === 1 ? value[0] : value;
+}
+
 function values_equal(left, right) {
 	if (!has_value(left) && !has_value(right))
 		return true;
-	return sprintf('%J', left) === sprintf('%J', right);
+	return sprintf('%J', option_value(left)) === sprintf('%J', option_value(right));
 }
 
 function normalize_list(value) {
@@ -1155,6 +1162,19 @@ function parse_mihomo_yaml(text) {
 	return length(proxies) ? proxies : null;
 }
 
+/* Compare persisted connection options, not labels or parser bookkeeping. */
+function connection_key(node) {
+	const options = [];
+	for (let option in sort(keys(node))) {
+		if (option === 'label' || option === 'subscription_source_label' ||
+		    option === 'grouphash' || option === 'isExisting' ||
+		    match(option, /^(\.|__)/) || !has_value(node[option]))
+			continue;
+		push(options, [option, option_value(node[option])]);
+	}
+	return node.grouphash + ':' + sprintf('%J', options);
+}
+
 function main() {
 	const seen_urls = {};
 	for (let configured_url in subscription_urls) {
@@ -1266,6 +1286,72 @@ function main() {
 		return false;
 	}
 
+	/* Resolve partial groups before allocating IDs: a label hash can already
+	 * belong to a renamed connection. Complete-response removal is unchanged. */
+	const existing_ids = {}, existing_labels = {}, incoming_labels = {},
+	      existing_connections = {}, incoming_connections = {}, claimed = {};
+	uci.foreach(uciconfig, ucinode, (cfg) => {
+		existing_ids[cfg['.name']] = cfg;
+		if (cfg.grouphash && node_cache[cfg.grouphash] &&
+		    reconcile_group[cfg.grouphash] !== true) {
+			const key = connection_key(cfg),
+			      label_key = cfg.grouphash + ':' + (cfg.subscription_source_label || cfg.label);
+			existing_connections[key] ||= [];
+			push(existing_connections[key], cfg['.name']);
+			existing_labels[label_key] ||= [];
+			push(existing_labels[label_key], cfg['.name']);
+		}
+	});
+	for (let node in node_result) {
+		const key = connection_key(node), label_key = node.grouphash + ':' + node.label;
+		incoming_connections[key] = (incoming_connections[key] || 0) + 1;
+		incoming_labels[label_key] = (incoming_labels[label_key] || 0) + 1;
+		if (reconcile_group[node.grouphash] !== true)
+			node_cache[node.grouphash] = {};
+		else
+			claimed[node.__section_id] = true;
+	}
+	/* Current label identity takes priority over connection-only renames. */
+	for (let node in node_result) {
+		if (reconcile_group[node.grouphash] === true)
+			continue;
+		const cfg = existing_ids[node.__section_id];
+		const key = node.grouphash + ':' + node.label, candidates = existing_labels[key];
+		let id = null;
+		if (cfg && cfg.grouphash === node.grouphash &&
+		    (cfg.subscription_source_label || cfg.label) === node.label)
+			id = node.__section_id;
+		else if (incoming_labels[key] === 1 && length(candidates) === 1)
+			id = candidates[0];
+		if (!id || claimed[id])
+			continue;
+		node.__section_id = id;
+		node.__identity_matched = true;
+		claimed[id] = true;
+	}
+	for (let node in node_result) {
+		if (reconcile_group[node.grouphash] === true || node.__identity_matched)
+			continue;
+		const key = connection_key(node), candidates = existing_connections[key];
+		if (incoming_connections[key] !== 1 || length(candidates) !== 1 || claimed[candidates[0]])
+			continue;
+		node.__section_id = candidates[0];
+		node.__identity_matched = true;
+		claimed[node.__section_id] = true;
+	}
+	for (let node in node_result) {
+		if (reconcile_group[node.grouphash] === true)
+			continue;
+		if (!node.__identity_matched) {
+			const base = node.__section_id;
+			let suffix = 0;
+			while (existing_ids[node.__section_id] || claimed[node.__section_id])
+				node.__section_id = md5(base + ':' + ++suffix);
+			claimed[node.__section_id] = true;
+		}
+		node_cache[node.grouphash][node.__section_id] = node;
+	}
+
 	/* Abort before commit on any write failure, including shared helpers. */
 	const writer = {
 		foreach: (...args) => uci.foreach(...args),
@@ -1292,8 +1378,11 @@ function main() {
 		const incoming_subscription_node = cfg.grouphash && incoming_sections[cfg['.name']];
 		return preserving_node && !incoming_subscription_node;
 	});
-	for (let node in node_result)
+	for (let node in node_result) {
+		/* Display labels may be suffixed globally; identity stays group-local. */
+		node.subscription_source_label = node.label;
 		node.label = reserveUniqueLabel(label_state.used, node.label, node.__section_id);
+	}
 
 	let added = 0, removed = 0, updated = label_state.changed;
 	uci.foreach(uciconfig, ucinode, (cfg) => {
