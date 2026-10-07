@@ -62,13 +62,13 @@ function log_error(...args){warn(sprintf('%J',args));}
                 with self.subTest(scheme=variant):
                     self.assertEqual(run(variant + suffix), expected)
 
-    def test_null_parse_preserves_unmatched_group(self):
+    def test_null_parse_with_unmatched_node_rejects_before_writes(self):
         r = self.run_main(GOOD + BAD)
         self.assertFalse(r['reconcile_group'][GROUP])
-        self.assertNotIn('old-unparsed', [n['n'] for n in r['deleted']])
-        self.assertIn('removed-group', [n['n'] for n in r['deleted']])
+        self.assertEqual(r['deleted'], [])
+        self.assertEqual(r['writes'], [])
         self.assertEqual(len(r['nodes']), 1)
-        self.assertEqual(r['commits'], 1)
+        self.assertEqual(r['commits'], 0)
 
     def test_complete_response_deletes_stale_not_manual(self):
         r = self.run_main(GOOD)
@@ -198,6 +198,86 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
             return {'result': result, 'before': original, 'after': after, 'calls': calls,
                     'sections': sections, 'rendered': json.loads(rendered.stdout)}
 
+    def test_partial_new_identities_reject_transaction_without_growth_then_recover(self):
+        base = "config config 'config'\n option main_node 'nil'\n"
+        seed = self.run_native(GOOD + BAD + '    password: old-secret\n', original=base)
+        self.assertEqual(seed['result'].returncode, 0, seed['result'].stderr)
+        good_id = hashlib.md5((GROUP + ':good').encode()).hexdigest()
+        old_id = hashlib.md5((GROUP + ':old-unparsed').encode()).hexdigest()
+        original = seed['after'].replace("option main_node 'nil'",
+            f"option main_node '{good_id}'\n list main_urltest_nodes '{good_id}'\n list main_urltest_nodes '{old_id}'")
+        counts, sizes, payload = [], [], ''
+        for generation in range(6):
+            payload = GOOD.replace('name: good', f'name: generation-{generation}').replace(
+                'good.example', f'endpoint-{generation}.example').replace(
+                'password: secret', f'password: secret-{generation}') + BAD
+            state = self.run_native(payload, original=original)
+            # Exact committed bytes and zero mutation calls protect every old
+            # node, including the selected one, rather than imposing a cap.
+            self.assertEqual(state['after'], original, state['result'].stderr)
+            self.assertEqual(state['result'].returncode, 1, state['result'].stderr)
+            self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in state['calls']))
+            self.assertNotIn('RELOAD', state['result'].stderr)
+            self.assertNotIn('Successfully updated subscriptions.', state['result'].stderr)
+            self.assertIn('incomplete response contains unmatched nodes', state['result'].stderr)
+            counts.append(sum(n.get('.type') == 'node' for n in state['sections'].values()))
+            sizes.append(len(state['after'].encode()))
+            self.assertEqual(state['sections']['config']['main_node'], good_id)
+            self.assertEqual(state['sections']['config']['main_urltest_nodes'], [good_id, old_id])
+        self.assertEqual(counts, [2] * 6)
+        self.assertEqual(sizes, [len(original.encode())] * 6)
+        # A repaired complete feed must still add new identities, remove stale
+        # nodes, reconcile references and become a zero-write repeated update.
+        complete = payload[:-len(BAD)]
+        restored = self.run_native(complete, original=original)
+        self.assertEqual(restored['result'].returncode, 0, restored['result'].stderr)
+        new_id = hashlib.md5((GROUP + ':generation-5').encode()).hexdigest()
+        self.assertEqual(set(restored['sections']), {'config', new_id})
+        self.assertEqual(restored['sections'][new_id]['address'], 'endpoint-5.example')
+        self.assertEqual(restored['sections']['config']['main_node'], new_id)
+        self.assertNotIn('main_urltest_nodes', restored['sections']['config'])
+        self.assertIn('1 added, 0 updated, 2 removed.', restored['result'].stderr)
+        repeated = self.run_native(complete, original=restored['after'])
+        self.assertEqual(repeated['result'].returncode, 0, repeated['result'].stderr)
+        self.assertEqual(repeated['after'], restored['after'])
+        self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in repeated['calls']))
+
+    def test_partial_first_import_requires_complete_response(self):
+        original = "config config 'config'\n option main_node 'nil'\n"
+        rejected = self.run_native(GOOD + BAD, original=original)
+        self.assertEqual(rejected['result'].returncode, 1, rejected['result'].stderr)
+        self.assertEqual(rejected['after'], original)
+        self.assertEqual(set(rejected['sections']), {'config'})
+        self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in rejected['calls']))
+        self.assertNotIn('Successfully updated subscriptions.', rejected['result'].stderr)
+        restored = self.run_native(GOOD, original=rejected['after'])
+        self.assertEqual(restored['result'].returncode, 0, restored['result'].stderr)
+        self.assertEqual(sum(n.get('.type') == 'node' for n in restored['sections'].values()), 1)
+
+    def test_partial_unknown_aborts_matching_and_complete_groups_atomically(self):
+        other_url = 'https://fixture.invalid/other'
+        base = "config config 'config'\n option main_node 'nil'\n"
+        seed = self.run_native(GOOD, original=base)
+        self.assertEqual(seed['result'].returncode, 0, seed['result'].stderr)
+        matched_update = GOOD.replace('password: secret', 'password: changed')
+        unknown = GOOD.split('proxies:\n')[1].replace('name: good', 'name: unknown').replace(
+            'good.example', 'unknown.example')
+        other = GOOD.replace('name: good', 'name: other').replace('good.example', 'other.example')
+        for urls in ([URL, other_url], [other_url, URL]):
+            with self.subTest(urls=urls):
+                state = self.run_native({URL: matched_update + unknown + BAD, other_url: other},
+                                        original=seed['after'], urls=urls)
+                self.assertEqual(state['result'].returncode, 1, state['result'].stderr)
+                self.assertEqual(state['after'], seed['after'])
+                self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in state['calls']))
+                self.assertNotIn('RELOAD', state['result'].stderr)
+                self.assertNotIn('Successfully updated subscriptions.', state['result'].stderr)
+                restored = self.run_native({URL: matched_update + unknown, other_url: other},
+                                           original=state['after'], urls=urls)
+                self.assertEqual(restored['result'].returncode, 0, restored['result'].stderr)
+                self.assertEqual(sum(n.get('.type') == 'node' for n in restored['sections'].values()), 3)
+                self.assertIn('2 added, 1 updated, 0 removed.', restored['result'].stderr)
+
     def test_partial_renames_reuse_connection_and_preserve_references(self):
         original = "config config 'config'\n option main_node 'nil'\n"
         # Both unrelated connections must survive a malformed sibling response.
@@ -248,20 +328,19 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
                     original = state['after']
                     for generation in range(3):
                         state = self.run_native(payload, original=original)
-                        self.assertEqual(state['result'].returncode, 0, state['result'].stderr)
+                        self.assertEqual(state['result'].returncode, 1, state['result'].stderr)
                         nodes = {key: node for key, node in state['sections'].items() if node.get('grouphash') == GROUP}
-                        self.assertEqual(len(nodes), 3)
+                        self.assertEqual(len(nodes), 2)
                         self.assertEqual(nodes[good_id]['address'], 'good.example')
                         self.assertEqual(nodes[good_id]['label'], 'renamed')
                         self.assertEqual(nodes[old_id]['password'], 'unseen-secret')
                         self.assertEqual(state['sections']['config']['main_node'], main)
                         self.assertEqual(state['sections']['config']['main_urltest_nodes'], good_id)
-                        self.assertEqual(sum(n['address'] == 'unrelated.example' for n in nodes.values()), 1)
+                        self.assertFalse(any(n['address'] == 'unrelated.example' for n in nodes.values()))
                         outbound = next(n for n in state['rendered'] if n.get('tag') == f'cfg-{good_id}-out')
                         self.assertEqual(outbound['server'], 'good.example')
-                        if generation:
-                            self.assertEqual(state['after'], original)
-                            self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in state['calls']))
+                        self.assertEqual(state['after'], original)
+                        self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in state['calls']))
                         original = state['after']
 
     def test_reused_raw_label_survives_unique_display_and_connection_updates(self):
@@ -377,18 +456,18 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
         self.assertEqual(state['sections']['config']['main_urltest_nodes'], good_id)
         self.assertEqual(set(state['sections']), {'config', good_id})
 
-    def test_unrelated_valid_partial_node_adds_without_pruning_old_connection(self):
+    def test_unrelated_valid_partial_node_rejects_without_pruning_old_connection(self):
         seed = self.run_native(GOOD, original="config config 'config'\n option main_node 'nil'\n")
         self.assertEqual(seed['result'].returncode, 0, seed['result'].stderr)
         payload = GOOD.replace('name: good', 'name: unrelated').replace('good.example', 'unrelated.example') + BAD
         state = self.run_native(payload, original=seed['after'])
-        self.assertEqual(state['result'].returncode, 0, state['result'].stderr)
+        self.assertEqual(state['result'].returncode, 1, state['result'].stderr)
         good_id = hashlib.md5((GROUP + ':good').encode()).hexdigest()
-        unrelated_id = hashlib.md5((GROUP + ':unrelated').encode()).hexdigest()
-        self.assertEqual(set(state['sections']), {'config', good_id, unrelated_id})
+        self.assertEqual(set(state['sections']), {'config', good_id})
         self.assertEqual(state['sections'][good_id]['address'], 'good.example')
-        self.assertEqual(state['sections'][unrelated_id]['address'], 'unrelated.example')
-        self.assertIn('1 added, 0 updated, 0 removed.', state['result'].stderr)
+        self.assertEqual(state['after'], seed['after'])
+        self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in state['calls']))
+        self.assertNotIn('Successfully updated subscriptions.', state['result'].stderr)
 
     def test_partial_rename_does_not_merge_ambiguous_existing_connections(self):
         seed = self.run_native(GOOD, original="config config 'config'\n option main_node 'nil'\n")
@@ -401,16 +480,17 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
         original = seed['after'] + twin
         payload = GOOD.replace('name: good', 'name: renamed') + BAD
         state = self.run_native(payload, original=original)
-        self.assertEqual(state['result'].returncode, 0, state['result'].stderr)
-        new_id = hashlib.md5((GROUP + ':renamed').encode()).hexdigest()
-        self.assertEqual(set(state['sections']), {'config', good_id, 'twin', new_id})
+        self.assertEqual(state['result'].returncode, 1, state['result'].stderr)
+        self.assertEqual(set(state['sections']), {'config', good_id, 'twin'})
         self.assertEqual(state['sections'][good_id]['label'], 'good')
         self.assertEqual(state['sections']['twin']['label'], 'twin')
-        self.assertIn('1 added, 0 updated, 0 removed.', state['result'].stderr)
+        self.assertEqual(state['after'], original)
         repeated = self.run_native(payload, original=state['after'])
-        self.assertEqual(repeated['result'].returncode, 0, repeated['result'].stderr)
+        self.assertEqual(repeated['result'].returncode, 1, repeated['result'].stderr)
         self.assertEqual(repeated['after'], state['after'])
-        self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in repeated['calls']))
+        for result in (state, repeated):
+            self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in result['calls']))
+            self.assertNotIn('Successfully updated subscriptions.', result['result'].stderr)
 
     def test_partial_rename_does_not_merge_ambiguous_incoming_connections(self):
         # SIP008's numeric versus string port hashes differ in the existing
@@ -424,14 +504,16 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
                               dict(node, remarks='second', server_port='443'),
                               dict(node, remarks='invalid', server_port=0)])
         state = self.run_native(payload, original=seed['after'])
-        self.assertEqual(state['result'].returncode, 0, state['result'].stderr)
-        self.assertEqual(len([n for n in state['sections'].values() if n.get('grouphash') == GROUP]), 3)
+        self.assertEqual(state['result'].returncode, 1, state['result'].stderr)
+        self.assertEqual(set(state['sections']), {'config', old_id})
         self.assertEqual(state['sections'][old_id]['label'], 'old')
-        self.assertIn('2 added, 0 updated, 0 removed.', state['result'].stderr)
+        self.assertEqual(state['after'], seed['after'])
         repeated = self.run_native(payload, original=state['after'])
-        self.assertEqual(repeated['result'].returncode, 0, repeated['result'].stderr)
+        self.assertEqual(repeated['result'].returncode, 1, repeated['result'].stderr)
         self.assertEqual(repeated['after'], state['after'])
-        self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in repeated['calls']))
+        for result in (state, repeated):
+            self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in result['calls']))
+            self.assertNotIn('Successfully updated subscriptions.', result['result'].stderr)
 
     def test_partial_rename_duplicate_input_matches_once(self):
         payload = GOOD.replace('name: good', 'name: renamed')
@@ -461,9 +543,11 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
             with self.subTest(original=original):
                 state = self.run_native({URL: GOOD.replace('name: good', 'name: renamed') + BAD,
                                          other_url: None}, original=original, urls=[URL, other_url])
-                self.assertEqual(state['result'].returncode, 0, state['result'].stderr)
+                self.assertEqual(state['result'].returncode, 1, state['result'].stderr)
                 self.assertEqual(state['sections'][good_id]['label'], 'good')
-                self.assertEqual(len([n for n in state['sections'].values() if n.get('.type') == 'node']), 2)
+                self.assertEqual(len([n for n in state['sections'].values() if n.get('.type') == 'node']), 1)
+                self.assertEqual(state['after'], original)
+                self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in state['calls']))
 
     def test_complete_rename_keeps_existing_removal_policy(self):
         seed = self.run_native(GOOD, original="config config 'config'\n option main_node 'nil'\n")

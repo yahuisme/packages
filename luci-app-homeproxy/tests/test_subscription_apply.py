@@ -98,6 +98,20 @@ class SubscriptionApply(unittest.TestCase):
                 self.assertNotIn('Successfully updated subscriptions.', result.stderr)
                 self.assertEqual((root / 'calls').read_text().splitlines(), ['reload'])
 
+    def test_rejected_partial_response_applies_resources_but_never_reports_success(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            command = root / 'service'
+            command.write_text('#!/bin/sh\nprintf "%s\\n" "$1" >> "' + str(root / 'calls') + '"\n')
+            command.chmod(0o755)
+            result = self.run_subscription(root, str(command), resources=True,
+                                           payload=reconcile.GOOD + reconcile.BAD)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertNotIn('COMMIT\\n', result.stderr)
+            self.assertNotIn('Successfully updated subscriptions.', result.stderr)
+            self.assertIn('incomplete response contains unmatched nodes', result.stderr)
+            self.assertEqual((root / 'calls').read_text().splitlines(), ['reload'])
+
     def test_commit_noop_stopped_and_resources_contract(self):
         cases = [
             # changed, commit result, running, resources, commit/apply/exit

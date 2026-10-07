@@ -53,6 +53,8 @@ class ResourceCleanup(unittest.TestCase):
         tools = self.root / 'bin'
         tools.mkdir()
         scripts = {
+            # OpenWrt/ImmortalWrt do not enable the BusyBox stat applet by default.
+            'stat': '#!/bin/sh\nprintf "stat: applet not found\\n" >&2\nexit 127\n',
             'decoder': '#!/bin/sh\nexit 0\n',
             'init': '#!/bin/sh\n[ "$1" != reload ] || [ "$FAIL_RELOAD" != 1 ]\n',
             'ucode': '#!/bin/sh\nexec /usr/local/bin/ucode -L "$UCODE_LIB_DIR" "$@"\n',
@@ -116,6 +118,100 @@ exit 0
 
     def snapshot(self):
         return {p.name:p.read_bytes() for p in self.resources.iterdir() if p.is_file()}
+
+    def test_result_publication_crash_is_cleaned_before_healthy_retry(self):
+        self.update()
+        wrapper = self.root/'bin/mv'
+        wrapper.write_text('''#!/bin/sh
+for arg do
+ case "$arg" in
+ *.result.*) if [ "$CRASH_RESULT" = 1 ]; then kill -KILL "$PPID"; exit 137; fi;;
+ esac
+done
+exec /bin/mv "$@"
+''')
+        wrapper.chmod(0o755)
+        self.env['CRASH_RESULT'] = '1'
+        for _ in range(3):
+            self.update(-9)
+            self.assertEqual(len(list(self.run_dir.glob('*.result.*'))), 1)
+        self.env['CRASH_RESULT'] = '0'
+        self.update(3)
+        self.assertEqual(list(self.run_dir.glob('*.result.*')), [])
+
+    def test_result_cleanup_failure_blocks_without_allocating(self):
+        self.run_dir.mkdir()
+        stale = self.run_dir/'dashboard.result.1234'
+        stale.write_bytes(b'old result')
+        wrapper = self.root/'bin/rm'
+        wrapper.write_text('''#!/bin/sh
+for arg do
+ case "$arg" in *.result.*) [ "$FAIL_RESULT_CLEANUP" != 1 ] || exit 1;; esac
+done
+exec /bin/rm "$@"
+''')
+        wrapper.chmod(0o755)
+        self.env['FAIL_RESULT_CLEANUP'] = '1'
+        before = self.snapshot()
+        for _ in range(3):
+            self.update(1)
+            self.assertEqual(stale.read_bytes(), b'old result')
+            self.assertEqual(self.snapshot(), before)
+            self.assertEqual(self.requests, [])
+            self.assertEqual(list(self.root.glob('resources.new.*')), [])
+        self.env['FAIL_RESULT_CLEANUP'] = '0'
+        self.update()
+        self.assertFalse(stale.exists())
+
+    def test_result_cleanup_preserves_unknown_names_and_symlink_targets(self):
+        self.run_dir.mkdir()
+        external = self.root/'external'
+        external.write_bytes(b'keep external')
+        owned = self.run_dir/'update_resources.result.1234'
+        owned.symlink_to(external)
+        unowned = self.run_dir/'update_resources.result.keep'
+        unowned.write_bytes(b'keep unowned')
+        self.update()
+        self.assertEqual(external.read_bytes(), b'keep external')
+        self.assertFalse(owned.is_symlink())
+        self.assertEqual(unowned.read_bytes(), b'keep unowned')
+
+    def test_unchanged_refresh_never_copies_resource_directory(self):
+        self.update()
+        before = self.snapshot()
+        copies = (self.root/'cp.log').read_bytes()
+        for _ in range(5):
+            self.update(3)
+            self.assertEqual(self.snapshot(), before)
+            self.assertEqual((self.root/'cp.log').read_bytes(), copies)
+            self.assertEqual(list(self.root.glob('resources.new.*')), [])
+
+    def test_existing_stat_proof_is_retried_without_stat_applet(self):
+        old = self.root/'resources.old.1234'
+        old.mkdir()
+        (old/'recovery').write_bytes(b'committed old resource bytes')
+        identity = f'{old.stat().st_dev}:{old.stat().st_ino}'
+        marker = Path(str(old)+'.cleanup-ready')
+        marker.write_bytes(f'committed {old} {identity}\n'.encode())
+        self.update()
+        self.assertFalse(old.exists())
+        self.assertFalse(marker.exists())
+        self.assertEqual(list(self.root.glob('resources.old.*')), [])
+
+    def test_backup_identity_matches_linux_device_numbers(self):
+        source = SCRIPT.read_text()
+        program = source.split('backup_identity() {\n', 1)[1].split("\n}\n", 1)[0]
+        for major, minor in [(0, 0), (8, 2), (0, 256), (4095, 1048575),
+                (4096, 256), (1048575, 16777215)]:
+            with self.subTest(major=major, minor=minor):
+                # Feed device fields through real ucode arithmetic, not shell stat.
+                code = program.split("ucode -l fs -e '", 1)[1].rsplit("' \"$1\"", 1)[0]
+                code = code.replace('let s = fs.stat(ARGV[0]);',
+                    'let s = '+json.dumps({'type':'directory', 'dev':{'major':major,
+                        'minor':minor}, 'inode':123456789})+';')
+                p = subprocess.run(['ucode', '-e', code], capture_output=True,
+                    text=True, check=True)
+                self.assertEqual(p.stdout, f'{os.makedev(major, minor)}:123456789')
 
     def test_failed_backup_delete_reports_failure_and_retries_without_growth(self):
         self.env['FAIL_DELETE_OLD'] = '1'
@@ -431,6 +527,9 @@ exec busybox ash "$SCRIPT"
     def test_noop_stage_cleanup_failure_is_reported_and_retried(self):
         self.update()
         before = self.snapshot()
+        # Unchanged refresh no longer stages; emulate interrupted older code.
+        stale = self.root/'resources.new.1234'
+        stale.mkdir()
         self.env['FAIL_DELETE_NEW'] = '1'
         self.update(1)
         self.assertEqual(self.result()['status'], '1')

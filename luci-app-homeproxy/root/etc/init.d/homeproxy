@@ -453,6 +453,11 @@ _homeproxy_start_service() {
 
 stop_service() {
 	local client_was_running=0 server_was_running=0 status=0
+	# stop/restart holds the same native procd lock; preserve unresolved recovery.
+	# The all-disabled setup calls stop_service inside an active transaction.
+	if [ "${HP_TRANSACTION:-0}" -ne 1 ] && [ -d "$RUN_DIR" ]; then
+		homeproxy_reload_cleanup || status=1
+	fi
 	[ ! -s "$RUN_DIR/sing-box-c.json" ] || client_was_running=1
 	[ ! -s "$RUN_DIR/sing-box-s.json" ] || server_was_running=1
 
@@ -500,11 +505,52 @@ homeproxy_restore() {
 	cp -a "$source" "$target"
 }
 
+# rc.common/procd already serializes start, reload and stop on the service lock.
+# Keep one owned generation and its phase outside the backup: partial rm must
+# not erase the permission to retry cleanup. Unmarked old generations are never
+# discarded, and an interrupted install requires explicit runtime recovery.
+homeproxy_reload_cleanup() {
+	local backup="$RUN_DIR/.reload.pending" state="$RUN_DIR/reload.state" file phase
+	for file in "$RUN_DIR"/.reload.*; do
+		[ -e "$file" ] || [ -L "$file" ] || continue
+		[ "$file" = "$backup" ] || {
+			log "Error: unmarked runtime recovery backup retained at $file."
+			return 1
+		}
+	done
+	if [ ! -e "$state" ] && [ ! -L "$state" ]; then
+		[ ! -e "$backup" ] && [ ! -L "$backup" ] && return 0
+	else
+		if [ -f "$state" ] && [ ! -L "$state" ]; then
+			for phase in preparing clean; do
+				if printf '%s' "$phase" | cmp -s - "$state"; then
+					[ ! -L "$backup" ] || break
+					rm -rf "$backup" || return 1
+					[ ! -e "$backup" ] && [ ! -L "$backup" ] || return 1
+					rm -f "$state" || return 1
+					[ ! -e "$state" ] && [ ! -L "$state" ]
+					return $?
+				fi
+			done
+		fi
+	fi
+	log "Error: unresolved runtime recovery backup retained at $backup."
+	return 1
+}
+
+homeproxy_reload_phase() {
+	local state="$RUN_DIR/reload.state"
+	[ -f "$state" ] && [ ! -L "$state" ] || return 1
+	printf '%s' "$1" > "$state"
+}
+
 homeproxy_transaction() {
-	local service_open="${1:-0}"
-	local backup file status=0 HP_CONFIG_CHANGED=0 HP_NETWORK_CHANGED=0
+	local service_open="${1:-0}" HP_TRANSACTION=1
+	local backup="$RUN_DIR/.reload.pending" file status=0 HP_CONFIG_CHANGED=0 HP_NETWORK_CHANGED=0
 	mkdir -p "$RUN_DIR" || return 1
-	backup="$(mktemp -d "$RUN_DIR/.reload.XXXXXX")" || return 1
+	homeproxy_reload_cleanup || return 1
+	(set -C; printf preparing > "$RUN_DIR/reload.state") || return 1
+	mkdir "$backup" || return 1
 	for file in sing-box-c.json sing-box-s.json fw4_input.nft; do
 		if [ -e "$RUN_DIR/$file" ]; then
 			cp -p "$RUN_DIR/$file" "$backup/$file" || status=1
@@ -517,13 +563,18 @@ homeproxy_transaction() {
 		cp -p "${DNSMASQ_DIR%/*}/dnsmasq-homeproxy.conf" "$backup/dnsmasq.conf" || status=1
 	fi
 	if [ "$status" -ne 0 ]; then
-		rm -rf "$backup"
+		homeproxy_reload_cleanup || log "Error: failed to remove unused runtime backup at $backup."
 		return 1
 	fi
 
+	homeproxy_reload_phase installing || return 1
 	[ "$service_open" -eq 1 ] || procd_open_service "$CONF" "$initscript"
 	if _homeproxy_start_service && homeproxy_close_service; then
-		rm -rf "$backup"
+		homeproxy_reload_phase clean || return 1
+		homeproxy_reload_cleanup || {
+			log "Error: service configured but runtime backup cleanup failed at $backup."
+			return 1
+		}
 		return 0
 	fi
 
@@ -543,7 +594,8 @@ homeproxy_transaction() {
 		log "Error: service setup failed and runtime restoration was incomplete; backup retained at $backup."
 	else
 		log "Error: service setup failed; previous runtime configuration retained."
-		rm -rf "$backup"
+		homeproxy_reload_phase clean && homeproxy_reload_cleanup ||
+			log "Error: failed to remove restored runtime backup at $backup."
 	fi
 	return 1
 }

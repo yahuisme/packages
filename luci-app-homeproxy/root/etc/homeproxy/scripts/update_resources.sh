@@ -149,6 +149,18 @@ cleanup() {
 trap cleanup EXIT
 trap 'rollback; exit 1' INT TERM HUP
 
+# Use native fs.stat(): the BusyBox stat applet is optional on OpenWrt.
+# Reconstruct Linux dev_t to preserve already-issued cleanup proofs.
+backup_identity() {
+	ucode -l fs -e '
+		let s = fs.stat(ARGV[0]);
+		if (s?.type != "directory") exit(1);
+		let major = s.dev.major, minor = s.dev.minor;
+		let dev = ((major & 0xfff) << 8) | (minor & 0xff) |
+			((major & ~0xfff) << 32) | ((minor & ~0xff) << 12);
+		printf("%d:%d", dev, s.inode);
+	' "$1"
+}
 # Only committed backups may be discarded; unresolved recovery copies block
 # another transaction instead of accumulating more copies.
 prune_backups() {
@@ -158,7 +170,7 @@ prune_backups() {
 		suffix="${path##*.old.}"
 		case "$suffix" in ''|*[!0-9]*) continue ;; esac
 		marker="$path.cleanup-ready"
-		identity="$(stat -c '%d:%i' "$path" 2>/dev/null)"
+		identity="$(backup_identity "$path" 2>/dev/null)"
 		if [ -L "$path" ] || [ ! -d "$path" ] || [ -L "$marker" ] || [ ! -f "$marker" ] ||
 		   [ -z "$identity" ] || ! ucode -l fs -e '
 			exit(fs.readfile(ARGV[0]) != "committed " + ARGV[1] + " " + ARGV[2] + "\n");
@@ -192,6 +204,15 @@ prune_backups() {
 # before allocating another generation, including interrupted downloads.
 prune_staging() {
 	local path suffix
+	# Both result publishers share this lock; stale numeric generations are
+	# disposable, but final result files and unknown names are not.
+	for path in "$RUN_DIR"/update_resources.result.* "$RUN_DIR"/dashboard.result.*; do
+		[ -e "$path" ] || [ -L "$path" ] || continue
+		suffix="${path##*.}"
+		case "$suffix" in ''|*[!0-9]*) continue ;; esac
+		rm -f "$path" || return 1
+		[ ! -e "$path" ] && [ ! -L "$path" ] || return 1
+	done
 	for path in "$RESOURCES_DIR".new.* "$DASHBOARD_DIR".new.*; do
 		[ -e "$path" ] || [ -L "$path" ] || continue
 		suffix="${path##*.new.}"
@@ -219,7 +240,6 @@ done
 TMP_DIR="$(mktemp -d "$RUN_DIR/resources-update.XXXXXX")" || finish 1
 
 if [ "$MODE" = rules ]; then
-cp -a "$RESOURCES_DIR" "$RESOURCE_STAGE" || finish 1
 for kind in geoip geosite; do
 	[ "$SCOPE" = all ] || [ "$SCOPE" = manual ] || [ "$SCOPE" = "$kind" ] || continue
 	case "$kind" in
@@ -244,6 +264,11 @@ for kind in geoip geosite; do
 	   ! verify_blob "$TMP_DIR/$resource.srs" "$blob" ||
 	   ! validate_rule_set "$TMP_DIR/$resource.srs"; then
 		mark_failed "$resource"; continue
+	fi
+	# Only allocate flash staging after a changed rule has passed validation.
+	if [ "$CORE_UPDATED" -eq 0 ] && ! cp -a "$RESOURCES_DIR" "$RESOURCE_STAGE"; then
+		mark_failed "$resource"
+		finish 1
 	fi
 	# Only a fully staged directory is installed, keeping SRS and version paired.
 	if ! cp "$TMP_DIR/$resource.srs" "$RESOURCE_STAGE/$resource.srs" ||
@@ -348,7 +373,7 @@ for path in "$RESOURCE_BACKUP" "$DASHBOARD_BACKUP"; do
 	[ -e "$path" ] || [ -L "$path" ] || continue
 	# Keep commit proof outside inherited resource contents, bound to this
 	# generation's directory identity. noclobber also rejects existing links.
-	identity="$(stat -c '%d:%i' "$path")"
+	identity="$(backup_identity "$path")"
 	if [ -z "$identity" ] ||
 	   ! (set -C; printf 'committed %s %s\n' "$path" "$identity" > "$path.cleanup-ready") ||
 	   ! rm -rf "$path" || [ -e "$path" ] || [ -L "$path" ] ||

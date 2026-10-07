@@ -318,19 +318,25 @@ const methods = {
 	certificate_write: {
 		args: { filename: 'filename' },
 		call: function(req) {
+			const tmpcert = '/tmp/homeproxy_certificate.tmp';
+			const finish = (error, newcert) => {
+				const paths = newcert ? [ tmpcert, newcert ] : [ tmpcert ];
+				for (let path in paths) {
+					if (system(`/bin/rm -f ${shellQuote(path)}`) !== 0 || lstat(path))
+						error = 'failed to remove temporary certificate file';
+				}
+				return error ? { result: false, error } : { result: true };
+			};
 			const writeCertificate = (filename, kind) => {
-				const tmpcert = '/tmp/homeproxy_certificate.tmp';
 				const filestat = lstat(tmpcert);
 
 				if (!filestat || filestat.type !== 'file' || filestat.size <= 0) {
-					system(`/bin/rm -f ${shellQuote(tmpcert)}`);
-					return { result: false, error: 'empty certificate file' };
+					return finish('empty certificate file');
 				}
 
 				let filecontent = readfile(tmpcert);
 				if (isBinary(filecontent)) {
-					system(`/bin/rm -f ${shellQuote(tmpcert)}`);
-					return { result: false, error: 'illegal file type: binary' };
+					return finish('illegal file type: binary');
 				}
 
 				const allowed = (kind === 'private') ?
@@ -384,8 +390,7 @@ const methods = {
 				}
 
 				if (!valid || current || blocks === 0 || (!multiple && blocks !== 1)) {
-					system(`/bin/rm -f ${shellQuote(tmpcert)}`);
-					return { result: false, error: 'this does not look like a correct PEM file' };
+					return finish('this does not look like a correct PEM file');
 				}
 
 				/* Sanitize certificate */
@@ -399,18 +404,14 @@ const methods = {
 				system(`/bin/mkdir -p ${shellQuote(HP_DIR + '/certs')}`);
 				if (writefile(newcert, filecontent) === null ||
 					lstat(newcert)?.size !== length(filecontent)) {
-					system(`/bin/rm -f ${shellQuote(tmpcert)}`);
-					system(`/bin/rm -f ${shellQuote(newcert)}`);
-					return { result: false, error: 'failed to write certificate file' };
+					return finish('failed to write certificate file', newcert);
 				}
 				if (system(`/bin/chmod ${kind === 'private' ? '600' : '644'} ${shellQuote(newcert)}`) !== 0 ||
 					system(`/bin/mv -f ${shellQuote(newcert)} ${shellQuote(certfile)}`) !== 0) {
-					system(`/bin/rm -f ${shellQuote(tmpcert)} ${shellQuote(newcert)}`);
-					return { result: false, error: 'failed to protect private key file' };
+					return finish('failed to protect private key file', newcert);
 				}
-				system(`/bin/rm -f ${shellQuote(tmpcert)}`);
 
-				return { result: true };
+				return finish();
 			};
 
 			const filename = req.args?.filename;
@@ -423,7 +424,7 @@ const methods = {
 			case 'server_privatekey':
 				return writeCertificate(filename, 'private');
 			default:
-				return { result: false, error: 'illegal certificate filename' };
+				return finish('illegal certificate filename');
 			}
 		}
 	},

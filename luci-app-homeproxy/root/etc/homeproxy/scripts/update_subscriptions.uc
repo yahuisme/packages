@@ -1286,7 +1286,7 @@ function main() {
 		return false;
 	}
 
-	/* Resolve partial groups before allocating IDs: a label hash can already
+	/* Resolve partial-group identities before writes: a label hash can already
 	 * belong to a renamed connection. Complete-response removal is unchanged. */
 	const existing_ids = {}, existing_labels = {}, incoming_labels = {},
 	      existing_connections = {}, incoming_connections = {}, claimed = {};
@@ -1339,18 +1339,22 @@ function main() {
 		node.__identity_matched = true;
 		claimed[node.__section_id] = true;
 	}
+	/* An incomplete feed cannot distinguish a new node from a replacement
+	 * whose label and connection both changed. Adding it while retaining all
+	 * unmatched old nodes grows the config without bound. Require every valid
+	 * partial node to match before any writes (including label/URLTest helpers).
+	 * Reject the whole unsaved transaction: no group can be partly applied and
+	 * reported as success. First imports therefore require a complete feed. */
 	for (let node in node_result) {
-		if (reconcile_group[node.grouphash] === true)
-			continue;
-		if (!node.__identity_matched) {
-			const base = node.__section_id;
-			let suffix = 0;
-			while (existing_ids[node.__section_id] || claimed[node.__section_id])
-				node.__section_id = md5(base + ':' + ++suffix);
-			claimed[node.__section_id] = true;
+		if (reconcile_group[node.grouphash] !== true && !node.__identity_matched) {
+			log(sprintf('Failed to update subscriptions: incomplete response contains unmatched nodes in group %s; keeping the existing configuration.', node.grouphash));
+			apply_updated_resources();
+			return false;
 		}
-		node_cache[node.grouphash][node.__section_id] = node;
 	}
+	for (let node in node_result)
+		if (reconcile_group[node.grouphash] !== true)
+			node_cache[node.grouphash][node.__section_id] = node;
 
 	/* Abort before commit on any write failure, including shared helpers. */
 	const writer = {
