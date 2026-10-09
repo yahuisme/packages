@@ -40,6 +40,7 @@ every Python file directly: some test modules have no `unittest.main()` entry.
 ```sh
 . /opt/test-tools/env.sh
 python3 luci-app-homeproxy/tests/test_client_routing.py -v
+python3 luci-app-homeproxy/tests/test_tun_bypass.py -v
 python3 luci-app-homeproxy/tests/test_ss_uot_generation.py -v
 python3 luci-app-homeproxy/tests/test_client_defaults.py -v
 ```
@@ -47,15 +48,15 @@ python3 luci-app-homeproxy/tests/test_client_defaults.py -v
 Runs the complete production client generator and outbound helper in real ucode.
 UCI, ubus, URL-query decoding and datatype validation are explicit fixtures;
 files are private. Covers list-mode pre-match/normal-path pairing, IP/MAC/empty
-lists, mainland fast-path eligibility, forced-proxy exclusions, SS UoT/multiplex
+lists, active-family TUN-source bypass guards, mainland and forced-proxy precedence, SS UoT/multiplex
 priority, and unchanged IPv6/cache behavior. Set `SING_BOX_CHECK` to an official
 binary to also check every generated JSON. This is not router traffic evidence.
 
 For DNS timeout/fallback checks:
 
 ```sh
-DNS_RUNTIME_BINARY=/path/to/verified/sing-box-1.14.2 \
-SING_BOX_CHECK=/path/to/verified/sing-box-1.14.2 \
+DNS_RUNTIME_BINARY=/path/to/verified/sing-box-1.14.3 \
+SING_BOX_CHECK=/path/to/verified/sing-box-1.14.3 \
 python3 luci-app-homeproxy/tests/test_dns_fallback.py -v
 ```
 

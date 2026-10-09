@@ -160,7 +160,7 @@ function reload_service(){warn('RELOAD\\n');return true;}
 function apply_updated_resources(){return true;}
 function log_error(...args){warn(sprintf('%J',args)+'\\n');}
 '''
-            source += h[h.index('export function isEmpty'):h.index('export function hasForceProxyRules')].replace('export function', 'function')
+            source += h[h.index('export function isEmpty'):h.index('export function strToBool')].replace('export function', 'function')
             source += PREAMBLE[PREAMBLE.index('function validation'):].replace('function log(...args) {}', "function log(...args) {warn(join(' ',args)+'\\n');}")
             source += h[h.index('export function decodeBase64Str'):h.index('/* String parser end */')].replace('export function', 'function')
             source += s[s.index('const invalid_filter_patterns'):s.index('/* String helper end */')]

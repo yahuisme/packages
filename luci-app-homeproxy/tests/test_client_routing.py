@@ -15,14 +15,14 @@ class ClientRouting(unittest.TestCase):
             config = fixture.generate()
             rules = config['route']['rules']
             bypass = next(r for r in rules if r.get('action') == 'bypass')
-            expected = {**bypass, 'action': 'route', 'outbound': 'direct-out'}
+            expected = {**bypass['rules'][0], 'action': 'route', 'outbound': 'direct-out'}
             sniff_index = rules.index({'action': 'sniff'})
             self.assertEqual(rules[sniff_index + 1], expected)
             self.assertEqual(expected['rules'][0], {'inbound': 'tun-in'})
             self.assertTrue(expected['rules'][1]['invert'])
             self.assertEqual(config['route']['final'], 'main-out')
 
-    def test_rule_proxy_list_keeps_mainland_fast_path(self):
+    def test_rule_proxy_list_uses_guarded_mainland_bypass(self):
         with ClientGenerator() as fixture:
             fixture.sections['control'].update({
                 'lan_whitelist_mode': '1',
@@ -31,7 +31,10 @@ class ClientRouting(unittest.TestCase):
             })
             config = fixture.generate()
             tun = next(i for i in config['inbounds'] if i['type'] == 'tun')
-            self.assertEqual(tun.get('route_exclude_address_set'), ['geoip-cn'])
+            self.assertNotIn('route_exclude_address_set', tun)
+            self.assertTrue(any(r.get('action') == 'bypass' and
+                r['rules'][0].get('rules', []) == [{'inbound': 'tun-in'}, {'rule_set': 'geoip-cn'}]
+                for r in config['route']['rules']))
 
     def test_list_fallback_matches_ip_mac_and_empty_lists(self):
         cases = [({}, {'inbound': 'tun-in'}),
@@ -47,7 +50,8 @@ class ClientRouting(unittest.TestCase):
             with self.subTest(options=options), ClientGenerator() as fixture:
                 fixture.sections['control'].update({'lan_whitelist_mode': '1', **options})
                 rules = fixture.generate()['route']['rules']
-                self.assertIn({**match, 'action': 'bypass'}, rules)
+                self.assertIn({'type': 'logical', 'mode': 'and', 'rules': [match,
+                    {'source_ip_cidr': ['172.19.0.1/30'], 'invert': True}], 'action': 'bypass'}, rules)
                 self.assertEqual(rules[rules.index({'action': 'sniff'}) + 1], {
                     **match, 'action': 'route', 'outbound': 'direct-out'})
 
@@ -60,7 +64,7 @@ class ClientRouting(unittest.TestCase):
                 self.assertEqual(rules[rules.index({'action': 'sniff'}) + 1], {
                     'ip_is_private': True, 'action': 'route', 'outbound': 'direct-out'})
 
-    def test_forced_proxy_targets_still_disable_fast_path(self):
+    def test_forced_proxy_targets_never_use_route_exclusion(self):
         for option, value in [('lan_proxy_ipv4_ips', '192.168.1.20'),
                               ('lan_proxy_mac_addrs', '02:00:00:00:00:20'),
                               ('wan_proxy_ipv4_ips', '1.2.3.0/24'),

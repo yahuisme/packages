@@ -124,7 +124,7 @@ class SubscriptionParsing(unittest.TestCase):
     def test_unavailable_main_node_falls_back(self):
         source = (BASE/'homeproxy.uc').read_text()
         start = source.index('export function normalizeList')
-        end = source.index('export function hasForceProxyRules')
+        end = source.index('export function strToBool')
         functions = source[start:end].replace('export function', 'function')
         preamble = '''
 function isEmpty(v) { return v === null || v === ''; }
