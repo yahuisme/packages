@@ -2,6 +2,8 @@
 
 ImmortalWrt / OpenWrt 专属定制软件包源。
 
+W1700K 共用补丁集中于 [`w1700k-patches`](w1700k-patches/SOURCES.md)，独立于软件包 feed，功率补丁按发行版分别保留。
+
 ## 包含组件
 
 | 组件 | 版本 | 说明 |
