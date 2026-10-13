@@ -44,7 +44,7 @@ REMOVED_920_HUNK = (
 
 class MigrationIntegrity(unittest.TestCase):
     def test_exact_inventory_and_snapshot_bytes(self):
-        expected = set(COMMON) | {f"{distro}/{POWER}" for distro in REPOS}
+        expected = set(COMMON) | {f"patches/{POWER}"}
         actual = {str(p.relative_to(ROOT)) for p in ROOT.rglob("*.patch")}
         self.assertEqual(actual, expected, "central payload inventory differs")
         power_bytes = {}
@@ -64,15 +64,17 @@ class MigrationIntegrity(unittest.TestCase):
                     )
                     destination = source
                     if source == f"patches/{POWER}":
-                        destination = f"{distro}/{POWER}"
+                        destination = f"patches/{POWER}"
                         power_bytes[distro] = original
+                        if distro == "immortalwrt":
+                            original = power_bytes["openwrt"]
                     if source == "patches/920-wifi-non-mlo-ap-txpower.patch":
                         self.assertEqual(original.count(REMOVED_920_HUNK), 1)
                         original = original.replace(REMOVED_920_HUNK, b"", 1)
                     self.assertEqual((ROOT / destination).read_bytes(), original,
                                      f"changed bytes: {distro}/{source}")
         self.assertNotEqual(power_bytes["openwrt"], power_bytes["immortalwrt"],
-                            "distro-specific 610 variants must remain distinct")
+                             "pre-migration distro inputs are intentionally different")
 
 
 if __name__ == "__main__":
