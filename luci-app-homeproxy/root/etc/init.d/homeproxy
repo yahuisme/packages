@@ -169,7 +169,7 @@ configure_subscription_cron() {
 		}
 		changed=1
 	fi
-	lock -u "$CRON_LOCK"
+	lock -u "$CRON_LOCK" || return 1
 
 	[ "$changed" -eq 0 ] || notify_cron
 }
