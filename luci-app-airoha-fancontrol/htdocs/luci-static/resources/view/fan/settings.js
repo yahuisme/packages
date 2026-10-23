@@ -215,9 +215,11 @@ return view.extend({
 				node.classList.add('fan-settings');
 				injectCSS(node);
 				updateCurvePreview(node);
-				if (resize) {
-					resize.disconnect();
-					resize.observe(node.querySelector('.fan-curve-preview svg'));
+				var svg = node && node.querySelector('.fan-curve-preview svg');
+				if (resize && svg && resize._fanTarget !== svg) {
+					if (resize._fanTarget) resize.disconnect();
+					resize._fanTarget = svg;
+					resize.observe(svg);
 				}
 				return node;
 			});
@@ -230,7 +232,11 @@ return view.extend({
 			if (typeof ResizeObserver !== 'undefined') {
 				var mounted = node.isConnected;
 				resize = new ResizeObserver(refresh);
-				resize.observe(node.querySelector('.fan-curve-preview svg'));
+				var svg = node && node.querySelector('.fan-curve-preview svg');
+				if (svg) {
+					resize._fanTarget = svg;
+					resize.observe(svg);
+				}
 				var lifecycle = new MutationObserver(function() {
 					if (node.isConnected) mounted = true;
 					else if (mounted) { resize.disconnect(); lifecycle.disconnect(); }
