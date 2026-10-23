@@ -9,7 +9,7 @@ W1700K 共用补丁集中于 [`w1700k-patches`](w1700k-patches/SOURCES.md)，独
 | 组件 | 版本 | 说明 |
 | :--- | :--- | :--- |
 | `luci-app-airoha-npu` | `20261002-r1` | Airoha NPU 状态监控与 SOC 频率控制 |
-| `luci-app-airoha-flowsense` | `20261002-r1` | Airoha 硬件流控监控 |
+| `luci-app-airoha-flowsense` | `20261023-r1` | Airoha 硬件流控监控 |
 | `luci-app-airoha-fancontrol` | `20261023-r1` | Airoha 温控与风扇调速面板 |
 | `luci-app-wifi7` | `20261002-r2` | WiFi 7 射频、MLO 与运行状态管理面板 |
 | `luci-app-homeproxy` | `20261023-r1` | 独立维护 HomeProxy |

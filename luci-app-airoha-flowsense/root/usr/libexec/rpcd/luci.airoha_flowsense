@@ -12,7 +12,7 @@ json_decimal() {
 }
 
 get_interfaces() {
-    local dev name first=1 key sep
+    local dev name first=1 key sep ifindex carrier speed
     printf '['
     for dev in /sys/class/net/*; do
         [ -d "$dev/device" ] || [ -d "$dev/dsa" ] || continue
@@ -20,7 +20,11 @@ get_interfaces() {
         name=${dev##*/}; [ "$name" != "eth0" ] || continue
         case "$name" in ''|*[!a-zA-Z0-9_.:-]*) continue;; esac
         [ "$first" -eq 1 ] || printf ','; first=0
-        printf '{"device":"%s","ifindex":%s,"carrier":%s,"speed":%s,"stats":{' "$name" "$(fs_uint "$(fs_read "$dev/ifindex")" && fs_read "$dev/ifindex" || printf null)" "$(fs_read "$dev/carrier")" "$(fs_read "$dev/speed")"
+        ifindex=$(fs_read "$dev/ifindex")
+        fs_uint "$ifindex" || ifindex=null
+        carrier=$(fs_read "$dev/carrier")
+        speed=$(fs_read "$dev/speed")
+        printf '{"device":"%s","ifindex":%s,"carrier":%s,"speed":%s,"stats":{' "$name" "$ifindex" "$carrier" "$speed"
         sep=
         for key in rx_bytes tx_bytes rx_errors tx_errors rx_dropped tx_dropped; do printf '%s"%s":%s' "$sep" "$key" "$(fs_counter_read "$dev/statistics/$key")"; sep=,; done
         printf '}}'
