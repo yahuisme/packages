@@ -39,14 +39,14 @@ const { chromium } = require('playwright');
    // Layout must not override that rule at any responsive container width.
    const hiddenRule=await page.addStyleTag({content:'.hidden{display:none}'});
    const inactive=await page.evaluate(()=>{
-    const fields=[...document.querySelectorAll('.cbi-section-node[data-section-id="custom"] > .cbi-value')];
+    const fields=[...document.querySelectorAll('.fan-curve-table .cbi-value')];
     fields.forEach(e=>e.classList.add('hidden'));
     const displays=fields.map(e=>({name:e.dataset.name,display:getComputedStyle(e).display}));
     fields.forEach(e=>e.classList.remove('hidden'));
     return displays;
    });
    await hiddenRule.evaluate(e=>e.remove());
-   assert.equal(inactive.length,11,'ten custom parameters and curve preview');
+    assert.equal(inactive.length,10,'ten custom parameters remain inside the structured table');
    assert.deepEqual(inactive.filter(e=>e.display!=='none'),[],'inactive options stay hidden despite app layout');
    const result=await page.evaluate(()=>{
     const svg=document.querySelector('.fan-curve-preview svg'),r=svg.getBoundingClientRect();

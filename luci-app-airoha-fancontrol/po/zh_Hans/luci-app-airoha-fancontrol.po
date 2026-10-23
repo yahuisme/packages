@@ -121,6 +121,12 @@ msgstr "性能"
 msgid "Performance - Maximum cooling"
 msgstr "性能 - 强劲散热"
 
+msgid "Custom fan curve"
+msgstr "自定义风扇曲线"
+
+msgid "PWM (0-255)"
+msgstr "PWM（0-255）"
+
 msgid "Point %d PWM (0-255)"
 msgstr "第 %d 点 PWM（0-255）"
 
