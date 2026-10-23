@@ -87,7 +87,7 @@ function updateCurvePreview(node) {
 
 var previewCSS = '\
 .modal.fan-settings-modal{max-width:calc(100vw - 32px);box-sizing:border-box}\
-.fan-settings .fan-curve-table{display:grid;grid-template-columns:minmax(64px,.62fr) minmax(112px,1fr) minmax(112px,1fr);gap:0 16px;margin:0 0 16px;min-width:0}.fan-settings .fan-curve-table-head,.fan-settings .fan-curve-row{display:grid;grid-column:1 / -1;grid-template-columns:subgrid;align-items:center}.fan-settings .fan-curve-table-head{min-height:32px;color:var(--cbi-muted-color,var(--text-muted,#68727d));font-size:12px;font-weight:500}.fan-settings .fan-curve-row{min-height:56px;border-top:1px solid var(--cbi-border-color,var(--hairline,#edf0f3));padding:8px 0}.fan-settings .fan-curve-point{color:var(--cbi-muted-color,var(--text-muted,#4c5661));font-size:13px;font-weight:500;white-space:nowrap}.fan-settings .fan-curve-row>.cbi-value:not(.hidden){display:block;min-width:0;margin:0;padding:0}.fan-settings .fan-curve-row>.cbi-value .cbi-value-title{display:none}.fan-settings .fan-curve-row>.cbi-value .cbi-value-field{display:block;width:100%;min-width:0;margin:0;padding:0}.fan-settings .fan-curve-row>.cbi-value input{width:100%;min-width:0}.fan-settings .fan-curve-row>.cbi-value[data-name="point5_pwm"] input{background:var(--cbi-input-bg,var(--surface-sunken,#f3f5f7))}\
+.fan-settings .fan-curve-table{display:grid;grid-template-columns:minmax(64px,.62fr) 104px 104px;gap:0 16px;margin:0 0 16px;min-width:0}.fan-settings .fan-curve-table-head,.fan-settings .fan-curve-row{display:grid;grid-column:1 / -1;grid-template-columns:subgrid;align-items:center}.fan-settings .fan-curve-table-head{min-height:32px;color:var(--cbi-muted-color,var(--text-muted,#68727d));font-size:12px;font-weight:500}.fan-settings .fan-curve-row{min-height:56px;border-top:1px solid var(--cbi-border-color,var(--hairline,#edf0f3));padding:8px 0}.fan-settings .fan-curve-point{color:var(--cbi-muted-color,var(--text-muted,#4c5661));font-size:13px;font-weight:500;white-space:nowrap}.fan-settings .fan-curve-row>.cbi-value:not(.hidden){display:block;min-width:0;margin:0;padding:0}.fan-settings .fan-curve-row>.cbi-value .cbi-value-title{display:none}.fan-settings .fan-curve-row>.cbi-value .cbi-value-field{display:block;width:100%;min-width:0;margin:0;padding:0}.fan-settings .fan-curve-row>.cbi-value input{width:100%;min-width:0}.fan-settings .fan-curve-row>.cbi-value[data-name="point5_pwm"] input{background:var(--cbi-input-bg,var(--surface-sunken,#f3f5f7))}\
 .fan-settings .fan-curve-preview{max-width:none;margin:0;color:var(--cbi-text-color,currentColor)}\
 .fan-settings .fan-curve-preview svg{display:block;width:100%;height:360px;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:4px;background:var(--cbi-section-bg,transparent);box-sizing:border-box}\
 .fan-settings .fan-curve-dots{fill:var(--cbi-primary-color,light-dark(#2563eb,#60a5fa))}.fan-settings .fan-curve-axes text{font-size:12px;fill:currentColor}.fan-settings .fan-curve-axes line{stroke:currentColor;stroke-opacity:.1;stroke-width:1;vector-effect:non-scaling-stroke}\
@@ -99,12 +99,24 @@ var previewCSS = '\
 .fan-settings .cbi-section-node[data-section-id="custom"] .cbi-value-field{min-width:0;margin:0;padding:0}\
 .fan-settings .cbi-section-node[data-section-id="custom"] input{width:100%;min-width:0}\
 .fan-settings [data-name="_curve_preview"]:not(.hidden){display:block;margin-top:0}.fan-settings [data-name="_curve_preview"] .cbi-value-field{display:block;width:100%}.fan-settings [data-name="_curve_preview"] .cbi-value-title{display:block;margin-bottom:8px}\
-@container (max-width:440px){.fan-settings .fan-curve-table{grid-template-columns:minmax(52px,.55fr) minmax(0,1fr) minmax(0,1fr);gap:0 10px}}\
-@container (max-width:360px){.fan-settings .fan-curve-table{grid-template-columns:48px minmax(0,1fr) minmax(0,1fr);gap:0 6px}.fan-settings .fan-curve-table-head{font-size:11px}.fan-settings .fan-curve-row{min-height:52px;padding:6px 0}.fan-settings .fan-curve-row>.cbi-value input{padding-left:8px;padding-right:8px}}\
+@container (max-width:440px){.fan-settings .fan-curve-table{grid-template-columns:minmax(48px,.55fr) 104px 104px;gap:0 10px}}\
+@container (max-width:360px){.fan-settings .fan-curve-table{grid-template-columns:48px 96px 96px;gap:0 6px}.fan-settings .fan-curve-table-head{font-size:11px}.fan-settings .fan-curve-row{min-height:52px;padding:6px 0}.fan-settings .fan-curve-row>.cbi-value input{padding-left:8px;padding-right:8px}}\
 @container (width < 640px){.fan-settings .cbi-section-node[data-section-id="custom"]{display:flex;flex-direction:column}.fan-settings .cbi-section-node[data-section-id="custom"]>[data-name="_curve_preview"]{order:-1;margin-bottom:16px}}\
 @container (440px <= width < 640px){.fan-settings .cbi-section-node[data-section-id="custom"]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px}.fan-settings .cbi-section-node[data-section-id="custom"]>[data-name="_curve_preview"]{grid-column:1 / -1}.fan-settings .cbi-section-node[data-section-id="custom"]>.cbi-value:not(.hidden):not([data-name="_curve_preview"]){display:flex;flex-direction:column;align-items:stretch;gap:8px;margin:0}.fan-settings .cbi-section-node[data-section-id="custom"] .cbi-value-title{text-align:left;flex-basis:auto}.fan-settings .cbi-section-node[data-section-id="custom"] .cbi-value-field{width:100%;flex-basis:auto}}\
 @container (min-width:640px){.fan-settings .cbi-section-node[data-section-id="custom"]{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);column-gap:24px;align-items:start}.fan-settings .cbi-section-node[data-section-id="custom"]>.cbi-value{grid-column:1}.fan-settings .cbi-section-node[data-section-id="custom"]>[data-name="_curve_preview"]{grid-column:2;grid-row:1 / span 10}}\
 ';
+
+function syncCurveSection(node) {
+	var section = node && node.querySelector('.cbi-section-node[data-section-id="custom"]');
+	if (!section) return;
+	var wrapper = section.parentNode;
+	var mode = node.querySelector('[data-name="mode"] select, [data-name="mode"] input');
+	var preset = node.querySelector('[data-name="curve_preset"] select, [data-name="curve_preset"] input');
+	var visible = !!(mode && preset && mode.value === 'auto' && preset.value === 'custom');
+	wrapper.hidden = !visible;
+	wrapper.classList.toggle('hidden', !visible);
+	wrapper.setAttribute('aria-hidden', visible ? 'false' : 'true');
+}
 
 function decorateCurveTable(node) {
 	var section = node && node.querySelector('.cbi-section-node[data-section-id="custom"]');
@@ -239,6 +251,7 @@ return view.extend({
 				injectCSS(node);
 				updateCurvePreview(node);
 				decorateCurveTable(node);
+				syncCurveSection(node);
 				var svg = node && node.querySelector('.fan-curve-preview svg');
 				if (resize && svg && resize._fanTarget !== svg) {
 					if (resize._fanTarget) resize.disconnect();
@@ -249,7 +262,7 @@ return view.extend({
 			});
 		};
 		return map.render().then(function(node) {
-			var refresh = function() { updateCurvePreview(node); };
+			var refresh = function() { updateCurvePreview(node); syncCurveSection(node); };
 			node.addEventListener('input', refresh);
 			node.addEventListener('change', refresh);
 			refresh();

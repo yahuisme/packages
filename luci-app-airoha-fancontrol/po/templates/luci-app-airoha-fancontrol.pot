@@ -124,7 +124,13 @@ msgstr ""
 msgid "Custom fan curve"
 msgstr ""
 
+msgid "Point %d"
+msgstr ""
+
 msgid "PWM (0-255)"
+msgstr ""
+
+msgid "Temperature (°C)"
 msgstr ""
 
 msgid "Point %d PWM (0-255)"
