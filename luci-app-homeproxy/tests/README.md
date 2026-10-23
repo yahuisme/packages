@@ -1,11 +1,12 @@
 # Service status and current-node performance regressions
 
-From the repository root, with host ucode and native LuCI/jsdom dependencies:
+Run from the repository root with the shared test environment loaded:
 
 ```sh
+. /opt/test-tools/env.sh
 python3 -m unittest discover -s luci-app-homeproxy/tests -p 'test_current_node.py' -v
-export NODE_PATH=/usr/local/lib/node_modules
-export LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/resources
+export PACKAGES_ROOT="$PWD"
+export LUCI_RESOURCE_DIR="${LUCI_RESOURCE_DIR:-/opt/test-tools/luci-fixtures/luci/modules/luci-base/htdocs/luci-static/resources}"
 node tests/service-status-stability.cjs
 node tests/service-status-ui.cjs
 node tests/helpers/test_page_lifecycle.cjs

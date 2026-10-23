@@ -34,7 +34,7 @@ log() {
 }
 
 clear_firewall() {
-	: > "$RUN_DIR/fw4_input.nft"
+	: > "$RUN_DIR/fw4_input.nft" || return 1
 	fw4 reload >"/dev/null" 2>&1
 }
 

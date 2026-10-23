@@ -19,6 +19,7 @@ DASHBOARD_VERSION_URL="${DASHBOARD_VERSION_URL:-https://api.github.com/repos/Sag
 SING_BOX="${SING_BOX:-/usr/bin/sing-box}"
 HOMEPROXY_INIT="${HOMEPROXY_INIT:-/etc/init.d/homeproxy}"
 UPDATE_PROXY="${HOMEPROXY_UPDATE_PROXY:-}"
+DOWNLOAD_MAX_BYTES="${HOMEPROXY_DOWNLOAD_MAX_BYTES:-16777216}"
 UPDATED_BRANCHES="" FAILED_BRANCHES=""
 CORE_UPDATED=0 DASHBOARD_UPDATED=0 APPLY_FAILED=0 ROLLBACK_FAILED=0
 GEOIP_RESULT="" GEOSITE_RESULT="" DASHBOARD_RESULT=""
@@ -69,11 +70,18 @@ finish() {
 download() {
 	if [ -n "$UPDATE_PROXY" ]; then
 		/usr/bin/curl --proxy "$UPDATE_PROXY" -fsSL --compressed --retry 3 --retry-all-errors --retry-delay 1 \
-			--connect-timeout 10 --max-time 60 -A 'HomeProxy resource updater' -o "$2" "$1"
+			--connect-timeout 10 --max-time 60 --max-filesize "$DOWNLOAD_MAX_BYTES" \
+			-A 'HomeProxy resource updater' -o "$2" "$1"
 	else
 		/usr/bin/curl -fsSL --compressed --retry 3 --retry-all-errors --retry-delay 1 \
-			--connect-timeout 10 --max-time 60 -A 'HomeProxy resource updater' -o "$2" "$1"
-	fi && [ -s "$2" ]
+			--connect-timeout 10 --max-time 60 --max-filesize "$DOWNLOAD_MAX_BYTES" \
+			-A 'HomeProxy resource updater' -o "$2" "$1"
+	fi
+	[ -s "$2" ] || return 1
+	[ "$(wc -c < "$2")" -le "$DOWNLOAD_MAX_BYTES" ] || {
+		rm -f "$2"
+		return 1
+	}
 }
 fetch_sha() {
 	download "$1" "$TMP_DIR/metadata" || return 1
