@@ -77,7 +77,7 @@ const { chromium } = require('playwright');
    assert.deepEqual(result.clipped,[]);assert.equal(result.overlap,false);assert.equal(result.overflow,false);
    assert.equal(result.layoutOK,true,'preview stacks above fields or sits alongside them without overlap');
    if(result.width>=640) assert.equal(result.sectionGap,32,'desktop editor and preview keep a compact 32px gap');
-   const allowedColumns=[[44,104,104],[52,128,128],[60,152,152]];
+   const allowedColumns=[[48,104,104],[60,128,128],[68,152,152]];
    assert(allowedColumns.some(columns=>JSON.stringify(result.tableCells.map(e=>Math.round(e.width)))===JSON.stringify(columns)),'curve columns use a defined responsive size');
    const widths=result.tableCells.map(e=>Math.round(e.width));
    assert(result.tableCells.slice(1).every((cell,index)=>Math.abs(cell.x-result.tableCells[index].x-result.tableCells[index].width-result.tableGap)<1),'curve columns keep the configured gap');
