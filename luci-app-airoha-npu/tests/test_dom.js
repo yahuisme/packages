@@ -117,6 +117,7 @@ async function tick(ms = 3000) {
   assert(+w.getComputedStyle(node.querySelector('.npu-chart-grid')).opacity <= 0.15, 'subtle grid');
   assert.equal(points()[0].getAttribute('r'), '2', 'isolated real sample stays visible');
   const before = calls; await app.pollFn(); assert.equal(calls, before, 'no immediate duplicate');
+  // Stable status writes are measured after the history assertions below.
   await tick(2999); assert.equal(points().length, 1); await tick(1); assert.equal(points().length, 2);
   value = 800000; await tick(); assert.equal(points().at(-1).getAttribute('data-mhz'), '800'); assert.equal(segments(), 1);
   assert.equal(points()[0], firstPoint, 'new sample does not recreate previous samples');
@@ -140,6 +141,12 @@ async function tick(ms = 3000) {
   for (let i = 0; i < 41; i++) { value = [600000, 800000, 1000000, 800000][Math.floor(i / 6) % 4]; await tick(); }
   assert.equal(points().length, 41); assert(points().every(p => +p.getAttribute('data-time') >= now - 120000));
   if (process.env.NPU_DOM_EXPORT) fs.writeFileSync(process.env.NPU_DOM_EXPORT, w.document.documentElement.outerHTML);
+  const stableValues = [...node.querySelectorAll('.npu-card-value,.npu-card-sub,.npu-detail-value')];
+  const unchangedWrites = []; const unchangedObserver = new w.MutationObserver(records => unchangedWrites.push(...records));
+  stableValues.forEach(n => unchangedObserver.observe(n, { childList: true, characterData: true, subtree: true }));
+  await tick(); await flush(); unchangedObserver.disconnect();
+  console.log('NPU unchanged status text mutations:', unchangedWrites.length);
+  assert.equal(unchangedWrites.length, 0, 'unchanged status text must not be replaced');
   held = true; fail = true; now += 6000; const pending = app.pollFn(); await flush(); const inFlight = calls;
   await tick(); assert.equal(calls, inFlight + 1, 'status retries independently while flow stays pending');
   now += 121000; for (const fn of [...timers.values()]) fn(); assert.equal(points().length, 0, 'stalled RPC still expires history');

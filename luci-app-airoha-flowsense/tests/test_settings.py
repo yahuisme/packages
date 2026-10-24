@@ -228,6 +228,26 @@ class SettingsTest(unittest.TestCase):
     def stage(self, **values):
         return self.call('saveSettings', dict(dict.fromkeys(('hardware', 'vlan', 'pppoe', 'ap', 'enabled'), -1), target='', **values))
 
+    def test_apply_expected_snapshot_rejects_another_sessions_save(self):
+        original = dict(hardware=-1, vlan=-1, pppoe=-1, ap=-1, target='a.example', enabled=0)
+        replacement = dict(original, target='b.example', enabled=1)
+        self.assertTrue(self.call('saveSettings', original)['success'])
+        self.assertTrue(self.call('saveSettings', replacement)['success'])
+        before = self.snapshot()
+        result = self.call('applySettings', dict(expected=json.dumps(original)))
+        self.assertEqual(result, dict(success=False, error='busy'))
+        self.assertEqual(self.snapshot(), before)
+        self.assertFalse((self.d / 'monitor-restarts').exists())
+        self.assertEqual(self.call('getSettings')['pending'], replacement)
+        for invalid in (None, False, 0, [], {}, '', 'null', '{broken', json.dumps(dict(target='b.example'))):
+            with self.subTest(expected=invalid):
+                self.assertEqual(self.call('applySettings', dict(expected=invalid)), dict(success=False, error='invalid'))
+                self.assertEqual(self.snapshot(), before)
+                self.assertFalse((self.d / 'monitor-restarts').exists())
+        self.assertTrue(self.call('applySettings', dict(expected=json.dumps(replacement)))['success'])
+        self.assertEqual(self.call('getOverview')['monitor'], dict(target='b.example', enabled=True))
+        self.assertIsNone(self.call('getSettings')['pending'])
+
     def test_pending_save_refresh_apply_partial_retry(self):
         self.assertIsNone(self.call('getSettings')['pending'])
         self.assertFalse((self.d / 'etc/flowsense').exists(), 'read-only load must not create storage')

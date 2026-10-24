@@ -8,7 +8,7 @@ var getStatus = rpc.declare({ object: 'luci.airoha_npu', method: 'getStatus', ex
 var getInfo = rpc.declare({ object: 'luci.airoha_npu', method: 'getInfo', expect: { '': {} }, reject: true });
 var getSettings = rpc.declare({ object: 'luci.airoha_npu', method: 'getSettings', expect: { '': {} }, reject: true });
 var saveSettings = rpc.declare({ object: 'luci.airoha_npu', method: 'saveSettings', params: ['governor', 'freq'], expect: { '': {} }, reject: true });
-var applySettings = rpc.declare({ object: 'luci.airoha_npu', method: 'applySettings', expect: { '': {} }, reject: true });
+var applySettings = rpc.declare({ object: 'luci.airoha_npu', method: 'applySettings', params: ['expected'], expect: { '': {} }, reject: true });
 
 var settingsCSS = '\
 .npu-settings select,.npu-settings .cbi-input-select{max-width:280px}\
@@ -139,7 +139,7 @@ return view.extend({
 				m.lookupOption('frequency', 'cpu')[0].default = baseline.freq;
 				if (apply !== true) return;
 				if (!L.hasViewPermission()) fail('unavailable');
-				return applySettings().then(checked).then(getStatus).then(function(current) {
+				return applySettings(JSON.stringify(desired)).then(checked).then(getStatus).then(function(current) {
 					if (!current || current.cpu_governor !== desired.governor || String(current.cpu_max_freq) !== desired.freq)
 						fail('unavailable');
 				});

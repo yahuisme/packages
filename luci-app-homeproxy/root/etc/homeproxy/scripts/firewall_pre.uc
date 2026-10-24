@@ -18,8 +18,9 @@ if (getenv('HOMEPROXY_SERVER_READY') === '1')
 
 		const network = server.network || '{ tcp, udp }';
 		const port = server.port;
+		const port_number = int(port);
 		if (!match(server['.name'] || '', /^[A-Za-z0-9_]+$/) ||
-		    !match(port || '', /^[0-9]+$/) || int(port) < 1 || int(port) > 65535 ||
+		    !match(port || '', /^[0-9]+$/) || !(port_number >= 1 && port_number <= 65535) ||
 		    !(network in ['tcp', 'udp', '{ tcp, udp }']))
 			exit(1);
 		push(input, `meta l4proto ${network} th dport ${port} counter accept comment "!${cfgname}: accept server ${server['.name']}"`);

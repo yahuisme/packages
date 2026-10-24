@@ -76,7 +76,7 @@ download() {
 		/usr/bin/curl -fsSL --compressed --retry 3 --retry-all-errors --retry-delay 1 \
 			--connect-timeout 10 --max-time 60 --max-filesize "$DOWNLOAD_MAX_BYTES" \
 			-A 'HomeProxy resource updater' -o "$2" "$1"
-	fi
+	fi || return 1
 	[ -s "$2" ] || return 1
 	[ "$(wc -c < "$2")" -le "$DOWNLOAD_MAX_BYTES" ] || {
 		rm -f "$2"

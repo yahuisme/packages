@@ -108,7 +108,12 @@ No host service is touched; this does not reproduce procd killing a cron job.
 . /opt/test-tools/env.sh
 python3 -m unittest discover -s luci-app-homeproxy/tests -p 'test_subscription*.py' -v
 node tests/ui-state-regressions.cjs
+node luci-app-homeproxy/tests/test_helper_hash.cjs
 ```
+
+The shared environment supplies jsdom and native LuCI for the hash regression.
+It compares UTF-8 MD5 vectors and saves subscription nodes through native Map
+with private persistent transport, ensuring Unicode URLs retain nodes/references.
 
 The subscription suite uses real ucode and private native libuci CLI storage
 through an explicit cursor adapter, with fixture downloads/service calls. It

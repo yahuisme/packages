@@ -86,6 +86,7 @@ function log_missing_quic(protocol, node) {
 
 /* String helper start */
 const invalid_filter_patterns = {};
+const filter_patterns = {};
 
 function filter_check(name) {
 	if (isEmpty(name) || filter_mode === 'disabled' || isEmpty(filter_keywords))
@@ -93,15 +94,17 @@ function filter_check(name) {
 
 	let ret = false;
 	for (let i in filter_keywords) {
-		let pattern;
-		try {
-			pattern = regexp(i);
-		} catch (e) {
-			if (!invalid_filter_patterns[i]) {
+		if (invalid_filter_patterns[i])
+			continue;
+		let pattern = filter_patterns[i];
+		if (!pattern) {
+			try {
+				pattern = filter_patterns[i] = regexp(i);
+			} catch (e) {
 				invalid_filter_patterns[i] = true;
 				log(sprintf('Ignoring invalid subscription filter pattern: %s.', i));
+				continue;
 			}
-			continue;
 		}
 		if (match(name, pattern))
 			ret = true;

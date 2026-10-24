@@ -31,7 +31,7 @@ const { chromium } = require('playwright');
    // Trusted checked-out application source only; no user-supplied code.
    new Function('node',helpers+'\nvar resize;\n'+setup)(document.querySelector('.fan-settings'));
   },source);
-  for(const dark of [false,true]) for(const width of [320,390,768,1024,1440,1920]) {
+  for(const dark of [false,true]) for(const width of [320,390,768,820,900,960,1000,1017,1018,1024,1440,1577,1578,1580,1920]) {
    await page.setViewportSize({width,height:1000});
    await page.evaluate(d=>document.documentElement.setAttribute('data-darkmode',String(d)),dark);
    await page.waitForTimeout(80);
@@ -46,7 +46,9 @@ const { chromium } = require('playwright');
     return displays;
    });
    await hiddenRule.evaluate(e=>e.remove());
-    assert.equal(inactive.length,10,'ten custom parameters remain inside the structured table');
+   // Restoring the layout also queues the production ResizeObserver update.
+   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+   assert.equal(inactive.length,10,'ten custom parameters remain inside the structured table');
    assert.deepEqual(inactive.filter(e=>e.display!=='none'),[],'inactive options stay hidden despite app layout');
    const result=await page.evaluate(()=>{
     const svg=document.querySelector('.fan-curve-preview svg'),r=svg.getBoundingClientRect();
@@ -69,7 +71,9 @@ const { chromium } = require('playwright');
     probe.style.color='var(--cbi-primary-color,light-dark(#2563eb,#60a5fa))';
     section.append(probe);
     const expectedColor=getComputedStyle(probe).color;probe.remove();
-    return {expectedColor,dotColor:getComputedStyle(svg.querySelector('circle')).fill,textColor:getComputedStyle(text).fill,xTicks:ticks.map(e=>e.textContent),yTicks:yTicks.map(e=>e.textContent),yOverlap,width:innerWidth,dark:document.documentElement.getAttribute('data-darkmode')==='true',stacked,layoutOK,sectionGap,sectionColumns,headerWeight,tableWidth:tableRect.width,tableGap,tableCells:cells.map(e=>({x:e.x,width:e.width})),chartWidth:r.width,height:r.height,font:getComputedStyle(text).fontSize,stroke:getComputedStyle(line).strokeWidth,color:getComputedStyle(line).stroke,clipped,overlap,overflow:document.documentElement.scrollWidth>innerWidth,points:line.getAttribute('points')};
+    const containerStyle=getComputedStyle(section.parentNode);
+    const containerWidth=section.parentNode.clientWidth-parseFloat(containerStyle.paddingLeft)-parseFloat(containerStyle.paddingRight);
+    return {containerWidth,expectedColor,dotColor:getComputedStyle(svg.querySelector('circle')).fill,textColor:getComputedStyle(text).fill,xTicks:ticks.map(e=>e.textContent),yTicks:yTicks.map(e=>e.textContent),yOverlap,width:innerWidth,dark:document.documentElement.getAttribute('data-darkmode')==='true',stacked,layoutOK,sectionGap,sectionColumns,headerWeight,tableWidth:tableRect.width,tableGap,tableCells:cells.map(e=>({x:e.x,width:e.width})),chartWidth:r.width,height:r.height,font:getComputedStyle(text).fontSize,stroke:getComputedStyle(line).strokeWidth,color:getComputedStyle(line).stroke,clipped,overlap,overflow:document.documentElement.scrollWidth>innerWidth,points:line.getAttribute('points')};
    });
    assert.equal(result.height,360);assert.equal(result.font,'12px');assert.equal(result.stroke,'1.5px');
    assert.equal(result.color,result.expectedColor,'curve follows the active blue theme accent');
@@ -79,11 +83,13 @@ const { chromium } = require('playwright');
    assert.deepEqual(result.clipped,[]);assert.equal(result.overlap,false);assert.equal(result.overflow,false);
    assert.equal(result.layoutOK,true,'preview stacks above fields or sits alongside them without overlap');
    assert(Number(result.headerWeight)>=600,'temperature and PWM headers remain emphasized');
-   if(result.width>=1200) assert.equal(result.sectionGap,48,'large desktop editor and preview keep a balanced 48px gap');
-   else if(result.width>=640) assert.equal(result.sectionGap,32,'medium desktop editor and preview keep a balanced 32px gap');
-   const allowedColumns=[[52,104,104],[64,128,128],[76,148,148]];
-   assert(allowedColumns.some(columns=>JSON.stringify(result.tableCells.map(e=>Math.round(e.width)))===JSON.stringify(columns)),'curve columns use a defined responsive size');
+   if(result.containerWidth>=1200) assert.equal(result.sectionGap,48,'large desktop editor and preview keep a balanced 48px gap');
+   else if(result.containerWidth>=640) assert.equal(result.sectionGap,32,'medium desktop editor and preview keep a balanced 32px gap');
+   const expectedColumns=result.containerWidth<=360 ? [52,(result.tableWidth-68)/2,(result.tableWidth-68)/2]
+    : result.containerWidth<=440 ? [64,128,128] : [76,148,148];
+   assert(expectedColumns.every((value,i)=>Math.abs(value-result.tableCells[i].width)<1),'curve columns match the active container branch');
    const widths=result.tableCells.map(e=>Math.round(e.width));
+   assert(result.tableWidth + 1 >= widths.reduce((sum,value)=>sum+value,0)+2*result.tableGap,'table bounds contain all three columns');
    assert(result.tableCells.slice(1).every((cell,index)=>Math.abs(cell.x-result.tableCells[index].x-result.tableCells[index].width-result.tableGap)<1),'curve columns keep the configured gap');
    const x=Number(result.points.split(' ')[0].split(',')[0]);
    assert(Math.abs(x-(40+0.4*(result.chartWidth-2-64)))<1,'resize recalculates point geometry');

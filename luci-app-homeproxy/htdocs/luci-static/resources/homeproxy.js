@@ -188,7 +188,15 @@ return baseclass.extend({
 			e = e.replace(/\r\n/g, '\n');
 			let b = '';
 			for (let d = 0; d < e.length; d++) {
-				let c = e.charCodeAt(d);
+				let c = e.codePointAt(d);
+				if (c > 0xffff) {
+					d++;
+					b += String.fromCharCode(c >> 18 | 240, c >> 12 & 63 | 128,
+						c >> 6 & 63 | 128, c & 63 | 128);
+					continue;
+				}
+				if (c >= 0xd800 && c <= 0xdfff)
+					c = 0xfffd;
 				b += c < 128 ? String.fromCharCode(c) : c < 2048 ? String.fromCharCode(c >> 6 | 192) + String.fromCharCode(c & 63 | 128) :
 					String.fromCharCode(c >> 12 | 224) + String.fromCharCode(c >> 6 & 63 | 128) + String.fromCharCode(c & 63 | 128);
 			}

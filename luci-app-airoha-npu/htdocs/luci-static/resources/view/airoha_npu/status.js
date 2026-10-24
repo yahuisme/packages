@@ -33,6 +33,8 @@ function governor(value) {
 	return labels[value] || text(value);
 }
 
+function setText(node, value) { if (node.textContent !== value) node.textContent = value; }
+
 function detailRow(label, valueNode) {
 	return E('div', { 'class': 'npu-detail-row' }, [
 		E('span', { 'class': 'npu-detail-label' }, label),
@@ -194,23 +196,23 @@ return view.extend({
 			var flowStr = f.enabled === true ? _('Enabled') : f.enabled === false ? _('Disabled') : _('Unknown');
 			var flowDetailStr = f.enabled === true ? _('Enabled in firewall') : f.enabled === false ? _('Disabled in firewall') : _('Unknown');
 
-			cards.freq.val.textContent = curFreqStr;
-			cards.freq.sub.textContent = _('Max limit:') + ' ' + maxFreqStr;
-			cards.gov.val.textContent = govStr;
-			cards.gov.sub.textContent = s.cpu_governor ? s.cpu_governor : '—';
-			cards.npu.val.textContent = npuBoundStr;
-			cards.npu.sub.textContent = npuClockStr;
-			cards.flow.val.textContent = flowStr;
-			cards.flow.sub.textContent = _('Hardware flow offload');
+			setText(cards.freq.val, curFreqStr);
+			setText(cards.freq.sub, _('Max limit:') + ' ' + maxFreqStr);
+			setText(cards.gov.val, govStr);
+			setText(cards.gov.sub, s.cpu_governor ? s.cpu_governor : '—');
+			setText(cards.npu.val, npuBoundStr);
+			setText(cards.npu.sub, npuClockStr);
+			setText(cards.flow.val, flowStr);
+			setText(cards.flow.sub, _('Hardware flow offload'));
 
 
-			detailNodes.online.textContent = text(s.cpu_count);
-			detailNodes.current.textContent = curFreqStr;
-			detailNodes.maximum.textContent = maxFreqStr;
-			detailNodes.governor.textContent = govStr;
-			detailNodes.driver.textContent = npuBoundStr;
-			detailNodes.clock.textContent = npuClockStr;
-			detailNodes.offload.textContent = flowDetailStr;
+			setText(detailNodes.online, text(s.cpu_count));
+			setText(detailNodes.current, curFreqStr);
+			setText(detailNodes.maximum, maxFreqStr);
+			setText(detailNodes.governor, govStr);
+			setText(detailNodes.driver, npuBoundStr);
+			setText(detailNodes.clock, npuClockStr);
+			setText(detailNodes.offload, flowDetailStr);
 		}
 
 		var page = E('div', { 'class': 'cbi-map npu-dashboard' }, [

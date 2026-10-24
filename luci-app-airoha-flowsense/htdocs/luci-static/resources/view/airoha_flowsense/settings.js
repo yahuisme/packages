@@ -7,7 +7,7 @@
 var getOverview = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getOverview', reject: true });
 var getSettings = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getSettings', reject: true });
 var saveSettings = rpc.declare({ object: 'luci.airoha_flowsense', method: 'saveSettings', params: ['hardware', 'vlan', 'pppoe', 'ap', 'target', 'enabled'], reject: true });
-var applySettings = rpc.declare({ object: 'luci.airoha_flowsense', method: 'applySettings', reject: true });
+var applySettings = rpc.declare({ object: 'luci.airoha_flowsense', method: 'applySettings', params: ['expected'], reject: true });
 // Acceleration RPC contract: each key is {supported, enabled, configured},
 // strictly boolean or null. enabled is runtime readback, configured is the edit
 // baseline. Setter parameters are 0/1, or -1 to leave unknown/unsupported keys alone.
@@ -146,11 +146,13 @@ return view.extend({
 				baseline = result.pending; dirty = false; accelerationDirty = {};
 				if (!apply) { ui.addNotification(null, E('p', {}, _('Settings saved; not yet applied.')), 'info'); return; }
 				if (!root.isConnected || !L.hasViewPermission()) fail(_('Unable to save settings.'));
-				return applySettings().then(function(result) {
+				return applySettings(JSON.stringify(desired)).then(function(result) {
 					return Promise.all([getAcceleration(), getOverview(), getSettings()].map(function(request) { return request.catch(function() { return null; }); })).then(function(data) {
 						if (!root.isConnected) return;
-						paintAcceleration(data[0], true); paint(data[1]);
-						if (!data[2] || data[2].success !== true) fail(data[2] && data[2].error ? settingsError(data[2].error) : _('Unable to verify saved settings.'));
+						if (!data[2] || data[2].success !== true) {
+							paintAcceleration(data[0], true); paint(data[1]);
+							fail(data[2] && data[2].error ? settingsError(data[2].error) : _('Unable to verify saved settings.'));
+						}
 						baseline = data[2].pending;
 						paintAcceleration(data[0], true); paint(data[1]);
 						var accOK = accelerationKeys.every(function(key) { return desired[key] === -1 || editable(key) && accelerationState[key].configured === !!desired[key] && accelerationState[key].enabled === !!desired[key]; });

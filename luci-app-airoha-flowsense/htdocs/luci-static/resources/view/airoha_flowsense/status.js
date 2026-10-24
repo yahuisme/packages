@@ -84,12 +84,23 @@ return view.extend({
 
 		var previous = null, pending = null, accelerationPending = null;
 		var acceleration = E('div', { 'class': 'cbi-section flowsense-section flowsense-acceleration' }, [E('h3', { 'class': 'cbi-section-title' }, _('Acceleration'))]);
+		var accelerationNodes = [];
 		function paintAcceleration(data) {
-			var labels = [_('Hardware acceleration'), _('VLAN acceleration'), _('PPPoE acceleration'), _('Bridge compatibility mode')];
-			acceleration.replaceChildren(E('h3', { 'class': 'cbi-section-title' }, _('Acceleration')), E('div', { 'class': 'flowsense-controls' }, accelerationKeys.map(function(key, i) {
+			if (!accelerationNodes.length) {
+				var labels = [_('Hardware acceleration'), _('VLAN acceleration'), _('PPPoE acceleration'), _('Bridge compatibility mode')];
+				acceleration.appendChild(E('div', { 'class': 'flowsense-controls' }, labels.map(function(label) {
+					var value = E('span'), state = E('span', { 'class': 'flowsense-acceleration-state' }, [E('span', { 'class': 'flowsense-acceleration-dot', 'aria-hidden': 'true' }), value]);
+					accelerationNodes.push({ state: state, value: value });
+					return E('div', { 'class': 'cbi-value' }, [E('span', { 'class': 'cbi-value-title' }, [label]), state]);
+				})));
+			}
+			accelerationKeys.forEach(function(key, i) {
 				var state = data && data[key], value = state && state.supported === true ? state.enabled : null;
-				return E('div', { 'class': 'cbi-value' }, [E('span', { 'class': 'cbi-value-title' }, [labels[i]]), E('span', { 'class': 'flowsense-acceleration-state' + (value === true ? ' flowsense-active' : '') }, [E('span', { 'class': 'flowsense-acceleration-dot', 'aria-hidden': 'true' }), E('span', {}, [value === true ? _('Enabled') : value === false ? _('Not enabled') : _('Unknown')])])]);
-			})));
+				var node = accelerationNodes[i], label = value === true ? _('Enabled') : value === false ? _('Not enabled') : _('Unknown');
+				var cls = 'flowsense-acceleration-state' + (value === true ? ' flowsense-active' : '');
+				if (node.state.className !== cls) node.state.className = cls;
+				if (node.value.textContent !== label) node.value.textContent = label;
+			});
 		}
 		function refreshAcceleration() {
 			if (accelerationPending) return accelerationPending;
@@ -130,7 +141,7 @@ return view.extend({
 				ports.forEach(function(port) {
 					var stats = port.stats && typeof port.stats === 'object' ? port.stats : {};
 					var old = previous && previous.ports[port.device];
-					if (old && old.ifindex !== port.ifindex) old = null;
+					if (old && (number(port.ifindex, 1, Number.MAX_SAFE_INTEGER) == null || old.ifindex !== port.ifindex)) old = null;
 					var rx = rate(stats.rx_bytes, old && old.rx_bytes, seconds), tx = rate(stats.tx_bytes, old && old.tx_bytes, seconds);
 					if (rx != null) { totalRx += rx; rxOk++; } if (tx != null) { totalTx += tx; txOk++; }
 					interfaces.appendChild(E('div', { 'class': 'flowsense-port' }, [E('div', { 'class': 'flowsense-port-title' }, [E('span', { 'class': 'flowsense-port-name' }, [port.device.toUpperCase()]), statusBadge(port.carrier)]), portMetric(_('Speed'), number(port.speed, 0, 1000000) == null ? '—' : port.speed + ' Mbit/s'), portMetric(_('RX / TX rate'), formatRate(rx) + ' / ' + formatRate(tx)), portMetric(_('RX / TX errors'), (number(stats.rx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : stats.rx_errors) + ' / ' + (number(stats.tx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : stats.tx_errors))]));

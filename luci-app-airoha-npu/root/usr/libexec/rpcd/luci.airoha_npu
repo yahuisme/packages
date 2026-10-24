@@ -50,7 +50,7 @@ settings_supported() {
 }
 settings_json() { printf '{"governor":"%s","freq":"%s"}' "$gov" "$freq"; }
 settings_rpc() (
-	local gov freq value tmp oldgov oldfreq ok=1
+	local gov freq value tmp oldgov oldfreq expected= expected_json= ok=1
 	umask 077
 	[ ! -L "$SETTINGS" ] && [ ! -L "$SETTINGS/pending.json" ] || { error storage; exit; }
 	[ ! -e "$SETTINGS/pending.json" ] || [ -f "$SETTINGS/pending.json" ] || { error storage; exit; }
@@ -70,8 +70,16 @@ settings_rpc() (
 			fi
 			printf '{"result":"ok"}\n';;
 		applySettings)
+			if [ -n "$("$JSONFILTER" -s "$input" -t '@.expected' 2>/dev/null)" ]; then
+				argument expected || { error invalid; exit; }
+				expected=$value; input=$expected
+				settings_parse || { error invalid; exit; }
+				expected_json=$(settings_json)
+			fi
 			[ -f "$SETTINGS/pending.json" ] || { error unavailable; exit; }
 			input=$(cat "$SETTINGS/pending.json") && settings_parse && settings_supported || { error invalid; exit; }
+			# Reject a newer session's saved pair before touching either CPU field.
+			[ -z "$expected_json" ] || [ "$(settings_json)" = "$expected_json" ] || { error busy; exit; }
 			oldgov=$(read_value "$POLICY/scaling_governor")
 			oldfreq=$(read_value "$POLICY/scaling_max_freq")
 			contains "$oldgov" "$(read_value "$POLICY/scaling_available_governors")" &&
@@ -165,7 +173,7 @@ get_flow() (
 )
 case "$1" in
 	list)
-		printf '%s\n' '{"getSettings":{},"saveSettings":{"governor":"str","freq":"str"},"applySettings":{},"getStatus":{},"getInfo":{},"getFlowOffload":{}}';;
+		printf '%s\n' '{"getSettings":{},"saveSettings":{"governor":"str","freq":"str"},"applySettings":{"expected":"str"},"getStatus":{},"getInfo":{},"getFlowOffload":{}}';;
 	call)
 		input=$(cat)
 		case "$2" in

@@ -347,6 +347,23 @@ class Backend(unittest.TestCase):
         (dt / 'compatible').write_bytes(b'quote"\\\x01test\tend\0')
         self.assertEqual(self.call('getInfo')['soc_compat'], 'quote"\\\x01test\tend')
 
+    def test_apply_expected_snapshot_rejects_another_sessions_save(self):
+        original = dict(governor='performance', freq='1400000')
+        replacement = dict(governor='powersave', freq='500000')
+        self.assertEqual(self.call('saveSettings', original), dict(result='ok'))
+        self.assertEqual(self.call('saveSettings', replacement), dict(result='ok'))
+        before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()}
+        self.assertEqual(self.call('applySettings', dict(expected=json.dumps(original))), dict(error='busy'))
+        self.assertEqual(before, {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()})
+        self.assertEqual(self.call('getSettings')['pending'], replacement)
+        for invalid in (None, False, 0, [], {}, '', 'null', '{broken', json.dumps(dict(governor='powersave'))):
+            with self.subTest(expected=invalid):
+                self.assertEqual(self.call('applySettings', dict(expected=invalid)), dict(error='invalid'))
+                self.assertEqual(before, {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()})
+        self.assertEqual(self.call('applySettings', dict(expected=json.dumps(replacement))), dict(result='ok'))
+        self.assertEqual(self.call('getStatus')['cpu_governor'], 'powersave')
+        self.assertEqual(self.call('getSettings')['pending'], replacement)
+
     def test_settings_staging(self):
         payload = {'governor': 'performance', 'freq': '1400000', 'ubus_rpc_session': 'fixture'}
         before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()}

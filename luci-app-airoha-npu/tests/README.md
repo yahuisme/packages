@@ -21,11 +21,14 @@ python3 tests/test_catalog.py
 Save stores the validated CPU pair atomically in `/etc/airoha-npu/pending.json`
 (directory 0700, file 0600), without sysfs writes or global UCI apply. Refresh and
 native Reset use this last saved baseline. Apply first saves current edits, then
-applies both fields under the same backend lock, verifies runtime readback, and
+compares the optional `expected` JSON string with pending settings under the same
+backend lock before applying either field, verifies runtime readback, and
 rolls both fields back on failure. The saved baseline remains available for retry
 and Reset after success or failure. It survives reboot/retained upgrades but is
 never applied at boot; CPU controls retain their existing runtime-only semantics.
-External kernel/config writers are outside the package lock. Settings notification
+An intervening Save from another session is rejected before runtime writes; legacy
+callers omitting `expected` retain their previous behavior. External kernel/config
+writers are outside the package lock. Settings notification
 regressions cover localized known/unknown errors and transport failures at Save,
 saved readback, Apply and runtime readback, followed by a successful retry.
 Held native-footer tests cover Save/Apply in both orders and Reset: conflicting

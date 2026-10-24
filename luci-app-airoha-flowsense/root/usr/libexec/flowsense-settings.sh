@@ -31,7 +31,7 @@ settings_write() {
 }
 settings_error() { printf '{"success":false,"error":"%s"}' "$1"; }
 settings_rpc() (
-    local input result value acceleration=unchanged monitor=unchanged success=true acceleration_error= monitor_error=
+    local input result value expected expected_json expected_type acceleration=unchanged monitor=unchanged success=true acceleration_error= monitor_error=
     umask 077
     # Fixed root-owned location; reject symlinks rather than following them.
     [ ! -L "$fs_settings_dir" ] || { settings_error storage; exit; }
@@ -56,8 +56,20 @@ settings_rpc() (
             settings_write || { settings_error storage; exit; }
             printf '{"success":true}';;
         applySettings)
+            read -r input
+            json_load "$input" >/dev/null 2>&1 || { settings_error invalid; exit; }
+            json_get_type expected_type expected
+            if [ -n "$expected_type" ]; then
+                [ "$expected_type" = string ] || { settings_error invalid; exit; }
+                json_get_var expected expected
+                settings_parse "$expected" || { settings_error invalid; exit; }
+                expected_json=$(settings_json)
+                [ -f "$fs_settings_dir/pending.json" ] || { settings_error busy; exit; }
+            fi
             [ -f "$fs_settings_dir/pending.json" ] || { printf '{"success":true,"acceleration":"unchanged","monitor":"unchanged"}'; exit; }
             settings_parse "$(cat "$fs_settings_dir/pending.json")" || { settings_error invalid; exit; }
+            # Match the browser's verified save under this same operation lock.
+            [ -z "$expected_type" ] || [ "$(settings_json)" = "$expected_json" ] || { settings_error busy; exit; }
             if [ "$settings_hardware:$settings_vlan:$settings_pppoe:$settings_ap" != '-1:-1:-1:-1' ]; then
                 result=$(printf '{"hardware":%s,"vlan":%s,"pppoe":%s,"ap":%s}\n' "$settings_hardware" "$settings_vlan" "$settings_pppoe" "$settings_ap" | set_acceleration)
                 json_load "$result"; json_get_var value success

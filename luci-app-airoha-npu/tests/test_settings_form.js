@@ -47,7 +47,7 @@ async function scenario(readonly = false, loadFailure = false, capability = 'pre
    if (rejectSave) return { error: 'write_failed' };
    if (spec.method === 'saveSettings' && holdSave) await holdSave;
    if (spec.method === 'saveSettings') staged = { governor: args[0], freq: args[1] };
-   if (spec.method === 'applySettings') { runtime.cpu_governor = staged.governor; runtime.cpu_max_freq = Number(staged.freq); }
+   if (spec.method === 'applySettings') { assert.deepEqual([...spec.params],['expected']); assert.deepEqual(JSON.parse(args[0]),staged,'native Apply transports its verified pair'); runtime.cpu_governor = staged.governor; runtime.cpu_max_freq = Number(staged.freq); }
    assert(!spec.method.includes('Flow'), 'CPU settings must never query or manage flow offloading');
    return rejectSave ? { result: 'error', error: 'write_failed' } : { result: 'ok' };
   } };

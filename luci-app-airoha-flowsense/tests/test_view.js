@@ -46,6 +46,7 @@ mods.request.post=async(url,req)=>{
  else if(method==='getSettings')result=[0,{success:true,pending:staged}];
  else if(method==='saveSettings'){if(failure==='save')result=[6];else {staged={...v};result=[0,{success:true}]}}
  else if(method==='applySettings'){
+  assert.deepEqual(JSON.parse(v.expected),{hardware:staged.hardware,vlan:staged.vlan,pppoe:staged.pppoe,ap:staged.ap,target:staged.target,enabled:staged.enabled},'native RPC binds Apply to its saved fields');
   const a=['hardware','vlan','pppoe','ap'];let acc='unchanged',mon='unchanged';
   if(a.some(k=>staged[k]!==-1)) {acc=failure==='acc'?'failed':'applied';if(acc==='applied')a.forEach(k=>{if(staged[k]!==-1)accelerationSample[k]={supported:true,enabled:!!staged[k],configured:!!staged[k]};staged[k]=-1})}
   if(staged.enabled!==-1){mon=failure==='monitor'?'failed':'applied';if(mon==='applied'){sample.monitor={target:staged.target,enabled:!!staged.enabled};staged.enabled=-1;staged.target=''}}

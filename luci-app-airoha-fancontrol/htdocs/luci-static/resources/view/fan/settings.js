@@ -100,9 +100,8 @@ var previewCSS = '\
 .fan-settings .cbi-section-node[data-section-id="custom"] input{width:100%;min-width:0}\
 .fan-settings [data-name="_curve_preview"]:not(.hidden){display:block;margin-top:0}.fan-settings [data-name="_curve_preview"] .cbi-value-field{display:block;width:100%}.fan-settings [data-name="_curve_preview"] .cbi-value-title{display:block;margin-bottom:8px}\
 @container (max-width:440px){.fan-settings .fan-curve-table{grid-template-columns:64px 128px 128px;gap:0 12px}}\
-@container (max-width:360px){.fan-settings .fan-curve-table{grid-template-columns:52px 104px 104px;gap:0 8px}.fan-settings .fan-curve-table-head{font-size:11px}.fan-settings .fan-curve-row{min-height:56px;padding:8px 0}.fan-settings .fan-curve-row>.cbi-value input{padding-left:8px;padding-right:8px}}\
+@container (max-width:360px){.fan-settings .fan-curve-table{grid-template-columns:52px minmax(0,1fr) minmax(0,1fr);gap:0 8px;width:276px}.fan-settings .fan-curve-table-head{font-size:11px}.fan-settings .fan-curve-row{min-height:56px;padding:8px 0}.fan-settings .fan-curve-row>.cbi-value input{padding-left:8px;padding-right:8px}}\
 @container (width < 640px){.fan-settings .cbi-section-node[data-section-id="custom"]{display:flex;flex-direction:column}.fan-settings .cbi-section-node[data-section-id="custom"]>[data-name="_curve_preview"]{order:-1;margin-bottom:16px}}\
-@container (440px <= width < 640px){.fan-settings .cbi-section-node[data-section-id="custom"]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px}.fan-settings .cbi-section-node[data-section-id="custom"]>[data-name="_curve_preview"]{grid-column:1 / -1}.fan-settings .cbi-section-node[data-section-id="custom"]>.cbi-value:not(.hidden):not([data-name="_curve_preview"]){display:flex;flex-direction:column;align-items:stretch;gap:8px;margin:0}.fan-settings .cbi-section-node[data-section-id="custom"] .cbi-value-title{text-align:left;flex-basis:auto}.fan-settings .cbi-section-node[data-section-id="custom"] .cbi-value-field{width:100%;flex-basis:auto}}\
 @container (640px <= width < 1200px){.fan-settings .cbi-section-node[data-section-id="custom"]{display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);column-gap:32px;align-items:start}.fan-settings .cbi-section-node[data-section-id="custom"]>.cbi-value{grid-column:1}.fan-settings .cbi-section-node[data-section-id="custom"]>[data-name="_curve_preview"]{grid-column:2;grid-row:1 / span 10}}\
 @container (min-width:1200px){.fan-settings .cbi-section-node[data-section-id="custom"]{display:grid;grid-template-columns:minmax(0,35fr) minmax(0,65fr);column-gap:48px;align-items:start}.fan-settings .cbi-section-node[data-section-id="custom"]>.cbi-value{grid-column:1}.fan-settings .cbi-section-node[data-section-id="custom"]>[data-name="_curve_preview"]{grid-column:2;grid-row:1 / span 10}}\
 ';
@@ -114,9 +113,10 @@ function syncCurveSection(node) {
 	var mode = node.querySelector('[data-name="mode"] select, [data-name="mode"] input');
 	var preset = node.querySelector('[data-name="curve_preset"] select, [data-name="curve_preset"] input');
 	var visible = !!(mode && preset && mode.value === 'auto' && preset.value === 'custom');
-	wrapper.hidden = !visible;
+	if (wrapper.hidden !== !visible) wrapper.hidden = !visible;
 	wrapper.classList.toggle('hidden', !visible);
-	wrapper.setAttribute('aria-hidden', visible ? 'false' : 'true');
+	var ariaHidden = visible ? 'false' : 'true';
+	if (wrapper.getAttribute('aria-hidden') !== ariaHidden) wrapper.setAttribute('aria-hidden', ariaHidden);
 }
 
 function decorateCurveTable(node) {
@@ -133,6 +133,8 @@ function decorateCurveTable(node) {
 		var temp = section.querySelector('[data-name="point' + i + '_temp"]');
 		var pwm = section.querySelector('[data-name="point' + i + '_pwm"]');
 		if (!temp || !pwm) return;
+		temp.setAttribute('role', 'cell');
+		pwm.setAttribute('role', 'cell');
 		table.appendChild(E('div', { 'class': 'fan-curve-row', 'role': 'row' }, [
 			E('span', { 'class': 'fan-curve-point', 'role': 'rowheader' }, _('Point %d').format(i)), temp, pwm
 		]));
