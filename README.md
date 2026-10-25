@@ -6,14 +6,14 @@ W1700K 共用补丁集中于 [`w1700k-patches`](w1700k-patches/SOURCES.md)，独
 
 ## 包含组件
 
-| 组件 | 版本 | 说明 |
-| :--- | :--- | :--- |
-| `luci-app-airoha-npu` | `20261024-r1` | Airoha NPU 状态监控与 SOC 频率控制 |
-| `luci-app-airoha-flowsense` | `20261024-r1` | Airoha 硬件流控监控 |
-| `luci-app-airoha-fancontrol` | `20261024-r1` | Airoha 温控与风扇调速面板 |
-| `luci-app-wifi7` | `20261002-r2` | WiFi 7 射频、MLO 与运行状态管理面板 |
-| `luci-app-homeproxy` | `20261024-r1` | 独立维护 HomeProxy |
-| `sing-box` | `1.14.3` | 跟随 SagerNet 官方最新正式版 |
+| 组件 | 说明 |
+| :--- | :--- |
+| `luci-app-airoha-npu` | Airoha NPU 状态监控与 SOC 频率控制 |
+| `luci-app-airoha-flowsense` | Airoha 硬件流控监控 |
+| `luci-app-airoha-fancontrol` | Airoha 温控与风扇调速面板 |
+| `luci-app-wifi7` | WiFi 7 射频、MLO 与运行状态管理面板 |
+| `luci-app-homeproxy` | 独立维护 HomeProxy |
+| `sing-box` | 跟随 SagerNet 官方最新正式版 |
 
 ## 使用方法
 
