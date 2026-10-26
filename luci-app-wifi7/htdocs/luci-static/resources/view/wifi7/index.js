@@ -282,7 +282,8 @@ return view.extend({
 		lockControls();
 
 		function update(includeClients) {
-			if (root && !root.isConnected) return Promise.resolve();
+			// Detachment is enforced after the await below; the first paint happens
+			// before the map is mounted, so there is no entry-time DOM check.
 			if (busy) return busy;
 			busy = Promise.all([
 				settled(wireless()),
@@ -443,9 +444,19 @@ return view.extend({
 			});
 		}
 
-		var refresh = function() { return update(activeTab === 3); };
-		poll.add(refresh, 5);
-		update(false);
+		var seen = false;
+		var refresh = function() {
+			if (!root.isConnected) {
+				// A tick can fire between render and mount: only a node that was
+				// mounted once may be treated as detached.
+				if (seen) poll.remove(refresh);
+				return Promise.resolve();
+			}
+			seen = true;
+			// A background tab needs no telemetry; skip the probe burst entirely.
+			if (document.visibilityState === 'hidden') return Promise.resolve();
+			return update(activeTab === 3);
+		};
 		var root = E('div', { 'class': 'cbi-map wifi7-map' }, [ E('style', {}, `
 			.wifi7-map .cbi-tabmenu { margin-bottom:16px; }
 			.wifi7-map .wifi7-notice { color:var(--cbi-muted-color,var(--text-muted,inherit)); min-height:18px; margin:0 0 16px; font-variant-numeric:tabular-nums; }
@@ -503,7 +514,11 @@ return view.extend({
 			poll.remove(refresh);
 			observer.disconnect();
 		});
-		observer.observe(document.body, { childList: true, subtree: true });
+		// Watch the view container only. A body-wide subtree observer fired on
+		// every badge/card write this page performs on its own telemetry.
+		observer.observe(document.getElementById('view') || root.parentNode || document.body, { childList: true });
+		poll.add(refresh, 5);
+		update(false);
 		return root;
 	},
 	handleSaveApply: null,

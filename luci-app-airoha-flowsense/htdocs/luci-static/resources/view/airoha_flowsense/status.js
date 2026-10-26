@@ -57,12 +57,6 @@ function rate(bytes, previous, seconds) {
 	return current != null && old != null && seconds > 0 && current >= old ? (current - old) * 8 / seconds / 1000000 : null;
 }
 function formatRate(value) { return value == null ? '—' : (value < 1 ? value.toFixed(2) : value.toFixed(value < 10 ? 1 : 0)) + ' Mbit/s'; }
-function metric(label, value) { return E('div', { 'class': 'cbi-value' }, [E(value && value.id ? 'label' : 'span', { 'class': 'cbi-value-title', 'for': value && value.id || null }, label), E('div', { 'class': 'cbi-value-field' }, value)]); }
-function portMetric(label, value) { return E('dl', { 'class': 'flowsense-port-metric' }, [E('dt', {}, [label]), E('dd', {}, [value])]); }
-function statusBadge(carrier) {
-	var up = carrier === 1 || carrier === true, down = carrier === 0 || carrier === false;
-	return E('span', { 'class': 'flowsense-status' + (up ? ' flowsense-up' : down ? ' flowsense-down' : '') }, [E('span', { 'class': 'flowsense-status-arrow', 'aria-hidden': 'true' }, [up ? '↑' : down ? '↓' : '—']), E('span', {}, [up ? _('Connected') : down ? _('Disconnected') : _('Unknown')])]);
-}
 return view.extend({
 	handleSave: null,
 	handleSaveApply: null,
@@ -109,13 +103,13 @@ return view.extend({
 		}
 		var main = E('div', {}, [summary, acceleration, E('div', { 'class': 'cbi-section' }, [E('h3', { 'class': 'cbi-section-title' }, _('Ethernet Links')), interfaces]), quality]);
 		root.append(message, main);
-
-		function card(title, value, sub) { return E('div', { 'class': 'flowsense-card' }, [E('span', { 'class': 'flowsense-label' }, title), E('span', { 'class': 'flowsense-value' }, value), E('span', { 'class': 'flowsense-sub' }, sub)]); }
 		function update() {
 			if (!root.isConnected) {
 				poll.remove(update);
 				return Promise.resolve();
 			}
+			// Background tabs get no telemetry: this page forks ~30 helpers per tick.
+			if (document.visibilityState === 'hidden') return Promise.resolve();
 			if (pending) return pending;
 			// Lightweight sibling query shares the existing tick, with its own guard.
 			refreshAcceleration();
@@ -124,6 +118,50 @@ return view.extend({
 				paint(data);
 			}).catch(clear).finally(function() { pending = null; });
 			return pending;
+		}
+		var portRows = {}, summaryCells = null, qualityCells = null, portOrder = '';
+		function text(node, value) { if (node.textContent !== value) node.textContent = value; }
+		function paintBadge(badge, carrier) {
+			var up = carrier === 1 || carrier === true, down = carrier === 0 || carrier === false;
+			var cls = 'flowsense-status' + (up ? ' flowsense-up' : down ? ' flowsense-down' : '');
+			if (badge.className !== cls) badge.className = cls;
+			text(badge.firstChild, up ? '↑' : down ? '↓' : '—');
+			text(badge.lastChild, up ? _('Connected') : down ? _('Disconnected') : _('Unknown'));
+		}
+		function ensurePort(device) {
+			if (portRows[device]) return portRows[device];
+			var name = E('span', { 'class': 'flowsense-port-name' }, device.toUpperCase());
+			var badge = E('span', { 'class': 'flowsense-status' }, [E('span', { 'class': 'flowsense-status-arrow', 'aria-hidden': 'true' }), E('span')]);
+			var speed = E('dd'), rate = E('dd'), errors = E('dd');
+			var row = E('div', { 'class': 'flowsense-port' }, [
+				E('div', { 'class': 'flowsense-port-title' }, [name, badge]),
+				E('dl', { 'class': 'flowsense-port-metric' }, [E('dt', {}, [ _('Speed') ]), speed]),
+				E('dl', { 'class': 'flowsense-port-metric' }, [E('dt', {}, [ _('RX / TX rate') ]), rate]),
+				E('dl', { 'class': 'flowsense-port-metric' }, [E('dt', {}, [ _('RX / TX errors') ]), errors])
+			]);
+			return portRows[device] = { row: row, name: name, badge: badge, speed: speed, rate: rate, errors: errors };
+		}
+		function ensureSummary() {
+			if (summaryCells) return summaryCells;
+			summaryCells = [ _('Total Port Receive Rate'), _('Total Port Transmit Rate'), _('Physical Ethernet Ports'), _('Network Quality') ].map(function(title) {
+				var value = E('span', { 'class': 'flowsense-value' }), sub = E('span', { 'class': 'flowsense-sub' });
+				summary.appendChild(E('div', { 'class': 'flowsense-card' }, [E('span', { 'class': 'flowsense-label' }, title), value, sub]));
+				return { value: value, sub: sub };
+			});
+			return summaryCells;
+		}
+		function ensureQuality() {
+			if (qualityCells) return qualityCells;
+			quality.appendChild(E('h3', { 'class': 'cbi-section-title' }, _('Link Quality')));
+			qualityCells = [ _('Latest RTT'), _('RTT mean absolute deviation'), _('Window packet loss') ].map(function(label) {
+				var value = E('span');
+				quality.appendChild(E('div', { 'class': 'cbi-value' }, [
+					E('span', { 'class': 'cbi-value-title' }, label),
+					E('div', { 'class': 'cbi-value-field' }, value)
+				]));
+				return value;
+			});
+			return qualityCells;
 		}
 		function paint(data) {
 
@@ -136,18 +174,44 @@ return view.extend({
 					return (ai < 0 ? priority.length : ai) - (bi < 0 ? priority.length : bi);
 				});
 				var seconds = previous && number(data.uptime, 0, Number.MAX_SAFE_INTEGER) - previous.time;
-				var totalRx = 0, totalTx = 0, rxOk = 0, txOk = 0;
-				interfaces.replaceChildren();
+				var totalRx = 0, totalTx = 0, rxOk = 0, txOk = 0, keep = {}, order = [];
 				ports.forEach(function(port) {
 					var stats = port.stats && typeof port.stats === 'object' ? port.stats : {};
 					var old = previous && previous.ports[port.device];
 					if (old && (number(port.ifindex, 1, Number.MAX_SAFE_INTEGER) == null || old.ifindex !== port.ifindex)) old = null;
 					var rx = rate(stats.rx_bytes, old && old.rx_bytes, seconds), tx = rate(stats.tx_bytes, old && old.tx_bytes, seconds);
 					if (rx != null) { totalRx += rx; rxOk++; } if (tx != null) { totalTx += tx; txOk++; }
-					interfaces.appendChild(E('div', { 'class': 'flowsense-port' }, [E('div', { 'class': 'flowsense-port-title' }, [E('span', { 'class': 'flowsense-port-name' }, [port.device.toUpperCase()]), statusBadge(port.carrier)]), portMetric(_('Speed'), number(port.speed, 0, 1000000) == null ? '—' : port.speed + ' Mbit/s'), portMetric(_('RX / TX rate'), formatRate(rx) + ' / ' + formatRate(tx)), portMetric(_('RX / TX errors'), (number(stats.rx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : stats.rx_errors) + ' / ' + (number(stats.tx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : stats.tx_errors))]));
+					var row = ensurePort(port.device);
+					keep[port.device] = true; order.push(port.device);
+					text(row.name, port.device.toUpperCase());
+					paintBadge(row.badge, port.carrier);
+					text(row.speed, number(port.speed, 0, 1000000) == null ? '—' : port.speed + ' Mbit/s');
+					text(row.rate, formatRate(rx) + ' / ' + formatRate(tx));
+					text(row.errors, (number(stats.rx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : stats.rx_errors) + ' / ' + (number(stats.tx_errors, 0, Number.MAX_SAFE_INTEGER) == null ? '—' : stats.tx_errors));
 				});
-				summary.replaceChildren(card(_('Total Port Receive Rate'), rxOk === ports.length && ports.length ? formatRate(totalRx) : '—', rxOk + ' / ' + ports.length), card(_('Total Port Transmit Rate'), txOk === ports.length && ports.length ? formatRate(totalTx) : '—', txOk + ' / ' + ports.length), card(_('Physical Ethernet Ports'), (Array.isArray(data.interfaces) && ports.every(function(port) { return port.carrier === 0 || port.carrier === 1 || typeof port.carrier === 'boolean'; }) ? ports.filter(function(port) { return port.carrier === 1 || port.carrier === true; }).length : '—') + ' / ' + (Array.isArray(data.interfaces) ? ports.length : '—'), _('Connected / Total')), card(_('Network Quality'), jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : '—', jitter && number(jitter.loss, 0, 100) != null ? _('Loss') + ': ' + jitter.loss + '%' : _('Probe data unavailable')));
-				quality.replaceChildren(E('h3', { 'class': 'cbi-section-title' }, _('Link Quality')), metric(_('Latest RTT'), jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : _('Probe data unavailable')), metric(_('RTT mean absolute deviation'), jitter && number(jitter.deviation, 0, 60000) != null ? jitter.deviation + ' ms' : '—'), metric(_('Window packet loss'), jitter && number(jitter.loss, 0, 100) != null ? jitter.loss + '%' : '—'));
+				// Detached ports disappear; unchanged order keeps the DOM untouched.
+				Object.keys(portRows).forEach(function(device) {
+					if (keep[device]) return;
+					portRows[device].row.remove();
+					delete portRows[device];
+				});
+				if (order.join() !== portOrder) {
+					portOrder = order.join();
+					order.forEach(function(device) { interfaces.appendChild(portRows[device].row); });
+				}
+				var cells = ensureSummary();
+				text(cells[0].value, rxOk === ports.length && ports.length ? formatRate(totalRx) : '—');
+				text(cells[0].sub, rxOk + ' / ' + ports.length);
+				text(cells[1].value, txOk === ports.length && ports.length ? formatRate(totalTx) : '—');
+				text(cells[1].sub, txOk + ' / ' + ports.length);
+				text(cells[2].value, (Array.isArray(data.interfaces) && ports.every(function(port) { return port.carrier === 0 || port.carrier === 1 || typeof port.carrier === 'boolean'; }) ? ports.filter(function(port) { return port.carrier === 1 || port.carrier === true; }).length : '—') + ' / ' + (Array.isArray(data.interfaces) ? ports.length : '—'));
+				text(cells[2].sub, _('Connected / Total'));
+				text(cells[3].value, jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : '—');
+				text(cells[3].sub, jitter && number(jitter.loss, 0, 100) != null ? _('Loss') + ': ' + jitter.loss + '%' : _('Probe data unavailable'));
+				var quality_ = ensureQuality();
+				text(quality_[0], jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : _('Probe data unavailable'));
+				text(quality_[1], jitter && number(jitter.deviation, 0, 60000) != null ? jitter.deviation + ' ms' : '—');
+				text(quality_[2], jitter && number(jitter.loss, 0, 100) != null ? jitter.loss + '%' : '—');
 				previous = { time: number(data.uptime, 0, Number.MAX_SAFE_INTEGER) || 0, ports: {} }; ports.forEach(function(port) { previous.ports[port.device] = { ifindex: port.ifindex, rx_bytes: port.stats && port.stats.rx_bytes, tx_bytes: port.stats && port.stats.tx_bytes }; });
 				message.textContent = data.timestamp ? _('Last update') + ': ' + new Date(data.timestamp * 1000).toLocaleTimeString() : _('Data unavailable');
 				}
@@ -155,18 +219,21 @@ return view.extend({
 			if (!root.isConnected) return;
 			previous = null;
 			message.textContent = _('Data unavailable; previous readings cleared.');
+			portRows = {}; summaryCells = qualityCells = null; portOrder = '';
 			[interfaces, summary, quality].forEach(function(node) { node.replaceChildren(); });
 		}
 		requestAnimationFrame(function() {
 			if (!root.isConnected) return;
+			// Only the view container is watched; a body-wide subtree observer
+			// fired on every port/rate update this page writes itself.
 			var removal = new MutationObserver(function() {
 				if (root.isConnected) return;
 				poll.remove(update);
 				removal.disconnect();
 			});
-			removal.observe(document.body, { childList: true, subtree: true });
+			removal.observe(root.parentNode || document.body, { childList: true });
 			if (initial) paint(initial); else clear();
-			paintAcceleration(initialAcceleration, true);
+			paintAcceleration(initialAcceleration);
 			poll.add(update, 5);
 		});
 		return root;

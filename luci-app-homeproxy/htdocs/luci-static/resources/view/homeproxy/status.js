@@ -16,6 +16,36 @@
 
 const hp_dir = '/var/run/homeproxy';
 
+/* Declared once: these views re-render on Map reset/save, and declaring inside
+ * a render function rebuilds the RPC wrappers on every redraw. */
+const callConnStat = rpc.declare({
+	object: 'luci.homeproxy',
+	method: 'connection_check',
+	params: ['site'],
+	expect: { '': {} }
+});
+const callResStatus = rpc.declare({
+	object: 'luci.homeproxy',
+	method: 'resources_get',
+	expect: { '': {} },
+	reject: true
+});
+const callResUpdate = rpc.declare({
+	object: 'luci.homeproxy',
+	method: 'resources_update',
+	params: ['scope'],
+	expect: { '': {} }
+});
+const callDashboard = rpc.declare({
+	object: 'luci.homeproxy', method: 'dashboard_manage', params: ['action'], expect: { '': {} }
+});
+const callLogClean = rpc.declare({
+	object: 'luci.homeproxy',
+	method: 'log_clean',
+	params: ['type'],
+	expect: { '': {} }
+});
+
 const connectionSites = [
 	{ type: 'baidu', name: _('Baidu'), url: 'https://www.baidu.com/' },
 	{ type: 'bilibili', name: _('Bilibili'), url: 'https://www.bilibili.com/' },
@@ -29,13 +59,6 @@ const connectionTestTimeout = 10000;
 const visuallyHiddenStyle = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0';
 
 function getConnectionStatus() {
-	const callConnStat = rpc.declare({
-		object: 'luci.homeproxy',
-		method: 'connection_check',
-		params: ['site'],
-		expect: { '': {} }
-	});
-
 	const table = E('table', { 'class': 'table' }, [
 		E('tr', { 'class': 'tr table-titles' }, [
 			E('th', { 'class': 'th' }, _('Website')),
@@ -199,23 +222,6 @@ const resources = [
 ];
 
 function getResources(o) {
-	const callResStatus = rpc.declare({
-		object: 'luci.homeproxy',
-		method: 'resources_get',
-		expect: { '': {} },
-		reject: true
-	});
-
-	const callResUpdate = rpc.declare({
-		object: 'luci.homeproxy',
-		method: 'resources_update',
-		params: ['scope'],
-		expect: { '': {} }
-	});
-
-	const callDashboard = rpc.declare({
-		object: 'luci.homeproxy', method: 'dashboard_manage', params: ['action'], expect: { '': {} }
-	});
 	const state = this.resourceSession || (this.resourceSession = { busy: false, results: {} });
 	const buttons = [];
 	const resourceResults = {};
@@ -402,13 +408,6 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 			}, [ choices[v] ]));
 		});
 	}
-
-	const callLogClean = rpc.declare({
-		object: 'luci.homeproxy',
-		method: 'log_clean',
-		params: ['type'],
-		expect: { '': {} }
-	});
 
 	const log_textarea = E('textarea', {
 		'id': filename + '-log',

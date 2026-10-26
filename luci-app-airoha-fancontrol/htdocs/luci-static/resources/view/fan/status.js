@@ -163,12 +163,14 @@ return view.extend({
 			])
 		]);
 
-		var pending;
+		var pending, polling = false;
 		var refresh = function() {
 			if (!viewEl.isConnected) {
-				poll.remove(refresh);
+				if (polling) { poll.remove(refresh); polling = false; }
 				return Promise.resolve();
 			}
+			// A background tab does not need fresh fan data; keep the router idle.
+			if (document.visibilityState === 'hidden') return Promise.resolve();
 			if (pending) return pending;
 			pending = callFanStatus().then(function(current) {
 				if (viewEl.isConnected) updateView(viewEl, current);
@@ -180,12 +182,15 @@ return view.extend({
 		};
 		requestAnimationFrame(function() {
 			if (!viewEl.isConnected) return;
+			// Observe the view container only. Watching document.body with subtree
+			// fired on every unrelated write, including this page's own updates.
 			var removal = new MutationObserver(function() {
 				if (viewEl.isConnected) return;
-				poll.remove(refresh);
+				polling && poll.remove(refresh); polling = false;
 				removal.disconnect();
 			});
-			removal.observe(document.body, { childList: true, subtree: true });
+			removal.observe(viewEl.parentNode || document.body, { childList: true });
+			polling = true;
 			poll.add(refresh, 5);
 			refresh();
 		});

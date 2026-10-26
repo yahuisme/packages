@@ -261,7 +261,8 @@ return view.extend({
 		var statusPending = false, flowPending = false;
 		self.pollFn = function() {
 			if (!self.active || !page.isConnected) return Promise.resolve();
-			drawChart();
+			// The chart timer below ages the window every second; redrawing here
+			// only doubled the work while the poll was also running.
 			// Firewall state has its own single-flight guard. Do not return its
 			// promise to LuCI poll: a held sibling must not suspend CPU sampling.
 			if (!flowPending && Date.now() - lastFlowRequest >= 6000) {
@@ -291,7 +292,9 @@ return view.extend({
 			}
 			else if (!page.isConnected && mounted) self.cleanup();
 		});
-		self.observer.observe(document.body, { childList: true, subtree: true });
+		// Only the view container is watched: a body-wide subtree observer fired
+		// on every chart text update, i.e. on this page's own telemetry writes.
+		self.observer.observe(document.getElementById('view') || document.body, { childList: true });
 		// Container changes (including sidebar changes) need no telemetry tick.
 		self.onResize = function() {
 			if (self.active && page.isConnected) drawChart();

@@ -19,6 +19,12 @@ const callServiceList = rpc.declare({
 	reject: true
 });
 
+const callGetSingBoxFeatures = rpc.declare({
+	object: 'luci.homeproxy',
+	method: 'singbox_get_features',
+	expect: { '': {} }
+});
+
 return baseclass.extend({
 	dns_strategy: {
 		'': _('Default'),
@@ -265,12 +271,6 @@ return baseclass.extend({
 	},
 
 	getBuiltinFeatures() {
-		const callGetSingBoxFeatures = rpc.declare({
-			object: 'luci.homeproxy',
-			method: 'singbox_get_features',
-			expect: { '': {} }
-		});
-
 		return L.resolveDefault(callGetSingBoxFeatures(), {});
 	},
 

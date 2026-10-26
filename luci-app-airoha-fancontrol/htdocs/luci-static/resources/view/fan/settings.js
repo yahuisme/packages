@@ -270,18 +270,21 @@ return view.extend({
 			node.addEventListener('change', refresh);
 			refresh();
 			if (typeof ResizeObserver !== 'undefined') {
-				var mounted = node.isConnected;
 				resize = new ResizeObserver(refresh);
 				var svg = node && node.querySelector('.fan-curve-preview svg');
 				if (svg) {
 					resize._fanTarget = svg;
 					resize.observe(svg);
 				}
-				var lifecycle = new MutationObserver(function() {
-					if (node.isConnected) mounted = true;
-					else if (mounted) { resize.disconnect(); lifecycle.disconnect(); }
+				// Watch the view container only: a document-wide subtree observer
+				// fires on every unrelated DOM write, including this form's own.
+				var host = node.parentNode || document.getElementById('view') || document.body;
+				var removal = new MutationObserver(function() {
+					if (node.isConnected) return;
+					removal.disconnect();
+					resize.disconnect();
 				});
-				lifecycle.observe(document.body, { childList: true, subtree: true });
+				removal.observe(host, { childList: true });
 			}
 			return node;
 		});

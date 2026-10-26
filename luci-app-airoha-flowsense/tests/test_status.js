@@ -21,8 +21,16 @@ sample.interfaces[0].ifindex=4;sample.interfaces[0].stats.rx_bytes=100001000;sam
 assert.equal(rateText(),'— / —','same-name recreated interface needs a fresh baseline');assert.deepEqual(totals(),['—','—']);
 sample.interfaces[0].stats.rx_bytes+=625000;sample.interfaces[0].stats.tx_bytes+=1250000;sample.uptime=120;await polls.get(5)();
 assert.equal(rateText(),'1.0 Mbit/s / 2.0 Mbit/s');assert.deepEqual(totals(),['1.0 Mbit/s','2.0 Mbit/s']);
-sample.uptime=125;await polls.get(5)();assert.equal(rateText(),'0.00 Mbit/s / 0.00 Mbit/s');
-sample.interfaces[0].stats.rx_bytes=0;sample.interfaces[0].stats.tx_bytes=0;sample.uptime=130;await polls.get(5)();assert.equal(rateText(),'— / —');
+// Identical output must not rebuild the port rows or rewrite their cells.
+const portRows=[...root.querySelectorAll('.flowsense-port')],portCells=[...root.querySelectorAll('.flowsense-port-metric dd')],portMutations=[];
+const portObserver=new w.MutationObserver(records=>portMutations.push(...records));
+portObserver.observe(root.querySelector('.flowsense-ports'),{subtree:true,childList:true,attributes:true,characterData:true});
+sample.interfaces[0].stats.rx_bytes+=625000;sample.interfaces[0].stats.tx_bytes+=1250000;sample.uptime=125;await polls.get(5)();
+portObserver.disconnect();
+assert.equal(portMutations.length,0,'unchanged port telemetry must not rewrite DOM');
+assert.deepEqual([...root.querySelectorAll('.flowsense-port')],portRows,'port rows are reused across refreshes');
+assert.deepEqual([...root.querySelectorAll('.flowsense-port-metric dd')],portCells,'metric cells are reused across refreshes');
+sample.uptime=130;await polls.get(5)();assert.equal(rateText(),'0.00 Mbit/s / 0.00 Mbit/s');sample.interfaces[0].stats.rx_bytes=0;sample.interfaces[0].stats.tx_bytes=0;sample.uptime=130;await polls.get(5)();assert.equal(rateText(),'— / —');
 sample.interfaces[0].stats.rx_bytes=625000;sample.interfaces[0].stats.tx_bytes=1250000;sample.uptime=135;await polls.get(5)();assert.equal(rateText(),'1.0 Mbit/s / 2.0 Mbit/s');
 sample.interfaces[0].ifindex=null;sample.uptime=140;await polls.get(5)();
 sample.interfaces[0].stats.rx_bytes+=625000;sample.uptime=145;await polls.get(5)();

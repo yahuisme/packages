@@ -434,11 +434,18 @@ return baseclass.extend({
 		};
 
 		return map.render().then(function(nodes) {
+			let seen = false;
 			refresh = function() {
 				if (!nodes.isConnected) {
-					poll.remove(refresh);
+					// Ticks may fire between render and mount; only a node that was
+					// mounted once can be considered detached.
+					if (seen) {
+						poll.remove(refresh);
+						if (mloRefresh === refresh) mloRefresh = null;
+					}
 					return Promise.resolve();
 				}
+				seen = true;
 				if (!mloActive)
 					return Promise.resolve();
 				if (inflight)
@@ -458,21 +465,17 @@ return baseclass.extend({
 				return inflight;
 			};
 			mloRefresh = refresh;
-			let mounted = false;
+			// Polling starts with the render; the first tick already sees a mounted
+			// node, so no mount detection (and no document observer) is needed.
+			poll.add(refresh, 5);
 			let observer = new MutationObserver(function() {
-				if (nodes.isConnected) {
-					if (!mounted) {
-						mounted = true;
-						poll.add(refresh, 5);
-					}
-					return;
-				}
-				if (!mounted) return;
+				if (nodes.isConnected) return;
 				poll.remove(refresh);
 				if (mloRefresh === refresh) mloRefresh = null;
 				observer.disconnect();
 			});
-			observer.observe(document.body, { childList: true, subtree: true });
+			// Watch the view container only, never every mutation in the document.
+			observer.observe(document.getElementById('view') || nodes.parentNode || document.body, { childList: true });
 			return nodes;
 		});
 	}
