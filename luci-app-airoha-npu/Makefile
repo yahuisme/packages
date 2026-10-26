@@ -12,6 +12,7 @@ LUCI_DEPENDS:=+luci-base +jsonfilter
 LUCI_PKGARCH:=all
 
 PKG_LICENSE:=Apache-2.0
+PKG_MAINTAINER:=yahuisme <40222380+yahuisme@users.noreply.github.com>
 
 include $(TOPDIR)/feeds/luci/luci.mk
 

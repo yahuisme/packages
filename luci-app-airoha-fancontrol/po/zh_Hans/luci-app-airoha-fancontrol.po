@@ -183,3 +183,12 @@ msgstr "Airoha 风扇状态"
 
 msgid "Airoha Fan Settings"
 msgstr "Airoha 风扇设置"
+
+msgid "An error occurred while saving the form:"
+msgstr "保存表单时发生错误："
+
+msgid "Dismiss"
+msgstr "关闭"
+
+msgid "Save error"
+msgstr "保存失败"

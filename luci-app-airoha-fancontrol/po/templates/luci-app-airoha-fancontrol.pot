@@ -183,3 +183,12 @@ msgstr ""
 
 msgid "Airoha Fan Settings"
 msgstr ""
+
+msgid "An error occurred while saving the form:"
+msgstr ""
+
+msgid "Dismiss"
+msgstr ""
+
+msgid "Save error"
+msgstr ""
