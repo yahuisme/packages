@@ -1,0 +1,85 @@
+name: Regression Tests
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'luci-app-homeproxy/root/etc/homeproxy/resources/**'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  syntax:
+    name: Syntax checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate package metadata
+        run: |
+          set -eu
+          for mk in luci-app-*/Makefile; do
+            grep -q '^include \$(TOPDIR)/feeds/luci/luci.mk' "$mk"
+            grep -q '^LUCI_PKGNAME:=' "$mk"
+            grep -q '^LUCI_PKGARCH:=' "$mk"
+            grep -q '^PKG_MAINTAINER:=' "$mk"
+          done
+      - name: Check RPC access control covers every declared method
+        run: python3 .github/tests/test_package_update.py
+      - name: JavaScript and shell syntax
+        run: |
+          set -eu
+          for js in $(find luci-app-*/htdocs -name '*.js'); do node --check "$js"; done
+          # .uc is ucode, not POSIX shell; only shell scripts go through sh -n.
+          for sh in $(find luci-app-*/root -type f \( -path '*/libexec/*' -o -path '*/init.d/*' -o -name '*.sh' \) ! -name '*.uc' | sort -u); do
+            head -1 "$sh" | grep -q '^#!' || continue
+            sh -n "$sh"
+          done
+      - name: Reject document-wide mutation observers in views
+        run: |
+          set -eu
+          # Views must scope lifecycle observers to the view container; a
+          # document.body/documentElement subtree observer fires on every write.
+          if grep -rn "observe(document\.\(body\|documentElement\)[^)]*subtree" luci-app-*/htdocs; then
+            echo 'document-wide subtree observer found'; exit 1
+          fi
+
+  luci-tests:
+    name: LuCI view and backend suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Checkout LuCI resources
+        uses: actions/checkout@v7
+        with:
+          repository: openwrt/luci
+          path: .luci
+          fetch-depth: 1
+      - name: Build po2lmo
+        run: |
+          set -eu
+          src=.luci/modules/luci-base/src
+          gcc -O2 -o /tmp/lemon "$src"/contrib/lemon.c
+          ( cd "$src"/lib && /tmp/lemon -T../contrib/lempar.c plural_formula.y > /dev/null )
+          gcc -O2 -I"$src"/lib -o "$src"/po2lmo "$src"/po2lmo.c "$src"/lib/lmo.c "$src"/lib/plural_formula.c
+          "$src"/po2lmo 2>&1 | head -1 || true
+      - name: Install jsdom
+        run: npm install --global jsdom
+      - name: Run suites
+        env:
+          NODE_PATH: /usr/local/lib/node_modules
+          LUCI_RESOURCE_DIR: ${{ github.workspace }}/.luci/modules/luci-base/htdocs/luci-static/resources
+        run: ./.github/scripts/run-tests.sh
