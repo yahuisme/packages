@@ -8,6 +8,16 @@ import unittest
 root = pathlib.Path(__file__).resolve().parents[1]
 
 
+def isolated_source(directory):
+    source = (root / 'root/usr/libexec/npu-jitter-daemon').read_text().replace(
+        '/usr/libexec/flowsense-common.sh', str(root / 'root/usr/libexec/flowsense-common.sh')).replace(
+        '/var/run/npu-jitter.json', str(directory / 'result.json'))
+    # Ubuntu BusyBox ash prefers compiled-in applets over PATH. Shell functions
+    # always win and invoke only the private fixtures, even on that build.
+    return ('ping() { "' + str(directory / 'bin/ping') + '" "$@"; }\n'
+            'sleep() { "' + str(directory / 'bin/sleep') + '" "$@"; }\n' + source)
+
+
 class DaemonTest(unittest.TestCase):
     def test_failed_publication_preserves_previous_complete_sample(self):
         with tempfile.TemporaryDirectory() as td:
@@ -17,9 +27,7 @@ class DaemonTest(unittest.TestCase):
             (d / 'bin/ping').write_text('#!/bin/sh\nprintf "round-trip min/avg/max = 10.000/10.000/10.000 ms\\n"\n')
             (d / 'bin/sleep').write_text('#!/bin/sh\nkill -TERM "$PPID"\n')
             for p in (d / 'bin').iterdir(): p.chmod(0o755)
-            source = (root / 'root/usr/libexec/npu-jitter-daemon').read_text().replace(
-                '/usr/libexec/flowsense-common.sh', str(root / 'root/usr/libexec/flowsense-common.sh')).replace(
-                '/var/run/npu-jitter.json', str(result))
+            source = isolated_source(d)
             # A failing shell write models tmpfs exhaustion, without host devices.
             source = source.replace('values=\n', '''printf() {
     case "$2" in '{"timestamp":'*) command printf '%s' '{broken'; return 1;; esac
@@ -51,9 +59,7 @@ cat "$FIXTURE/result.json" >> "$FIXTURE/windows"
 [ "$(cat "$FIXTURE/count")" -lt 30 ] || kill -TERM "$PPID"
 ''')
                 for p in (d / 'bin').iterdir(): p.chmod(0o755)
-                source = (root / 'root/usr/libexec/npu-jitter-daemon').read_text().replace(
-                    '/usr/libexec/flowsense-common.sh', str(root / 'root/usr/libexec/flowsense-common.sh')).replace(
-                    '/var/run/npu-jitter.json', str(d / 'result.json'))
+                source = isolated_source(d)
                 (d / 'daemon').write_text(source)
                 result = subprocess.run(['busybox', 'ash', '-x', str(d / 'daemon'), 'example.com'],
                     env=dict(os.environ, FIXTURE=td, PATH=str(d / 'bin') + ':' + os.environ['PATH']),
@@ -80,9 +86,7 @@ cat "$FIXTURE/result.json" >> "$FIXTURE/windows"
             (d / 'bin/sleep').write_text('#!/bin/sh\nkill -TERM "$PPID"\n')
             for p in (d / 'bin').iterdir():
                 p.chmod(0o755)
-            s = (root / 'root/usr/libexec/npu-jitter-daemon').read_text().replace(
-                '/usr/libexec/flowsense-common.sh', str(root / 'root/usr/libexec/flowsense-common.sh')).replace(
-                '/var/run/npu-jitter.json', str(d / 'result.json'))
+            s = isolated_source(d)
             (d / 'daemon').write_text(s)
             subprocess.run(['busybox', 'ash', str(d / 'daemon'), 'example.com'],
                            env=dict(os.environ, PATH=str(d / 'bin') + ':' + os.environ['PATH']),

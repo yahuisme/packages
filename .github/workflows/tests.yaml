@@ -57,32 +57,41 @@ jobs:
 
   luci-tests:
     name: LuCI view and backend suites
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Checkout LuCI resources
+      - name: Prepare scratch
+        run: |
+          mkdir -p "$RUNNER_TEMP/packages-scratch"
+          echo "TMPDIR=$RUNNER_TEMP/packages-scratch" >> "$GITHUB_ENV"
+      - name: Checkout pinned LuCI resources
         uses: actions/checkout@v7
         with:
           repository: openwrt/luci
+          ref: a8c110bed82375b69eb3881b2e54e617520e8c7d
           path: .luci
           fetch-depth: 1
-      - name: Build po2lmo
+      - name: Stage verified prebuilt runtime and gettext
         run: |
           set -eu
-          src=.luci/modules/luci-base/src
-          gcc -O2 -o /tmp/lemon "$src"/contrib/lemon.c
-          ( cd "$src"/lib && /tmp/lemon -T../contrib/lempar.c plural_formula.y > /dev/null )
-          gcc -O2 -I"$src"/lib -o "$src"/po2lmo "$src"/po2lmo.c "$src"/lib/lmo.c "$src"/lib/plural_formula.c
-          "$src"/po2lmo 2>&1 | head -1 || true
+          mkdir -p "$TMPDIR"
+          sudo apt-get update
+          sudo apt-get install -y gettext
+          python3 .github/scripts/setup-test-tools.py --dest "$RUNNER_TEMP/packages-tools"
+          . "$RUNNER_TEMP/packages-tools/env.sh"
+          # Reuse the exact same exported paths in subsequent steps.
+          for key in OPENWRT_TOOLS UCODE_LIB_DIR PO2LMO REAL_UCI UCI_BIN; do
+            printenv "$key" | sed "s|^|$key=|" >> "$GITHUB_ENV"
+          done
+          echo "$OPENWRT_TOOLS/bin" >> "$GITHUB_PATH"
       - name: Install jsdom
         run: |
-          # Pinned: newer jsdom resolves CSS var() differently and breaks the
-          # computed-style assertions in the view suites.
-          npm install --global jsdom@26.1.0
-          echo "NODE_PATH=$(npm root -g)" >> "$GITHUB_ENV"
+          # Pinned to the version used by the native computed-style assertions.
+          npm install --prefix "$RUNNER_TEMP/packages-node" --ignore-scripts --no-audit --no-fund jsdom@26.1.0
+          echo "NODE_PATH=$RUNNER_TEMP/packages-node/node_modules" >> "$GITHUB_ENV"
       - name: Run suites
         env:
           LUCI_RESOURCE_DIR: ${{ github.workspace }}/.luci/modules/luci-base/htdocs/luci-static/resources

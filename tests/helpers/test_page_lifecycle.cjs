@@ -24,6 +24,13 @@ if(require.main===module){
    const expected=name==='client'?2:1,counts=[h.polls().length];
    for(let i=0;i<2;i++){await h.map.reset();await tick();counts.push(h.polls().length);}
    assert.deepEqual(counts,[expected,expected,expected],name+' reset queue');
+   Object.defineProperty(h.w.document,'visibilityState',{configurable:true,value:'hidden'});
+   const hiddenCalls=h.calls.length;
+   await Promise.all(h.polls().map(f=>f()));await tick();
+   assert.equal(h.calls.length,hiddenCalls,name+' background polls send no requests');
+   Object.defineProperty(h.w.document,'visibilityState',{configurable:true,value:'visible'});
+   await Promise.all(h.polls().map(f=>f()));await tick();
+   assert(h.calls.length>hiddenCalls,name+' foreground polls resume');
    // Hold all transport while repeatedly ticking, resetting and leaving/re-entering.
    const held=[];h.setHandler((obj,method)=>new Promise((resolve,reject)=>held.push({obj,method,resolve,reject})));
    const old=[h.root().querySelector('#service_status'),h.root().querySelector('[data-name="_tailscale_status"]')].filter(Boolean),oldHTML=old.map(e=>e.innerHTML),callbacks=h.polls(),requests=callbacks.map(f=>f());await tick();

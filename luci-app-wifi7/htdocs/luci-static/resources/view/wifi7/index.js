@@ -73,6 +73,7 @@ return view.extend({
 		var activeTab = 0, clientCache = { rows: [], empty: _('Client data unavailable') };
 		var operation = {
 			pending: false,
+			isConnected: function() { return root && root.isConnected; },
 			readWireless: function() {
 				return update(activeTab === 3).then(function() {
 					if (!wirelessSnapshot || !wirelessSnapshot.ok) throw new Error('Wireless status unavailable');

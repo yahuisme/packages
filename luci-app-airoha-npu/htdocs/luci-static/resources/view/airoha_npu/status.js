@@ -90,6 +90,7 @@ return view.extend({
 		chart.appendChild(lineNode);
 		var ticks = [], axisKey;
 		function drawChart() {
+			if (document.visibilityState === 'hidden') return;
 			var now = Date.now();
 			samples = samples.filter(function(p) {
 				if (p.time >= now - 120000) return true;
@@ -260,7 +261,7 @@ return view.extend({
 
 		var statusPending = false, flowPending = false;
 		self.pollFn = function() {
-			if (!self.active || !page.isConnected) return Promise.resolve();
+			if (!self.active || !page.isConnected || document.visibilityState === 'hidden') return Promise.resolve();
 			// The chart timer below ages the window every second; redrawing here
 			// only doubled the work while the poll was also running.
 			// Firewall state has its own single-flight guard. Do not return its

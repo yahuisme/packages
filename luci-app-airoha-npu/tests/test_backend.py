@@ -31,12 +31,16 @@ if s is None:
 try:
     data = json.loads(s)
     key = target.replace('@.', '')
-    val = data.get(key)
+    if not isinstance(data, dict) or key not in data:
+        sys.exit(1)
+    val = data[key]
     if mode == 't':
         if isinstance(val, str): print('string')
-        elif isinstance(val, int) and not isinstance(val, bool): print('number')
+        elif isinstance(val, int) and not isinstance(val, bool): print('int')
+        elif isinstance(val, float): print('double')
         elif isinstance(val, bool): print('boolean')
-        elif val is None: sys.exit(1)
+        elif val is None: print('null')
+        elif isinstance(val, list): print('array')
         else: print('object')
     else:
         if val is not None:

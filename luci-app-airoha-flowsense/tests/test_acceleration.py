@@ -50,6 +50,11 @@ class AccelerationTest(unittest.TestCase):
         source = re.sub(r'/(?:proc|sys|etc|var|tmp)/', lambda m: str(self.d) + m[0], source)
         source = source.replace('fixture_restart', str(self.d / 'bin/restart'))
         rpc = (ROOT / 'root/usr/libexec/rpcd/luci.airoha_flowsense').read_text()
+        # BusyBox builds may prefer embedded applets over PATH. Bind commands
+        # intercepted by these tests explicitly, preserving their real applets
+        # through the private bin symlinks when no fault/counting stub is used.
+        rpc = ''.join(name + '() { "' + str(self.d / 'bin' / name) + '" "$@"; }\n'
+                      for name in ('awk', 'cat', 'cp', 'date')) + rpc
         rpc = rpc.replace('/usr/libexec/flowsense-common.sh', str(ROOT / 'root/usr/libexec/flowsense-common.sh'))
         rpc = rpc.replace('/usr/libexec/flowsense-acceleration.sh', str(self.d / 'acc.sh'))
         (self.d / 'acc.sh').write_text(source)

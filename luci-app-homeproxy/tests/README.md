@@ -1,3 +1,24 @@
+# Subscription group display and URLTest validation
+
+```sh
+. /opt/test-tools/env.sh
+# Select the existing full runtime if a bootstrap/old ucode shadows it in PATH.
+export PATH=/usr/local/bin:/opt/test-tools/openwrt/bin:/opt/test-tools/python/common/bin:/usr/bin:/bin
+ucode -e 'import { mkdtemp } from "fs"; print(type(mkdtemp), "\n");'
+node luci-app-homeproxy/tests/test_subscription_groups.cjs
+python3 -m unittest discover -s luci-app-homeproxy/tests -p 'test_urltest_options.py' -v
+```
+
+The UI regression executes the shared production group parser, complete client
+and node views, native choice widgets and validation. It covers Unicode/scalar
+URLs, deduplication, malformed titles, literal group/node labels in main,
+URLTest and diversion choices, current-node protocol display and retained
+interval/tolerance controls. The generator regression rejects malformed or
+out-of-range tolerance before writing a config, preserves explicit zero and
+65535, and retains 120-second/default and explicit interval behavior. UCI/RPC
+transport and generator platform modules are private fixtures; no browser,
+proxy, compilation or host configuration is used.
+
 # Service status and current-node performance regressions
 
 Run from the repository root with the shared test environment loaded:

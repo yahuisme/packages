@@ -434,6 +434,7 @@ return baseclass.extend({
 		};
 
 		return map.render().then(function(nodes) {
+			if (operation.isConnected && !operation.isConnected()) return nodes;
 			let seen = false;
 			refresh = function() {
 				if (!nodes.isConnected) {
@@ -446,7 +447,7 @@ return baseclass.extend({
 					return Promise.resolve();
 				}
 				seen = true;
-				if (!mloActive)
+				if (!mloActive || document.visibilityState === 'hidden')
 					return Promise.resolve();
 				if (inflight)
 					return inflight;

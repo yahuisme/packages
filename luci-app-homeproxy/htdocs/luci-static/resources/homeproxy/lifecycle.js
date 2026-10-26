@@ -37,7 +37,7 @@ return baseclass.extend({
 				refresh();
 		}, () => poll.remove(refresh));
 		const refresh = () => {
-			if (!alive() || pending[key])
+			if (!alive() || document.visibilityState === 'hidden' || pending[key])
 				return Promise.resolve();
 			pending[key] = true;
 			return Promise.resolve().then(() => alive() ? read() : undefined).then((value) => {

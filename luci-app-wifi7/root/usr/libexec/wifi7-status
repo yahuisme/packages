@@ -2,9 +2,9 @@
 # Fixed read-only probe. No caller-supplied commands, paths or interfaces.
 # "summary" is the only accepted argument: it skips the per-station dump for
 # the 5s telemetry path. Everything else keeps the collector argument-free.
-case "$1" in
-    '') stations=1 ;;
-    summary) stations= ;;
+case "$#:$1" in
+    0:) stations=1 ;;
+    1:summary) stations= ;;
     *) exit 2 ;;
 esac
 probe() {

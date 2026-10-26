@@ -181,6 +181,9 @@ return view.extend({
 		    hosts = data[2]?.hosts;
 
 		/* Cache all configured proxy nodes, they will be called multiple times */
+		const subscription_groups = Object.fromEntries(
+			hp.getSubscriptionGroups(data[0]).map((group) => [ group.hash, group.title ])
+		);
 		let proxy_nodes = {};
 		uci.sections(data[0], 'node', (res) => {
 			let nodeaddr = res.address || '',
@@ -188,7 +191,8 @@ return view.extend({
 			    endpoint = nodeaddr && nodeport ? ((stubValidator.apply('ip6addr', nodeaddr) ?
 				String.format('[%s]', nodeaddr) : nodeaddr) + ':' + nodeport) : res['.name'];
 
-			proxy_nodes[res['.name']] =
+			const group = subscription_groups[res.grouphash];
+			proxy_nodes[res['.name']] = (group ? '<' + group + '> ' : '') +
 				String.format('[%s] %s', res.type, res.label || endpoint);
 		});
 
@@ -348,7 +352,7 @@ return view.extend({
 		o.value('nil', _('Disable'));
 		o.value('urltest', _('URLTest'));
 		for (let i in proxy_nodes)
-			o.value(i, proxy_nodes[i]);
+			o.value(i, E('span', {}, [proxy_nodes[i]]));
 		o.default = 'nil';
 		o.depends('routing_mode', 'bypass_mainland_china');
 		o.depends('routing_mode', 'global');
@@ -358,7 +362,7 @@ return view.extend({
 		o = s.taboption('routing', hp.CBIStaticList, 'main_urltest_nodes', _('URLTest nodes'),
 			_('List of nodes to test.'));
 		for (let i in proxy_nodes)
-			o.value(i, proxy_nodes[i]);
+			o.value(i, E('span', {}, [proxy_nodes[i]]));
 		o.depends({ routing_mode: 'bypass_mainland_china', main_node: 'urltest' });
 		o.depends({ routing_mode: 'global', main_node: 'urltest' });
 		o.rmempty = false;
@@ -374,7 +378,7 @@ return view.extend({
 
 		o = s.taboption('routing', form.Value, 'main_urltest_tolerance', _('Test tolerance'),
 			_('The test tolerance in milliseconds.'));
-		o.datatype = 'uinteger';
+		o.datatype = 'and(uinteger,range(0,65535))';
 		o.placeholder = '60';
 		o.depends({ routing_mode: 'bypass_mainland_china', main_node: 'urltest' });
 		o.depends({ routing_mode: 'global', main_node: 'urltest' });
@@ -745,7 +749,7 @@ return view.extend({
 
 		dro = domainRoutes.option(form.ListValue, 'node', _('Node'));
 		for (let i in proxy_nodes)
-			dro.value(i, proxy_nodes[i]);
+			dro.value(i, E('span', {}, [proxy_nodes[i]]));
 		dro.value('tailscale', _('[Tailscale] Tailscale'));
 		uci.sections('homeproxy', 'domain_route', (section) => {
 			if (section.node && section.node !== 'tailscale' && !proxy_nodes[section.node])
@@ -756,7 +760,7 @@ return view.extend({
 			const value = this.cfgvalue(section_id);
 			if (value === 'tailscale' && uci.get('homeproxy', 'tailscale', 'enabled') === '1')
 				return _('[Tailscale] Tailscale');
-			return value !== 'tailscale' && proxy_nodes[value] ? proxy_nodes[value] :
+			return value !== 'tailscale' && proxy_nodes[value] ? E('span', {}, [proxy_nodes[value]]) :
 				_('Node unavailable; using the main node.');
 		};
 

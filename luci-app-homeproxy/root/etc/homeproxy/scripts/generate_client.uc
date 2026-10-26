@@ -703,7 +703,10 @@ if (!isEmpty(main_node)) {
 		if (!length(urltest_nodes))
 			die('Main URLTest group has no available nodes.');
 		const main_urltest_interval = uci.get(uciconfig, ucimain, 'main_urltest_interval') || '120';
-		const main_urltest_tolerance = uci.get(uciconfig, ucimain, 'main_urltest_tolerance') || '60';
+		const tolerance_value = uci.get(uciconfig, ucimain, 'main_urltest_tolerance') || '60';
+		if (!match(tolerance_value, /^[0-9]{1,5}$/) || int(tolerance_value) > 65535)
+			die('Main URLTest tolerance must be an integer from 0 to 65535 milliseconds.');
+		const main_urltest_tolerance = int(tolerance_value);
 		const main_urltest_interrupt = uci.get(uciconfig, ucimain, 'main_urltest_interrupt_exist_connections') || '0';
 
 		push(config.outbounds, {
@@ -711,7 +714,7 @@ if (!isEmpty(main_node)) {
 			tag: 'main-out',
 			outbounds: map(urltest_nodes, (k) => get_node_outbound_tag(k)),
 			interval: strToTime(main_urltest_interval),
-			tolerance: strToInt(main_urltest_tolerance),
+			tolerance: main_urltest_tolerance,
 			idle_timeout: (strToInt(main_urltest_interval) > 1800) ? `${main_urltest_interval * 2}s` : null,
 			interrupt_exist_connections: strToBool(main_urltest_interrupt)
 		});

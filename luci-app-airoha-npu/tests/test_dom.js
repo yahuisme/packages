@@ -157,6 +157,20 @@ async function tick(ms = 3000) {
   await app.pollFn(); assert.equal(calls, beforeDetach);
   held = false; fail = false;
   const again = app.render(await app.load()); w.document.body.append(again); await flush();
+  Object.defineProperty(w.document, 'visibilityState', { configurable: true, value: 'hidden' });
+  const hiddenCalls = calls;
+  const hiddenWrites = [], hiddenObserver = new w.MutationObserver(rs => hiddenWrites.push(...rs));
+  hiddenObserver.observe(again.querySelector('svg'), { attributes: true, childList: true, characterData: true, subtree: true });
+  now += 6000;
+  for (const fn of timers.values()) fn();
+  await app.pollFn(); await flush(); hiddenObserver.disconnect();
+  assert.equal(calls, hiddenCalls, 'hidden tab must not send telemetry RPCs');
+  assert.equal(hiddenWrites.length, 0, 'hidden tab must not redraw the chart');
+  Object.defineProperty(w.document, 'visibilityState', { configurable: true, value: 'visible' });
+  await app.pollFn(); await flush();
+  assert.equal(calls, hiddenCalls + 2, 'visible tab resumes overdue CPU and firewall reads');
+  assert.equal(points().at(-1).dataset.time, String(now), 'resume records only an actual reply');
+  assert(segments() > 1, 'background pause stays a real gap');
   w.dispatchEvent(new w.Event('pagehide')); assert.equal(mods.poll.queue.length, 0); assert.equal(timers.size, 0);
   console.log('PASS real LuCI DOM/RPC/poll: 3s sampling, 120s expiry, missing/invalid data gaps, stalled transport no overlap, detach/pagehide cleanup');
  } finally { w.close(); }

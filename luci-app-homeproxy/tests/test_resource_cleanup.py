@@ -4,6 +4,7 @@ import hashlib
 import http.server
 import json
 import os
+import shlex
 import shutil
 from pathlib import Path
 import subprocess
@@ -57,7 +58,7 @@ class ResourceCleanup(unittest.TestCase):
             'stat': '#!/bin/sh\nprintf "stat: applet not found\\n" >&2\nexit 127\n',
             'decoder': '#!/bin/sh\nexit 0\n',
             'init': '#!/bin/sh\n[ "$1" != reload ] || [ "$FAIL_RELOAD" != 1 ]\n',
-            'ucode': '#!/bin/sh\nexec /usr/local/bin/ucode -L "$UCODE_LIB_DIR" "$@"\n',
+            'ucode': '#!/bin/sh\nexec ' + shlex.quote(shutil.which('ucode') or 'ucode') + ' -L "$UCODE_LIB_DIR" "$@"\n',
             'rm': '''#!/bin/sh
 for arg do
  case "$arg" in

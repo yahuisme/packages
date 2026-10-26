@@ -53,7 +53,7 @@ src-git mypackages https://github.com/yahuisme/packages.git;main
 
 ## 测试
 
-各包 `tests/` 下的用例不需要路由器或真实无线硬件，只要 node（jsdom）与上游 LuCI 资源：
+各包 `tests/` 的主机回归使用 node、jsdom、上游 LuCI 资源及 OpenWrt 用户态工具；主题布局和无线硬件验收单独运行：
 
 ```bash
 export NODE_PATH="$(npm root -g)"
@@ -61,6 +61,5 @@ export LUCI_RESOURCE_DIR=/path/to/luci/modules/luci-base/htdocs/luci-static/reso
 ./.github/scripts/run-tests.sh
 ```
 
-脚本会明确打印 `SKIP` 及原因（需要真实 OpenWrt 树、主题布局夹具或 Playwright 的用例），
-CI 在 `.github/workflows/tests.yaml` 中运行同一套。
+依赖准备与专项补测见 [测试说明](.github/scripts/TESTING.md)。脚本会明确打印 `UNVERIFIED` 及原因，CI 在 `.github/workflows/tests.yaml` 中运行同一套。
 

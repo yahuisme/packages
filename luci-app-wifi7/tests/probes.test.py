@@ -26,6 +26,13 @@ class ProbeTests(unittest.TestCase):
             result = subprocess.run(['sh', str(script), 'unexpected'], capture_output=True)
             self.assertEqual(result.returncode, 2, script.name)
 
+    def test_status_rejects_extra_or_empty_arguments(self):
+        script = APP / 'root/usr/libexec/wifi7-status'
+        for args in ([''], ['', 'unexpected'], ['summary', 'unexpected']):
+            with self.subTest(args=args):
+                result = subprocess.run(['sh', str(script), *args], capture_output=True)
+                self.assertEqual(result.returncode, 2)
+
     def test_summary_reuses_the_same_collector(self):
         wrapper = (APP/'root/usr/libexec/wifi7-status-summary').read_text()
         self.assertIn('exec "${0%/*}/wifi7-status" summary', wrapper)
