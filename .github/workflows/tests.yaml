@@ -30,7 +30,8 @@ jobs:
           set -eu
           for mk in luci-app-*/Makefile; do
             grep -q '^include \$(TOPDIR)/feeds/luci/luci.mk' "$mk"
-            grep -q '^LUCI_PKGNAME:=' "$mk"
+            # luci.mk accepts either an explicit LUCI_PKGNAME or PKG_NAME.
+            grep -qE '^(LUCI_PKGNAME|PKG_NAME):=' "$mk"
             grep -q '^LUCI_PKGARCH:=' "$mk"
             grep -q '^PKG_MAINTAINER:=' "$mk"
           done
@@ -77,9 +78,10 @@ jobs:
           gcc -O2 -I"$src"/lib -o "$src"/po2lmo "$src"/po2lmo.c "$src"/lib/lmo.c "$src"/lib/plural_formula.c
           "$src"/po2lmo 2>&1 | head -1 || true
       - name: Install jsdom
-        run: npm install --global jsdom
+        run: |
+          npm install --global jsdom
+          echo "NODE_PATH=$(npm root -g)" >> "$GITHUB_ENV"
       - name: Run suites
         env:
-          NODE_PATH: /usr/local/lib/node_modules
           LUCI_RESOURCE_DIR: ${{ github.workspace }}/.luci/modules/luci-base/htdocs/luci-static/resources
         run: ./.github/scripts/run-tests.sh
