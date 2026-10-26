@@ -47,14 +47,15 @@ except (ValueError, AssertionError):
         helper = helper.replace("'/etc/homeproxy'", json.dumps(str(self.hp)))
         helper = helper.replace("'/var/run/homeproxy'", json.dumps(str(self.run)))
         helper = helper.replace('/sbin/validate_data', shlex.quote(str(validator)))
+        helper = helper.replace("from 'luci.http'", 'from ' + json.dumps(str(self.root / 'luci/http.uc')))
         (self.root / 'homeproxy.uc').write_text(helper)
         # The cases use DNS URLs without query parameters; fail on unexpected use.
         (self.root / 'luci').mkdir()
         (self.root / 'luci/http.uc').write_text(
-            "export function urldecode_params(v) { die('Unexpected query decoder use'); }\n")
+            "export function urldecode_params(v) { die('Unexpected query decoder use'); };\n")
         (self.root / 'ubus.uc').write_text('''export function connect() {
     return { call: function() { return { interface: [] }; } };
-}
+};
 ''')
         self.sections: dict[str, dict[str, Any]] = {
             'config': {'.type': 'homeproxy', 'main_node': 'node1',
@@ -86,10 +87,16 @@ export function cursor() { return {
     foreach: function(c, t, cb) {
         for (let name, value in data) if (value['.type'] === t) cb(value);
     }
-}; }
+}; };
 ''')
         script = self.root / 'generate.uc'
-        script.write_text((SCRIPTS / 'generate_client.uc').read_text())
+        source = (SCRIPTS / 'generate_client.uc').read_text()
+        # Native .so modules can precede -L source paths in prebuilt runtimes.
+        # Bind only platform fixtures explicitly; keep fs and digest native.
+        for module in ('ubus', 'uci', 'homeproxy'):
+            source = source.replace("from '" + module + "'",
+                                    'from ' + json.dumps(str(self.root / (module + '.uc'))))
+        script.write_text(source)
         proc = subprocess.run(['ucode', '-L', str(self.root), '-L',
                                os.environ.get('UCODE_LIB_DIR', '/opt/test-tools/ucode/build'),
                                str(script)], capture_output=True, text=True, timeout=15)

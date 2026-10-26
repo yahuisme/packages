@@ -55,6 +55,29 @@ def main():
                     'usr/bin/jsonfilter', 'usr/share/libubox/jshn.sh'):
                 member.name = name
                 tar.extract(member, runtime, filter='data')
+    # Stage the matching OpenWrt ucode digest module from the signed package feed.
+    arch_name = 'aarch64_generic' if platform.machine() == 'aarch64' else 'x86_64'
+    digest_ipk = dest / 'ucode-mod-digest.ipk'
+    digest_url = ('https://downloads.openwrt.org/releases/24.10.4/packages/' +
+                  arch_name + '/base/ucode-mod-digest_2025.07.18~3f64c808-r1_' +
+                  arch_name + '.ipk')
+    digest_hash = ('9133d589bbf7d0a8c87b8808dd4da1a79f0a52aaa293716746be5be790df03eb'
+                   if arch_name == 'aarch64_generic' else
+                   'f03c94a9fe9fc2912df2c825f6b04b4dda3c2443cc8814982d8a289a34a7b6d6')
+    download(digest_url, digest_hash, digest_ipk)
+    with tarfile.open(digest_ipk) as package:
+        data_member = package.extractfile('./data.tar.gz')
+        if data_member is None:
+            raise RuntimeError('ucode digest data archive missing')
+        data_archive = dest / 'digest-data.tar.gz'
+        data_archive.write_bytes(data_member.read())
+    with tarfile.open(data_archive) as data:
+        data.extractall(runtime, filter='data')
+    data_archive.unlink()
+    digest_module = runtime / 'usr/lib/ucode/digest.so'
+    if not digest_module.is_file():
+        raise RuntimeError('ucode digest module missing after extraction')
+
     bindir = dest / 'bin'
     bindir.mkdir(exist_ok=True)
     (dest / 'lib').mkdir(exist_ok=True)  # Fixtures set LD_LIBRARY_PATH here.
@@ -91,7 +114,10 @@ def main():
                ' exec python3 -m po2lmo.cli "$@"')
     env = dict(os.environ, PATH=str(bindir) + ':' + os.environ['PATH'])
     subprocess.run([str(bindir / 'ucode'), '-e',
-                    "import * as fs from 'fs'; import * as uci from 'uci'; print('ucode fs/uci OK\\n');"], check=True, env=env)
+                    "import * as fs from 'fs'; import * as uci from 'uci'; "
+                    "import { md5 } from 'digest'; "
+                    "if (type(fs.open) !== 'function' || md5('abc') !== '900150983cd24fb0d6963f7d28e17f72') "
+                    "die('ucode fs/digest probe failed'); print('ucode fs/uci/digest OK\\n');"], check=True, env=env)
     subprocess.run([str(bindir / 'busybox'), 'ash', '-c',
                     '. "$1"; json_load \'{"ready":true}\'; json_get_var ready ready; [ "$ready" = 1 ]',
                     'probe', str(share / 'jshn.sh')], check=True, env=env)

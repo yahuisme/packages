@@ -14,7 +14,8 @@ export NODE_PATH=/path/to/node_modules  # jsdom 26.1.0
 
 The setup script supports Linux aarch64/x86_64, downloads checksum-pinned official
 OpenWrt 24.10.4 rootfs tools (UCI, jshn, jsonfilter, ucode and fs/uci modules),
-Debian BusyBox 1.35.0-4+deb12u1+b1, and the pure-Python po2lmo 1.0.0 wheel.
+its matching checksum-pinned digest module, Debian BusyBox 1.35.0-4+deb12u1+b1,
+and the pure-Python po2lmo 1.0.0 wheel.
 It only extracts under `--dest`, uses the private musl loader explicitly, and
 probes UCI against a private configuration. It does not install packages, run init
 scripts, compile code or start a proxy. Host requirements: Python >=3.12, dpkg-deb,
@@ -31,7 +32,11 @@ entrypoints run once. Logs use a unique directory under the caller's TMPDIR.
 Missing required tools otherwise cause failure rather than successful skips.
 
 Remaining runtime boundaries are explicit: full router/source/theme/browser
-fixtures, the standalone coupling helper driven by SettingsTest, the DNS runtime binary, and HomeProxy generator suites when `digest`
-cannot be imported. The pinned OpenWrt rootfs lacks digest; these generator and
-resource-cleanup suites are **not accepted** by this CI environment. Provide
-matching isolated runtime fixtures before claiming those gates.
+fixtures, the standalone coupling helper driven by SettingsTest, and the optional
+DNS runtime binary. Generator fixtures bind their private platform modules by exact
+path while retaining native fs/digest, preventing installed ucode extensions from
+shadowing the isolated UCI/ubus fixtures.
+
+jsdom stays at 26.1.0: 30.1.3 changes CSS custom-property computed styles and the
+subscription timer harness. The upstream whatwg-encoding deprecation remains visible;
+it is not suppressed or treated as a product failure.

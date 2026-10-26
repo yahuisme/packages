@@ -1,4 +1,6 @@
 import json
+import shlex
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -15,7 +17,24 @@ def production_source():
     functions += HELPER[HELPER.index('export function isBinary'):HELPER.index('export function getTime')].replace('export function', 'function')
     helpers = RPC[RPC.index('function validDomainListId'):RPC.index('const methods =')]
     methods = RPC[RPC.index('\tdomainlist_write: {'):RPC.index('\n\tcertificate_write: {')]
-    return functions + helpers + 'const methods = {\n' + methods + '\n};\n'
+    # OpenWrt 24.10's fs lacks mkdtemp. Keep atomic private-directory creation
+    # real with BusyBox, rather than replacing transaction filesystem behavior.
+    busybox = shutil.which('busybox')
+    if busybox is None:
+        raise RuntimeError('domain-list fixture requires BusyBox mktemp')
+    filesystem = '''
+import { popen as fixture_popen } from 'fs';
+function mkdtemp(template) {
+    const command = %s + " " + shellQuote(template);
+    const pipe = fixture_popen(command, 'r');
+    if (!pipe) return null;
+    const directory = pipe.read('all');
+    const status = pipe.close();
+    return status === 0 && length(directory) ? trim(directory) : null;
+}
+''' % json.dumps(shlex.quote(busybox) + ' mktemp -d --')
+    shell_quote = HELPER[HELPER.index('export function shellQuote'):HELPER.index('export function isBinary')]
+    return shell_quote.replace('export function', 'function') + filesystem + functions + helpers + 'const methods = {\n' + methods + '\n};\n'
 
 
 class DomainListTransactions(unittest.TestCase):
@@ -28,7 +47,7 @@ class DomainListTransactions(unittest.TestCase):
             (diversion / 'proxy.txt').write_text('old-proxy.example\n')
             source = '''
 import { open as real_open, readfile, writefile as real_writefile, rename as real_rename,
-         unlink as real_unlink, mkdtemp, rmdir, lsdir, lstat } from 'fs';
+         unlink as real_unlink, rmdir, lsdir, lstat } from 'fs';
 const HP_DIR = %s, FAULT = %s;
 let locks = 0, stages = [], backup_writes = 0, install_renames = 0;
 function cursor() { return { load: () => true, get: () => null, foreach: () => null }; }
@@ -124,7 +143,7 @@ function unlink(path) { return real_unlink(path); }
                 ('proxy', "{proxy:'collision.example'}"),
             ):
                 source = '''
-import { open as real_open, readfile, writefile, rename, unlink, mkdtemp, rmdir, lsdir, lstat } from 'fs';
+import { open as real_open, readfile, writefile, rename, unlink, rmdir, lsdir, lstat } from 'fs';
 const HP_DIR = %s, ROLE = %s;
 function cursor() { return { load: () => true, get: () => null, foreach: () => null }; }
 function validation(t, s) { return !!match(s, /^[a-z.-]+$/); }
@@ -169,7 +188,7 @@ class DomainListCleanupLifecycle(unittest.TestCase):
     def run_rpc(self, fault='', action='write', expected_exit=0):
         source = '''
 import { open, readfile, writefile as real_writefile, rename as real_rename,
-         unlink as real_unlink, mkdtemp, rmdir as real_rmdir, lsdir, lstat } from 'fs';
+         unlink as real_unlink, rmdir as real_rmdir, lsdir, lstat } from 'fs';
 const HP_DIR = %s, FAULT = %s;
 let installs = 0;
 function cursor() { return { load: () => true, get: () => null, foreach: () => null }; }
