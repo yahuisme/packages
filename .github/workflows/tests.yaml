@@ -79,7 +79,9 @@ jobs:
           "$src"/po2lmo 2>&1 | head -1 || true
       - name: Install jsdom
         run: |
-          npm install --global jsdom
+          # Pinned: newer jsdom resolves CSS var() differently and breaks the
+          # computed-style assertions in the view suites.
+          npm install --global jsdom@26.1.0
           echo "NODE_PATH=$(npm root -g)" >> "$GITHUB_ENV"
       - name: Run suites
         env:
