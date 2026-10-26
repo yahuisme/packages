@@ -26,6 +26,17 @@ class ProbeTests(unittest.TestCase):
             result = subprocess.run(['sh', str(script), 'unexpected'], capture_output=True)
             self.assertEqual(result.returncode, 2, script.name)
 
+    def test_summary_reuses_the_same_collector(self):
+        wrapper = (APP/'root/usr/libexec/wifi7-status-summary').read_text()
+        self.assertIn('exec "${0%/*}/wifi7-status" summary', wrapper)
+        self.assertNotIn('probe survey', wrapper)
+        # No iw in PATH: both modes emit only the devices frame, so identical.
+        env = dict(os.environ, PATH='/usr/bin:/bin')
+        brief = subprocess.run([str(APP/'root/usr/libexec/wifi7-status-summary')], env=env, capture_output=True, text=True)
+        full = subprocess.run(['sh', str(APP/'root/usr/libexec/wifi7-status')], env=env, capture_output=True, text=True)
+        self.assertEqual(brief.returncode, 0)
+        self.assertEqual(brief.stdout, full.stdout)
+
     def test_firmware_is_bounded_and_argument_rejecting(self):
         script = APP/'root/usr/libexec/wifi7-firmware'
         self.assertTrue(script.exists())

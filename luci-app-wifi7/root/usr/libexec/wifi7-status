@@ -1,6 +1,12 @@
 #!/bin/sh
 # Fixed read-only probe. No caller-supplied commands, paths or interfaces.
-[ "$#" -eq 0 ] || exit 2
+# "summary" is the only accepted argument: it skips the per-station dump for
+# the 5s telemetry path. Everything else keeps the collector argument-free.
+case "$1" in
+    '') stations=1 ;;
+    summary) stations= ;;
+    *) exit 2 ;;
+esac
 probe() {
     kind=$1 name=$2
     shift 2
@@ -14,7 +20,7 @@ printf '@@ devices %s\n%s\n' "$code" "$devices"
 if [ "$code" -eq 0 ]; then
     for iface in $(printf '%s\n' "$devices" | awk '$1 == "Interface" {print $2}'); do
         case "$iface" in ''|*[!a-zA-Z0-9_.:-]*) continue;; esac
-        probe stations "$iface" iw dev "$iface" station dump
+        [ -z "$stations" ] || probe stations "$iface" iw dev "$iface" station dump
         probe survey "$iface" iw dev "$iface" survey dump
     done
 fi

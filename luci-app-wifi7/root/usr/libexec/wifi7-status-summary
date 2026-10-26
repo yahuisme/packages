@@ -1,28 +1,8 @@
 #!/bin/sh
-# Fixed read-only summary probe. No caller-supplied commands, paths or interfaces.
+# Same collector as wifi7-status, without the per-station dump. One script owns
+# ordering and framing; this name only selects the cheaper 5s telemetry mode.
 [ "$#" -eq 0 ] || exit 2
-probe() {
-	kind=$1 name=$2
-	shift 2
-	data=$("$@" 2>/dev/null)
-	code=$?
-	printf '@@ %s %s %s\n%s\n' "$kind" "$name" "$code" "$data"
-}
-# Channel time is lightweight telemetry, not a per-station diagnostic. Keep it
-# available on Radio Status even when hostapd omits chan_util_avg.
-devices=$(iw dev 2>/dev/null)
-code=$?
-printf '@@ devices %s\n%s\n' "$code" "$devices"
-if [ "$code" -eq 0 ]; then
-	for iface in $(printf '%s\n' "$devices" | awk '$1 == "Interface" {print $2}'); do
-		case "$iface" in ''|*[!a-zA-Z0-9_.:-]*) continue;; esac
-		probe survey "$iface" iw dev "$iface" survey dump
-	done
-fi
-for socket in /var/run/hostapd/*; do
-	[ -S "$socket" ] || continue
-	iface=${socket##*/}
-	case "$iface" in global|''|*[!a-zA-Z0-9_.:-]*) continue;; esac
-	probe hostapd "$iface" hostapd_cli -p /var/run/hostapd -i "$iface" status
-done
-exit 0
+case "$0" in
+    /*) exec "${0%/*}/wifi7-status" summary ;;
+    *) exec /usr/libexec/wifi7-status summary ;;
+esac
