@@ -41,7 +41,7 @@ jobs:
               git commit -m "chore: update sing-box ${VERSION}"
             else
               VERSION=$(python3 -c 'import pathlib,re,subprocess; paths=subprocess.check_output(["git","diff","--cached","--name-only","--diff-filter=AM","--","luci-app-homeproxy"],text=True).splitlines(); versions=[pathlib.Path(p).read_text().split()[0] for p in paths if p.endswith(".ver")]; assert versions and all(re.fullmatch(r"[0-9]{14}",v) for v in versions), "Missing or invalid resource version"; print(max(versions))')
-              git commit -m "chore: update resources ${VERSION}"
+              git commit -m "chore: update HomeProxy resources"
             fi
           done
           if [ "$(git rev-parse HEAD)" != "$(git rev-parse '@{upstream}')" ]; then
