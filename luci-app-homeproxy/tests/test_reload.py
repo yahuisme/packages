@@ -70,7 +70,11 @@ json_cleanup() { JSON_INSTANCES=0; INSTANCES=''; }
 config_load() { :; }
 config_get() { case "$2.$3" in config.main_node) eval "$1=node";; config.routing_mode) eval "$1=bypass_mainland_china";; *) eval "$1=\"$4\"";; esac; }
 config_get_bool() { case "$2.$3" in server.enabled|config.dashboard_enabled) eval "$1=1";; *) eval "$1=0";; esac; }
-sync_subscription_cron() { :; }
+mkdir() {
+ case "$*" in *'/etc/crontabs'*|*'/var/lock/root-crontab'*) printf 'host cron path escaped fixture\n' >&2; return 1;; esac
+ command mkdir "$@"
+}
+sync_subscription_cron() { printf 'cron-sync\n' >> "$ROOT/events"; }
 procd_kill() { printf 'kill\n' >> "$ROOT/events"; }
 runtime_init() { [ "$FAULT" != runtime-init ]; }
 ucode() { case "$*" in *cleanup_urltest*) [ "$FAULT" != cleanup ];; *firewall_pre*) printf 'NEW FIREWALL' > "$RUN_DIR/fw4_input.nft";; *generate_client*) [ "$FAULT" != generate ] || return 1; printf 'NEW CLIENT' > "$RUN_DIR/sing-box-c.json.new";; *generate_server*) printf 'NEW SERVER' > "$RUN_DIR/sing-box-s.json.new";; esac; }
@@ -86,7 +90,9 @@ lock() { :; }
             init = INIT.replace('/usr/libexec/homeproxy-runtime-init', 'runtime_init')
             init = init.replace('/etc/init.d/dnsmasq', 'dnsmasq')
             init = init.replace('sing-box version -n', 'sing_box_stub version -n')
-            init = init.replace('log() {', stubs + '\nlog() {', 1)
+            # Install fixture boundaries after production function declarations;
+            # otherwise sync_subscription_cron is overwritten and touches host cron.
+            init += '\n' + stubs
             init = init.replace('RUN_DIR="/var/run/homeproxy"', f'RUN_DIR="{run}"')
             init = init.replace('DNSMASQ_DIR="/tmp/dnsmasq.d/dnsmasq-homeproxy.d"', f'DNSMASQ_DIR="{dns}"')
             init = init.replace('HP_DIR="/etc/homeproxy"', f'HP_DIR="{root}/hp"')
@@ -106,6 +112,8 @@ lock() { :; }
             submissions = [line for line in events if line.startswith('ubus:set:')]
             self.assertEqual(result.stderr, '', result.stdout)
             self.assertNotIn('kill', events)
+            if not fault:
+                self.assertIn('cron-sync', events, 'cron fixture boundary must survive init sourcing')
             self.assertEqual(len([line for line in events if line == 'open']), 1, events)
             expected_submissions = 0 if fault in ('runtime-init', 'cleanup', 'generate') else 1
             self.assertEqual(len(submissions), expected_submissions, events)
