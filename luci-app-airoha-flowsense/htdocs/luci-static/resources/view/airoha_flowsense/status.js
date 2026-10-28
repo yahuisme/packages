@@ -173,7 +173,8 @@ return view.extend({
 					var ai = priority.indexOf(a.device), bi = priority.indexOf(b.device);
 					return (ai < 0 ? priority.length : ai) - (bi < 0 ? priority.length : bi);
 				});
-				var seconds = previous && number(data.uptime, 0, Number.MAX_SAFE_INTEGER) - previous.time;
+				var uptime = number(data.uptime, 0, Number.MAX_SAFE_INTEGER);
+				var seconds = previous && uptime != null && previous.time != null ? uptime - previous.time : null;
 				var totalRx = 0, totalTx = 0, rxOk = 0, txOk = 0, keep = {}, order = [];
 				ports.forEach(function(port) {
 					var stats = port.stats && typeof port.stats === 'object' ? port.stats : {};
@@ -212,7 +213,7 @@ return view.extend({
 				text(quality_[0], jitter && number(jitter.last_ping, 0, 60000) != null ? jitter.last_ping + ' ms' : _('Probe data unavailable'));
 				text(quality_[1], jitter && number(jitter.deviation, 0, 60000) != null ? jitter.deviation + ' ms' : '—');
 				text(quality_[2], jitter && number(jitter.loss, 0, 100) != null ? jitter.loss + '%' : '—');
-				previous = { time: number(data.uptime, 0, Number.MAX_SAFE_INTEGER) || 0, ports: {} }; ports.forEach(function(port) { previous.ports[port.device] = { ifindex: port.ifindex, rx_bytes: port.stats && port.stats.rx_bytes, tx_bytes: port.stats && port.stats.tx_bytes }; });
+				previous = { time: uptime, ports: {} }; ports.forEach(function(port) { previous.ports[port.device] = { ifindex: port.ifindex, rx_bytes: port.stats && port.stats.rx_bytes, tx_bytes: port.stats && port.stats.tx_bytes }; });
 				message.textContent = data.timestamp ? _('Last update') + ': ' + new Date(data.timestamp * 1000).toLocaleTimeString() : _('Data unavailable');
 				}
 		function clear() {

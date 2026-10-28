@@ -5,6 +5,8 @@ import hashlib
 import http.server
 import json
 import os
+import shutil
+import shlex
 from pathlib import Path
 import subprocess
 import tempfile
@@ -68,7 +70,10 @@ class Versions(unittest.TestCase):
                 # Optional host-only module search path; firmware has ucode-mod-digest.
                 if os.environ.get('UCODE_LIB_DIR'):
                     wrapper = base/'ucode'
-                    wrapper.write_text('#!/bin/sh\nexec /usr/local/bin/ucode -L "$UCODE_LIB_DIR" "$@"\n')
+                    runtime = shutil.which('ucode')
+                    assert runtime is not None, 'ucode runtime is required'
+                    wrapper.write_text('#!/bin/sh\nexec ' + shlex.quote(runtime) +
+                                       ' -L "$UCODE_LIB_DIR" "$@"\n')
                     wrapper.chmod(0o755)
                     env['PATH'] = str(base)+':'+env['PATH']
                 for kind in ['GEOIP', 'GEOSITE', 'DASHBOARD']:

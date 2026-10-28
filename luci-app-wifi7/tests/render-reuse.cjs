@@ -82,11 +82,32 @@ async function mloRuntime() {
    if (/at overview \(/.test(new Error().stack)) discarded++;
    return create.apply(this, args);
   };
+  const state = h.q('[data-mlo-runtime-section]');
+  const changes = [];
+  const observer = new h.w.MutationObserver(batch => changes.push(...batch));
+  observer.observe(overview, { subtree: true, childList: true, characterData: true, attributes: true });
   await h.poll();
+  observer.disconnect();
+  assert.equal(h.q('[data-mlo-runtime-section]'), state, 'unchanged runtime keeps the status node');
+  assert.equal(changes.length, 0, 'unchanged MLO runtime must not rewrite DOM');
   assert.equal(h.q('[data-mlo-overview-section]'), overview);
   assert.equal(overview.outerHTML, before);
   assert.equal(discarded, 0, 'runtime refresh must not build and discard configuration DOM');
-  console.log('PASS MLO polling does not render configuration DOM');
+  const post = h.mods.request.post;
+  let mode = 'down';
+  h.mods.request.post = async (url, req) => {
+   if (req.params[1] !== 'luci-rpc') return post(url, req);
+   if (mode === 'unknown') return { ok: true, status: 200, json: () => h.w.JSON.parse(JSON.stringify({ jsonrpc: '2.0', id: req.id, result: [6] })) };
+   const response = await post(url, req), body = response.json();
+   if (mode === 'down') Object.values(body.result[1]).forEach(radio => radio.up = false);
+   return { ...response, json: () => body };
+  };
+  for (const [next, label, cls] of [['down', 'Down', 'mlo-muted'], ['unknown', 'Unavailable', 'mlo-muted'], ['active', 'Active', 'mlo-active']]) {
+   mode = next; await h.poll();
+   assert.equal(h.q('[data-mlo-runtime-section]'), state, 'transitions reuse the status node');
+   assert.equal(state.textContent, label); assert.equal(state.className, cls);
+  }
+  console.log('PASS MLO polling: zero unchanged mutations, status identity, down/unknown/recovery, no discarded configuration DOM');
  } finally { h.w.close(); }
 }
 

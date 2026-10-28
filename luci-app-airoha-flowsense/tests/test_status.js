@@ -37,6 +37,14 @@ sample.interfaces[0].stats.rx_bytes+=625000;sample.uptime=145;await polls.get(5)
 assert.equal(rateText(),'— / —','unknown identity cannot establish a rate baseline');assert.deepEqual(totals(),['—','—']);
 sample.interfaces[0].ifindex=5;sample.uptime=150;await polls.get(5)();assert.equal(rateText(),'— / —');
 sample.uptime=155;await polls.get(5)();assert.equal(rateText(),'0.00 Mbit/s / 0.00 Mbit/s');
+// A successful RPC may still lack its monotonic sample time. Never subtract
+// null as zero or recover rates against a fabricated zero-time baseline.
+sample.uptime=null;sample.interfaces[0].stats.rx_bytes+=625000;await polls.get(5)();
+assert.equal(rateText(),'— / —','missing uptime must not produce a traffic rate');assert.deepEqual(totals(),['—','—']);
+sample.uptime=160;sample.interfaces[0].stats.rx_bytes+=625000;await polls.get(5)();
+assert.equal(rateText(),'— / —','first valid uptime after a gap establishes the baseline');
+sample.uptime=165;sample.interfaces[0].stats.rx_bytes+=625000;await polls.get(5)();
+assert.equal(rateText(),'1.0 Mbit/s / 0.00 Mbit/s');
 assertDots();
 assert.equal(polls.size,1);overviewError=true;accelerationError=true;await polls.get(5)();await settle();assert.equal(root.querySelector('.flowsense-summary').children.length,0);assert([...root.querySelectorAll('.flowsense-acceleration-state')].every(n=>n.textContent==='Unknown'));assert.equal(root.querySelectorAll('.flowsense-active').length,0);assertDots();
 overviewError=false;accelerationError=false;await polls.get(5)();await settle();

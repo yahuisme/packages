@@ -22,6 +22,9 @@ class Catalog(unittest.TestCase):
             for key, val in data.items():
                 if isinstance(val, dict) and 'title' in val:
                     strings.add(val['title'])
+        for json_path in (P / 'root/usr/share/rpcd/acl.d').glob('*.json'):
+            for acl in json.loads(json_path.read_text()).values():
+                strings.add(acl['description'])
 
         for path in [P / 'po/templates/luci-app-airoha-npu.pot', P / 'po/zh_Hans/luci-app-airoha-npu.po']:
             subprocess.run(['msgfmt', '--check', '-o', '/dev/null', str(path)], check=True)

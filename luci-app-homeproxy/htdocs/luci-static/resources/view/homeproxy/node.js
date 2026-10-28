@@ -102,7 +102,7 @@ function parseECHConfig(value) {
 			throw new TypeError(_('Invalid ECH DNS query settings.'));
 		return { tls_ech: '1', tls_ech_query_server_name: query[1], tls_ech_query_server: query[2] };
 	}
-	if (!/^[A-Za-z0-9+\/]+={0,2}$/.test(value) || !hp.decodeBase64Str(value))
+	if (!/^[A-Za-z0-9+\/]+={0,2}$/.test(value) || !atob(value).length)
 		throw new TypeError(_('Invalid ECH configuration.'));
 	return { tls_ech: '1', tls_ech_config: ['-----BEGIN ECH CONFIGS-----', value, '-----END ECH CONFIGS-----'] };
 }
@@ -116,7 +116,10 @@ function explicitSharePort(uri, fallback) {
 function parseShareLink(uri, features) {
 	let config, url, params;
 
-	uri = uri.split('://');
+	const separator = uri.indexOf('://');
+	if (separator < 0)
+		return null;
+	uri = [uri.slice(0, separator), uri.slice(separator + 3)];
 	if (uri[0])
 		uri[0] = uri[0].toLowerCase();
 	if (uri[0] && uri[1]) {

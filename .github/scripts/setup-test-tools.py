@@ -125,7 +125,19 @@ def main():
         (Path(td) / 'probe').write_text("config ready 'fixture'\n option value '1'\n")
         subprocess.run([str(bindir / 'uci'), '-c', td, '-C', td, '-t', td,
                         'get', 'probe.fixture.value'], check=True, env=env)
-    exports = {'OPENWRT_TOOLS': str(dest), 'UCODE_LIB_DIR': str(runtime / 'usr/lib/ucode'),
+    # Read-only official shell sources for isolated rc.common/procd replays.
+    source = dest / 'source'
+    source_sha = '92b3ad7722ea7c2fe16173b3543eec0f50d2df07'
+    for name, digest in (
+        ('package/base-files/files/etc/rc.common',
+         'dd8ae95c78d10cccf78cb487874f163ace4c1ee14dace05fe28393b19ba639e4'),
+        ('package/system/procd/files/procd.sh',
+         'e4f597cbda9616791eb0c30bd8bd7940b760fd1000522892aec37daa9529eb03')):
+        target = source / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        download(f'https://raw.githubusercontent.com/openwrt/openwrt/{source_sha}/{name}',
+                 digest, target)
+    exports = {'OPENWRT_SOURCE': str(source), 'OPENWRT_TOOLS': str(dest), 'UCODE_LIB_DIR': str(runtime / 'usr/lib/ucode'),
                'PO2LMO': str(bindir / 'po2lmo'), 'REAL_UCI': str(bindir / 'uci'),
                'UCI_BIN': str(bindir / 'uci')}
     (dest / 'env.sh').write_text('\n'.join('export ' + key + '=' + shlex.quote(value)

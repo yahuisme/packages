@@ -15,7 +15,9 @@ export NODE_PATH=/path/to/node_modules  # jsdom 26.1.0
 The setup script supports Linux aarch64/x86_64, downloads checksum-pinned official
 OpenWrt 24.10.4 rootfs tools (UCI, jshn, jsonfilter, ucode and fs/uci modules),
 its matching checksum-pinned digest module, Debian BusyBox 1.35.0-4+deb12u1+b1,
-and the pure-Python po2lmo 1.0.0 wheel.
+and the pure-Python po2lmo 1.0.0 wheel. It also stages checksum-pinned official
+`rc.common` and `procd.sh` sources for private service-lifecycle replays and exports
+`OPENWRT_SOURCE` to that minimal read-only fixture.
 It only extracts under `--dest`, uses the private musl loader explicitly, and
 probes UCI against a private configuration. It does not install packages, run init
 scripts, compile code or start a proxy. Host requirements: Python >=3.12, dpkg-deb,
@@ -26,14 +28,20 @@ C po2lmo itself.
 
 Python suites are loaded by exact file path into unittest, including dotted
 filenames and files without a `__main__` block.
-Zero discovered tests fail. Shared CJS suites and standalone lifecycle helper
-entrypoints run once. Logs use a unique directory under the caller's TMPDIR.
+Zero discovered tests fail, including an empty or entirely unverified selection.
+All `.github/tests/test_*.py` updater/runner suites and `sing-box/tests/*.py`
+service-init suites are included in default discovery and support focused selection.
+Shared CJS suites and standalone lifecycle helper entrypoints run once. The WiFi7
+render-reuse suite runs all three modes: radio, MLO runtime and MLO summary.
+Logs use a unique directory under the caller's TMPDIR.
 `UNVERIFIED` is separate from PASS and includes suites containing unittest skips.
 Missing required tools otherwise cause failure rather than successful skips.
 
-Remaining runtime boundaries are explicit: full router/source/theme/browser
+Remaining runtime boundaries are explicit: full router/compiler and browser
 fixtures, the standalone coupling helper driven by SettingsTest, and the optional
-DNS runtime binary. Generator fixtures bind their private platform modules by exact
+DNS runtime binary. Reload/cleanup, subscription apply/reconcile and resource-scope
+transactions now run using the pinned private runtime and shell-source fixture.
+Generator fixtures bind their private platform modules by exact
 path while retaining native fs/digest, preventing installed ucode extensions from
 shadowing the isolated UCI/ubus fixtures.
 

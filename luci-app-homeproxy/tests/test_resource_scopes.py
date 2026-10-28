@@ -6,6 +6,8 @@ import io
 import json
 import os
 from pathlib import Path
+import shlex
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -115,7 +117,10 @@ print(sprintf('%J',{result,reads,calls}));'''
                 try:
                     init=root/'init'; init.write_text('#!/bin/sh\n[ "$1" != reload ] || [ "$FAIL_RELOAD" != 1 ]\n'); init.chmod(0o755)
                     decoder=root/'decoder'; decoder.write_text('#!/bin/sh\nexit 0\n'); decoder.chmod(0o755)
-                    wrapper=root/'ucode'; wrapper.write_text('#!/bin/sh\nexec /usr/local/bin/ucode -L "$UCODE_LIB_DIR" "$@"\n'); wrapper.chmod(0o755)
+                    ucode = shutil.which('ucode')
+                    if ucode is None:
+                        self.fail('ucode must be selected by the test environment')
+                    wrapper=root/'ucode'; wrapper.write_text('#!/bin/sh\nexec '+shlex.quote(ucode)+' -L "$UCODE_LIB_DIR" "$@"\n'); wrapper.chmod(0o755)
                     env=dict(os.environ,PATH=str(root)+':'+os.environ['PATH'], UCODE_LIB_DIR=os.environ['UCODE_LIB_DIR'],RESOURCES_DIR=str(resources),DASHBOARD_DIR=str(dashboard),RUN_DIR=str(root/'run'),SING_BOX=os.environ.get('SING_BOX_TEST',str(decoder)),HOMEPROXY_INIT=str(init))
                     # A real decoder may be supplied together with a real packaged SRS.
                     if os.environ.get('SING_BOX_TEST'):

@@ -31,23 +31,26 @@ jobs:
         run: |
           set -eu
           for mk in luci-app-*/Makefile; do
+            # shellcheck disable=SC2016
             grep -q '^include \$(TOPDIR)/feeds/luci/luci.mk' "$mk"
             # luci.mk accepts either an explicit LUCI_PKGNAME or PKG_NAME.
             grep -qE '^(LUCI_PKGNAME|PKG_NAME):=' "$mk"
             grep -q '^LUCI_PKGARCH:=' "$mk"
             grep -q '^PKG_MAINTAINER:=' "$mk"
           done
-      - name: Check RPC access control covers every declared method
+      - name: Check official stable release filtering
         run: python3 .github/tests/test_package_update.py
       - name: JavaScript and shell syntax
         run: |
           set -eu
-          for js in $(find luci-app-*/htdocs -name '*.js'); do node --check "$js"; done
+          find luci-app-*/htdocs -name '*.js' -print0 |
+            while IFS= read -r -d '' js; do node --check "$js"; done
           # .uc is ucode, not POSIX shell; only shell scripts go through sh -n.
-          for sh in $(find luci-app-*/root -type f \( -path '*/libexec/*' -o -path '*/init.d/*' -o -name '*.sh' \) ! -name '*.uc' | sort -u); do
-            head -1 "$sh" | grep -q '^#!' || continue
-            sh -n "$sh"
-          done
+          find luci-app-*/root -type f \( -path '*/libexec/*' -o -path '*/init.d/*' -o -name '*.sh' \) ! -name '*.uc' -print0 |
+            sort -zu | while IFS= read -r -d '' sh; do
+              head -1 "$sh" | grep -q '^#!' || continue
+              sh -n "$sh"
+            done
       - name: Reject document-wide mutation observers in views
         run: |
           set -eu
@@ -87,7 +90,7 @@ jobs:
           python3 .github/scripts/setup-test-tools.py --dest "$RUNNER_TEMP/packages-tools"
           . "$RUNNER_TEMP/packages-tools/env.sh"
           # Reuse the exact same exported paths in subsequent steps.
-          for key in OPENWRT_TOOLS UCODE_LIB_DIR PO2LMO REAL_UCI UCI_BIN; do
+          for key in OPENWRT_SOURCE OPENWRT_TOOLS UCODE_LIB_DIR PO2LMO REAL_UCI UCI_BIN; do
             printenv "$key" | sed "s|^|$key=|" >> "$GITHUB_ENV"
           done
           echo "$OPENWRT_TOOLS/bin" >> "$GITHUB_PATH"

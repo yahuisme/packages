@@ -160,5 +160,8 @@ msgstr ""
 msgid "Last 120 seconds"
 msgstr ""
 
+msgid "View Airoha SoC status and manage kernel CPU controls"
+msgstr ""
+
 msgid "Configure CPU governor and maximum scaling frequency."
 msgstr ""

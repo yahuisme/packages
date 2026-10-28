@@ -37,8 +37,12 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
     assert.equal(poll.queue.length, expected, 'Map reset cannot duplicate/remove polling');
     await sample();
    }
+   // In WiFi7 the map is nested in the parent's MLO pane, not a direct
+   // child of #view. Removing that pane must stop polling immediately.
+   const pane = h.w.document.createElement('section');
+   h.node.replaceWith(pane); pane.append(h.node); await flush();
    h.node.remove(); await flush();
-   assert.equal(poll.queue.length, expected - 1, 'detach removes only owned callback');
+   assert.equal(poll.queue.length, expected - 1, 'nested detach removes only owned callback without another tick');
    const before = h.replies.length;
    poll.tick = 10; poll.step(); await flush();
    assert.equal(h.replies.length, before, 'detached module makes no requests');

@@ -111,7 +111,7 @@ class NativeSubscription(unittest.TestCase):
     Download and service boundaries remain fixtures; no host config or daemon.
     Set SUBSCRIPTION_EVIDENCE_DIR to retain each private case and diagnostics.
     """
-    def run_native(self, payload, *, fault=(), extra='', original=None, urls=None):
+    def run_native(self, payload, *, fault=(), extra='', original=None, urls=None, production_ech=False):
         h = (BASE / 'homeproxy.uc').read_text()
         s = (BASE / 'update_subscriptions.uc').read_text()
         with tempfile.TemporaryDirectory(prefix='subscription-') as directory:
@@ -161,8 +161,13 @@ function apply_updated_resources(){return true;}
 function log_error(...args){warn(sprintf('%J',args)+'\\n');}
 '''
             source += h[h.index('export function isEmpty'):h.index('export function strToBool')].replace('export function', 'function')
-            source += PREAMBLE[PREAMBLE.index('function validation'):].replace('function log(...args) {}', "function log(...args) {warn(join(' ',args)+'\\n');}")
+            preamble = PREAMBLE[PREAMBLE.index('function validation'):].replace('function log(...args) {}', "function log(...args) {warn(join(' ',args)+'\\n');}")
+            if production_ech:
+                preamble = preamble.replace('function parseECHConfig(v) { return {}; }', '')
+            source += preamble
             source += h[h.index('export function decodeBase64Str'):h.index('/* String parser end */')].replace('export function', 'function')
+            if production_ech:
+                source += h[h.index('export function parseECHConfig'):h.index('export function addECHDNS')].replace('export function', 'function')
             source += s[s.index('const invalid_filter_patterns'):s.index('/* String helper end */')]
             source += s[s.index('function has_value'):]
             script = root / 'main.uc'
@@ -197,6 +202,25 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
                 shutil.copytree(root, target)
             return {'result': result, 'before': original, 'after': after, 'calls': calls,
                     'sections': sections, 'rendered': json.loads(rendered.stdout)}
+
+    def test_ech_binary_and_nested_query_survive_commit_and_render(self):
+        import base64
+        from urllib.parse import quote
+        for value in ('AP+A', 'udp://resolver.example:5353', 'https://resolver.example/dns-query?token=a%2Fb'):
+            for encoded in (value, quote(value, safe='')) if '://' in value else (quote(value, safe=''),):
+                with self.subTest(ech=encoded):
+                    link = 'trojan://secret@example.com:443?ech=' + encoded + '#ech-node'
+                    result = self.run_native(base64.b64encode(link.encode()).decode(), production_ech=True)
+                    self.assertEqual(result['result'].returncode, 0, result['result'].stderr)
+                    node = next(n for n in result['sections'].values() if n.get('label') == 'ech-node')
+                    outbound = next(n for n in result['rendered'] if n.get('server') == 'example.com')
+                    self.assertTrue(outbound['tls']['ech']['enabled'])
+                    if value == 'AP+A':
+                        self.assertEqual(node['tls_ech_config'], ['-----BEGIN ECH CONFIGS-----', value, '-----END ECH CONFIGS-----'])
+                        self.assertEqual(outbound['tls']['ech']['config'], node['tls_ech_config'])
+                    else:
+                        expected = value.replace('%2F', '/') if encoded == value else value
+                        self.assertEqual(node['tls_ech_query_server'], expected)
 
     def test_partial_new_identities_reject_transaction_without_growth_then_recover(self):
         base = "config config 'config'\n option main_node 'nil'\n"

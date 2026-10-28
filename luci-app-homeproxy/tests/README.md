@@ -1,3 +1,25 @@
+# ECH import, migration and previously isolated runtime gates
+
+```sh
+. /opt/test-tools/env.sh
+. /opt/test-tools/openwrt/packages-ci/env.sh # setup-test-tools.py output; ABI-matched ucode/modules
+export PACKAGES_ROOT="$PWD"
+PYTHONPATH=luci-app-homeproxy/tests python3 -m unittest \
+  test_migration test_subscription_parsing test_subscription_reconcile \
+  test_subscription_apply test_reload test_reload_cleanup test_resource_scopes -v
+node luci-app-homeproxy/tests/test_share_links.cjs
+node tests/share-link-ech-ui.cjs
+```
+
+The migration test uses the native ucode UCI module with private configuration
+and saved-delta directories. It executes the complete production migration,
+injects null-returning load/set/delete boundaries, and checks unchanged committed
+bytes on failure plus successful option migration and zero-commit repetition.
+The ECH tests distinguish binary Base64 from UTF-8 and preserve nested DNS URLs
+through manual import and subscription parsing. The native LuCI modal case runs
+import → UCI save → reload → Map.reset with private persistent RPC storage.
+These are isolated host contracts, not actual ECH handshakes or router upgrades.
+
 # Subscription group display and URLTest validation
 
 ```sh

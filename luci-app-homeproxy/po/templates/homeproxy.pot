@@ -2544,3 +2544,45 @@ msgstr ""
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
 msgid "Add a subscription URL first."
 msgstr ""
+
+msgid "Actions"
+msgstr ""
+
+msgid "Not installed"
+msgstr ""
+
+msgid "Unknown version"
+msgstr ""
+
+msgid "Download"
+msgstr ""
+
+msgid "Update"
+msgstr ""
+
+msgid "Remove"
+msgstr ""
+
+msgid "Recovery failed. Check the log and retained backup before retrying."
+msgstr ""
+
+msgid "HomeProxy failed to reload. The previous dashboard was restored."
+msgstr ""
+
+msgid "No changes needed."
+msgstr ""
+
+msgid "Dashboard operation completed."
+msgstr ""
+
+msgid "Dashboard operation failed. Check the log for details."
+msgstr ""
+
+msgid "Remove dashboard?"
+msgstr ""
+
+msgid "Dashboard files will be removed and the running service reloaded. Settings are retained. Rule sets are not affected."
+msgstr ""
+
+msgid "Download the dashboard in Status → Resource Management first. Enabling it does not download files."
+msgstr ""

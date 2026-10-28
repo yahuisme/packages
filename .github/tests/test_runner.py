@@ -44,6 +44,45 @@ class RunnerTest(unittest.TestCase):
         self.assertCountEqual(actual, names)
         self.assertEqual(len(actual), len(set(actual)))
 
+    def test_repository_python_suites_are_discovered_and_selectable(self):
+        target = self.root / '.github/tests/test_transactions.py'
+        target.parent.mkdir(parents=True)
+        target.write_text('import unittest\nclass Transactions(unittest.TestCase):\n'
+                          ' def test_failure(self): self.fail("transaction sentinel")\n')
+        for args in [(), ('.github/tests/test_transactions.py',)]:
+            with self.subTest(args=args):
+                result = self.run_runner(*args)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn('transaction sentinel', result.stdout)
+
+    def test_sing_box_service_suite_is_discovered_and_selectable(self):
+        target = self.root / 'sing-box/tests/test_init.py'
+        target.parent.mkdir(parents=True)
+        target.write_text('import unittest\nclass Init(unittest.TestCase):\n'
+                          ' def test_failure(self): self.fail("init sentinel")\n')
+        for args in [(), ('sing-box/tests/test_init.py',)]:
+            with self.subTest(args=args):
+                result = self.run_runner(*args)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn('init sentinel', result.stdout)
+
+    def test_all_render_reuse_modes_execute_and_failure_propagates(self):
+        name = 'luci-app-wifi7/tests/render-reuse.cjs'
+        target = self.root / name
+        target.parent.mkdir(parents=True)
+        target.write_text("const fs = require('fs');\n"
+                          "fs.appendFileSync(process.env.TRACE, (process.argv[2] || 'radio') + '\\n');\n"
+                          "if (process.argv[2] === 'mlo-runtime') process.exit(7);\n")
+        result = self.run_runner(name)
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.trace.read_text().splitlines(),
+                         ['radio', 'mlo-runtime', 'mlo-summary'])
+
+    def test_empty_inventory_is_rejected(self):
+        result = self.run_runner()
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('No runnable suites', result.stdout)
+
     def test_python_file_with_no_tests_is_rejected(self):
         target = self.root / 'luci-app-homeproxy/tests/test_empty.py'
         target.parent.mkdir(parents=True)

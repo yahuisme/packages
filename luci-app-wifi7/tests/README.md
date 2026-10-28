@@ -14,6 +14,8 @@ Fixtures do not connect to a router or run host services. These checks are not f
 node tests/error-text.cjs
 node tests/integration.cjs
 node tests/mlo-actions.cjs
+node tests/mlo-abandoned-render.cjs
+node tests/mlo-background.cjs
 node tests/cross-actions.cjs
 for mode in revoked pending reentry; do node tests/permissions-reentry.cjs "$mode"; done
 node tests/lazy-regression.cjs
@@ -53,6 +55,6 @@ Error reasons follow LuCI `rpc.getStatusText()` and `uci.apply()`: numeric ubus 
 
 `radio-refresh.cjs` covers an existing `txpower=0` during another radio's Apply, bounded integer validation, and already-mounted MLO radio labels/editor choices after radio readback without discarding an open editor's draft. `wireless-runtime.cjs` loads real LuCI `network.js` to reproduce configured devices synthesized after denied runtime replies, then exercises the actual rejecting RPC boundary for unknown/down/recovery, shared polling, SSID/interface mapping, live frequency changes and detach. It counts logical RPC calls (not HTTP batches): with three radios, overview and active MLO each use one wireless-status call, one summary collector and three `iwinfo.info` calls per cycle; client diagnostics remain tab-gated.
 
-`render-reuse.cjs` checks stable radio status nodes and zero unchanged-input DOM mutations, up/down/unknown transitions, RPC and processing-error cleanup/recovery with ARIA intact, and detached polling cleanup. Its MLO modes reject runtime refreshes that build discarded configuration DOM and verify summary reuse through empty/incomplete/valid configuration, native Map.reset, held refresh across reset, runtime failure/recovery and detach. It uses real LuCI DOM/form/RPC with isolated transport; it does not measure browser layout or router CPU.
+`render-reuse.cjs` checks stable radio status nodes and zero unchanged-input DOM mutations, up/down/unknown transitions, RPC and processing-error cleanup/recovery with ARIA intact, and detached polling cleanup. Its MLO modes reject runtime refreshes that build discarded configuration DOM, require stable runtime-state nodes with zero unchanged-input mutations across down/unknown/recovery, and verify summary reuse through empty/incomplete/valid configuration, native Map.reset, held refresh across reset, runtime failure/recovery and detach. It uses real LuCI DOM/form/RPC with isolated transport; it does not measure browser layout or router CPU.
 
 `harness.js` and `mlo-luci-dom.cjs` are support modules, not test entrypoints. `integration.cjs` is both a harness and executable test. Typography-named DOM checks stay because they also assert real Map.reset, scoped modal ownership/reopen and teardown; `native-tabs.cjs` checks actual tab/poll behavior. All collector commands use temporary boundary fixtures.

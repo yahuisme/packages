@@ -45,20 +45,31 @@ rmdir(`${HP_DIR}/resources/diversion`);
 
 const uci = cursor();
 const uciconfig = 'homeproxy';
-uci.load(uciconfig);
+if (uci.load(uciconfig) !== true)
+	die('HomeProxy: failed to load configuration for migration.\n');
+
+function setOption(...args) {
+	if (uci.set(...args) !== true)
+		die('HomeProxy: failed to set a migrated UCI value.\n');
+}
+
+function deleteOption(...args) {
+	if (uci.delete(...args) !== true)
+		die('HomeProxy: failed to delete a migrated UCI value.\n');
+}
 
 const stockCommonPort = '22,53,80,143,443,465,587,853,873,993,995,5222,8080,8443,9418';
 const updatedCommonPort = '20,21,22,25,53,80,110,119,123,143,389,443,465,514,563,587,636,853,873,989,990,993,995,1194,1883,3306,3389,5222,5432,5671,5672,5900,6379,6443,6514,8080,8443,8883,9418';
 
 function setDefault(section, option, value) {
 	if (uci.get(uciconfig, section, option) === null)
-		uci.set(uciconfig, section, option, value);
+		setOption(uciconfig, section, option, value);
 }
 
 function deleteOptions(section, options) {
 	for (let option in options)
 		if (uci.get(uciconfig, section, option) !== null)
-			uci.delete(uciconfig, section, option);
+			deleteOption(uciconfig, section, option);
 }
 
 function migrateOption(section, oldOption, newOption) {
@@ -66,8 +77,8 @@ function migrateOption(section, oldOption, newOption) {
 	if (oldValue === null)
 		return;
 	if (uci.get(uciconfig, section, newOption) === null)
-		uci.set(uciconfig, section, newOption, oldValue);
-	uci.delete(uciconfig, section, oldOption);
+		setOption(uciconfig, section, newOption, oldValue);
+	deleteOption(uciconfig, section, oldOption);
 }
 
 function moveOption(sourceSection, sourceOption, targetSection, targetOption) {
@@ -75,19 +86,19 @@ function moveOption(sourceSection, sourceOption, targetSection, targetOption) {
 	if (sourceValue === null)
 		return;
 	if (uci.get(uciconfig, targetSection, targetOption) === null)
-		uci.set(uciconfig, targetSection, targetOption, sourceValue);
-	uci.delete(uciconfig, sourceSection, sourceOption);
+		setOption(uciconfig, targetSection, targetOption, sourceValue);
+	deleteOption(uciconfig, sourceSection, sourceOption);
 }
 
 const commonPort = uci.get(uciconfig, 'infra', 'common_port');
 if (commonPort === stockCommonPort)
-	uci.set(uciconfig, 'infra', 'common_port', updatedCommonPort);
+	setOption(uciconfig, 'infra', 'common_port', updatedCommonPort);
 else
 	setDefault('infra', 'common_port', updatedCommonPort);
 
 /* Keep only the supported routing modes. */
 if (!(uci.get(uciconfig, 'config', 'routing_mode') in ['bypass_mainland_china', 'global']))
-	uci.set(uciconfig, 'config', 'routing_mode', 'bypass_mainland_china');
+	setOption(uciconfig, 'config', 'routing_mode', 'bypass_mainland_china');
 deleteOptions('config', [
 	'proxy_mode',
 	'main_udp_node', 'main_udp_urltest_nodes',
@@ -102,7 +113,7 @@ deleteOptions('infra', [
 ]);
 
 if (uci.get(uciconfig, 'config', 'routing_port') === 'all')
-	uci.delete(uciconfig, 'config', 'routing_port');
+	deleteOption(uciconfig, 'config', 'routing_port');
 
 moveOption('routing', 'tcpip_stack', 'config', 'tcpip_stack');
 
@@ -115,11 +126,11 @@ deleteOptions('control', [
 ]);
 
 if (isEmpty(uci.get(uciconfig, 'diversion')))
-	uci.set(uciconfig, 'diversion', 'homeproxy');
+	setOption(uciconfig, 'diversion', 'homeproxy');
 
 uci.foreach(uciconfig, 'node', (section) => {
 	if (section.type in ['vless', 'vmess'] && section.packet_encoding === '')
-		uci.set(uciconfig, section['.name'], 'packet_encoding', 'none');
+		setOption(uciconfig, section['.name'], 'packet_encoding', 'none');
 	for (let pair in [
 		['hysteria_recv_window_conn', 'hysteria_stream_receive_window'],
 		['hysteria_revc_window', 'hysteria_connection_receive_window'],
@@ -143,23 +154,23 @@ uci.foreach(uciconfig, 'server', (section) => {
 
 deleteOptions('subscription', ['latency_test_mode']);
 if (uci.get(uciconfig, 'subscription', 'packet_encoding') === '')
-	uci.set(uciconfig, 'subscription', 'packet_encoding', 'none');
+	setOption(uciconfig, 'subscription', 'packet_encoding', 'none');
 
 const subscriptionUserAgent = uci.get(uciconfig, 'subscription', 'user_agent');
 if (subscriptionUserAgent === 'v2rayN/7.23.4' ||
 	subscriptionUserAgent === 'sing-box/1.14.0-beta.2')
-	uci.set(uciconfig, 'subscription', 'user_agent', 'homeproxy');
+	setOption(uciconfig, 'subscription', 'user_agent', 'homeproxy');
 
 setDefault('infra', 'ntp_server', 'nil');
 if (isEmpty(uci.get(uciconfig, 'infra', 'udp_timeout')))
-	uci.set(uciconfig, 'infra', 'udp_timeout', '300');
+	setOption(uciconfig, 'infra', 'udp_timeout', '300');
 setDefault('config', 'main_urltest_interval', '120');
 setDefault('config', 'main_urltest_tolerance', '60');
 setDefault('config', 'main_urltest_interrupt_exist_connections', '0');
 setDefault('config', 'log_level', 'warn');
 setDefault('config', 'tcpip_stack', 'mixed');
 if (isEmpty(uci.get(uciconfig, 'tailscale')))
-	uci.set(uciconfig, 'tailscale', 'homeproxy');
+	setOption(uciconfig, 'tailscale', 'homeproxy');
 setDefault('tailscale', 'enabled', '0');
 setDefault('tailscale', 'accept_routes', '0');
 setDefault('tailscale', 'exit_node_allow_lan_access', '0');

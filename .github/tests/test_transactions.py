@@ -49,6 +49,27 @@ class Transactions(unittest.TestCase):
                     self.assertEqual((target/'data').read_text(), 'old '+target.name)
                     self.assertFalse(target.with_name(target.name+'.update-backup').exists())
 
+    def test_rollback_failure_preserves_other_recovery_targets(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pairs = []
+            for name in ['first', 'second']:
+                target, stage = root/name, root/(name+'.stage')
+                target.mkdir(); stage.mkdir()
+                (target/'data').write_text('old '+name)
+                (stage/'data').write_text('new '+name)
+                pairs.append((stage, target))
+            rename = Path.rename
+            def fault(path, target):
+                if path.name == 'second.stage' or path.name == 'second.update-backup':
+                    raise OSError('injected installation/recovery failure')
+                return rename(path, target)
+            with patch.object(Path, 'rename', fault), self.assertRaises(OSError) as raised:
+                updater.publish(pairs)
+            self.assertIn('second.update-backup', '\n'.join(raised.exception.__notes__))
+            self.assertEqual((root/'first/data').read_text(), 'old first')
+            self.assertEqual((root/'second.update-backup/data').read_text(), 'old second')
+
     def test_refuse_existing_recovery_backup(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

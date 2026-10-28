@@ -12,9 +12,8 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 # Driven by another suite with explicit arguments, not standalone.
 HELPERS='client_generator_fixture.py dns_runtime_fixture.py subscription_uci_fixture.py
 harness.js mlo-luci-dom.cjs test_view.js l10n.js'
-# These gates still require full router/source/platform fixtures.
-ROUTER='test_portability.py test_reload.py test_reload_cleanup.py test_resource_scopes.py
-test_subscription_apply.py test_subscription_reconcile.py'
+# Full router/compiler fixtures are optional; runtime replays use pinned sources.
+ROUTER='test_portability.py'
 BROWSER='test_curve_browser.js test_chart_mount.js'
 HOST='luci-app-airoha-flowsense/tests/test_coupling.js'
 NEED_MSGFMT='luci-app-airoha-npu/tests/test_catalog.py
@@ -43,6 +42,7 @@ run() {
 	listed "$1" "$NEED_MSGFMT" && ! command -v msgfmt >/dev/null 2>&1 && {
 		printf 'FAIL %s (required dependency: msgfmt)\n' "$1"; fail=$((fail + 1)); return 0;
 	}
+	: > "$work/output"
 	case $1 in
 	*.py) timeout "${PACKAGE_TEST_TIMEOUT:-300}" python3 -c '
 import importlib.util, pathlib, sys, unittest
@@ -55,7 +55,15 @@ suite = unittest.defaultTestLoader.loadTestsFromModule(module)
 result = unittest.TextTestRunner().run(suite)
 sys.exit(0 if result.wasSuccessful() and result.testsRun else 1)
 ' "$1" > "$work/output" 2>&1 ;;
-	*) timeout "${PACKAGE_TEST_TIMEOUT:-300}" node "$1" > "$work/output" 2>&1 ;;
+	*) if [ "$1" = luci-app-wifi7/tests/render-reuse.cjs ]; then
+		status=0
+		for mode in radio mlo-runtime mlo-summary; do
+			timeout "${PACKAGE_TEST_TIMEOUT:-300}" node "$1" "$mode" >> "$work/output" 2>&1 || status=1
+		done
+		[ "$status" -eq 0 ]
+	else
+		timeout "${PACKAGE_TEST_TIMEOUT:-300}" node "$1" > "$work/output" 2>&1
+	fi ;;
 	esac
 	status=$?
 	if [ "$status" -eq 0 ]; then
@@ -76,19 +84,19 @@ sys.exit(0 if result.wasSuccessful() and result.testsRun else 1)
 if [ "$#" -eq 0 ]; then
 	set --
 	for pkg in luci-app-airoha-fancontrol luci-app-airoha-npu luci-app-airoha-flowsense \
-	           luci-app-wifi7 luci-app-homeproxy; do
+	           luci-app-wifi7 luci-app-homeproxy sing-box; do
 		for file in "$pkg"/tests/*.js "$pkg"/tests/*.cjs "$pkg"/tests/*.py; do
 			[ ! -f "$file" ] || set -- "$@" "$file"
 		done
 	done
-	for file in tests/*.cjs tests/helpers/test_*_lifecycle.cjs .github/tests/test_runner.py; do
+	for file in tests/*.cjs tests/helpers/test_*_lifecycle.cjs .github/tests/test_*.py; do
 		[ ! -f "$file" ] || set -- "$@" "$file"
 	done
 fi
 # Validate all selections before running anything. Paths are repository-relative.
 for file do
 	case "$file" in
-	luci-app-*/tests/*|tests/*.cjs|tests/helpers/test_*_lifecycle.cjs|.github/tests/test_runner.py) ;;
+	luci-app-*/tests/*|sing-box/tests/*.py|tests/*.cjs|tests/helpers/test_*_lifecycle.cjs|.github/tests/test_*.py) ;;
 	*) printf 'Invalid suite: %s\n' "$file" >&2; exit 2 ;;
 	esac
 	case "$file" in *..*|/*) printf 'Invalid suite: %s\n' "$file" >&2; exit 2 ;; esac
@@ -105,4 +113,5 @@ $file
 	run "$file"
 done
 printf '\n%d passed, %d unverified, %d failed\n' "$pass" "$skip" "$fail"
+[ "$pass" -gt 0 ] || { echo 'No runnable suites passed'; exit 1; }
 [ "$fail" -eq 0 ] || { echo 'regression suites failed'; exit 1; }

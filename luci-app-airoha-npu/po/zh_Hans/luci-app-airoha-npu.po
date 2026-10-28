@@ -160,5 +160,8 @@ msgstr "查看 Airoha SoC 实时频率、NPU 硬件加速与系统状态。"
 msgid "Last 120 seconds"
 msgstr "最近 120 秒"
 
+msgid "View Airoha SoC status and manage kernel CPU controls"
+msgstr "查看 Airoha SoC 状态并管理内核 CPU 控制"
+
 msgid "Configure CPU governor and maximum scaling frequency."
 msgstr "配置 CPU 调速策略和最高运行频率。"

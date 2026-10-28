@@ -75,7 +75,7 @@ procd_kill() { printf 'kill\n' >> "$ROOT/events"; }
 runtime_init() { [ "$FAULT" != runtime-init ]; }
 ucode() { case "$*" in *cleanup_urltest*) [ "$FAULT" != cleanup ];; *firewall_pre*) printf 'NEW FIREWALL' > "$RUN_DIR/fw4_input.nft";; *generate_client*) [ "$FAULT" != generate ] || return 1; printf 'NEW CLIENT' > "$RUN_DIR/sing-box-c.json.new";; *generate_server*) printf 'NEW SERVER' > "$RUN_DIR/sing-box-s.json.new";; esac; }
 check_stub() { :; }
-sing-box() { printf fixture; }
+sing_box_stub() { printf fixture; }
 chown() { :; }
 fw4() { :; }
 dnsmasq() { :; }
@@ -85,6 +85,7 @@ lock() { :; }
 '''
             init = INIT.replace('/usr/libexec/homeproxy-runtime-init', 'runtime_init')
             init = init.replace('/etc/init.d/dnsmasq', 'dnsmasq')
+            init = init.replace('sing-box version -n', 'sing_box_stub version -n')
             init = init.replace('log() {', stubs + '\nlog() {', 1)
             init = init.replace('RUN_DIR="/var/run/homeproxy"', f'RUN_DIR="{run}"')
             init = init.replace('DNSMASQ_DIR="/tmp/dnsmasq.d/dnsmasq-homeproxy.d"', f'DNSMASQ_DIR="{dns}"')
@@ -149,6 +150,7 @@ lock() { :; }
             code = INIT[INIT.index('log() {'):] + '\n'
             code = code.replace('/usr/libexec/homeproxy-runtime-init', 'runtime_init')
             code = code.replace('/etc/init.d/dnsmasq', 'dnsmasq')
+            code = code.replace('sing-box version -n', 'sing_box_stub version -n')
             code += ''.join(fn(RC, n, '\t') for n in ['rc_procd', 'stop', 'reload'])
             code += ''.join(fn(PROCD, n) for n in ['_procd_call', '_procd_ubus_call', '_procd_close_service'])
             code += r'''
@@ -187,7 +189,7 @@ ucode() {
  *generate_server*) [ "$FAULT" != generate-server ] || return 1; printf 'NEW SERVER' > "$RUN_DIR/sing-box-s.json.new";; esac
 }
 check_stub() { [ "$FAULT" != check ]; }
-sing-box() { printf 'fixture'; }
+sing_box_stub() { printf 'fixture'; }
 chown() { :; }
 fw4() { printf 'fw4\n' >> "$ROOT/events"; if [ "$FAULT" = fw4 ] && [ ! -e "$ROOT/failed" ]; then touch "$ROOT/failed"; return 1; fi; }
 dnsmasq() { printf 'dns\n' >> "$ROOT/events"; if [ "$FAULT" = dns ] && [ ! -e "$ROOT/failed" ]; then touch "$ROOT/failed"; return 1; fi; }

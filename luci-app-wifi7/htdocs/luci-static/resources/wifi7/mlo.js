@@ -166,10 +166,16 @@ function summary(runtime, radios, node) {
 	]);
 }
 
-function runtimeState(sectionId, runtime) {
+function runtimeState(sectionId, runtime, node) {
 	let state = runtime.sections[sectionId];
 	let stateText = runtime.unknown ? _('Unavailable') : !state ? _('No runtime state') : state.up ? _('Active') : _('Down');
-	return E('span', { class: runtime.unknown || !state || !state.up ? 'mlo-muted' : 'mlo-active', 'data-mlo-runtime-section': sectionId }, stateText);
+	let stateClass = runtime.unknown || !state || !state.up ? 'mlo-muted' : 'mlo-active';
+	if (node) {
+		if (node.className !== stateClass) node.className = stateClass;
+		if (node.textContent !== stateText) node.textContent = stateText;
+		return node;
+	}
+	return E('span', { class: stateClass, 'data-mlo-runtime-section': sectionId }, stateText);
 }
 
 function overview(sectionId, radiosByName, runtime) {
@@ -459,8 +465,7 @@ return baseclass.extend({
 					oldSummary && summary(runtime, radios, oldSummary);
 					for (let oldState of nodes.querySelectorAll('[data-mlo-runtime-section]')) {
 						let sectionId = oldState.getAttribute('data-mlo-runtime-section');
-						let nextState = runtimeState(sectionId, runtime);
-						oldState.replaceWith(nextState);
+						runtimeState(sectionId, runtime, oldState);
 					}
 				}).then(function(result) { inflight = null; return result; }, function(error) { inflight = null; throw error; });
 				return inflight;
@@ -475,8 +480,10 @@ return baseclass.extend({
 				if (mloRefresh === refresh) mloRefresh = null;
 				observer.disconnect();
 			});
-			// Watch the view container only, never every mutation in the document.
-			observer.observe(document.getElementById('view') || nodes.parentNode || document.body, { childList: true });
+			// #view also owns nested MLO panes; observe their removal without
+			// watching the sidebar or the rest of the document.
+			let host = document.getElementById('view');
+			observer.observe(host || nodes.parentNode || document.body, { childList: true, subtree: !!host });
 			return nodes;
 		});
 	}

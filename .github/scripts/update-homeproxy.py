@@ -112,13 +112,16 @@ def publish(pairs):
             target.rename(backup)
             installed.append((target, backup))
             staged.rename(target)
-    except BaseException:
+    except BaseException as error:
         for target, backup in reversed(installed):
-            if target.is_dir():
-                shutil.rmtree(target)
-            elif target.exists():
-                target.unlink()
-            backup.rename(target)
+            try:
+                if target.is_dir():
+                    shutil.rmtree(target)
+                elif target.exists():
+                    target.unlink()
+                backup.rename(target)
+            except OSError as recovery_error:
+                error.add_note(f'Recovery failed for {target}; retain {backup}: {recovery_error}')
         raise
     for _, backup in installed:
         if backup.is_dir():
