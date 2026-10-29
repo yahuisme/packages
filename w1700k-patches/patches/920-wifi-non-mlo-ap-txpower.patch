@@ -46,8 +46,7 @@ void callbacks cannot propagate a synchronous error to netifd config_set.
  		append('\n#num_global_macaddr', data.config.num_global_macaddr);
 --- a/package/network/services/hostapd/files/hostapd.uc
 +++ b/package/network/services/hostapd/files/hostapd.uc
-@@ -745,7 +745,8 @@
- {
+@@ -745,5 +745,6 @@
  	let phy = phydev.name;
  
 -	if (!old_config)
@@ -55,7 +54,6 @@ void callbacks cannot propagate a synchronous error to netifd config_set.
 +	if (!old_config || old_config.txpower != config.txpower)
  		return false;
  
- 	switch (radio_reload_class(old_config.radio, config.radio)) {
 @@ -1166,6 +1167,11 @@
  
  		if (val[0] == "channel") {
