@@ -1779,8 +1779,9 @@ return view.extend({
 		o.rmempty = false;
 
 		o = s.taboption('subscription', form.Value, 'auto_update_time', _('Cron expression'),
-			_('Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6).') +
-			'<br/>' +
+			'<span class="hp-cron-fields">' +
+			[ _('Minute'), _('Hour'), _('Day'), _('Month'), _('Weekday') ].map((label, index) =>
+				'<span>%h %s</span>'.format(label, [ '0–59', '0–23', '1–31', '1–12', '0–6' ][index])).join('') + '</span>' +
 			'<a target="_blank" rel="noreferrer noopener" href="https://www.toolbox365.cn/tools/cron/">' +
 			_('Cron expression online generator') + '</a>');
 		o.default = '0 */6 * * *';
@@ -1957,7 +1958,7 @@ return view.extend({
 		o.inputtitle = function() {
 			const count = subscriptionNodeIds().length;
 			this.readonly = !!this.map.readonly || subscriptionActionPending || count === 0;
-			return count ? _('Remove %s nodes').format(count) : _('No subscription node');
+			return count ? _('Remove %s nodes').format(count) : _('Remove all nodes from subscriptions');
 		};
 		o.onclick = function() {
 			if (subscriptionActionPending || this.map.readonly)
@@ -2066,6 +2067,14 @@ return view.extend({
 					'#modal_overlay > .hp-node-modal { max-width: 100%; }' +
 					'.hp-node-list { max-width: 100%; overflow-x: auto; }' +
 					'#cbi-homeproxy-subscription{container-type:inline-size}' +
+					'#cbi-homeproxy-subscription [data-tab="subscription"] .cbi-value-description{margin-top:8px;line-height:1.5}' +
+					'#cbi-homeproxy-subscription .hp-cron-fields{display:flex;flex-wrap:wrap;gap:4px 8px}' +
+					'#cbi-homeproxy-subscription .hp-cron-fields>span{white-space:nowrap}' +
+					'#cbi-homeproxy-subscription [data-name="_update_subscriptions"]>.cbi-value-title,' +
+					'#cbi-homeproxy-subscription [data-name="_remove_subscriptions"]>.cbi-value-title{visibility:hidden}' +
+					'#cbi-homeproxy-subscription [data-name="_remove_subscriptions"]{margin-top:24px}' +
+					'@media(max-width:600px){#cbi-homeproxy-subscription [data-name="_update_subscriptions"]>.cbi-value-title,' +
+					'#cbi-homeproxy-subscription [data-name="_remove_subscriptions"]>.cbi-value-title{display:none}}' +
 					'@container(max-width:600px){' +
 					'#cbi-homeproxy-subscription [data-name="subscription_url"]{display:block}' +
 					'#cbi-homeproxy-subscription [data-name="subscription_url"]>.cbi-value-title{display:block;float:none;width:auto;margin:0 0 8px;padding:0;text-align:left}' +

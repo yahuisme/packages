@@ -32,8 +32,8 @@ const LinkList = ui.DynamicList.extend({
 			'id': this.options.id + '.name', 'disabled': this.options.disabled || null,
 			'placeholder': _('Hostname when empty')
 		});
-		const urlLabel = E('label', { 'for': url.id }, [ _('Subscription URL'), url ]);
-		const nameLabel = E('label', { 'for': name.id }, [ _('Group name (optional)'), name ]);
+		const urlLabel = E('label', { 'for': url.id }, [ E('span', { 'class': 'hp-subscription-label' }, _('Subscription URL')), url ]);
+		const nameLabel = E('label', { 'for': name.id }, [ E('span', { 'class': 'hp-subscription-label' }, _('Group name (optional)')), name ]);
 		add.prepend(nameLabel, urlLabel);
 		const button = add.querySelector('.cbi-button-add');
 		button.setAttribute('role', 'button');
@@ -46,16 +46,23 @@ const LinkList = ui.DynamicList.extend({
 		return E('div', { 'class': 'hp-subscription-editor' }, [
 			E('style', {}, [
 				'.hp-subscription-editor{container-type:inline-size;min-width:0;max-width:100%}' +
-				'.hp-subscription-editor .hp-subscription-links{display:block;width:min(100%,56rem);max-width:100%;min-width:0}' +
-				'.hp-subscription-links>.item,.hp-subscription-links>.add-item{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) 34px;gap:8px;align-items:end;margin:0 0 8px;padding:0;border:0;background:transparent;white-space:normal}' +
+				'.hp-subscription-editor .hp-subscription-links,.hp-subscription-editor .hp-subscription-columns{width:min(100%,56rem);max-width:100%;min-width:0}' +
+				'.hp-subscription-editor .hp-subscription-links{display:block}' +
+				'.hp-subscription-columns,.hp-subscription-links>.item,.hp-subscription-links>.add-item{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) 34px;gap:8px;align-items:end;margin:0 0 8px;padding:0;border:0;background:transparent;white-space:normal}' +
 				'.hp-subscription-links>div>.cbi-button{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;width:34px;min-width:34px;height:34px;min-height:34px;padding:0;margin:0}' +
 				'.hp-subscription-links>.item::after{display:none}' +
 				'.hp-subscription-links>div>label{display:grid;gap:8px;margin:0;min-width:0;font-size:inherit}' +
+				'.hp-subscription-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}' +
 				'.hp-subscription-links .hp-subscription-name,.hp-subscription-links .hp-subscription-url{box-sizing:border-box;min-width:0;width:100%;max-width:100%}' +
 				'@container(max-width:480px){.hp-subscription-links>.item,.hp-subscription-links>.add-item{grid-template-columns:minmax(0,1fr) auto}' +
+				'.hp-subscription-columns{display:none}.hp-subscription-label{position:static;width:auto;height:auto;margin:0;overflow:visible;clip:auto;white-space:normal}' +
 				'.hp-subscription-links>div>label{grid-column:1}.hp-subscription-links>div>.cbi-button{grid-column:2;grid-row:2}}' +
 				'@media(max-width:600px){.hp-subscription-links>.item,.hp-subscription-links>.add-item{grid-template-columns:minmax(0,1fr) auto}' +
+				'.hp-subscription-columns{display:none}.hp-subscription-label{position:static;width:auto;height:auto;margin:0;overflow:visible;clip:auto;white-space:normal}' +
 				'.hp-subscription-links>div>label{grid-column:1}.hp-subscription-links>div>.cbi-button{grid-column:2;grid-row:2}}'
+			]),
+			E('div', { 'class': 'hp-subscription-columns', 'aria-hidden': 'true' }, [
+				E('span', {}, _('Group name (optional)')), E('span', {}, _('Subscription URL'))
 			]), list
 		]);
 	},
@@ -100,8 +107,8 @@ const LinkList = ui.DynamicList.extend({
 			const url = E('input', { 'type': 'text', 'class': 'cbi-input-text hp-subscription-url',
 				'value': initial.url, 'disabled': this.options.disabled || null });
 			item.querySelector('span').remove();
-			item.prepend(E('label', {}, [ _('Group name (optional)'), name ]),
-				E('label', {}, [ _('Subscription URL'), url ]));
+			item.prepend(E('label', {}, [ E('span', { 'class': 'hp-subscription-label' }, _('Group name (optional)')), name ]),
+				E('label', {}, [ E('span', { 'class': 'hp-subscription-label' }, _('Subscription URL')), url ]));
 			item.appendChild(E('button', { 'type': 'button', 'class': 'cbi-button cbi-button-remove',
 				'aria-label': _('Remove subscription'), 'disabled': this.options.disabled || null,
 				'click': () => { if (!this.options.disabled) this.removeItem(list, item); }

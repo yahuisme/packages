@@ -911,6 +911,11 @@ return view.extend({
 		so.depends('enabled', '1');
 		/* Tailscale settings end */
 
-		return m.render();
+		return m.render().then(root => E('div', {}, [
+			E('style', {}, [
+				'#cbi-homeproxy-config-main_urltest_interrupt_exist_connections:not(.hidden)~#cbi-homeproxy-config-dns_server{padding-top:16px}' +
+				'#cbi-homeproxy [data-tab="routing"] .cbi-value-description{margin-top:8px;line-height:1.5}'
+			]), root
+		]));
 	}
 });

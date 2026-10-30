@@ -1673,3 +1673,18 @@ msgstr "移除链接"
 
 msgid "Subscription URL"
 msgstr "链接地址"
+
+msgid "Minute"
+msgstr "分"
+
+msgid "Hour"
+msgstr "时"
+
+msgid "Day"
+msgstr "日"
+
+msgid "Month"
+msgstr "月"
+
+msgid "Weekday"
+msgstr "周"

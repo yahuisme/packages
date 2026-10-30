@@ -103,7 +103,7 @@ async function fixture(translations = {}, realTimers = false) {
 	assert(updateButton, 'current node.js update button must render through native form.Button');
 	const updateOption = h.mods.dom.findClassInstance(updateButton.closest('.cbi-value'));
 	assert(updateOption, 'native update form.Button option must be discoverable');
-	const removeButton = button('No subscription node');
+	const removeButton = button('Remove all nodes from subscriptions');
 	const removeOption = h.mods.dom.findClassInstance(removeButton.closest('.cbi-value'));
 	let pending;
 	const nativeClick = updateOption.onclick;

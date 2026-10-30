@@ -36,6 +36,13 @@ async function fixture(options = {}) {
  try {
   const name = h.list().querySelector('.item .hp-subscription-name');
   assert(name, 'existing remote link has a separate editable group name');
+  const editor=h.root().querySelector('.hp-subscription-editor');
+  assert.equal(editor.querySelectorAll('.hp-subscription-columns').length,1,'one shared desktop column header');
+  assert.equal(editor.querySelector('.hp-subscription-columns').getAttribute('aria-hidden'),'true','visual header does not duplicate accessible labels');
+  for(const input of editor.querySelectorAll('label>input')) {
+   assert(input.parentElement.querySelector('.hp-subscription-label'),'each input retains its wrapping accessible label');
+  }
+  assert.equal(h.list().querySelectorAll(':scope>.item').length,1,'shared header is outside sortable rows');
   assert.equal(name.value, 'Old name');
   assert.equal(h.list().querySelector('.item .hp-subscription-url').value, raw);
   const literal = '中文 🚀 # 100% <img src=x onerror=alert(1)>';
