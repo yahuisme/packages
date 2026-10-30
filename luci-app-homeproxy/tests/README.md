@@ -41,6 +41,35 @@ out-of-range tolerance before writing a config, preserves explicit zero and
 transport and generator platform modules are private fixtures; no browser,
 proxy, compilation or host configuration is used.
 
+# Client/status UI simplification
+
+```sh
+. /opt/test-tools/env.sh
+export PACKAGES_ROOT="$PWD" NODE_PATH=/usr/local/lib/node_modules
+export LUCI_RESOURCE_DIR=/opt/test-tools/luci-fixtures/luci/modules/luci-base/htdocs/luci-static/resources
+node luci-app-homeproxy/tests/test_status_simplification.cjs
+node luci-app-homeproxy/tests/test_client_simplification.cjs
+node tests/helpers/test_connection_lifecycle.cjs
+node tests/helpers/test_page_lifecycle.cjs
+node tests/resource-results-ui.cjs
+node tests/status-accessibility.cjs
+node tests/ui-state-regressions.cjs
+```
+
+Run through the caller's bounded-test wrapper. These execute the complete
+production LuCI views and shared resource module, with private RPC/file transport.
+The resource-results suite mounts the client dashboard plus the production
+Status rules widget to retain cross-widget lock and mixed-result coverage.
+Client resource actions refresh only resource widgets, preserving unsaved form
+edits. `pageBoot(name, translations, options)` accepts per-section `options.values`,
+`options.resources` and `options.readonly` for current visual/state fixtures.
+This is offline DOM behavior coverage; browser/theme and router verification
+are separate gates. Re-run affected suites against the final shared-module
+revision; earlier logs do not validate later source changes.
+
+Node/server editor parity, source filtering, native saves and primary-node apply
+regressions are documented in [`../../tests/NODE-UI.md`](../../tests/NODE-UI.md).
+
 # Service status and current-node performance regressions
 
 Run from the repository root with the shared test environment loaded:
@@ -180,7 +209,7 @@ The UI suite executes native LuCI Button, DynamicList, Map and RPC code with
 private UCI/apply/exec transport fixtures, not a router or host service. It covers
 inline neutral/progress/error/success results, real URL edits and unchanged
 apply status 5, fatal confirm status 5, retries, no navigation/notifications,
-updated node rows and subscription tabs after cache invalidation, held/failing
+updated node rows and source choices after cache invalidation, held/failing
 list load/reset, retained results after reset, and deletion confirmation/cancel.
 Subscription refresh explicitly reloads UCI and option values: `Map.reset()`
 alone does not fetch the nodes written by the external updater. The regression

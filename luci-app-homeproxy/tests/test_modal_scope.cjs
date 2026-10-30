@@ -8,13 +8,11 @@ function grids(map) {
  visit(map); return found;
 }
 (async()=>{
- const {boot}=require('../../tests/helpers/test_connection_lifecycle.cjs');
- const status=await boot([{type:'dashboard',installed:true,version:'20260914012345'}]);
+ const status=await pageBoot('client',{}, {resources:[{type:'dashboard',installed:true,version:'20260914012345'}]});
  try {
-  await status.settle({results:[]});
   for(let i=0;i<2;i++) {
    if(i) await status.mods.dom.findClassInstance(status.root()).reset();
-   status.button('Remove').click();await tick();
+    [...status.root().querySelectorAll('button')].find(b=>b.textContent==='Remove').click();await tick();
    const modal=status.w.document.querySelector('.modal');
    assert(modal.classList.contains('hp-resource-modal'),'dashboard confirmation owns its constraint');
    assert.equal(status.w.getComputedStyle(modal).maxWidth,'100%');

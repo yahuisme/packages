@@ -21,9 +21,20 @@ for (const [link, quicOnly] of [
 	assert(api.parseShareLink(link, { with_quic: true }), `${link} must match the full description`);
 	assert.equal(!!api.parseShareLink(link, { with_quic: false }), !quicOnly, `${link} capability gating`);
 }
+// gettext permits a msgid to wrap over several quoted lines.
+function messages(catalog) {
+ const result=new Set();let current=null;
+ for(const line of catalog.split('\n')) {
+  if(line.startsWith('msgid ')) {current=JSON.parse(line.slice(6));result.add(current);}
+  else if(current!==null && line.startsWith('"')) {result.delete(current);current+=JSON.parse(line);result.add(current);}
+  else current=null;
+ }
+ return result;
+}
+const potMessages=messages(pot), poMessages=messages(po);
 for (const message of [ fullMessage, basicMessage ]) {
 	assert(node.includes(`_('${message}')`), 'share-link modal description must be a translatable parser-derived variant');
-	assert(pot.includes(`msgid "${message}"`), 'POT must contain each capability-specific description');
-	assert(po.includes(`msgid "${message}"`), 'zh_Hans catalog must contain each capability-specific description');
+	assert(potMessages.has(message), 'POT must contain each capability-specific description');
+	assert(poMessages.has(message), 'zh_Hans catalog must contain each capability-specific description');
 }
 console.log('PASS share-link descriptions match parser capability and with_quic gating');

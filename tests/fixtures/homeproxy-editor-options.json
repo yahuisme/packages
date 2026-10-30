@@ -1,0 +1,3216 @@
+{
+  "baseline": "b2642d41adfd1da7307359d5b8b283531e6c56b5",
+  "features": {
+    "with_quic": true,
+    "with_wireguard": true,
+    "with_gvisor": true,
+    "with_utls": true,
+    "with_grpc": true,
+    "with_acme": true,
+    "hp_has_tcp_brutal": true
+  },
+  "node": [
+    {
+      "option": "_apply",
+      "deps": [],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": false,
+      "editable": true
+    },
+    {
+      "option": "_latency",
+      "deps": [],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": false
+    },
+    {
+      "option": "_test_latency",
+      "deps": [],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": false,
+      "editable": true
+    },
+    {
+      "option": "label",
+      "deps": [],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "type",
+      "keylist": [
+        "direct",
+        "anytls",
+        "http",
+        "hysteria",
+        "hysteria2",
+        "shadowsocks",
+        "shadowtls",
+        "socks",
+        "ssh",
+        "trojan",
+        "tuic",
+        "wireguard",
+        "vless",
+        "vmess"
+      ],
+      "vallist": [
+        "Direct",
+        "AnyTLS",
+        "HTTP",
+        "Hysteria",
+        "Hysteria2",
+        "Shadowsocks",
+        "ShadowTLS",
+        "SOCKS",
+        "SSH",
+        "Trojan",
+        "TUIC",
+        "WireGuard",
+        "VLESS",
+        "VMess"
+      ],
+      "deps": [],
+      "default": null,
+      "rmempty": false,
+      "optional": false
+    },
+    {
+      "option": "address",
+      "deps": [
+        {
+          "type": "direct",
+          "!reverse": true
+        }
+      ],
+      "datatype": "host",
+      "default": null,
+      "rmempty": false,
+      "optional": false
+    },
+    {
+      "option": "port",
+      "deps": [
+        {
+          "type": "direct",
+          "!reverse": true
+        }
+      ],
+      "datatype": "port",
+      "default": null,
+      "rmempty": false,
+      "optional": false
+    },
+    {
+      "option": "username",
+      "deps": [
+        {
+          "type": "http"
+        },
+        {
+          "type": "socks"
+        },
+        {
+          "type": "ssh"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "password",
+      "deps": [
+        {
+          "type": "anytls"
+        },
+        {
+          "type": "http"
+        },
+        {
+          "type": "hysteria2"
+        },
+        {
+          "type": "shadowsocks"
+        },
+        {
+          "type": "ssh"
+        },
+        {
+          "type": "trojan"
+        },
+        {
+          "type": "tuic"
+        },
+        {
+          "type": "shadowtls",
+          "shadowtls_version": "2"
+        },
+        {
+          "type": "shadowtls",
+          "shadowtls_version": "3"
+        },
+        {
+          "type": "socks",
+          "socks_version": "5"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "anytls_idle_session_check_interval",
+      "deps": [
+        {
+          "type": "anytls"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "anytls_idle_session_timeout",
+      "deps": [
+        {
+          "type": "anytls"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "anytls_min_idle_session",
+      "deps": [
+        {
+          "type": "anytls"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_hopping_port",
+      "deps": [
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_hop_interval",
+      "deps": [
+        {
+          "type": "hysteria",
+          "hysteria_hopping_port": {
+            "regexp": "[\\s\\S]",
+            "flags": ""
+          }
+        },
+        {
+          "type": "hysteria2",
+          "hysteria_hopping_port": {
+            "regexp": "[\\s\\S]",
+            "flags": ""
+          }
+        }
+      ],
+      "datatype": "and(uinteger,min(5))",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_hop_interval_max",
+      "deps": [
+        {
+          "type": "hysteria2",
+          "hysteria_hopping_port": {
+            "regexp": "[\\s\\S]",
+            "flags": ""
+          }
+        }
+      ],
+      "datatype": "and(uinteger,min(5))",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_network",
+      "keylist": [
+        "",
+        "udp",
+        "tcp"
+      ],
+      "vallist": [
+        "TCP and UDP",
+        "udp",
+        "tcp"
+      ],
+      "deps": [
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "default": "",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_auth_type",
+      "keylist": [
+        "",
+        "base64",
+        "string"
+      ],
+      "vallist": [
+        "Disable",
+        "Base64",
+        "String"
+      ],
+      "deps": [
+        {
+          "type": "hysteria"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_auth_payload",
+      "deps": [
+        {
+          "type": "hysteria",
+          "hysteria_auth_type": {
+            "regexp": "[\\s\\S]",
+            "flags": ""
+          }
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "hysteria_obfs_type",
+      "keylist": [
+        "",
+        "salamander",
+        "gecko"
+      ],
+      "vallist": [
+        "Disable",
+        "Salamander",
+        "Gecko"
+      ],
+      "deps": [
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_obfs_password",
+      "deps": [
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2",
+          "hysteria_obfs_type": {
+            "regexp": "[\\s\\S]",
+            "flags": ""
+          }
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "hysteria_down_mbps",
+      "deps": [
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_up_mbps",
+      "deps": [
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_stream_receive_window",
+      "deps": [
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_connection_receive_window",
+      "deps": [
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_disable_path_mtu_discovery",
+      "deps": [
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_disable_chrome_parrot",
+      "deps": [
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "shadowsocks_encrypt_method",
+      "keylist": [
+        "none",
+        "aes-128-gcm",
+        "aes-192-gcm",
+        "aes-256-gcm",
+        "chacha20-ietf-poly1305",
+        "xchacha20-ietf-poly1305",
+        "2022-blake3-aes-128-gcm",
+        "2022-blake3-aes-256-gcm",
+        "2022-blake3-chacha20-poly1305",
+        "aes-128-ctr",
+        "aes-192-ctr",
+        "aes-256-ctr",
+        "aes-128-cfb",
+        "aes-192-cfb",
+        "aes-256-cfb",
+        "chacha20",
+        "chacha20-ietf",
+        "rc4-md5"
+      ],
+      "vallist": [
+        "none",
+        "aes-128-gcm",
+        "aes-192-gcm",
+        "aes-256-gcm",
+        "chacha20-ietf-poly1305",
+        "xchacha20-ietf-poly1305",
+        "2022-blake3-aes-128-gcm",
+        "2022-blake3-aes-256-gcm",
+        "2022-blake3-chacha20-poly1305",
+        "aes-128-ctr",
+        "aes-192-ctr",
+        "aes-256-ctr",
+        "aes-128-cfb",
+        "aes-192-cfb",
+        "aes-256-cfb",
+        "chacha20",
+        "chacha20-ietf",
+        "rc4-md5"
+      ],
+      "deps": [
+        {
+          "type": "shadowsocks"
+        }
+      ],
+      "default": "aes-128-gcm",
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "shadowsocks_plugin",
+      "keylist": [
+        "",
+        "obfs-local",
+        "v2ray-plugin"
+      ],
+      "vallist": [
+        "None",
+        "obfs-local",
+        "v2ray-plugin"
+      ],
+      "deps": [
+        {
+          "type": "shadowsocks"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "shadowsocks_plugin_opts",
+      "deps": [
+        {
+          "shadowsocks_plugin": "obfs-local"
+        },
+        {
+          "shadowsocks_plugin": "v2ray-plugin"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "shadowtls_version",
+      "keylist": [
+        "1",
+        "2",
+        "3"
+      ],
+      "vallist": [
+        "v1",
+        "v2",
+        "v3"
+      ],
+      "deps": [
+        {
+          "type": "shadowtls"
+        }
+      ],
+      "default": "1",
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "socks_version",
+      "keylist": [
+        "4",
+        "4a",
+        "5"
+      ],
+      "vallist": [
+        "SOCKS4",
+        "SOCKS4A",
+        "SOCKS5"
+      ],
+      "deps": [
+        {
+          "type": "socks"
+        }
+      ],
+      "default": "5",
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "ssh_client_version",
+      "deps": [
+        {
+          "type": "ssh"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "ssh_host_key",
+      "deps": [
+        {
+          "type": "ssh"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "ssh_host_key_algo",
+      "deps": [
+        {
+          "type": "ssh"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "ssh_priv_key",
+      "deps": [
+        {
+          "type": "ssh"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "ssh_priv_key_pp",
+      "deps": [
+        {
+          "type": "ssh"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "uuid",
+      "deps": [
+        {
+          "type": "tuic"
+        },
+        {
+          "type": "vless"
+        },
+        {
+          "type": "vmess"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "tuic_congestion_control",
+      "keylist": [
+        "cubic",
+        "new_reno",
+        "bbr"
+      ],
+      "vallist": [
+        "CUBIC",
+        "New Reno",
+        "BBR"
+      ],
+      "deps": [
+        {
+          "type": "tuic"
+        }
+      ],
+      "default": "cubic",
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tuic_udp_relay_mode",
+      "keylist": [
+        "",
+        "native",
+        "quic"
+      ],
+      "vallist": [
+        "Default",
+        "Native",
+        "QUIC"
+      ],
+      "deps": [
+        {
+          "type": "tuic"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tuic_udp_over_stream",
+      "deps": [
+        {
+          "type": "tuic",
+          "tuic_udp_relay_mode": ""
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tuic_enable_zero_rtt",
+      "deps": [
+        {
+          "type": "tuic"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tuic_heartbeat",
+      "deps": [
+        {
+          "type": "tuic"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": "10",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "vless_flow",
+      "keylist": [
+        "",
+        "xtls-rprx-vision"
+      ],
+      "vallist": [
+        "None",
+        "xtls-rprx-vision"
+      ],
+      "deps": [
+        {
+          "type": "vless"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "vmess_alterid",
+      "deps": [
+        {
+          "type": "vmess"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "vmess_encrypt",
+      "keylist": [
+        "auto",
+        "none",
+        "zero",
+        "aes-128-gcm",
+        "chacha20-poly1305"
+      ],
+      "vallist": [
+        "auto",
+        "none",
+        "zero",
+        "aes-128-gcm",
+        "chacha20-poly1305"
+      ],
+      "deps": [
+        {
+          "type": "vmess"
+        }
+      ],
+      "default": "auto",
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "vmess_global_padding",
+      "deps": [
+        {
+          "type": "vmess"
+        }
+      ],
+      "default": "1",
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "vmess_authenticated_length",
+      "deps": [
+        {
+          "type": "vmess"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "transport",
+      "keylist": [
+        "",
+        "grpc",
+        "http",
+        "httpupgrade",
+        "quic",
+        "ws"
+      ],
+      "vallist": [
+        "None",
+        "gRPC",
+        "HTTP",
+        "HTTPUpgrade",
+        "QUIC",
+        "WebSocket"
+      ],
+      "deps": [
+        {
+          "type": "trojan"
+        },
+        {
+          "type": "vless"
+        },
+        {
+          "type": "vmess"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "grpc_servicename",
+      "deps": [
+        {
+          "transport": "grpc"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "grpc_permit_without_stream",
+      "deps": [
+        {
+          "transport": "grpc"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "http_host",
+      "deps": [
+        {
+          "transport": "http"
+        }
+      ],
+      "datatype": "hostname",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "httpupgrade_host",
+      "deps": [
+        {
+          "transport": "httpupgrade"
+        }
+      ],
+      "datatype": "hostname",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "http_path",
+      "deps": [
+        {
+          "transport": "http"
+        },
+        {
+          "transport": "httpupgrade"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "http_method",
+      "keylist": [
+        "GET",
+        "PUT"
+      ],
+      "vallist": [
+        "GET",
+        "PUT"
+      ],
+      "deps": [
+        {
+          "transport": "http"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "http_idle_timeout",
+      "deps": [
+        {
+          "transport": "grpc"
+        },
+        {
+          "transport": "http",
+          "tls": "1"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "http_ping_timeout",
+      "deps": [
+        {
+          "transport": "grpc"
+        },
+        {
+          "transport": "http",
+          "tls": "1"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "ws_host",
+      "deps": [
+        {
+          "transport": "ws"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "ws_path",
+      "deps": [
+        {
+          "transport": "ws"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "websocket_early_data",
+      "keylist": [
+        "2048"
+      ],
+      "vallist": [
+        "2048"
+      ],
+      "deps": [
+        {
+          "transport": "ws"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "websocket_early_data_header",
+      "keylist": [
+        "Sec-WebSocket-Protocol"
+      ],
+      "vallist": [
+        "Sec-WebSocket-Protocol"
+      ],
+      "deps": [
+        {
+          "transport": "ws"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "packet_encoding",
+      "keylist": [
+        "none",
+        "packetaddr",
+        "xudp"
+      ],
+      "vallist": [
+        "None",
+        "packet addr (v2ray-core v5+)",
+        "XUDP (Xray-core)"
+      ],
+      "deps": [
+        {
+          "type": "vless"
+        },
+        {
+          "type": "vmess"
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "wireguard_local_address",
+      "deps": [
+        {
+          "type": "wireguard"
+        }
+      ],
+      "datatype": "cidr",
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "wireguard_private_key",
+      "deps": [
+        {
+          "type": "wireguard"
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "wireguard_peer_public_key",
+      "deps": [
+        {
+          "type": "wireguard"
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "wireguard_pre_shared_key",
+      "deps": [
+        {
+          "type": "wireguard"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "wireguard_reserved",
+      "deps": [
+        {
+          "type": "wireguard"
+        }
+      ],
+      "datatype": "integer",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "wireguard_mtu",
+      "deps": [
+        {
+          "type": "wireguard"
+        }
+      ],
+      "datatype": "range(0,9000)",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "wireguard_persistent_keepalive_interval",
+      "deps": [
+        {
+          "type": "wireguard"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "multiplex",
+      "deps": [
+        {
+          "type": "shadowsocks"
+        },
+        {
+          "type": "trojan"
+        },
+        {
+          "type": "vless"
+        },
+        {
+          "type": "vmess"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "multiplex_protocol",
+      "keylist": [
+        "h2mux",
+        "smux",
+        "yamux"
+      ],
+      "vallist": [
+        "h2mux",
+        "smux",
+        "yamux"
+      ],
+      "deps": [
+        {
+          "multiplex": "1"
+        }
+      ],
+      "default": "h2mux",
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "multiplex_max_connections",
+      "deps": [
+        {
+          "multiplex": "1"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "multiplex_min_streams",
+      "deps": [
+        {
+          "multiplex": "1"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "multiplex_max_streams",
+      "deps": [
+        {
+          "multiplex": "1",
+          "multiplex_max_connections": "",
+          "multiplex_min_streams": ""
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "multiplex_padding",
+      "deps": [
+        {
+          "multiplex": "1"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "multiplex_brutal",
+      "deps": [
+        {
+          "multiplex": "1"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "multiplex_brutal_down",
+      "deps": [
+        {
+          "multiplex_brutal": "1"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "multiplex_brutal_up",
+      "deps": [
+        {
+          "multiplex_brutal": "1"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls",
+      "deps": [
+        {
+          "type": "anytls"
+        },
+        {
+          "type": "http"
+        },
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2"
+        },
+        {
+          "type": "shadowtls"
+        },
+        {
+          "type": "trojan"
+        },
+        {
+          "type": "tuic"
+        },
+        {
+          "type": "vless"
+        },
+        {
+          "type": "vmess"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_sni",
+      "deps": [
+        {
+          "tls": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_alpn",
+      "deps": [
+        {
+          "tls": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_insecure",
+      "deps": [
+        {
+          "tls": "1"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_min_version",
+      "keylist": [
+        "",
+        "1.0",
+        "1.1",
+        "1.2",
+        "1.3"
+      ],
+      "vallist": [
+        "Default",
+        "1.0",
+        "1.1",
+        "1.2",
+        "1.3"
+      ],
+      "deps": [
+        {
+          "tls": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_max_version",
+      "keylist": [
+        "",
+        "1.0",
+        "1.1",
+        "1.2",
+        "1.3"
+      ],
+      "vallist": [
+        "Default",
+        "1.0",
+        "1.1",
+        "1.2",
+        "1.3"
+      ],
+      "deps": [
+        {
+          "tls": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_cipher_suites",
+      "keylist": [
+        "TLS_RSA_WITH_AES_128_CBC_SHA",
+        "TLS_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_RSA_WITH_AES_128_GCM_SHA256",
+        "TLS_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_AES_128_GCM_SHA256",
+        "TLS_AES_256_GCM_SHA384",
+        "TLS_CHACHA20_POLY1305_SHA256",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+        "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+      ],
+      "vallist": [
+        "TLS_RSA_WITH_AES_128_CBC_SHA",
+        "TLS_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_RSA_WITH_AES_128_GCM_SHA256",
+        "TLS_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_AES_128_GCM_SHA256",
+        "TLS_AES_256_GCM_SHA384",
+        "TLS_CHACHA20_POLY1305_SHA256",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+        "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+      ],
+      "deps": [
+        {
+          "tls": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": true,
+      "modalonly": true
+    },
+    {
+      "option": "tls_self_sign",
+      "deps": [
+        {
+          "tls_insecure": "0"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_cert_path",
+      "keylist": [
+        "/etc/homeproxy/certs/client_ca.pem"
+      ],
+      "vallist": [
+        "/etc/homeproxy/certs/client_ca.pem"
+      ],
+      "deps": [
+        {
+          "tls_self_sign": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "_upload_cert",
+      "deps": [
+        {
+          "tls_self_sign": "1",
+          "tls_cert_path": "/etc/homeproxy/certs/client_ca.pem"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_ech",
+      "deps": [
+        {
+          "tls": "1"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_ech_config_path",
+      "keylist": [
+        "/etc/homeproxy/certs/client_ech_conf.pem"
+      ],
+      "vallist": [
+        "/etc/homeproxy/certs/client_ech_conf.pem"
+      ],
+      "deps": [
+        {
+          "tls_ech": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_ech_query_server_name",
+      "deps": [
+        {
+          "tls_ech": "1"
+        }
+      ],
+      "datatype": "hostname",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_ech_query_server",
+      "deps": [
+        {
+          "tls_ech": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "_upload_ech_config",
+      "deps": [
+        {
+          "tls_ech": "1",
+          "tls_ech_config_path": "/etc/homeproxy/certs/client_ech_conf.pem"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_utls",
+      "keylist": [
+        "",
+        "360",
+        "android",
+        "chrome",
+        "edge",
+        "firefox",
+        "ios",
+        "qq",
+        "random",
+        "randomized",
+        "safari"
+      ],
+      "vallist": [
+        "Disable",
+        "360",
+        "android",
+        "chrome",
+        "edge",
+        "firefox",
+        "ios",
+        "qq",
+        "random",
+        "randomized",
+        "safari"
+      ],
+      "deps": [
+        {
+          "tls": "1",
+          "type": {
+            "regexp": "^((?!hysteria2?|tuic$).)+$",
+            "flags": ""
+          }
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_reality",
+      "deps": [
+        {
+          "tls": "1",
+          "type": "anytls"
+        },
+        {
+          "tls": "1",
+          "type": "vless"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_reality_public_key",
+      "deps": [
+        {
+          "tls_reality": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "tls_reality_short_id",
+      "deps": [
+        {
+          "tls_reality": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "tcp_fast_open",
+      "deps": [
+        {
+          "type": "anytls",
+          "!reverse": true
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tcp_multi_path",
+      "deps": [],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "udp_fragment",
+      "deps": [],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "udp_over_tcp",
+      "deps": [
+        {
+          "type": "socks"
+        },
+        {
+          "type": "shadowsocks",
+          "multiplex": "0"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "udp_over_tcp_version",
+      "keylist": [
+        "1",
+        "2"
+      ],
+      "vallist": [
+        "v1",
+        "v2"
+      ],
+      "deps": [
+        {
+          "udp_over_tcp": "1"
+        }
+      ],
+      "default": "2",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    }
+  ],
+  "server": [
+    {
+      "option": "label",
+      "deps": [],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "enabled",
+      "deps": [],
+      "default": "1",
+      "rmempty": false,
+      "optional": false,
+      "editable": true
+    },
+    {
+      "option": "firewall",
+      "deps": [],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "editable": true
+    },
+    {
+      "option": "type",
+      "keylist": [
+        "anytls",
+        "http",
+        "hysteria",
+        "hysteria2",
+        "naive",
+        "mixed",
+        "shadowsocks",
+        "socks",
+        "trojan",
+        "tuic",
+        "vless",
+        "vmess"
+      ],
+      "vallist": [
+        "AnyTLS",
+        "HTTP",
+        "Hysteria",
+        "Hysteria2",
+        "NaïveProxy",
+        "Mixed",
+        "Shadowsocks",
+        "SOCKS",
+        "Trojan",
+        "TUIC",
+        "VLESS",
+        "VMess"
+      ],
+      "deps": [],
+      "default": null,
+      "rmempty": false,
+      "optional": false
+    },
+    {
+      "option": "address",
+      "deps": [],
+      "datatype": "ipaddr",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "port",
+      "deps": [],
+      "datatype": "port",
+      "default": null,
+      "rmempty": true,
+      "optional": false
+    },
+    {
+      "option": "username",
+      "deps": [
+        {
+          "type": "http"
+        },
+        {
+          "type": "mixed"
+        },
+        {
+          "type": "naive"
+        },
+        {
+          "type": "socks"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "password",
+      "deps": [
+        {
+          "type": "anytls"
+        },
+        {
+          "type": {
+            "regexp": "^(http|mixed|naive|socks)$",
+            "flags": ""
+          },
+          "username": {
+            "regexp": "[\\s\\S]",
+            "flags": ""
+          }
+        },
+        {
+          "type": "hysteria2"
+        },
+        {
+          "type": "shadowsocks"
+        },
+        {
+          "type": "trojan"
+        },
+        {
+          "type": "tuic"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "anytls_padding_scheme",
+      "deps": [
+        {
+          "type": "anytls"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_down_mbps",
+      "deps": [
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_up_mbps",
+      "deps": [
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_auth_type",
+      "keylist": [
+        "",
+        "base64",
+        "string"
+      ],
+      "vallist": [
+        "Disable",
+        "Base64",
+        "String"
+      ],
+      "deps": [
+        {
+          "type": "hysteria"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_auth_payload",
+      "deps": [
+        {
+          "type": "hysteria",
+          "hysteria_auth_type": {
+            "regexp": "[\\s\\S]",
+            "flags": ""
+          }
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "hysteria_obfs_type",
+      "keylist": [
+        "",
+        "salamander",
+        "gecko"
+      ],
+      "vallist": [
+        "Disable",
+        "Salamander",
+        "Gecko"
+      ],
+      "deps": [
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_obfs_password",
+      "deps": [
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2",
+          "hysteria_obfs_type": {
+            "regexp": "[\\s\\S]",
+            "flags": ""
+          }
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "hysteria_stream_receive_window",
+      "deps": [
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": "67108864",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_connection_receive_window",
+      "deps": [
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": "15728640",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_max_concurrent_streams",
+      "deps": [
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": "1024",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_disable_path_mtu_discovery",
+      "deps": [
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_ignore_client_bandwidth",
+      "deps": [
+        {
+          "type": "hysteria2",
+          "hysteria_down_mbps": "",
+          "hysteria_up_mbps": ""
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "hysteria_masquerade",
+      "deps": [
+        {
+          "type": "hysteria2"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "shadowsocks_encrypt_method",
+      "keylist": [
+        "none",
+        "aes-128-gcm",
+        "aes-192-gcm",
+        "aes-256-gcm",
+        "chacha20-ietf-poly1305",
+        "xchacha20-ietf-poly1305",
+        "2022-blake3-aes-128-gcm",
+        "2022-blake3-aes-256-gcm",
+        "2022-blake3-chacha20-poly1305"
+      ],
+      "vallist": [
+        "none",
+        "aes-128-gcm",
+        "aes-192-gcm",
+        "aes-256-gcm",
+        "chacha20-ietf-poly1305",
+        "xchacha20-ietf-poly1305",
+        "2022-blake3-aes-128-gcm",
+        "2022-blake3-aes-256-gcm",
+        "2022-blake3-chacha20-poly1305"
+      ],
+      "deps": [
+        {
+          "type": "shadowsocks"
+        }
+      ],
+      "default": "aes-128-gcm",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "uuid",
+      "deps": [
+        {
+          "type": "tuic"
+        },
+        {
+          "type": "vless"
+        },
+        {
+          "type": "vmess"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "tuic_congestion_control",
+      "keylist": [
+        "cubic",
+        "new_reno",
+        "bbr"
+      ],
+      "vallist": [
+        "cubic",
+        "new_reno",
+        "bbr"
+      ],
+      "deps": [
+        {
+          "type": "tuic"
+        }
+      ],
+      "default": "cubic",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tuic_auth_timeout",
+      "deps": [
+        {
+          "type": "tuic"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": "3",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tuic_enable_zero_rtt",
+      "deps": [
+        {
+          "type": "tuic"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tuic_heartbeat",
+      "deps": [
+        {
+          "type": "tuic"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": "10",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "vless_flow",
+      "keylist": [
+        "",
+        "xtls-rprx-vision"
+      ],
+      "vallist": [
+        "None",
+        "xtls-rprx-vision"
+      ],
+      "deps": [
+        {
+          "type": "vless"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "vmess_alterid",
+      "deps": [
+        {
+          "type": "vmess"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "transport",
+      "keylist": [
+        "",
+        "grpc",
+        "http",
+        "httpupgrade",
+        "quic",
+        "ws"
+      ],
+      "vallist": [
+        "None",
+        "gRPC",
+        "HTTP",
+        "HTTPUpgrade",
+        "QUIC",
+        "WebSocket"
+      ],
+      "deps": [
+        {
+          "type": "trojan"
+        },
+        {
+          "type": "vless"
+        },
+        {
+          "type": "vmess"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "grpc_servicename",
+      "deps": [
+        {
+          "transport": "grpc"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "http_host",
+      "deps": [
+        {
+          "transport": "http"
+        }
+      ],
+      "datatype": "hostname",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "httpupgrade_host",
+      "deps": [
+        {
+          "transport": "httpupgrade"
+        }
+      ],
+      "datatype": "hostname",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "http_path",
+      "deps": [
+        {
+          "transport": "http"
+        },
+        {
+          "transport": "httpupgrade"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "http_method",
+      "deps": [
+        {
+          "transport": "http"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "http_idle_timeout",
+      "deps": [
+        {
+          "transport": "grpc"
+        },
+        {
+          "transport": "http",
+          "tls": "1"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "http_ping_timeout",
+      "deps": [
+        {
+          "transport": "grpc"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "ws_host",
+      "deps": [
+        {
+          "transport": "ws"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "ws_path",
+      "deps": [
+        {
+          "transport": "ws"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "websocket_early_data",
+      "keylist": [
+        "2048"
+      ],
+      "vallist": [
+        "2048"
+      ],
+      "deps": [
+        {
+          "transport": "ws"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "websocket_early_data_header",
+      "keylist": [
+        "Sec-WebSocket-Protocol"
+      ],
+      "vallist": [
+        "Sec-WebSocket-Protocol"
+      ],
+      "deps": [
+        {
+          "transport": "ws"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "multiplex",
+      "deps": [
+        {
+          "type": "shadowsocks"
+        },
+        {
+          "type": "trojan"
+        },
+        {
+          "type": "vless"
+        },
+        {
+          "type": "vmess"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "multiplex_padding",
+      "deps": [
+        {
+          "multiplex": "1"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "multiplex_brutal",
+      "deps": [
+        {
+          "multiplex": "1"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "multiplex_brutal_down",
+      "deps": [
+        {
+          "multiplex_brutal": "1"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "multiplex_brutal_up",
+      "deps": [
+        {
+          "multiplex_brutal": "1"
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls",
+      "deps": [
+        {
+          "type": "anytls"
+        },
+        {
+          "type": "http"
+        },
+        {
+          "type": "hysteria"
+        },
+        {
+          "type": "hysteria2"
+        },
+        {
+          "type": "naive"
+        },
+        {
+          "type": "trojan"
+        },
+        {
+          "type": "tuic"
+        },
+        {
+          "type": "vless"
+        },
+        {
+          "type": "vmess"
+        }
+      ],
+      "default": "0",
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_sni",
+      "deps": [
+        {
+          "tls": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_alpn",
+      "deps": [
+        {
+          "tls": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_min_version",
+      "keylist": [
+        "",
+        "1.0",
+        "1.1",
+        "1.2",
+        "1.3"
+      ],
+      "vallist": [
+        "Default",
+        "1.0",
+        "1.1",
+        "1.2",
+        "1.3"
+      ],
+      "deps": [
+        {
+          "tls": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_max_version",
+      "keylist": [
+        "",
+        "1.0",
+        "1.1",
+        "1.2",
+        "1.3"
+      ],
+      "vallist": [
+        "Default",
+        "1.0",
+        "1.1",
+        "1.2",
+        "1.3"
+      ],
+      "deps": [
+        {
+          "tls": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_cipher_suites",
+      "keylist": [
+        "TLS_RSA_WITH_AES_128_CBC_SHA",
+        "TLS_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_RSA_WITH_AES_128_GCM_SHA256",
+        "TLS_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_AES_128_GCM_SHA256",
+        "TLS_AES_256_GCM_SHA384",
+        "TLS_CHACHA20_POLY1305_SHA256",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+        "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+      ],
+      "vallist": [
+        "TLS_RSA_WITH_AES_128_CBC_SHA",
+        "TLS_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_RSA_WITH_AES_128_GCM_SHA256",
+        "TLS_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_AES_128_GCM_SHA256",
+        "TLS_AES_256_GCM_SHA384",
+        "TLS_CHACHA20_POLY1305_SHA256",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+        "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+      ],
+      "deps": [
+        {
+          "tls": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": true,
+      "modalonly": true
+    },
+    {
+      "option": "tls_acme",
+      "deps": [
+        {
+          "tls": "1"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_acme_domain",
+      "deps": [
+        {
+          "tls_acme": "1"
+        }
+      ],
+      "datatype": "hostname",
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_acme_dsn",
+      "deps": [
+        {
+          "tls_acme": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_acme_email",
+      "deps": [
+        {
+          "tls_acme": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_acme_provider",
+      "keylist": [
+        "letsencrypt",
+        "zerossl"
+      ],
+      "vallist": [
+        "Let's Encrypt",
+        "ZeroSSL"
+      ],
+      "deps": [
+        {
+          "tls_acme": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_dns01_challenge",
+      "deps": [
+        {
+          "tls_acme": "1"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_dns01_provider",
+      "keylist": [
+        "alidns",
+        "cfdns"
+      ],
+      "vallist": [
+        "AliDNS",
+        "Cloudflare"
+      ],
+      "deps": [
+        {
+          "tls_dns01_challenge": "1"
+        }
+      ],
+      "default": "cfdns",
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_dns01_ali_akid",
+      "deps": [
+        {
+          "tls_dns01_provider": "alidns"
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "tls_dns01_ali_aksec",
+      "deps": [
+        {
+          "tls_dns01_provider": "alidns"
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "tls_dns01_ali_rid",
+      "deps": [
+        {
+          "tls_dns01_provider": "alidns"
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_dns01_cf_api_token",
+      "deps": [
+        {
+          "tls_dns01_provider": "cfdns"
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "tls_acme_dhc",
+      "deps": [
+        {
+          "tls_dns01_challenge": "0"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_acme_dtac",
+      "deps": [
+        {
+          "tls_dns01_challenge": "0"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_acme_ahp",
+      "deps": [
+        {
+          "tls_dns01_challenge": "0"
+        }
+      ],
+      "datatype": "port",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_acme_atp",
+      "deps": [
+        {
+          "tls_dns01_challenge": "0"
+        }
+      ],
+      "datatype": "port",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_acme_external_account",
+      "deps": [
+        {
+          "tls_acme": "1"
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_acme_ea_keyid",
+      "deps": [
+        {
+          "tls_acme_external_account": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "tls_acme_ea_mackey",
+      "deps": [
+        {
+          "tls_acme_external_account": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "tls_reality",
+      "deps": [
+        {
+          "tls": "1",
+          "tls_acme": "0",
+          "type": {
+            "regexp": "^(anytls|vless)$",
+            "flags": ""
+          }
+        },
+        {
+          "tls": "1",
+          "tls_acme": null,
+          "type": {
+            "regexp": "^(anytls|vless)$",
+            "flags": ""
+          }
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_reality_private_key",
+      "deps": [
+        {
+          "tls_reality": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true,
+      "password": true
+    },
+    {
+      "option": "tls_reality_public_key",
+      "deps": [
+        {
+          "tls_reality": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_reality_short_id",
+      "deps": [
+        {
+          "tls_reality": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_reality_max_time_difference",
+      "deps": [
+        {
+          "tls_reality": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_reality_server_addr",
+      "deps": [
+        {
+          "tls_reality": "1"
+        }
+      ],
+      "datatype": "hostname",
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_reality_server_port",
+      "deps": [
+        {
+          "tls_reality": "1"
+        }
+      ],
+      "datatype": "port",
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_cert_path",
+      "keylist": [
+        "/etc/homeproxy/certs/server_publickey.pem"
+      ],
+      "vallist": [
+        "/etc/homeproxy/certs/server_publickey.pem"
+      ],
+      "deps": [
+        {
+          "tls": "1",
+          "tls_acme": "0",
+          "tls_reality": null
+        },
+        {
+          "tls": "1",
+          "tls_acme": "0",
+          "tls_reality": "0"
+        },
+        {
+          "tls": "1",
+          "tls_acme": null,
+          "tls_reality": "0"
+        },
+        {
+          "tls": "1",
+          "tls_acme": null,
+          "tls_reality": null
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "_upload_cert",
+      "deps": [
+        {
+          "tls": "1",
+          "tls_cert_path": "/etc/homeproxy/certs/server_publickey.pem"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_key_path",
+      "keylist": [
+        "/etc/homeproxy/certs/server_privatekey.pem"
+      ],
+      "vallist": [
+        "/etc/homeproxy/certs/server_privatekey.pem"
+      ],
+      "deps": [
+        {
+          "tls": "1",
+          "tls_acme": "0",
+          "tls_reality": "0"
+        },
+        {
+          "tls": "1",
+          "tls_acme": "0",
+          "tls_reality": null
+        },
+        {
+          "tls": "1",
+          "tls_acme": null,
+          "tls_reality": "0"
+        },
+        {
+          "tls": "1",
+          "tls_acme": null,
+          "tls_reality": null
+        }
+      ],
+      "default": null,
+      "rmempty": false,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "_upload_key",
+      "deps": [
+        {
+          "tls": "1",
+          "tls_key_path": "/etc/homeproxy/certs/server_privatekey.pem"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_ech_key",
+      "deps": [
+        {
+          "tls": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tls_ech_config",
+      "deps": [
+        {
+          "tls": "1"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tcp_fast_open",
+      "deps": [
+        {
+          "network": "udp",
+          "!reverse": true
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "tcp_multi_path",
+      "deps": [
+        {
+          "network": "udp",
+          "!reverse": true
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "udp_fragment",
+      "deps": [
+        {
+          "network": "tcp",
+          "!reverse": true
+        }
+      ],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "udp_timeout",
+      "deps": [
+        {
+          "network": "tcp",
+          "!reverse": true
+        }
+      ],
+      "datatype": "uinteger",
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "network",
+      "keylist": [
+        "tcp",
+        "udp",
+        ""
+      ],
+      "vallist": [
+        "TCP",
+        "UDP",
+        "Both"
+      ],
+      "deps": [
+        {
+          "type": "naive"
+        },
+        {
+          "type": "shadowsocks"
+        }
+      ],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    },
+    {
+      "option": "bind_interface",
+      "deps": [],
+      "default": null,
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true,
+      "multiple": false,
+      "noaliases": true
+    },
+    {
+      "option": "reuse_addr",
+      "deps": [],
+      "default": "0",
+      "rmempty": true,
+      "optional": false,
+      "modalonly": true
+    }
+  ]
+}

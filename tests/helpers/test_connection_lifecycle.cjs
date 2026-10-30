@@ -4,7 +4,7 @@ const path = require('path');
 const packagesRoot = process.env.PACKAGES_ROOT || path.resolve(__dirname, '../..');
 const dir = process.env.LUCI_RESOURCE_DIR || path.resolve(__dirname, '../../../luci/modules/luci-base/htdocs/luci-static/resources');
 const tick = () => new Promise(r => setImmediate(r));
-async function boot(resources = [], translations = {}) {
+async function boot(resources = [], translations = {}, options = {}) {
 	if (!fs.existsSync(path.join(dir, 'luci.js')))
 		throw new Error('Set LUCI_RESOURCE_DIR to a LuCI base resource directory (missing luci.js at ' + dir + ')');
  const navigationErrors = [], virtualConsole = new VirtualConsole();
@@ -23,13 +23,13 @@ async function boot(resources = [], translations = {}) {
  w.eval(fs.readFileSync(dir+'/luci.js','utf8').replace(/window\.LuCI\s*=\s*LuCI;/, 'window.LuCI = LuCI; window.mods=classes; window.env=env;'));
  const mods=w.mods, L=w.L=Object.create(w.LuCI.prototype);
  Object.assign(w.env,{resource:'/luci-static/resources',scriptname:'/cgi-bin/luci',sessionid:'fixture',pollinterval:5});
- L.require=n=>Promise.resolve(mods[n]); L.hasViewPermission=()=>true; L.loaded=true; w.E=mods.dom.create.bind(mods.dom);
+ L.require=n=>Promise.resolve(mods[n]); L.hasViewPermission=()=>!options.readonly; L.loaded=true; w.E=mods.dom.create.bind(mods.dom);
  const calls=[], pending=[], polls=[];
  mods.request.post=async(url,req)=>{
   const [,object,method,p]=req.params; calls.push({object,method,p}); let result;
   if(object==='uci'&&method==='get')result=[0,{values:{config:{'.name':'config','.type':'homeproxy',log_level:'warn'},server:{'.name':'server','.type':'server'}}}];
   else if(object==='uci'&&method==='changes')result=[0,{changes:{}}];
-  else if(object==='session')result=[0,{access:true}];
+  else if(object==='session')result=[0,{access:!options.readonly}];
   else if(method==='resources_get')result=[0,{resources}];
   else if(method==='resources_update')result=[0,{status:3}];
   else if(method==='connection_check')result=await new Promise((resolve,reject)=>pending.push({resolve,reject}));
@@ -45,6 +45,8 @@ async function boot(resources = [], translations = {}) {
  // Inject the current production lifecycle module with its real baseclass/poll dependencies.
  // The client declares this as "homeproxy.lifecycle as lifecycle".
  load('homeproxy.lifecycle', fs.readFileSync(process.env.HOMEPROXY_LIFECYCLE_JS || path.join(packagesRoot, 'luci-app-homeproxy/htdocs/luci-static/resources/homeproxy/lifecycle.js'), 'utf8'));
+ load('homeproxy.resources', fs.readFileSync(path.join(packagesRoot, 'luci-app-homeproxy/htdocs/luci-static/resources/homeproxy/resources.js'), 'utf8'));
+ load('homeproxy.subscriptions', fs.readFileSync(path.join(packagesRoot, 'luci-app-homeproxy/htdocs/luci-static/resources/homeproxy/subscriptions.js'), 'utf8'));
  mods.ui.addNotification=()=>{};mods.poll.add=f=>polls.push(f);
  mods.poll.remove=f=>{const i=polls.indexOf(f);if(i>=0)polls.splice(i,1);};
  const app=load('app',fs.readFileSync(process.env.HOMEPROXY_STATUS_JS||path.join(packagesRoot,'luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js'),'utf8'));
@@ -69,11 +71,12 @@ if (require.main === module) (async()=>{
   h.button('Update resources').click();await tick();await tick();assert.match(h.row().textContent,/Success0 ms/);assert.equal(h.count(),1);
   const map=h.mods.dom.findClassInstance(h.root());
   await map.reset();await map.reset();assert.match(h.row().textContent,/Success0 ms/);assert.equal(h.count(),1);
-  const links=h.root().querySelectorAll('table a');
+  const links=h.root().querySelectorAll('table:first-of-type a[target="_blank"]');
   assert(links.length>0,'resource source links rendered after reset');
   for(const a of links) {
    assert.equal(a.target,'_blank');assert.equal(a.rel,'noreferrer noopener');
-   assert.equal(a.getAttribute('href'),a.textContent);
+   assert(a.getAttribute('href').startsWith('https://'));
+   assert(a.textContent && !a.textContent.startsWith('https://'),'website name is the link label');
   }
   const repeated=await h.app.render();assert.equal(repeated.id,'cbi-homeproxy');assert.notEqual(repeated,h.root(),'native render creates a fresh detached Map');assert.match(repeated.textContent,/Success0 ms/,'repeat render retains session results');assert.equal(h.count(),1);
   for(const payload of [{results:null},{results:{}},{results:[null,{site:'baidu',result:'true',latency_ms:5}]}]) {

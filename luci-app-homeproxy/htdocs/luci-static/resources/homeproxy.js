@@ -7,7 +7,6 @@
 'use strict';
 'require baseclass';
 'require form';
-'require fs';
 'require rpc';
 'require uci';
 'require ui';
@@ -26,14 +25,6 @@ const callGetSingBoxFeatures = rpc.declare({
 });
 
 return baseclass.extend({
-	dns_strategy: {
-		'': _('Default'),
-		'prefer_ipv4': _('Prefer IPv4'),
-		'prefer_ipv6': _('Prefer IPv6'),
-		'ipv4_only': _('IPv4 only'),
-		'ipv6_only': _('IPv6 only')
-	},
-
 	shadowsocks_encrypt_length: {
 		/* AEAD */
 		'aes-128-gcm': 0,
@@ -98,6 +89,44 @@ return baseclass.extend({
 			return dl;
 		}
 	}),
+
+	// Native GridSection tabs apply only to the modal, preserving table columns.
+	configureEditor(section) {
+		section.tab('basic', _('Basic'));
+		section.tab('transport', _('Transport'));
+		section.tab('tls', _('TLS'));
+		section.tab('advanced', _('Advanced'));
+		for (const option of section.children) {
+			const name = option.option;
+			const tab = /^(tls|_upload_)/.test(name) ? 'tls' :
+				/^(transport$|grpc_|http_|httpupgrade_|ws_|websocket_|packet_encoding$)/.test(name) ? 'transport' :
+				/^(multiplex|tcp_|udp_|bind_interface$|reuse_addr$)/.test(name) ? 'advanced' : 'basic';
+			option.tab = tab;
+			option.retain = true;
+			section.tabs[tab].children.push(option);
+		}
+	},
+
+	buildTLSVersionOptions(section) {
+		for (const [name, title, description] of [
+			['tls_min_version', _('Minimum TLS version'), _('The minimum TLS version that is acceptable.')],
+			['tls_max_version', _('Maximum TLS version'), _('The maximum TLS version that is acceptable.')]
+		]) {
+			const option = section.option(form.ListValue, name, title, description);
+			option.value('', _('Default'));
+			for (const version of this.tls_versions)
+				option.value(version);
+			option.depends('tls', '1');
+			option.modalonly = true;
+		}
+		const option = section.option(this.CBIStaticList, 'tls_cipher_suites', _('Cipher suites'),
+			_('The cipher suites to use, in order of preference. If empty, the default will be used.'));
+		for (const suite of this.tls_cipher_suites)
+			option.value(suite);
+		option.depends('tls', '1');
+		option.optional = true;
+		option.modalonly = true;
+	},
 
 	getServiceStatus(instance) {
 		return callServiceList('homeproxy').then((res) => {

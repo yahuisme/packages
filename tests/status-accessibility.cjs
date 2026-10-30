@@ -15,7 +15,7 @@ for (const message of [ 'Log updated.', 'Log unavailable.' ]) {
 	const h = await boot();
 	try {
 		const cells = h.root().querySelector('table').rows[1].cells;
-		for (const cell of [ cells[2], cells[3] ]) {
+		for (const cell of [ cells[1], cells[2] ]) {
 			const live = cell.firstElementChild;
 			assert.equal(live.getAttribute('role'), 'status');
 			assert.equal(live.getAttribute('aria-live'), 'polite');
@@ -23,8 +23,8 @@ for (const message of [ 'Log updated.', 'Log unavailable.' ]) {
 		}
 
 		await h.settle({ results: [{ site: 'baidu', result: true, latency_ms: 18 }] });
-		assert.match(cells[2].textContent, /Success/);
-		assert.match(cells[3].textContent, /18 ms/);
+		assert.match(cells[1].textContent, /Success/);
+		assert.match(cells[2].textContent, /18 ms/);
 
 		h.mods.fs.read_direct = async () => 'first log line\nsecond log line with private diagnostic details';
 		for (const poll of h.polls)

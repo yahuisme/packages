@@ -9,6 +9,7 @@
 'require form';
 'require network';
 'require homeproxy.lifecycle as lifecycle';
+'require homeproxy.resources as resources';
 'require rpc';
 'require uci';
 'require ui';
@@ -347,6 +348,16 @@ return view.extend({
 
 		s.tab('routing', _('Routing Settings'));
 		s.tab('dashboard', _('Dashboard'));
+		s.tab('control', _('Access Control'));
+		s.tab('diversion', _('Diversion Control'));
+		s.tab('tailscale', _('Tailscale'));
+		s.tab('advanced', _('Advanced Settings'));
+
+		o = s.taboption('routing', form.ListValue, 'routing_mode', _('Routing mode'));
+		o.value('bypass_mainland_china', _('Bypass mainland China'));
+		o.value('global', _('Global'));
+		o.default = 'bypass_mainland_china';
+		o.rmempty = false;
 
 		o = s.taboption('routing', form.ListValue, 'main_node', _('Main node'));
 		o.value('nil', _('Disable'));
@@ -361,6 +372,12 @@ return view.extend({
 
 		o = s.taboption('routing', hp.CBIStaticList, 'main_urltest_nodes', _('URLTest nodes'),
 			_('List of nodes to test.'));
+		o.renderWidget = function() {
+			const widget = hp.CBIStaticList.prototype.renderWidget.apply(this, arguments);
+			widget.style.maxWidth = '100%';
+			widget.style.minWidth = '0';
+			return widget;
+		};
 		for (let i in proxy_nodes)
 			o.value(i, E('span', {}, [proxy_nodes[i]]));
 		o.depends({ routing_mode: 'bypass_mainland_china', main_node: 'urltest' });
@@ -368,7 +385,7 @@ return view.extend({
 		o.rmempty = false;
 		o.retain = true;
 
-		o = s.taboption('routing', form.Value, 'main_urltest_interval', _('Test interval'),
+		o = s.taboption('advanced', form.Value, 'main_urltest_interval', _('Test interval'),
 			_('The test interval in seconds.'));
 		o.datatype = 'uinteger';
 		o.placeholder = '120';
@@ -376,7 +393,7 @@ return view.extend({
 		o.depends({ routing_mode: 'global', main_node: 'urltest' });
 		o.retain = true;
 
-		o = s.taboption('routing', form.Value, 'main_urltest_tolerance', _('Test tolerance'),
+		o = s.taboption('advanced', form.Value, 'main_urltest_tolerance', _('Test tolerance'),
 			_('The test tolerance in milliseconds.'));
 		o.datatype = 'and(uinteger,range(0,65535))';
 		o.placeholder = '60';
@@ -384,7 +401,7 @@ return view.extend({
 		o.depends({ routing_mode: 'global', main_node: 'urltest' });
 		o.retain = true;
 
-		o = s.taboption('routing', form.Flag, 'main_urltest_interrupt_exist_connections', _('Interrupt existing connections'),
+		o = s.taboption('advanced', form.Flag, 'main_urltest_interrupt_exist_connections', _('Interrupt existing connections'),
 			_('Interrupt existing connections when the selected outbound has changed.'));
 		o.default = o.disabled;
 		o.rmempty = false;
@@ -464,13 +481,7 @@ return view.extend({
 			return true;
 		}
 
-		o = s.taboption('routing', form.ListValue, 'routing_mode', _('Routing mode'));
-		o.value('bypass_mainland_china', _('Bypass mainland China'));
-		o.value('global', _('Global'));
-		o.default = 'bypass_mainland_china';
-		o.rmempty = false;
-
-		o = s.taboption('routing', form.Value, 'routing_port', _('Routing ports'),
+		o = s.taboption('advanced', form.Value, 'routing_port', _('Routing ports'),
 			_('Specify target ports to be proxied. Multiple ports must be separated by commas.'));
 		o.depends('routing_mode', 'bypass_mainland_china');
 		o.depends('routing_mode', 'global');
@@ -492,7 +503,7 @@ return view.extend({
 			return true;
 		}
 
-		o = s.taboption('routing', form.ListValue, 'tcpip_stack', _('TCP/IP stack'),
+		o = s.taboption('advanced', form.ListValue, 'tcpip_stack', _('TCP/IP stack'),
 			_('TCP/IP stack.'));
 		o.value('mixed', 'Mixed');
 		if (features.with_gvisor)
@@ -520,7 +531,7 @@ return view.extend({
 		o.depends('routing_mode', 'global');
 
 		o = s.taboption('dashboard', form.Flag, 'dashboard_enabled', _('Enable dashboard'),
-			_('Download the dashboard in Status → Resource Management first. Enabling it does not download files.'));
+			_('Download the dashboard below. Enabling it does not download files.'));
 		o.default = '0';
 		o.rmempty = false;
 		o.depends('routing_mode', 'bypass_mainland_china');
@@ -532,68 +543,57 @@ return view.extend({
 		o.datatype = 'port';
 		o.rmempty = false;
 		o.retain = true;
-		o.depends('routing_mode', 'bypass_mainland_china');
-		o.depends('routing_mode', 'global');
+		o.depends({ routing_mode: 'bypass_mainland_china', dashboard_enabled: '1' });
+		o.depends({ routing_mode: 'global', dashboard_enabled: '1' });
 
 		o = s.taboption('dashboard', form.Value, 'dashboard_secret', _('API secret'));
 		o.password = true;
 		o.rmempty = true;
 		o.retain = true;
-		o.depends('routing_mode', 'bypass_mainland_china');
-		o.depends('routing_mode', 'global');
-
-		o = s.taboption('dashboard', form.Button, '_open_dashboard', _('sing-box dashboard'));
-		o.inputtitle = _('Open dashboard');
-		o.inputstyle = 'apply';
 		o.depends({ routing_mode: 'bypass_mainland_china', dashboard_enabled: '1' });
 		o.depends({ routing_mode: 'global', dashboard_enabled: '1' });
-		o.onclick = function() {
-			return rpc.declare({ object: 'luci.homeproxy', method: 'resources_get', expect: { '': {} } })().then((res) => {
-			if (!res.resources?.some((r) => r.type === 'dashboard' && r.installed)) {
-				ui.addNotification(null, E('p', {}, [ _('Download the dashboard in Status → Resource Management first. Enabling it does not download files.') ]), 'warning');
-				return;
-			}
-			let host = window.location.hostname,
-			    port = uci.get('homeproxy', 'config', 'dashboard_port') || '9095';
-			if (host.includes(':') && !host.startsWith('['))
-				host = '[' + host + ']';
-			window.open('http://' + host + ':' + port + '/dashboard/', '_blank', 'noopener,noreferrer');
-			});
-		};
+
+		o = s.taboption('dashboard', form.DummyValue, '_dashboard_resources');
+		o.renderWidget = function() { return resources.render(this, ['dashboard']); };
 
 		/* ACL settings start */
-		s.tab('control', _('Access Control'));
 
 		o = s.taboption('control', form.SectionValue, '_control', form.NamedSection, 'control', 'homeproxy');
 		o.depends('routing_mode', 'bypass_mainland_china');
 		o.depends('routing_mode', 'global');
 		ss = o.subsection;
 
-		/* Interface control start */
-		ss.tab('interface', _('Interface Control'));
+		// Firewall choice builders require taboption; keep their native widgets in this untabbed section.
+		const controlSection = ss;
+		const controlOptions = { taboption: (_tab, ...args) => controlSection.option(...args) };
 
-		so = ss.taboption('interface', widgets.DeviceSelect, 'listen_interfaces', _('Listen interfaces'),
+		/* Interface control start */
+		so = ss.option(form.DummyValue, '_interface_heading');
+		so.render = () => E('h4', {}, _('Interface Control'));
+
+		so = ss.option(widgets.DeviceSelect, 'listen_interfaces', _('Listen interfaces'),
 			_('Only process traffic from specific interfaces. Leave empty for all.'));
 		so.multiple = true;
 		so.noaliases = true;
 
-		so = ss.taboption('interface', widgets.DeviceSelect, 'bind_interface', _('Bind interface'),
+		so = ss.option(widgets.DeviceSelect, 'bind_interface', _('Bind interface'),
 			_('Bind outbound traffic to specific interface. Leave empty to auto detect.'));
 		so.multiple = false;
 		so.noaliases = true;
 		/* Interface control end */
 
 		/* LAN IP policy start */
-		ss.tab('lan_ip_policy', _('LAN IP Policy'));
+		so = ss.option(form.DummyValue, '_lan_ip_policy_heading');
+		so.render = () => E('h4', {}, _('LAN IP Policy'));
 
-		so = ss.taboption('lan_ip_policy', form.Flag, 'lan_whitelist_mode', _('List mode'),
+		so = ss.option(form.Flag, 'lan_whitelist_mode', _('List mode'),
 			_('Only devices in the lists below are processed. All other devices use direct routing.'));
 		so.default = '0';
 		so.rmempty = false;
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
 		so.retain = true;
 
-		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_direct_ipv4_ips', _('Global Direct IPv4 addresses'),
+		so = fwtool.addIPOption(controlOptions, null, 'lan_direct_ipv4_ips', _('Global Direct IPv4 addresses'),
 			_('IPv4 addresses in this option are forced to use global direct routing.'), 'ipv4', hosts, true);
 		so.depends({
 			'lan_whitelist_mode': '0',
@@ -602,7 +602,7 @@ return view.extend({
 		so.depends('homeproxy.config.routing_mode', 'global');
 		so.retain = true;
 
-		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_direct_mac_addrs', _('Global Direct MAC addresses'),
+		so = fwtool.addMACOption(controlOptions, null, 'lan_direct_mac_addrs', _('Global Direct MAC addresses'),
 			_('MAC addresses in this option are forced to use global direct routing.'), hosts);
 		so.depends({
 			'lan_whitelist_mode': '0',
@@ -611,7 +611,7 @@ return view.extend({
 		so.depends('homeproxy.config.routing_mode', 'global');
 		so.retain = true;
 
-		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_auto_proxy_ipv4_ips', _('Rule Proxy IPv4 addresses'),
+		so = fwtool.addIPOption(controlOptions, null, 'lan_auto_proxy_ipv4_ips', _('Rule Proxy IPv4 addresses'),
 			_('IPv4 addresses in this option automatically use rule-based proxy routing.'), 'ipv4', hosts, true);
 		so.depends({
 			'lan_whitelist_mode': '1',
@@ -619,7 +619,7 @@ return view.extend({
 		});
 		so.retain = true;
 
-		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_auto_proxy_mac_addrs', _('Rule Proxy MAC addresses'),
+		so = fwtool.addMACOption(controlOptions, null, 'lan_auto_proxy_mac_addrs', _('Rule Proxy MAC addresses'),
 			_('MAC addresses in this option automatically use rule-based proxy routing.'), hosts);
 		so.depends({
 			'lan_whitelist_mode': '1',
@@ -627,27 +627,28 @@ return view.extend({
 		});
 		so.retain = true;
 
-		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_proxy_ipv4_ips', _('Global Proxy IPv4 addresses'),
+		so = fwtool.addIPOption(controlOptions, null, 'lan_proxy_ipv4_ips', _('Global Proxy IPv4 addresses'),
 			_('IPv4 addresses in this option are forced to use global proxy routing.'), 'ipv4', hosts, true);
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
 		so.retain = true;
 
-		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_proxy_mac_addrs', _('Global Proxy MAC addresses'),
+		so = fwtool.addMACOption(controlOptions, null, 'lan_proxy_mac_addrs', _('Global Proxy MAC addresses'),
 			_('MAC addresses in this option are forced to use global proxy routing.'), hosts);
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
 		so.retain = true;
 		/* LAN IP policy end */
 
 		/* WAN IP policy start */
-		ss.tab('wan_ip_policy', _('WAN IP Policy'));
+		so = ss.option(form.DummyValue, '_wan_ip_policy_heading');
+		so.render = () => E('h4', {}, _('WAN IP Policy'));
 
-		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_proxy_ipv4_ips', _('Global Proxy IPv4 addresses'),
+		so = ss.option(form.DynamicList, 'wan_proxy_ipv4_ips', _('Global Proxy IPv4 addresses'),
 			_('IPv4 addresses in this option are forced to use global proxy routing.'));
 		so.datatype = 'or(ip4addr, cidr4)';
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
 		so.retain = true;
 
-		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_proxy_ipv6_ips', _('Global Proxy IPv6 addresses'),
+		so = ss.option(form.DynamicList, 'wan_proxy_ipv6_ips', _('Global Proxy IPv6 addresses'),
 			_('IPv6 addresses in this option are forced to use global proxy routing.'));
 		so.datatype = 'or(ip6addr, cidr6)';
 		so.depends({
@@ -656,11 +657,11 @@ return view.extend({
 		});
 		so.retain = true;
 
-		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_direct_ipv4_ips', _('Global Direct IPv4 addresses'),
+		so = ss.option(form.DynamicList, 'wan_direct_ipv4_ips', _('Global Direct IPv4 addresses'),
 			_('IPv4 addresses in this option are forced to use global direct routing.'));
 		so.datatype = 'or(ip4addr, cidr4)';
 
-		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_direct_ipv6_ips', _('Global Direct IPv6 addresses'),
+		so = ss.option(form.DynamicList, 'wan_direct_ipv6_ips', _('Global Direct IPv6 addresses'),
 			_('IPv6 addresses in this option are forced to use global direct routing.'));
 		so.datatype = 'or(ip6addr, cidr6)';
 		so.depends('homeproxy.config.ipv6_support', '1');
@@ -670,7 +671,6 @@ return view.extend({
 		/* ACL settings end */
 
 		/* Diversion settings start */
-		s.tab('diversion', _('Diversion Control'));
 
 		o = s.taboption('diversion', form.SectionValue, '_diversion', form.NamedSection, 'diversion', 'homeproxy');
 		o.depends('routing_mode', 'bypass_mainland_china');
@@ -697,13 +697,12 @@ return view.extend({
 		}
 
 		const domainMatchDescription = _('Entries containing a dot use domain suffix matching; other entries use keyword matching.');
-		ss.tab('direct_list', _('Direct List'));
-		so = ss.taboption('direct_list', form.TextValue, '_direct_list', null,
+		ss.tab('lists', _('Domain List'));
+		so = ss.taboption('lists', form.TextValue, '_direct_list', _('Direct List'),
 			_('Domains in this list always use direct routing.') + '<br/>' + domainMatchDescription);
 		configureDomainList(so, 'direct');
 
-		ss.tab('proxy_list', _('Proxy List'));
-		so = ss.taboption('proxy_list', form.TextValue, '_proxy_list', null,
+		so = ss.taboption('lists', form.TextValue, '_proxy_list', _('Proxy List'),
 			_('Domains in this list always use the main node.') + '<br/>' + domainMatchDescription);
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
 		configureDomainList(so, 'proxy');
@@ -796,7 +795,6 @@ return view.extend({
 		/* Diversion settings end */
 
 		/* Tailscale settings start */
-		s.tab('tailscale', _('Tailscale'));
 
 		o = s.taboption('tailscale', form.SectionValue, '_tailscale', form.NamedSection, 'tailscale', 'homeproxy');
 		o.depends('routing_mode', 'bypass_mainland_china');

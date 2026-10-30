@@ -9,13 +9,13 @@
 'require form';
 'require fs';
 'require homeproxy.lifecycle as lifecycle';
+'require homeproxy.subscriptions as subscriptions';
 'require rpc';
 'require uci';
 'require ui';
 'require view';
 
 'require homeproxy as hp';
-'require tools.widgets as widgets';
 
 // Keep the native ubus status so an unchanged configuration is a no-op.
 const callSubscriptionApply = rpc.declare({
@@ -576,108 +576,12 @@ function getNodeLatencyStatusStyle(row_state) {
 	}
 }
 
-function renderNodeLatencyStatus(row_state) {
-	return '<strong style="%s">%s</strong>'.format(getNodeLatencyStatusStyle(row_state), getNodeLatencyStatusText(row_state));
-}
-
-function renderNodeLatencyStatusNode(row_state, attrs) {
-	return E('strong', Object.assign({
-		'style': getNodeLatencyStatusStyle(row_state)
-	}, attrs || {}), [ getNodeLatencyStatusText(row_state) ]);
+function renderNodeLatencyStatusNode(row_state) {
+	return E('strong', { 'style': getNodeLatencyStatusStyle(row_state) }, [ getNodeLatencyStatusText(row_state) ]);
 }
 
 function getNodeLatencyActionTitle(row_state) {
 	return (row_state?.state === NODE_LATENCY_ROW_STATES.TESTING) ? _('Testing') : _('Test');
-}
-
-function parseNodeLatencySectionId(widget_id) {
-	let matched = String(widget_id || '').match(/^cbi-homeproxy-(.*)-_test_latency$/);
-	return matched ? matched[1] : null;
-}
-
-function parseActiveSubscriptionTabId(value) {
-	let matched = String(value || '').match(/(?:^|[^\w])(sub_[0-9a-f]+)(?:$|[^\w])/i);
-	return matched ? matched[1] : null;
-}
-
-function parseActiveNodeListTabId(value) {
-	let matched = String(value || '').match(/(?:^|[^\w])(node|subscription|sub_[0-9a-f]+)(?:$|[^\w])/i);
-	return matched ? matched[1].toLowerCase() : null;
-}
-
-function getActiveNodeListTabId(root_el) {
-	let active_tab = null;
-	let active_tab_nodes = root_el.querySelectorAll('.cbi-tabmenu li.cbi-tab-active, .cbi-tabmenu li.active, .cbi-tabmenu [aria-selected="true"]');
-
-	for (let node of active_tab_nodes) {
-		let tab_id = parseActiveNodeListTabId(node?.getAttribute('data-tab'))
-			|| parseActiveNodeListTabId(node?.dataset?.tab)
-			|| parseActiveNodeListTabId(node?.getAttribute('id'));
-		if (!tab_id && node?.querySelector)
-			tab_id = parseActiveNodeListTabId(node.querySelector('a')?.getAttribute('href'))
-				|| parseActiveNodeListTabId(node.querySelector('a')?.getAttribute('data-tab'));
-
-		if (tab_id) {
-			active_tab = tab_id;
-			break;
-		}
-	}
-
-	if (!active_tab) {
-		let fallback_tab_nodes = root_el.querySelectorAll('.cbi-tabmenu li.cbi-tab[data-tab], .cbi-tabmenu li[data-tab]:not(.cbi-tab-disabled)');
-
-		for (let node of fallback_tab_nodes) {
-			let tab_id = parseActiveNodeListTabId(node?.getAttribute('data-tab')) || parseActiveNodeListTabId(node?.dataset?.tab);
-			if (tab_id) {
-				active_tab = tab_id;
-				break;
-			}
-		}
-	}
-
-	return active_tab;
-}
-
-function shouldShowBulkLatencyButton(root_el) {
-	let active_tab = getActiveNodeListTabId(root_el);
-
-	if (!active_tab)
-		return false;
-
-	return !!parseActiveSubscriptionTabId(active_tab);
-}
-
-function getActiveSubscriptionTabId(root_el) {
-	let active_tab = getActiveNodeListTabId(root_el);
-	return parseActiveSubscriptionTabId(active_tab);
-}
-
-function getActiveSubscriptionTabContainer(root_el, active_tab) {
-	if (!active_tab)
-		return null;
-
-	let candidates = [];
-	for (let selector of [
-		'.cbi-tabcontainer[data-tab="%s"]'.format(active_tab),
-		'[data-tab="%s"]'.format(active_tab),
-		'[id="tab.%s"]'.format(active_tab),
-		'[id="tab-%s"]'.format(active_tab),
-		'[id="%s"]'.format(active_tab)
-	]) {
-		candidates = candidates.concat(Array.from(root_el.querySelectorAll(selector)));
-	}
-
-	return candidates.find((node) => !node.closest('.cbi-tabmenu') && node.querySelector('div[id$="-_test_latency"]')) || null;
-}
-
-function getActiveSubscriptionLatencySectionIds(root_el) {
-	let active_tab = getActiveSubscriptionTabId(root_el);
-	let active_container = getActiveSubscriptionTabContainer(root_el, active_tab);
-	if (!active_container)
-		return [];
-
-	let widgets = Array.from(active_container.querySelectorAll('div[id$="-_test_latency"]'));
-	return widgets.map((node) => parseNodeLatencySectionId(node.id)).filter((sid) => !!sid);
 }
 
 function createNodeLatencyRowStateModel() {
@@ -712,8 +616,6 @@ function createNodeLatencyRowStateModel() {
 	};
 
 	return {
-		states: NODE_LATENCY_ROW_STATES,
-
 		get: (section_id) => ensure(section_id),
 
 		set: (section_id, state, result) => {
@@ -732,20 +634,7 @@ function createNodeLatencyRowStateModel() {
 			let state = resolved_result.state ? normalizeState(resolved_result.state) : NODE_LATENCY_ROW_STATES.ERROR;
 			rows[section_id] = buildRowState(state, result);
 			return rows[section_id];
-		},
-
-		clear: (section_id) => {
-			if (!section_id)
-				return;
-
-			delete rows[section_id];
-		},
-
-		reset: () => {
-			rows = Object.create(null);
-		},
-
-		snapshot: () => rows
+		}
 	};
 }
 
@@ -787,13 +676,13 @@ function renderNodeSettings(section, data, features, node_latency_row_state) {
 
 		let status_widget = this.map.findElement('id', latency_id);
 		if (status_widget)
-			dom.content(status_widget, renderNodeLatencyStatus(row_state));
+			dom.content(status_widget, renderNodeLatencyStatusNode(row_state));
 
 		let test_widget = this.map.findElement('id', test_id);
 		let test_button = test_widget ? test_widget.querySelector('button') : null;
 		if (test_button) {
 			test_button.textContent = getNodeLatencyActionTitle(row_state);
-			test_button.disabled = (row_state.state === NODE_LATENCY_ROW_STATES.TESTING) ? true : null;
+			test_button.disabled = (this.map.readonly || row_state.state === NODE_LATENCY_ROW_STATES.TESTING) ? true : null;
 		}
 	}
 
@@ -875,7 +764,8 @@ function renderNodeSettings(section, data, features, node_latency_row_state) {
 		return getNodeLatencyActionTitle(this.section.getNodeLatencyRowState(section_id));
 	}
 	o.onclick = function(ev, section_id) {
-		return this.section.handleNodeLatencyTest(section_id);
+		if (!this.map.readonly)
+			return this.section.handleNodeLatencyTest(section_id);
 	}
 	o.renderWidget = function(section_id, _option_index, cfgvalue) {
 		let hiddenEl = new ui.Hiddenfield((cfgvalue != null) ? cfgvalue : '', {
@@ -887,7 +777,7 @@ function renderNodeSettings(section, data, features, node_latency_row_state) {
 		outputEl.appendChild(E('button', {
 			'class': 'cbi-button cbi-button-action',
 			'click': ui.createHandlerFn(this, 'onclick', section_id),
-			'disabled': (row_state.state === NODE_LATENCY_ROW_STATES.TESTING) ? true : null
+			'disabled': (this.map.readonly || row_state.state === NODE_LATENCY_ROW_STATES.TESTING) ? true : null
 		}, [ getNodeLatencyActionTitle(row_state) ]));
 
 		return E([ outputEl, hiddenEl.render() ]);
@@ -1553,29 +1443,7 @@ function renderNodeSettings(section, data, features, node_latency_row_state) {
 	o.onchange = allowInsecureConfirm;
 	o.modalonly = true;
 
-	o = s.option(form.ListValue, 'tls_min_version', _('Minimum TLS version'),
-		_('The minimum TLS version that is acceptable.'));
-	o.value('', _('Default'));
-	for (let i of hp.tls_versions)
-		o.value(i);
-	o.depends('tls', '1');
-	o.modalonly = true;
-
-	o = s.option(form.ListValue, 'tls_max_version', _('Maximum TLS version'),
-		_('The maximum TLS version that is acceptable.'));
-	o.value('', _('Default'));
-	for (let i of hp.tls_versions)
-		o.value(i);
-	o.depends('tls', '1');
-	o.modalonly = true;
-
-	o = s.option(hp.CBIStaticList, 'tls_cipher_suites', _('Cipher suites'),
-		_('The elliptic curves that will be used in an ECDHE handshake, in preference order. If empty, the default will be used.'));
-	for (let i of hp.tls_cipher_suites)
-		o.value(i);
-	o.depends('tls', '1');
-	o.optional = true;
-	o.modalonly = true;
+	hp.buildTLSVersionOptions(s);
 
 	o = s.option(form.Flag, 'tls_self_sign', _('Append self-signed certificate'),
 		_('If you have the root certificate, use this option instead of allowing insecure.'));
@@ -1713,6 +1581,7 @@ function renderNodeSettings(section, data, features, node_latency_row_state) {
 	o.modalonly = true;
 	/* Extra settings end */
 
+	hp.configureEditor(s);
 	return s;
 }
 
@@ -1725,14 +1594,18 @@ return view.extend({
 	},
 
 	render(data) {
-		let m, s, o, ss, so;
+		let m, s, o, ss;
 		let features = data[1];
 		let node_latency_row_state = createNodeLatencyRowStateModel();
 
 		this.node_latency_row_state = node_latency_row_state;
 
-		function subscriptionInfo() {
-			return hp.getSubscriptionGroups(data[0]);
+		let nodeSource = '';
+		function nodeSources() {
+			const groups = hp.getSubscriptionGroups(data[0]);
+			if (!groups.some(info => info.hash === nodeSource))
+				nodeSource = '';
+			return groups;
 		}
 
 		m = new form.Map('homeproxy', _('Edit Nodes'));
@@ -1751,12 +1624,50 @@ return view.extend({
 		o = s.taboption('node', form.SectionValue, '_node', form.GridSection, 'node');
 		ss = renderNodeSettings(o.subsection, data, features, node_latency_row_state);
 		ss.addremove = true;
-		ss.filter = function(section_id) {
-			return !uci.get(data[0], section_id, 'grouphash');
-		}
+		const nodeSection = ss;
+		const renderNodeContents = ss.renderContents;
+		ss.renderContents = function() {
+			const groups = nodeSources();
+			const el = renderNodeContents.apply(this, arguments);
+			const select = E('select', { 'class': 'cbi-input-select',
+				'change': () => { nodeSource = select.value; updateSource(); }
+			}, [ E('option', { 'value': '' }, [ _('Manual nodes') ]),
+				...groups.map(info => E('option', { 'value': info.hash }, [ info.title ])) ]);
+			select.value = nodeSource;
+			const empty = el.querySelector('tr.placeholder') || E('tr', { 'class': 'tr placeholder' }, [
+				E('td', { 'class': 'td', 'colspan': '99' }, [ this.renderSectionPlaceholder() ])
+			]);
+			empty.classList.remove('cbi-section-table-row');
+			if (!empty.parentNode)
+				el.querySelector('tbody').appendChild(empty);
+			function updateSource() {
+				for (const row of el.querySelectorAll('[data-sid]'))
+					row.style.display = (uci.get(data[0], row.dataset.sid, 'grouphash') || '') === nodeSource ? '' : 'none';
+				empty.style.display = Array.from(el.querySelectorAll('[data-sid]')).some(row => row.style.display !== 'none') ? 'none' : '';
+				const create = el.querySelector('.cbi-section-create');
+				if (create)
+					create.style.display = nodeSource ? 'none' : '';
+			}
+			el.prepend(E('label', { 'class': 'hp-node-source', 'style': 'display:flex;align-items:center;flex-wrap:wrap;gap:8px' }, [
+				E('span', {}, [ _('Source') ]), select
+			]));
+			updateSource();
+			return el;
+		};
+		ss.renderRowActions = function(section_id) {
+			const addremove = this.addremove;
+			this.addremove = !uci.get(data[0], section_id, 'grouphash');
+			try {
+				return form.GridSection.prototype.renderRowActions.apply(this, arguments);
+			} finally {
+				this.addremove = addremove;
+			}
+		};
 		/* Import subscription links start */
 		/* Thanks to luci-app-shadowsocks-libev */
 		ss.handleLinkImport = function() {
+			if (this.map.readonly || nodeSource)
+				return;
 			let textarea = new ui.Textarea();
 			ui.showModal(_('Import share links'), [
 				E('p', getShareLinkDescription(features)),
@@ -1847,6 +1758,7 @@ return view.extend({
 			el.appendChild(E('button', {
 				'class': 'cbi-button cbi-button-add',
 				'title': _('Import share links'),
+				'disabled': this.map.readonly || null,
 				'click': ui.createHandlerFn(this, 'handleLinkImport')
 			}, [ _('Import share links') ]));
 
@@ -1855,73 +1767,16 @@ return view.extend({
 		/* Import subscription links end */
 		/* User nodes end */
 
-		/* Subscription nodes start */
-		const subSections = Object.create(null);
-		function refreshSubscriptionTabs() {
-			const infos = subscriptionInfo();
-			const activePane = m.root?.querySelector('#cbi-homeproxy-subscription > [data-tab-active="true"]');
-			for (const hash of Object.keys(subSections)) {
-				if (infos.some(info => info.hash === hash))
-					continue;
-				const name = 'sub_' + hash;
-				s.children = s.children.filter(child => child.tab !== name);
-				s.tabs.splice(s.tabs.indexOf(s.tabs[name]), 1);
-				delete s.tabs[name];
-				s.tab_names = s.tab_names.filter(tab => tab !== name);
-				delete subSections[hash];
-			}
-			for (const info of infos) {
-				if (subSections[info.hash]) {
-					s.tabs['sub_' + info.hash].title = _('Sub (%s)').format(info.title);
-					continue;
-				}
-				s.tab('sub_' + info.hash, _('Sub (%s)').format(info.title));
-				o = s.taboption('sub_' + info.hash, form.SectionValue, '_sub_' + info.hash, form.GridSection, 'node');
-				ss = renderNodeSettings(o.subsection, data, features, node_latency_row_state);
-				ss.filter = function(section_id) {
-					return (uci.get(data[0], section_id, 'grouphash') === info.hash);
-				};
-				subSections[info.hash] = ss;
-			}
-			// Match initial registration order, retaining existing section objects.
-			// LuCI persists a pane index (path "subscription"), not its tab name.
-			const names = ['node', ...infos.map(info => 'sub_' + info.hash)];
-			if (s.tabs.subscription)
-				names.push('subscription');
-			s.tab_names = names;
-			s.tabs.sort((a, b) => names.indexOf(a.name) - names.indexOf(b.name));
-			s.children.sort((a, b) => names.indexOf(a.tab) - names.indexOf(b.tab));
-			if (activePane) {
-				const index = names.indexOf(activePane.getAttribute('data-tab'));
-				ui.tabs.setActiveTabId(activePane, index < 0 ? names.indexOf('subscription') : index);
-			}
-		}
-		refreshSubscriptionTabs();
-		/* Subscription nodes end */
 		/* Node settings end */
 
 		/* Subscriptions settings start */
 		s.tab('subscription', _('Subscriptions'));
 
-		o = s.taboption('subscription', form.Flag, 'auto_update', _('Auto update'),
-			_('Auto update subscriptions and resources.'));
-		o.rmempty = false;
-
-			o = s.taboption('subscription', form.Value, 'auto_update_time', _('Cron expression'),
-				_('Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6).') +
-				'<br/>' +
-				'<a target="_blank" rel="noreferrer noopener" href="https://www.toolbox365.cn/tools/cron/">' +
-				_('Cron expression online generator') + '</a>');
-			o.default = '0 */6 * * *';
-			o.placeholder = '0 */6 * * *';
-			o.rmempty = false;
-			o.validate = validateCronExpression;
-
 		o = s.taboption('subscription', form.Flag, 'update_via_proxy', _('Update via proxy'),
 			_('Update resources and subscriptions via proxy.'));
 		o.rmempty = false;
 
-		o = s.taboption('subscription', form.DynamicList, 'subscription_url', _('Subscription URLs'),
+		o = s.taboption('subscription', subscriptions.URLList, 'subscription_url', _('Subscription URLs'),
 			_('Supports share-link subscriptions and Mihomo YAML with JSON-style proxy entries only; general YAML syntax is not supported.'));
 		const subscriptionURLs = o;
 		o.validate = function(section_id, value) {
@@ -1952,19 +1807,43 @@ return view.extend({
 		o.depends({'filter_nodes': 'disabled', '!reverse': true});
 		o.rmempty = false;
 
-		o = s.taboption('subscription', form.Value, 'user_agent', _('User-Agent'));
+		o = s.taboption('subscription', form.SectionValue, '_advanced', form.NamedSection, 'subscription', 'homeproxy');
+		const advanced = o.subsection;
+		advanced.renderContents = function() {
+			const contents = form.NamedSection.prototype.renderContents.apply(this, arguments);
+			contents.querySelector('.cbi-section-node').id = 'cbi-homeproxy-subscription-advanced';
+			return E('details', {}, [ E('summary', {}, [ _('Advanced settings') ]), contents ]);
+		};
+
+		o = advanced.option(form.Flag, 'auto_update', _('Auto update'),
+			_('Auto update subscriptions and resources.'));
+		o.rmempty = false;
+
+		o = advanced.option(form.Value, 'auto_update_time', _('Cron expression'),
+			_('Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6).') +
+			'<br/>' +
+			'<a target="_blank" rel="noreferrer noopener" href="https://www.toolbox365.cn/tools/cron/">' +
+			_('Cron expression online generator') + '</a>');
+		o.default = '0 */6 * * *';
+		o.placeholder = '0 */6 * * *';
+		o.rmempty = false;
+		o.validate = validateCronExpression;
+		o.depends('auto_update', '1');
+		o.retain = true;
+
+		o = advanced.option(form.Value, 'user_agent', _('User-Agent'));
 		o.default = 'homeproxy';
 		o.placeholder = 'homeproxy';
 		o.rmempty = false;
 
-		o = s.taboption('subscription', form.Flag, 'allow_insecure', _('Allow insecure'),
+		o = advanced.option(form.Flag, 'allow_insecure', _('Allow insecure'),
 			_('Allow insecure connection by default when adding nodes from subscriptions.') +
 			'<br/>' +
 			_('This is <strong>DANGEROUS</strong>, your traffic is almost like <strong>PLAIN TEXT</strong>! Use at your own risk!'));
 		o.rmempty = false;
 		o.onchange = allowInsecureConfirm;
 
-		o = s.taboption('subscription', form.ListValue, 'packet_encoding', _('Default packet encoding'));
+		o = advanced.option(form.ListValue, 'packet_encoding', _('Default packet encoding'));
 		o.value('none', _('None'));
 		o.value('packetaddr', _('packet addr (v2ray-core v5+)'));
 		o.value('xudp', _('XUDP (Xray-core)'));
@@ -2055,10 +1934,10 @@ return view.extend({
 					throw new Error(res.stderr || _('exit code %d').format(res.code));
 				failure = _('Subscriptions updated, but unable to refresh the node list.');
 				// reset() only renders cached form data. Invalidate UCI first, then
-				// rebuild URL-dependent tabs and load the options before rendering.
+				// refresh source choices and load the options before rendering.
 				uci.unload(data[0]);
 				await uci.load(data[0]);
-				refreshSubscriptionTabs();
+				nodeSources();
 				await this.map.load();
 				await this.map.reset();
 				setSubscriptionResult(_('Subscriptions updated successfully.'), 'success');
@@ -2135,13 +2014,9 @@ return view.extend({
 					if (bulk_testing)
 						return false;
 
-					let section_ids = getActiveSubscriptionLatencySectionIds(el);
-					if (!section_ids.length)
-						return false;
-					let active_tab = getActiveSubscriptionTabId(el);
-					let sub_hash = active_tab ? active_tab.replace(/^sub_/, '') : null;
-					let target = (sub_hash && subSections[sub_hash]) ? subSections[sub_hash] : ss;
-					if (!target)
+					const section_ids = Array.from(el.querySelectorAll('.hp-node-list [data-sid]'))
+						.filter(row => row.style.display !== 'none').map(row => row.dataset.sid);
+					if (!section_ids.length || m.readonly)
 						return false;
 
 					bulk_testing = true;
@@ -2149,18 +2024,19 @@ return view.extend({
 					bulk_button.disabled = true;
 
 					try {
-						await target.handleNodeLatencyTests(section_ids);
+						await nodeSection.handleNodeLatencyTests(section_ids);
 					} finally {
 						bulk_testing = false;
 						bulk_button.textContent = _('Test current list');
-						bulk_button.disabled = false;
+						bulk_button.disabled = !!m.readonly;
 					}
 					return true;
 				})
 			}, [ _('Test current list') ]);
 
 			let updateBulkButtonVisibility = () => {
-				bulk_button.style.display = shouldShowBulkLatencyButton(el) ? '' : 'none';
+				bulk_button.style.display = el.querySelector('[data-tab="node"][data-tab-active="true"]') ? '' : 'none';
+				bulk_button.disabled = bulk_testing || !!m.readonly;
 			};
 
 			let attachBulkButton = () => {
@@ -2184,7 +2060,7 @@ return view.extend({
 					childList: true,
 					subtree: true,
 					attributes: true,
-					attributeFilter: [ 'class', 'aria-selected' ]
+					attributeFilter: [ 'class', 'aria-selected', 'data-tab-active' ]
 				});
 			}, () => {
 				tabmenu_observer.disconnect();

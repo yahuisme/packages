@@ -1,7 +1,8 @@
 // Native LuCI Map/E/ui/rpc, isolated transport; no router service is started.
 const assert = require('assert/strict'), fs = require('fs'), path = require('path');
 process.env.PACKAGES_ROOT = path.resolve(__dirname, '..');
-const { boot, tick } = require('./helpers/test_connection_lifecycle.cjs');
+const { tick } = require('./helpers/test_connection_lifecycle.cjs');
+const { pageBoot } = require('./helpers/test_page_lifecycle.cjs');
 const po = fs.readFileSync(path.join(process.env.PACKAGES_ROOT, 'luci-app-homeproxy/po/zh_Hans/homeproxy.po'), 'utf8');
 const translations = {};
 for (const entry of po.split(/(?=^msgid )/m)) {
@@ -11,7 +12,14 @@ for (const entry of po.split(/(?=^msgid )/m)) {
 const watchdog = setTimeout(() => { console.error('UI test timed out'); process.exit(1); }, 20000);
 (async () => {
  const resources = [{ type:'geoip_cn', version:'20260901000000' }, { type:'geosite_cn', version:'20260901000000' }, {type:'dashboard', installed:false}];
- const h = await boot(resources, translations);
+ const h = await pageBoot('client', translations, {resources});
+ h.j = {window:h.w};
+ h.button = text => [...h.root().querySelectorAll('button')].find(b=>b.textContent===h.w._(text));
+ const testRules=h.map.section(h.mods.form.NamedSection,'config','homeproxy');
+ const ruleOption=testRules.option(h.mods.form.DummyValue,'_test_status_rules');
+ ruleOption.render=function(){return h.mods['homeproxy.resources'].render(this,['geoip_cn','geosite_cn']);};
+ await h.map.reset();
+ // This extra widget exercises the same shared rules renderer as the Status route.
  try {
   let pending, count = 0, notifications = 0;
   const original = h.mods.request.post;
@@ -24,7 +32,7 @@ const watchdog = setTimeout(() => { console.error('UI test timed out'); process.
    return {ok:true, status:200, json:() => h.w.JSON.parse(JSON.stringify({jsonrpc:'2.0', id:req.id, result:[0,result]}))};
   };
   const map = h.mods.dom.findClassInstance(h.root());
-  const rows = () => [...h.root().querySelector('.hp-resources table').rows].slice(1);
+  const rows = () => [ ...[...h.root().querySelectorAll('.hp-resources table')[1].rows].slice(1), h.root().querySelector('[data-name="_dashboard_resources"] table').rows[1] ];
   const result = i => rows()[i].querySelector('.hp-resource-result');
   const click = (i, n=0) => rows()[i].querySelectorAll('button')[n].click();
   const settle = async value => { pending.resolve(value); for(let i=0;i<25;i++) await tick(); };
@@ -63,8 +71,14 @@ const watchdog = setTimeout(() => { console.error('UI test timed out'); process.
   await settle({status:0}); expect(2,'已删除','success'); assert.equal(rows()[2].querySelectorAll('button').length,1); assert.match(rows()[2].textContent,/未安装/);
   h.button('Update resources').click(); await tick(); await settle({status:3,resources:[{type:'geoip_cn',status:3},{type:'geosite_cn',status:3}]}); assert.equal(result(2).textContent,'');
   click(0); await tick(); pending.reject(Error('fixture transport failure')); for(let i=0;i<25;i++) await tick(); expect(0,'更新失败','error');
+  click(0); await tick(); await settle(null); expect(0,'更新失败','error');
+  click(0); await tick(); await settle([]); expect(0,'更新失败','error');
   click(0); await tick(); await settle({status:0}); expect(0,'已更新','success');
   assert.equal(notifications,0); assert([...h.root().querySelectorAll('.hp-resources button')].every(b=>!b.disabled));
+  assert.equal(h.root().querySelectorAll('.hp-resource-version').length,3,'version text has a scoped shrinkable wrapping container');
+  const version=h.root().querySelector('.hp-resource-version');
+  assert.match(version.getAttribute('style'),/min-width:0/);
+  assert.match(version.getAttribute('style'),/overflow-wrap:anywhere/);
   const css = h.root().querySelector('.hp-resources style').textContent;
   assert(css.includes('.hp-resource-result{color:inherit}'));
   assert(css.includes('[data-status="success"]{color:var(--success,var(--success-color-high,light-dark(#15803d,#16a34a)))}'), 'success must use Aurora and Bootstrap tokens');

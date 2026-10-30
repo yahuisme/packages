@@ -94,7 +94,7 @@ const watchdog = setTimeout(() => { console.error('subscription group UI stalled
     const root = await n.app.render(['homeproxy', await n.mods.homeproxy.getBuiltinFeatures()]);
     n.w.document.querySelector('#view').append(root);
     await tick();
-    assert(root.textContent.includes('Sub (Scalar 中文🚀)'), 'node tabs accept a scalar subscription URL');
+    assert(root.querySelector('.hp-node-source select').textContent.includes('Scalar 中文🚀'), 'node sources accept a scalar subscription URL');
     console.log('PASS native node view uses shared group parser for scalar Unicode subscription URLs');
   } finally { n.w.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => clearTimeout(watchdog));

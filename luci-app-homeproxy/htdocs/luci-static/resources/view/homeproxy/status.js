@@ -9,6 +9,7 @@
 'require form';
 'require fs';
 'require homeproxy.lifecycle as lifecycle';
+'require homeproxy.resources as resources';
 'require rpc';
 'require uci';
 'require ui';
@@ -23,21 +24,6 @@ const callConnStat = rpc.declare({
 	method: 'connection_check',
 	params: ['site'],
 	expect: { '': {} }
-});
-const callResStatus = rpc.declare({
-	object: 'luci.homeproxy',
-	method: 'resources_get',
-	expect: { '': {} },
-	reject: true
-});
-const callResUpdate = rpc.declare({
-	object: 'luci.homeproxy',
-	method: 'resources_update',
-	params: ['scope'],
-	expect: { '': {} }
-});
-const callDashboard = rpc.declare({
-	object: 'luci.homeproxy', method: 'dashboard_manage', params: ['action'], expect: { '': {} }
 });
 const callLogClean = rpc.declare({
 	object: 'luci.homeproxy',
@@ -62,7 +48,6 @@ function getConnectionStatus() {
 	const table = E('table', { 'class': 'table' }, [
 		E('tr', { 'class': 'tr table-titles' }, [
 			E('th', { 'class': 'th' }, _('Website')),
-			E('th', { 'class': 'th' }, _('URL')),
 			E('th', { 'class': 'th' }, _('Connectivity')),
 			E('th', { 'class': 'th' }, _('Latency'))
 		])
@@ -83,13 +68,11 @@ function getConnectionStatus() {
 		statusElements[site.type] = { state, latency };
 
 		return [
-			site.name,
 			E('a', {
 				'href': site.url,
 				'target': '_blank',
-				'rel': 'noreferrer noopener',
-				'style': 'word-break:break-all'
-			}, site.url),
+				'rel': 'noreferrer noopener'
+			}, site.name),
 			state,
 			latency
 		];
@@ -176,7 +159,7 @@ function getConnectionStatus() {
 		});
 	};
 
-	testButton = E('button', {
+	testButton = E('button', { 'type': 'button',
 		'class': 'btn cbi-button cbi-button-action',
 		'style': 'margin-left:4px',
 		'click': ui.createHandlerFn(this, runAllTests)
@@ -206,277 +189,118 @@ function getConnectionStatus() {
 	return view;
 }
 
-const resources = [
-	{
-		type: 'geoip_cn',
-		name: _('China IP rule set')
-	},
-	{
-		type: 'geosite_cn',
-		name: _('China domain rule set')
-	},
-	{
-		type: 'dashboard',
-		name: _('Dashboard')
-	}
-];
-
-function getResources(o) {
-	const state = this.resourceSession || (this.resourceSession = { busy: false, results: {} });
-	const buttons = [];
-	const resourceResults = {};
-	const setResourceResult = (type, text, status) => {
-		state.results[type] = { text, status };
-		const element = resourceResults[type];
-		if (element) {
-			element.textContent = text;
-			element.dataset.status = status;
-		}
+function getRuntimeLog(o) {
+	const session = this.logSession || (this.logSession = { source: 'sing-box-c', busy: false, revision: 0 });
+	const sources = {
+		homeproxy: { name: _('HomeProxy') },
+		'sing-box-c': { name: _('sing-box Client'), section: 'config' },
+		'sing-box-s': { name: _('sing-box Server'), section: 'server' }
 	};
-	const showResult = (type, res, action) => {
-		let text, status = 'error';
-		if (res.rollback_failed)
-			text = _('Recovery failed. Check the log and retained backup before retrying.');
-		else if (res.apply_failed)
-			text = _('HomeProxy failed to reload. The previous resources were restored.');
-		else if (res.status === 0) {
-			text = action === 'remove' ? _('Deleted') : action === 'download' ? _('Downloaded') : _('Updated');
-			status = 'success';
-		} else if (res.status === 3) {
-			text = action === 'remove' ? _('Not installed') : _('Already at the latest version.');
-			status = action === 'remove' ? 'neutral' : 'success';
-		} else if (res.status === 2) {
-			text = _('Update already in progress.');
-			status = 'neutral';
-		} else
-			text = _('Update failed.');
-		setResourceResult(type, text, status);
-	};
-	const run = (scope, action) => {
-		if (state.busy) return;
-		state.busy = true;
-		buttons.forEach((b) => { b.disabled = true; });
-		const targets = scope === 'status' ? [] : scope === 'manual' ? ['geoip_cn', 'geosite_cn'] :
-			[scope === 'geoip' ? 'geoip_cn' : scope === 'geosite' ? 'geosite_cn' : 'dashboard'];
-		// Manual participation comes from the locked backend transaction, not the DOM.
-		if (scope === 'manual') {
-			resources.forEach((r) => setResourceResult(r.type, '', 'neutral'));
-		} else targets.forEach((type) => setResourceResult(type, _('Updating…'), 'pending'));
-		return L.resolveDefault(scope === 'status' ? Promise.resolve({}) :
-			scope === 'dashboard' ? callDashboard(action === 'remove' ? 'remove' : 'update') : callResUpdate(scope), {}).then((res) => {
-			if (scope === 'manual' && Array.isArray(res.resources) && res.resources.length) {
-				res.resources.forEach((item) => {
-					if (resourceResults[item.type])
-						showResult(item.type, Object.assign({}, item, {
-							apply_failed: res.apply_failed, rollback_failed: res.rollback_failed
-						}));
-				});
-			} else {
-				// No per-item evidence (e.g. lock/transport failure): never claim success.
-				targets.forEach((type) => showResult(type, scope === 'manual' ?
-					{ status: res.status === 2 ? 2 : 1, apply_failed: res.apply_failed, rollback_failed: res.rollback_failed } : res, action));
-			}
-			return o.map.reset();
-		}).finally(() => {
-			state.busy = false;
-			// Reset recreates all buttons while the shared lock is still held.
-			if (state.enable) state.enable();
-		});
-	};
-	state.enable = () => buttons.forEach((b) => { b.disabled = false; });
-	const runDashboard = (action) => run('dashboard', action);
-	const rulesButton = (label, scope) => {
-		const button = E('button', {
-			'class': 'btn cbi-button cbi-button-action',
-			'disabled': state.busy ? '' : null,
-			'click': ui.createHandlerFn(this, () => run(scope))
-		}, [ label ]);
-		buttons.push(button);
-		return button;
-	};
-	const dashboardButton = (label, action, result) => {
-		const button = E('button', {
-			'class': 'btn cbi-button ' + (action === 'remove' ? 'cbi-button-negative' : 'cbi-button-action'),
-			'disabled': state.busy ? '' : null,
-			'click': ui.createHandlerFn(this, () => {
-				if (action !== 'remove') return runDashboard(action, result);
-				ui.showModal(_('Remove dashboard?'), [
-					E('style', {}, [ '#modal_overlay > .hp-resource-modal { max-width: 100%; }' ]),
-					E('p', {}, [ _('Dashboard files will be removed and the running service reloaded. Settings are retained. Rule sets are not affected.') ]),
-					E('div', { 'class': 'right' }, [
-						E('button', { 'class': 'btn', 'click': ui.hideModal }, [ _('Cancel') ]),
-						E('button', { 'class': 'btn cbi-button-negative', 'click': ui.createHandlerFn(this, () => {
-							ui.hideModal(); return runDashboard('remove', result);
-						}) }, [ _('Remove') ])
-					])
-				], 'hp-resource-modal');
-			})
-		}, [ label ]);
-		buttons.push(button);
-		return button;
-	};
-	return L.resolveDefault(callResStatus(), {}).then((result) => {
-		const status = {};
-		(Array.isArray(result.resources) ? result.resources : []).forEach((resource) => {
-			if (resource && typeof resource.type === 'string')
-				status[resource.type] = resource;
-		});
-		const table = E('table', { 'class': 'table' }, [
-			E('tr', { 'class': 'tr table-titles' }, [
-				E('th', { 'class': 'th' }, _('Name')),
-				E('th', { 'class': 'th' }, _('Version')),
-				E('th', { 'class': 'th' }, _('Actions'))
-			])
-		]);
-		const rows = resources.map((resource) => {
-			const resourceStatus = status[resource.type] || {};
-			const available = resourceStatus.version;
-			const source = resourceStatus.source;
-			const dashboard = resource.type === 'dashboard';
-			const known = typeof resourceStatus.installed === 'boolean';
-			const installed = resourceStatus.installed === true;
-			const result = E('span', { 'class': 'hp-resource-result', 'aria-live': 'polite' }, []);
-			resourceResults[resource.type] = result;
-			const saved = state.results[resource.type];
-			if (saved) setResourceResult(resource.type, saved.text, saved.status);
-
-			return [
-				source ? E('a', { 'href': source, 'target': '_blank', 'rel': 'noreferrer noopener' }, [ resource.name ]) : resource.name,
-				E('span', {}, [ dashboard && !known ? _('Status unavailable') : dashboard && !installed ? _('Not installed') : available || _('Unknown version') ]),
-				dashboard ? E('div', { 'class': 'hp-resource-actions' }, !known ? [ rulesButton(_('Retry'), 'status'), result ] : installed ? [ dashboardButton(_('Update'), 'update', result), dashboardButton(_('Remove'), 'remove', result), result ] : [ dashboardButton(_('Download'), 'download', result), result ]) :
-				E('div', { 'class': 'hp-resource-actions' }, [ rulesButton(_('Update'), resource.type === 'geoip_cn' ? 'geoip' : 'geosite', result), result ])
-
-			];
-		});
-		cbi_update_table(table, rows);
-
-		return E('div', { 'class': 'cbi-map hp-resources' }, [
-			E('style', {}, [ '.hp-resources .hp-resource-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.hp-resources .hp-resource-result{color:inherit}.hp-resources .hp-resource-result[data-status="success"]{color:var(--success,var(--success-color-high,light-dark(#15803d,#16a34a)))}.hp-resources .hp-resource-result[data-status="error"]{color:var(--danger,var(--error-color-high,light-dark(#b91c1c,#dc2626)))}.hp-resources button{min-height:32px;font-weight:500}.hp-resources h3{flex-wrap:wrap;gap:8px}.hp-resources td{overflow-wrap:anywhere}.hp-resources .table{width:100%;table-layout:fixed}' ]),
-	E('h3', { 'name': 'content', 'style': 'align-items:center;display:flex;flex-wrap:wrap;gap:8px' }, [
-				_('Resource Management'),
-				rulesButton(_('Update resources'), 'manual')
-			]),
-			E('div', { 'class': 'cbi-section' }, [ table ])
-		]);
+	let alive;
+	const log_status = E('span', { role: 'status', 'aria-live': 'polite',
+		'aria-atomic': 'true', style: visuallyHiddenStyle }, '');
+	const textarea = E('textarea', {
+		'class': 'cbi-input-textarea', readonly: true, wrap: 'off', spellcheck: 'false', rows: 20,
+		style: 'width:100%;font-family:monospace;white-space:pre;overflow:auto'
+	}, _('Collecting data...'));
+	const level = E('select', { 'class': 'cbi-input-select', 'aria-label': _('Log level'),
+		disabled: o.map.readonly ? '' : null,
+		change: ui.createHandlerFn(this, (ev) => {
+			const section = sources[session.source].section;
+			if (!section || o.map.readonly) return;
+			uci.set('homeproxy', section, 'log_level', ev.target.value);
+			return o.map.save(null, true).then(() => ui.changes.apply(true));
+		})
 	});
-}
-
-function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
-	const filename = o.option.split('_')[1];
-
-	let section, log_level_el;
-	switch (filename) {
-	case 'homeproxy':
-		section = null;
-		break;
-	case 'sing-box-c':
-		section = 'config';
-		break;
-	case 'sing-box-s':
-		section = 'server';
-		break;
-	}
-
-	if (section) {
-		const selected = uci.get('homeproxy', section, 'log_level') || 'warn';
-		const choices = {
-			trace: _('Trace'),
-			debug: _('Debug'),
-			info: _('Info'),
-			warn: _('Warn'),
-			error: _('Error'),
-			fatal: _('Fatal'),
-			panic: _('Panic')
-		};
-
-		log_level_el = E('select', {
-			'id': o.cbid(section_id),
-			'class': 'cbi-input-select',
-			'style': 'width: 6em;',
-			'change': ui.createHandlerFn(this, (ev) => {
-				uci.set('homeproxy', section, 'log_level', ev.target.value);
-				return o.map.save(null, true).then(() => {
-					ui.changes.apply(true);
-				});
-			})
-		});
-
-		Object.keys(choices).forEach((v) => {
-			log_level_el.appendChild(E('option', {
-				'value': v,
-				'selected': (v === selected) ? '' : null
-			}, [ choices[v] ]));
-		});
-	}
-
-	const log_textarea = E('textarea', {
-		'id': filename + '-log',
-		'class': 'cbi-input-textarea',
-		'aria-label': _('%s Log').format(name),
-		'readonly': true,
-		'wrap': 'off',
-		'spellcheck': 'false',
-		'rows': 20,
-		'style': 'width:100%; font-family:monospace; white-space:pre; overflow:auto;'
-	}, [ _('Collecting data...') ]);
-
-	const log_status = E('span', {
-		'role': 'status',
-		'aria-live': 'polite',
-		'aria-atomic': 'true',
-		'style': visuallyHiddenStyle
-	}, '');
-
-	function updateLog(result) {
-		const content = result.content;
-		if (log_textarea.value === content)
-			return;
-		const focused = document.activeElement === log_textarea;
-		const start = log_textarea.selectionStart, end = log_textarea.selectionEnd;
-		const direction = log_textarea.selectionDirection;
-		const top = log_textarea.scrollTop, left = log_textarea.scrollLeft;
-		log_textarea.value = content;
-		if (focused)
-			log_textarea.setSelectionRange(start, end, direction);
-		log_textarea.scrollTop = top;
-		log_textarea.scrollLeft = left;
+	const choices = { trace: _('Trace'), debug: _('Debug'), info: _('Info'), warn: _('Warn'),
+		error: _('Error'), fatal: _('Fatal'), panic: _('Panic') };
+	Object.keys(choices).forEach((value) => level.appendChild(E('option', { value }, choices[value])));
+	const source = E('select', { 'class': 'cbi-input-select', 'aria-label': _('Log source'),
+		change: (ev) => {
+			if (!sources[ev.target.value]) return;
+			session.source = ev.target.value;
+			session.revision++;
+			configure();
+			refresh();
+		}
+	}, Object.keys(sources).map((value) => E('option', { value,
+		selected: value === session.source ? '' : null }, sources[value].name)));
+	const configure = () => {
+		const selected = sources[session.source];
+		textarea.id = session.source + '-log';
+		textarea.setAttribute('aria-label', _('%s Log').format(selected.name));
+		textarea.value = _('Collecting data...');
+		const section = selected.section;
+		level.hidden = !section;
+		level.style.display = section ? '' : 'none';
+		level.value = section ? uci.get('homeproxy', section, 'log_level') || 'warn' : 'warn';
+	};
+	const update = (result) => {
+		if (textarea.value !== result.content) {
+			const focused = document.activeElement === textarea;
+			const start = textarea.selectionStart, end = textarea.selectionEnd, direction = textarea.selectionDirection;
+			const top = textarea.scrollTop, left = textarea.scrollLeft;
+			textarea.value = result.content;
+			if (focused) textarea.setSelectionRange(start, end, direction);
+			textarea.scrollTop = top;
+			textarea.scrollLeft = left;
+		}
 		dom.content(log_status, result.status === 'unavailable' ? _('Log unavailable.') :
 			result.status === 'empty' ? _('Log is empty.') : _('Log updated.'));
-	}
-
-	lifecycle.poll(log_textarea, 'log:' + filename, () => {
-		return fs.read_direct(String.format('%s/%s.log', hp_dir, filename), 'text')
-		.then((res) => res ? { status: 'updated', content: res } :
-			{ status: 'empty', content: _('Log is empty.') }).catch((err) => {
-			return { status: 'unavailable', content: err?.name === 'NotFoundError'
-				? _('Log file does not exist.') : _('Unknown error: %s.').format(err) };
+	};
+	const refresh = () => {
+		if (!alive() || document.visibilityState === 'hidden' || session.busy) return Promise.resolve();
+		const selected = session.source, requestRevision = session.revision;
+		session.busy = true;
+		return fs.read_direct('%s/%s.log'.format(hp_dir, selected), 'text').then((content) =>
+			content ? { status: 'updated', content } : { status: 'empty', content: _('Log is empty.') }
+		).catch((err) => ({ status: 'unavailable', content: err?.name === 'NotFoundError' ?
+			_('Log file does not exist.') : _('Unknown error: %s.').format(err) })).then((result) => {
+			if (alive() && requestRevision === session.revision) update(result);
+		}).finally(() => {
+			session.busy = false;
+			// Only the newest attached viewer can resume a source switch/reset.
+			if (session.refresh && (session.refresh !== refresh || requestRevision !== session.revision)) session.refresh();
 		});
-	}, updateLog);
-
-	return E([
-		E('div', {'class': 'cbi-map'}, [
-			E('h3', {'name': 'content', 'style': 'align-items: center; display: flex; flex-wrap: wrap; gap: 8px;'}, [
-				_('%s Log').format(name),
-				log_level_el || '',
-				E('button', {
-					'class': 'btn cbi-button cbi-button-action',
-					'click': ui.createHandlerFn(this, () => {
-						return L.resolveDefault(callLogClean(filename), {}).then((result) => {
-							if (result.result !== true)
-								ui.addNotification(null, E('p', [ _('Unable to clear log.') ]), 'error');
-						});
-					})
-				}, [ _('Clean log') ])
-			]),
-			E('div', {'class': 'cbi-section'}, [
-				log_textarea,
-				log_status,
-				E('div', {'style': 'text-align:right'},
-					E('small', {}, _('Refresh every %s seconds.').format(L.env.pollinterval))
-				)
-			])
+	};
+	const clean = E('button', { 'type': 'button', 'class': 'btn cbi-button cbi-button-action',
+		disabled: o.map.readonly || session.cleaning ? '' : null,
+		click: ui.createHandlerFn(this, () => {
+			if (o.map.readonly || session.cleaning) return;
+			session.cleaning = true;
+			const selected = session.source;
+			return L.resolveDefault(callLogClean(selected), {}).then((result) => {
+				if (result.result !== true)
+					ui.addNotification(null, E('p', [ _('Unable to clear log.') ]), 'error');
+				else if (session.source === selected) {
+					// Reject pre-clear bytes, including reads begun by a replacement viewer.
+					session.revision++;
+					if (session.refresh) session.refresh();
+				}
+			}).finally(() => {
+				session.cleaning = false;
+				if (session.paintClean) session.paintClean();
+			});
+		})
+	}, _('Clean log'));
+	const root = E('div', { 'class': 'cbi-map hp-runtime-log' }, [
+		E('h3', { style: 'display:flex;align-items:center;flex-wrap:wrap;gap:8px' }, [
+			_('Runtime log'), source, level, clean
+		]),
+		E('div', { 'class': 'cbi-section' }, [ textarea, log_status,
+			E('div', { style: 'text-align:right' }, E('small', {}, _('Refresh every %s seconds.').format(L.env.pollinterval)))
 		])
 	]);
+	configure();
+	alive = lifecycle.watch(root, () => {
+		session.refresh = refresh;
+		session.paintClean = () => { if (alive()) clean.disabled = o.map.readonly || !!session.cleaning; };
+		session.paintClean();
+	}, () => {
+		if (session.refresh === refresh) { session.refresh = null; session.paintClean = null; }
+	});
+	lifecycle.poll(root, 'runtime-log', refresh, () => {});
+	return root;
 }
 
 return view.extend({
@@ -492,19 +316,13 @@ return view.extend({
 		o.render = L.bind(getConnectionStatus, this);
 
 		o = s.option(form.DummyValue, '_resources');
-		o.render = L.bind(getResources, this, o);
+		o.render = function() { return resources.render(this, ['geoip_cn', 'geosite_cn', 'dashboard']); };
 
 		s = m.section(form.NamedSection, 'config', 'homeproxy');
 		s.anonymous = true;
 
-		o = s.option(form.DummyValue, '_homeproxy_logview');
-		o.render = L.bind(getRuntimeLog, this, o, _('HomeProxy'));
-
-		o = s.option(form.DummyValue, '_sing-box-c_logview');
-		o.render = L.bind(getRuntimeLog, this, o, _('sing-box Client'));
-
-		o = s.option(form.DummyValue, '_sing-box-s_logview');
-		o.render = L.bind(getRuntimeLog, this, o, _('sing-box Server'));
+		o = s.option(form.DummyValue, '_runtime_logview');
+		o.render = L.bind(getRuntimeLog, this, o);
 
 		return m.render().then((root) => {
 			const session = this.connectionSession;

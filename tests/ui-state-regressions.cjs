@@ -22,11 +22,11 @@ async function nodeTabs() {
 			await tick();
 			assert.equal(bulk().style.display, visible ? '' : 'none', 'bulk visibility follows active tab');
 		};
-		await select('^="sub_"', true);
+		await select('="node"', true);
 		await select('="subscription"', false);
 		for (let i = 0; i < 3; i++) {
 			await h.mods.dom.findClassInstance(h.root()).reset();
-			await select('^="sub_"', true);
+			await select('="node"', true);
 			await select('="subscription"', false);
 			assert.equal(actions.querySelectorAll('.hp-bulk-latency-test').length, 1);
 		}
@@ -42,7 +42,7 @@ async function nodeTabs() {
 			h.w.document.querySelector('#view').append(fresh);
 			await until(bulk, 'reentry attaches fresh footer button');
 			assert.notEqual(bulk(), oldButton);
-			await select('^="sub_"', true);
+			await select('="node"', true);
 			old.querySelector('.cbi-tabmenu').setAttribute('class', 'detached-menu');
 			await tick();
 			assert.equal(bulk().style.display, '', 'detached menu cannot affect current footer');
@@ -61,9 +61,9 @@ function response(h, req, value, code = 0) {
 async function resourceStatus() {
 	for (const initial of [undefined, true, false]) {
 		const resources = initial === undefined ? [] : [{ type: 'dashboard', installed: initial, version: initial ? '20260901000000' : null }];
-		const h = await boot(resources);
+		const h = await pageBoot('client', {}, {resources});
+		h.button = text => [...h.root().querySelectorAll('button')].find(b => b.textContent === h.w._(text));
 		try {
-			await h.settle({ results: [] });
 			const original = h.mods.request.post;
 			let mode = 'transport', writes = 0, reads = 0;
 			h.mods.request.post = async (url, req) => {
@@ -75,6 +75,8 @@ async function resourceStatus() {
 				reads++;
 				if (mode === 'transport') throw Error('<img src=x onerror=alert(1)>');
 				if (mode === 'ubus') return response(h, req, {}, 6);
+				if (mode === 'null') return response(h, req, null);
+				if (mode === 'wrong-type') return response(h, req, []);
 				if (mode === 'malformed') return response(h, req, { resources: {} });
 				if (mode === 'missing') return response(h, req, { resources: [] });
 				return response(h, req, { resources: [{ type: 'dashboard', installed: mode === 'installed', version: mode === 'installed' ? '20260902000000' : null }] });
@@ -90,7 +92,7 @@ async function resourceStatus() {
 			if (initial === undefined) unknown();
 			else assert.deepEqual(labels(), initial ? ['Update', 'Remove'] : ['Download']);
 			const map = h.mods.dom.findClassInstance(h.root());
-			for (const failure of ['transport', 'ubus', 'malformed', 'missing']) {
+			for (const failure of ['transport', 'ubus', 'null', 'wrong-type', 'malformed', 'missing']) {
 				mode = failure;
 				await map.reset(); await tick(); unknown();
 				assert.equal(writes, 0, 'status reads must not mutate resources');
@@ -105,7 +107,7 @@ async function resourceStatus() {
 			assert.match(row().textContent, /Not installed/);
 			assert.deepEqual(labels(), ['Download']);
 			mode = 'transport';
-			h.button('Update resources').click();
+			h.button('Download').click();
 			await until(() => /Status unavailable/.test(row().textContent), 'write refresh can fail safely');
 			await until(() => !row().querySelector('button').disabled, 'retry released after resource action');
 			unknown(); assert.equal(writes, 1);
@@ -167,11 +169,83 @@ async function logClean() {
 		for (const poll of h.polls) await poll();
 		assert.equal(textarea().value, h.w._('Log is empty.'));
 		assert.equal(calls, 5);
-		console.log('PASS log clear: business/transport/malformed/truthy failures, concise Chinese notification, no untrusted HTML, success and retry button state');
+		const map=h.mods.dom.findClassInstance(h.root());
+		clean().click();await until(()=>calls===6,'clear starts before reset');
+		await map.reset();await tick();
+		assert(clean().disabled,'replacement clean button retains the shared lock');
+		clean().click();await tick();assert.equal(calls,6,'reset cannot start a duplicate clear');
+		pending.resolve({result:true});await until(()=>!clean().disabled,'replacement button releases after clear');
+		console.log('PASS log clear: business/transport/malformed/truthy failures, concise Chinese notification, no untrusted HTML, success, reset single-flight and retry button state');
 	} finally { h.w.close(); }
 }
 
-const tests = { node: nodeTabs, resources: resourceStatus, logs: logClean };
+async function logClearRace() {
+	for (const scenario of ['same', 'reset', 'reentry', 'reset-read', 'reentry-read', 'switch-back', 'other-source']) {
+		const h = await boot();
+		try {
+			await h.settle({results: []});
+			const area = () => h.root().querySelector('textarea');
+			const source = () => h.root().querySelector('[aria-label="Log source"]');
+			const choose = value => { source().value=value; source().dispatchEvent(new h.w.Event('change',{bubbles:true})); };
+			h.mods.fs.read_direct = async () => 'confirmed before clear';
+			for (const poll of h.polls) await poll();
+			const reads = [], clears = [], original = h.mods.request.post;
+			h.mods.fs.read_direct = path => new Promise((resolve,reject)=>reads.push({path,resolve,reject}));
+			h.mods.request.post = async (url,req) => {
+				if (req.params[2] !== 'log_clean') return original(url,req);
+				return response(h,req,await new Promise(resolve=>clears.push({source:req.params[3].type,resolve})));
+			};
+			const replacementRead = scenario.endsWith('-read');
+			let pendingRead;
+			if (!replacementRead) {
+				pendingRead = Promise.all(h.polls.map(poll=>poll()));
+				await until(()=>reads.length===1,'pre-clear read starts');
+			}
+			h.button('Clean log').click();
+			await until(()=>clears.length===1,'native clear RPC starts');
+			assert.equal(clears[0].source,'sing-box-c','clear captures invocation source');
+			assert.equal(area().value,'confirmed before clear','no optimistic clearing');
+			const old=area();
+			if (scenario.startsWith('reset')) await h.mods.dom.findClassInstance(h.root()).reset();
+			if (scenario.startsWith('reentry')) {
+				h.root().remove();await tick();
+				h.w.document.querySelector('#view').append(await h.app.render());
+			}
+			if (scenario==='switch-back' || scenario==='other-source') choose('sing-box-s');
+			if (scenario==='switch-back') choose('sing-box-c');
+			await tick();
+			if (replacementRead) {
+				pendingRead = Promise.all(h.polls.map(poll=>poll()));
+				await until(()=>reads.length===1,'replacement viewer starts read before clear completes');
+			}
+			assert(h.button('Clean log').disabled,'global clear lock survives source/reset/reentry');
+			h.button('Clean log').click();await tick();assert.equal(clears.length,1);
+			const oldText=old.value, before=area().value;
+			clears[0].resolve({result:true});
+			await until(()=>!h.button('Clean log').disabled,'clear releases shared lock');
+			assert.equal(area().value,before,'successful clear awaits confirmed bytes');
+			assert.equal(reads.length,1,'pre-clear read remains single flight');
+			reads[0].resolve('STALE PRE-CLEAR BYTES');await pendingRead;
+			assert.equal(area().value,before,'pre-clear reply cannot paint after successful clear');
+			assert.equal(old.value,oldText,'invalidated or detached textarea stays untouched');
+			await until(()=>reads.length===2,'completion refreshes attached viewer without a poll tick');
+			assert.equal(reads[1].path,'/var/run/homeproxy/'+source().value+'.log');
+			reads[1].resolve(scenario==='other-source'?'fresh server':'');
+			await until(()=>area().value===(scenario==='other-source'?'fresh server':h.w._('Log is empty.')),'post-clear bytes are displayed');
+			assert.equal(reads.length,2,'exactly one catch-up read');
+			// No outstanding read: success must request fresh bytes immediately.
+			const count=reads.length, clearCount=clears.length, retained=area().value;
+			h.button('Clean log').click();await until(()=>clears.length===clearCount+1,'second native clear starts');
+			clears.at(-1).resolve({result:true});
+			await until(()=>reads.length===count+1,'successful clear refreshes without polling');
+			assert.equal(area().value,retained,'no optimistic empty on immediate refresh');
+			reads.at(-1).resolve('new after clear');await until(()=>area().value==='new after clear','fresh post-clear data');
+			console.log('PASS native log clear race: '+scenario+'; stale read rejected, captured source, single-flight, attached catch-up, confirmed bytes');
+		} finally {h.w.close();}
+	}
+}
+
+const tests = { node: nodeTabs, resources: resourceStatus, logs: logClean, 'log-race': logClearRace };
 const watchdog = setTimeout(() => { console.error('FAIL UI-state watchdog'); process.exit(1); }, 30000);
 (async () => {
 	const selected = process.argv[2];

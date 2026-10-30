@@ -581,29 +581,7 @@ return view.extend({
 		o.depends('tls', '1');
 		o.modalonly = true;
 
-		o = s.option(form.ListValue, 'tls_min_version', _('Minimum TLS version'),
-			_('The minimum TLS version that is acceptable.'));
-		o.value('', _('Default'));
-		for (let i of hp.tls_versions)
-			o.value(i);
-		o.depends('tls', '1');
-		o.modalonly = true;
-
-		o = s.option(form.ListValue, 'tls_max_version', _('Maximum TLS version'),
-			_('The maximum TLS version that is acceptable.'));
-		o.value('', _('Default'));
-		for (let i of hp.tls_versions)
-			o.value(i);
-		o.depends('tls', '1');
-		o.modalonly = true;
-
-		o = s.option(hp.CBIStaticList, 'tls_cipher_suites', _('Cipher suites'),
-			_('The elliptic curves that will be used in an ECDHE handshake, in preference order. If empty, the default will be used.'));
-		for (let i of hp.tls_cipher_suites)
-			o.value(i);
-		o.depends('tls', '1');
-		o.optional = true;
-		o.modalonly = true;
+		hp.buildTLSVersionOptions(s);
 
 		if (features.with_acme) {
 			o = s.option(form.Flag, 'tls_acme', _('Enable ACME'),
@@ -896,6 +874,7 @@ return view.extend({
 		o.modalonly = true;
 		/* Extra settings end */
 
+		hp.configureEditor(s);
 		return m.render();
 	}
 });
