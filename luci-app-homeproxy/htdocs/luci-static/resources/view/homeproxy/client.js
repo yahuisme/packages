@@ -351,7 +351,6 @@ return view.extend({
 		s.tab('control', _('Access Control'));
 		s.tab('diversion', _('Diversion Control'));
 		s.tab('tailscale', _('Tailscale'));
-		s.tab('advanced', _('Advanced Settings'));
 
 		o = s.taboption('routing', form.ListValue, 'routing_mode', _('Routing mode'));
 		o.value('bypass_mainland_china', _('Bypass mainland China'));
@@ -385,7 +384,7 @@ return view.extend({
 		o.rmempty = false;
 		o.retain = true;
 
-		o = s.taboption('advanced', form.Value, 'main_urltest_interval', _('Test interval'),
+		o = s.taboption('routing', form.Value, 'main_urltest_interval', _('Test interval'),
 			_('The test interval in seconds.'));
 		o.datatype = 'uinteger';
 		o.placeholder = '120';
@@ -393,7 +392,7 @@ return view.extend({
 		o.depends({ routing_mode: 'global', main_node: 'urltest' });
 		o.retain = true;
 
-		o = s.taboption('advanced', form.Value, 'main_urltest_tolerance', _('Test tolerance'),
+		o = s.taboption('routing', form.Value, 'main_urltest_tolerance', _('Test tolerance'),
 			_('The test tolerance in milliseconds.'));
 		o.datatype = 'and(uinteger,range(0,65535))';
 		o.placeholder = '60';
@@ -401,7 +400,7 @@ return view.extend({
 		o.depends({ routing_mode: 'global', main_node: 'urltest' });
 		o.retain = true;
 
-		o = s.taboption('advanced', form.Flag, 'main_urltest_interrupt_exist_connections', _('Interrupt existing connections'),
+		o = s.taboption('routing', form.Flag, 'main_urltest_interrupt_exist_connections', _('Interrupt existing connections'),
 			_('Interrupt existing connections when the selected outbound has changed.'));
 		o.default = o.disabled;
 		o.rmempty = false;
@@ -481,7 +480,7 @@ return view.extend({
 			return true;
 		}
 
-		o = s.taboption('advanced', form.Value, 'routing_port', _('Routing ports'),
+		o = s.taboption('routing', form.Value, 'routing_port', _('Routing ports'),
 			_('Specify target ports to be proxied. Multiple ports must be separated by commas.'));
 		o.depends('routing_mode', 'bypass_mainland_china');
 		o.depends('routing_mode', 'global');
@@ -503,7 +502,7 @@ return view.extend({
 			return true;
 		}
 
-		o = s.taboption('advanced', form.ListValue, 'tcpip_stack', _('TCP/IP stack'),
+		o = s.taboption('routing', form.ListValue, 'tcpip_stack', _('TCP/IP stack'),
 			_('TCP/IP stack.'));
 		o.value('mixed', 'Mixed');
 		if (features.with_gvisor)

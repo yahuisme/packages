@@ -23,15 +23,15 @@ function response(h,req,value) {
   const widget=option('dashboard_enabled').getUIElement('config');widget.setValue('1');h.map.checkDepends();
   assert.equal(field('dashboard_port').classList.contains('hidden'),false);
   assert.equal(field('dashboard_secret').classList.contains('hidden'),false);
-  assert.equal(h.root().querySelector('.cbi-tabmenu li[data-tab="advanced"]')!=null,true,'one native advanced tab');
+  assert.equal(h.root().querySelector('.cbi-tabmenu li[data-tab="advanced"]'),null,'routing options do not need a separate advanced tab');
   for(const n of ['main_urltest_interval','main_urltest_tolerance','main_urltest_interrupt_exist_connections','routing_port','tcpip_stack'])
-   assert.equal(option(n).tab,'advanced',n+' in advanced settings');
+   assert.equal(option(n).tab,'routing',n+' in routing settings');
   // Access lists use one native form, rather than an additional nested tab bar.
   assert.equal(h.root().querySelector('[data-name="_control"] .cbi-tabmenu'),null,'access control nested navigation removed');
   const diversion=h.root().querySelector('[data-name="_diversion"]');
   assert.equal(diversion.querySelectorAll('.cbi-tabmenu > li').length,2,'built-in lists share one tab; group table remains separate');
   const nativeTabs=[...h.root().querySelectorAll('.cbi-tabmenu > li')].filter(li=>li.closest('[data-name="_diversion"]')===null);
-  assert.deepEqual(nativeTabs.map(li=>li.dataset.tab),['routing','dashboard','control','diversion','tailscale','advanced'],'six native client tabs');
+  assert.deepEqual(nativeTabs.map(li=>li.dataset.tab),['routing','dashboard','control','diversion','tailscale'],'five native client tabs');
   const routing=option('routing_mode').getUIElement('config');
   routing.setValue('global');h.map.checkDepends();
   assert.equal(field('_control').classList.contains('hidden'),false);
@@ -63,7 +63,7 @@ function response(h,req,value) {
   assert.equal(option('dns_server').getUIElement('config'),dirty);
   assert.equal(dirty.getValue(),'https://dns.google/dns-query','resource write retains unsaved edits');
   assert.match(dashboard().textContent,/Downloaded|20261030000000/);
-  console.log('PASS client: six native tabs; consolidated dashboard; hidden+retained values; advanced settings; untabbed access; two diversion tabs; retry/write preserve dirty native inputs');
+  console.log('PASS client: five native tabs; consolidated dashboard; hidden+retained values; routing options in routing settings; untabbed access; two diversion tabs; retry/write preserve dirty native inputs');
  } finally {h.w.close();}
  const race=await pageBoot('client',{}, {resources:[{type:'dashboard',installed:false}]});
  try {

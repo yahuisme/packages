@@ -45,6 +45,8 @@ async function until(check) { const end=performance.now()+3000; while(!check()) 
   const fresh=await h.app.render();h.w.document.querySelector('#view').append(fresh);await tick();
   for(const poll of h.polls)await poll();assert.equal(h.root().querySelectorAll('textarea').length,1);assert.equal(h.polls.length,1);
   const table=h.root().querySelector('table');assert.equal(table.rows[0].cells.length,3,'URL merged into website name');
+  assert.equal(table.style.width,'100%','connection and resource tables share the available width');
+  assert.equal(table.style.tableLayout,'fixed','connection and resource tables use matching equal column tracks');
   assert.equal(table.rows[1].cells[0].querySelector('a').textContent,'Baidu');
   assert.equal(table.rows[1].cells[0].querySelector('a').href,'https://www.baidu.com/');
   console.log('PASS status: one selected log; source-only reads; selection/scroll; switch+reset in-flight lock; stale reply isolation; reentry; linked website name');

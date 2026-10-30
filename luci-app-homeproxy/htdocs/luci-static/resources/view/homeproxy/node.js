@@ -1648,7 +1648,7 @@ return view.extend({
 				if (create)
 					create.style.display = nodeSource ? 'none' : '';
 			}
-			el.prepend(E('label', { 'class': 'hp-node-source', 'style': 'display:flex;align-items:center;flex-wrap:wrap;gap:8px' }, [
+			el.prepend(E('label', { 'class': 'hp-node-source', 'style': 'display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:16px' }, [
 				E('span', {}, [ _('Source') ]), select
 			]));
 			updateSource();
@@ -1772,6 +1772,22 @@ return view.extend({
 		/* Subscriptions settings start */
 		s.tab('subscription', _('Subscriptions'));
 
+		o = s.taboption('subscription', form.Flag, 'auto_update', _('Auto update'),
+			_('Auto update subscriptions and resources.'));
+		o.rmempty = false;
+
+		o = s.taboption('subscription', form.Value, 'auto_update_time', _('Cron expression'),
+			_('Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6).') +
+			'<br/>' +
+			'<a target="_blank" rel="noreferrer noopener" href="https://www.toolbox365.cn/tools/cron/">' +
+			_('Cron expression online generator') + '</a>');
+		o.default = '0 */6 * * *';
+		o.placeholder = '0 */6 * * *';
+		o.rmempty = false;
+		o.validate = validateCronExpression;
+		o.depends('auto_update', '1');
+		o.retain = true;
+
 		o = s.taboption('subscription', form.Flag, 'update_via_proxy', _('Update via proxy'),
 			_('Update resources and subscriptions via proxy.'));
 		o.rmempty = false;
@@ -1814,22 +1830,6 @@ return view.extend({
 			contents.querySelector('.cbi-section-node').id = 'cbi-homeproxy-subscription-advanced';
 			return E('details', {}, [ E('summary', {}, [ _('Advanced settings') ]), contents ]);
 		};
-
-		o = advanced.option(form.Flag, 'auto_update', _('Auto update'),
-			_('Auto update subscriptions and resources.'));
-		o.rmempty = false;
-
-		o = advanced.option(form.Value, 'auto_update_time', _('Cron expression'),
-			_('Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6).') +
-			'<br/>' +
-			'<a target="_blank" rel="noreferrer noopener" href="https://www.toolbox365.cn/tools/cron/">' +
-			_('Cron expression online generator') + '</a>');
-		o.default = '0 */6 * * *';
-		o.placeholder = '0 */6 * * *';
-		o.rmempty = false;
-		o.validate = validateCronExpression;
-		o.depends('auto_update', '1');
-		o.retain = true;
 
 		o = advanced.option(form.Value, 'user_agent', _('User-Agent'));
 		o.default = 'homeproxy';
@@ -2070,7 +2070,12 @@ return view.extend({
 			return E('div', {}, [
 				E('style', {}, [
 					'#modal_overlay > .hp-node-modal { max-width: 100%; }' +
-					'.hp-node-list { max-width: 100%; overflow-x: auto; }'
+					'.hp-node-list { max-width: 100%; overflow-x: auto; }' +
+					'#cbi-homeproxy-subscription{container-type:inline-size}' +
+					'@container(max-width:600px){' +
+					'#cbi-homeproxy-subscription [data-name="subscription_url"]{display:block}' +
+					'#cbi-homeproxy-subscription [data-name="subscription_url"]>.cbi-value-title{display:block;float:none;width:auto;margin:0 0 8px;padding:0;text-align:left}' +
+					'#cbi-homeproxy-subscription [data-name="subscription_url"]>.cbi-value-field{display:block;flex:none;width:auto;margin:0;padding:0}}'
 				]),
 				el
 			]);

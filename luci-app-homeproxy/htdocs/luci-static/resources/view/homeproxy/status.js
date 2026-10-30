@@ -45,7 +45,7 @@ const connectionTestTimeout = 10000;
 const visuallyHiddenStyle = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0';
 
 function getConnectionStatus() {
-	const table = E('table', { 'class': 'table' }, [
+	const table = E('table', { 'class': 'table', 'style': 'width:100%;table-layout:fixed' }, [
 		E('tr', { 'class': 'tr table-titles' }, [
 			E('th', { 'class': 'th' }, _('Website')),
 			E('th', { 'class': 'th' }, _('Connectivity')),

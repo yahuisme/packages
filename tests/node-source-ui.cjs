@@ -24,6 +24,13 @@ async function until(predicate) {
   const options = section => section.children.flatMap(option => option.subsection ? options(option.subsection) : option.children?.length ? options(option) : [option]);
   const schedule=options(h.map).find(option=>option.option==='auto_update_time');
   assert(schedule,'cron field retained');
+  for(const key of ['auto_update','auto_update_time']) {
+   const option=options(h.map).find(option=>option.option===key);
+   assert.equal(option.tab,'subscription',key+' belongs directly to the subscription tab');
+   assert.equal(h.root().querySelector('[data-name="'+key+'"]').closest('details'),null,key+' is not folded into advanced settings');
+  }
+  const subscriptionOptions=Array.from(schedule.section.children).filter(o=>o.tab==='subscription').map(o=>o.option);
+  assert.deepEqual(subscriptionOptions.slice(0,3),['auto_update','auto_update_time','update_via_proxy'],'schedule controls lead the subscription form');
   h.mods.uci.set('homeproxy','subscription','auto_update_time','17 3 * * 2');
   h.mods.uci.set('homeproxy','subscription','auto_update','0');
   await h.map.load();await h.map.reset();
@@ -31,6 +38,16 @@ async function until(predicate) {
   await schedule.parse('subscription');
   await h.map.parse();
   assert.equal(h.mods.uci.get('homeproxy','subscription','auto_update_time'),'17 3 * * 2');
+  const autoUpdate=options(h.map).find(option=>option.option==='auto_update');
+  autoUpdate.getUIElement('subscription').setValue('1');h.map.checkDepends();
+  assert(schedule.isActive('subscription'),'enabling auto-update reveals the top-level cron field');
+  schedule.getUIElement('subscription').setValue('99 * * * *');schedule.triggerValidation('subscription');
+  await assert.rejects(h.map.parse(),/invalid/i,'top-level cron field keeps native validation');
+  schedule.getUIElement('subscription').setValue('23 4 * * 1');schedule.triggerValidation('subscription');
+  await h.map.parse();
+  assert.equal(h.mods.uci.get('homeproxy','subscription','auto_update_time'),'23 4 * * 1');
+  autoUpdate.getUIElement('subscription').setValue('0');h.map.checkDepends();await h.map.parse();
+  assert.equal(h.mods.uci.get('homeproxy','subscription','auto_update_time'),'23 4 * * 1','disabled schedule keeps its last value');
   assert(h.root().querySelector('details summary').textContent.includes('Advanced settings'));
   const sources = () => h.root().querySelector('.hp-node-source select');
   const names = () => [...h.root().querySelectorAll('.cbi-tabmenu > li')].map(el=>el.dataset.tab);
