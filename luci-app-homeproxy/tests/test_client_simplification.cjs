@@ -16,6 +16,8 @@ function response(h,req,value) {
   assert.match(dashboard().textContent,/Status unavailable/,'unknown never becomes absent');
   assert.equal(h.root().querySelector('[data-name="_open_dashboard"]'),null,'one management/open location');
   const option=n=>h.map.lookupOption(n,'config')[0];
+  const routingOrder=Array.from(option('routing_mode').section.children).filter(o=>o.tab==='routing').map(o=>o.option);
+  assert.equal(routingOrder.indexOf('routing_mode'),routingOrder.indexOf('china_dns_server')+1,'routing mode follows China DNS');
   const field=n=>h.root().querySelector('[data-name="'+n+'"]');
   assert.equal(field('dashboard_port').classList.contains('hidden'),true,'disabled dashboard details fully hidden');
   assert.equal(field('dashboard_secret').classList.contains('hidden'),true);

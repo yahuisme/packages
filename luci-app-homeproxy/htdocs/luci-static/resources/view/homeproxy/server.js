@@ -111,7 +111,7 @@ return view.extend({
 		let features = data[1];
 
 		m = new form.Map('homeproxy', _('HomeProxy Server'),
-			_('OpenWrt proxy platform based on sing-box.'));
+			_('OpenWrt / ImmortalWrt proxy platform based on sing-box.'));
 
 		s = m.section(form.TypedSection);
 		s.render = function() {

@@ -951,8 +951,8 @@ msgstr "只处理来自指定接口的流量。留空表示全部。"
 msgid "Open dashboard"
 msgstr "打开仪表盘"
 
-msgid "OpenWrt proxy platform based on sing-box."
-msgstr "基于 sing-box 的 OpenWrt 代理平台。"
+msgid "OpenWrt / ImmortalWrt proxy platform based on sing-box."
+msgstr "基于 sing-box 的 OpenWrt / ImmortalWrt 代理平台。"
 
 msgid "PUT"
 msgstr "PUT"

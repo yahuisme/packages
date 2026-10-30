@@ -1500,7 +1500,7 @@ msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:201
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:114
-msgid "OpenWrt proxy platform based on sing-box."
+msgid "OpenWrt / ImmortalWrt proxy platform based on sing-box."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1234

@@ -48,7 +48,11 @@ async function until(predicate) {
   assert.equal(h.mods.uci.get('homeproxy','subscription','auto_update_time'),'23 4 * * 1');
   autoUpdate.getUIElement('subscription').setValue('0');h.map.checkDepends();await h.map.parse();
   assert.equal(h.mods.uci.get('homeproxy','subscription','auto_update_time'),'23 4 * * 1','disabled schedule keeps its last value');
-  assert(h.root().querySelector('details summary').textContent.includes('Advanced settings'));
+  assert.equal(h.root().querySelector('details'),null,'subscription settings stay directly visible');
+  for(const key of ['user_agent','allow_insecure','packet_encoding']) {
+   assert(options(h.map).some(o=>o.option===key&&o.tab==='subscription'),key+' belongs directly to the subscription tab');
+   assert(!h.root().querySelector('[data-name="'+key+'"]').classList.contains('hidden'));
+  }
   const sources = () => h.root().querySelector('.hp-node-source select');
   const names = () => [...h.root().querySelectorAll('.cbi-tabmenu > li')].map(el=>el.dataset.tab);
   assert.deepEqual(names(), ['node','subscription'], 'fixed navigation must not grow subscription tabs');
@@ -162,4 +166,26 @@ async function until(predicate) {
   assert.equal(emptyTable.querySelectorAll('tbody tr').length,1,'empty sorting keeps exactly one placeholder');
   console.log('PASS native address/port sort and header clicks: manual/subscribed/source-empty/all-empty, real order, no false UCI rows; source/reset/bulk acceptance');
  } finally { h.w.close(); }
+ const md5=value=>require('crypto').createHash('md5').update(value).digest('hex');
+ const urls=['https://empty.invalid/sub','https://first.invalid/sub','https://second.invalid/sub'];
+ const first=md5(urls[1]),second=md5(urls[2]);
+ for(const readonly of [false,true]) {
+  const h=await pageBoot('node',{}, {readonly,values:{
+   subscription:{subscription_url:urls},
+   first:{'.type':'node',type:'socks',address:'first.invalid',port:'1080',grouphash:first},
+   second:{'.type':'node',type:'socks',address:'second.invalid',port:'1080',grouphash:second}
+  }});
+  try {
+   const source=()=>h.root().querySelector('.hp-node-source select');
+   assert.equal(source().value,first,'initial source skips empty subscriptions and selects first populated group');
+   assert.equal(h.root().querySelector('[data-sid="first"]').style.display,'');
+   const select=value=>{source().value=value;source().dispatchEvent(new h.w.Event('change',{bubbles:true}));};
+   select('');await h.map.reset();assert.equal(source().value,'','manual choice survives reset with populated subscriptions');
+   select(second);await h.map.reset();assert.equal(source().value,second,'explicit subscription choice survives reset');
+   h.mods.uci.set('homeproxy','subscription','subscription_url',urls.slice(0,2));
+   await h.map.reset();assert.equal(source().value,first,'deleted source falls back to another populated subscription');
+   h.mods.uci.set('homeproxy','subscription','subscription_url',[]);await h.map.reset();assert.equal(source().value,'','no subscriptions falls back to manual');
+  }finally{h.w.close();}
+ }
+ console.log('PASS initial populated subscription priority, empty group skip, manual/explicit selection retention, deleted-source fallback and readonly');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>clearTimeout(watchdog));

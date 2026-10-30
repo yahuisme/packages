@@ -1600,11 +1600,13 @@ return view.extend({
 
 		this.node_latency_row_state = node_latency_row_state;
 
-		let nodeSource = '';
+		let nodeSource;
 		function nodeSources() {
 			const groups = hp.getSubscriptionGroups(data[0]);
-			if (!groups.some(info => info.hash === nodeSource))
-				nodeSource = '';
+			if (nodeSource == null || (nodeSource && !groups.some(info => info.hash === nodeSource))) {
+				const populated = new Set(uci.sections(data[0], 'node').map(node => node.grouphash));
+				nodeSource = groups.find(info => populated.has(info.hash))?.hash || '';
+			}
 			return groups;
 		}
 
@@ -1823,27 +1825,19 @@ return view.extend({
 		o.depends({'filter_nodes': 'disabled', '!reverse': true});
 		o.rmempty = false;
 
-		o = s.taboption('subscription', form.SectionValue, '_advanced', form.NamedSection, 'subscription', 'homeproxy');
-		const advanced = o.subsection;
-		advanced.renderContents = function() {
-			const contents = form.NamedSection.prototype.renderContents.apply(this, arguments);
-			contents.querySelector('.cbi-section-node').id = 'cbi-homeproxy-subscription-advanced';
-			return E('details', {}, [ E('summary', {}, [ _('Advanced settings') ]), contents ]);
-		};
-
-		o = advanced.option(form.Value, 'user_agent', _('User-Agent'));
+		o = s.taboption('subscription', form.Value, 'user_agent', _('User-Agent'));
 		o.default = 'homeproxy';
 		o.placeholder = 'homeproxy';
 		o.rmempty = false;
 
-		o = advanced.option(form.Flag, 'allow_insecure', _('Allow insecure'),
+		o = s.taboption('subscription', form.Flag, 'allow_insecure', _('Allow insecure'),
 			_('Allow insecure connection by default when adding nodes from subscriptions.') +
 			'<br/>' +
 			_('This is <strong>DANGEROUS</strong>, your traffic is almost like <strong>PLAIN TEXT</strong>! Use at your own risk!'));
 		o.rmempty = false;
 		o.onchange = allowInsecureConfirm;
 
-		o = advanced.option(form.ListValue, 'packet_encoding', _('Default packet encoding'));
+		o = s.taboption('subscription', form.ListValue, 'packet_encoding', _('Default packet encoding'));
 		o.value('none', _('None'));
 		o.value('packetaddr', _('packet addr (v2ray-core v5+)'));
 		o.value('xudp', _('XUDP (Xray-core)'));

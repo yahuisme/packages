@@ -198,7 +198,7 @@ return view.extend({
 		});
 
 		m = new form.Map('homeproxy', _('HomeProxy'),
-			_('OpenWrt proxy platform based on sing-box.'));
+			_('OpenWrt / ImmortalWrt proxy platform based on sing-box.'));
 
 		let domainListCache = Object.create(null),
 		    pendingDomainLists = Object.create(null);
@@ -352,12 +352,6 @@ return view.extend({
 		s.tab('diversion', _('Diversion Control'));
 		s.tab('tailscale', _('Tailscale'));
 
-		o = s.taboption('routing', form.ListValue, 'routing_mode', _('Routing mode'));
-		o.value('bypass_mainland_china', _('Bypass mainland China'));
-		o.value('global', _('Global'));
-		o.default = 'bypass_mainland_china';
-		o.rmempty = false;
-
 		o = s.taboption('routing', form.ListValue, 'main_node', _('Main node'));
 		o.value('nil', _('Disable'));
 		o.value('urltest', _('URLTest'));
@@ -479,6 +473,12 @@ return view.extend({
 
 			return true;
 		}
+
+		o = s.taboption('routing', form.ListValue, 'routing_mode', _('Routing mode'));
+		o.value('bypass_mainland_china', _('Bypass mainland China'));
+		o.value('global', _('Global'));
+		o.default = 'bypass_mainland_china';
+		o.rmempty = false;
 
 		o = s.taboption('routing', form.Value, 'routing_port', _('Routing ports'),
 			_('Specify target ports to be proxied. Multiple ports must be separated by commas.'));
