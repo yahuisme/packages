@@ -74,6 +74,72 @@ const watchdog = setTimeout(() => { console.error('UI test timed out'); process.
   click(0); await tick(); await settle(null); expect(0,'更新失败','error');
   click(0); await tick(); await settle([]); expect(0,'更新失败','error');
   click(0); await tick(); await settle({status:0}); expect(0,'已更新','success');
+  // Exercise actual native Map reset, document visibility and route detach/reentry.
+  let polls=0, starts=0, statusPending;
+  const job='resource-job-fixture', rpcReply=(req,value)=>({ok:true,status:200,json:()=>h.w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result:[0,value]}))});
+  const realTimer=h.w.setTimeout.bind(h.w);
+  h.w.setTimeout=(fn,ms,...args)=>realTimer(fn,ms===1000?20:ms,...args);
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  const until=async(test,label)=>{const end=Date.now()+3000;while(!test()){assert(Date.now()<end,label);await sleep(5);}};
+  const visibility=value=>{
+   Object.defineProperty(h.w.document,'visibilityState',{configurable:true,value});
+   h.w.document.dispatchEvent(new h.w.Event('visibilitychange'));
+  };
+  h.mods.request.post=async(url,req)=>{
+   if(['dashboard_manage','resources_update'].includes(req.params[2])) {
+    starts++;
+    const value=await new Promise(resolve=>{pending={resolve};});
+    return rpcReply(req,value);
+   }
+   if(req.params[2]==='resources_job_status') {
+    assert.equal(req.params[3].job,job);polls++;
+    return rpcReply(req,await new Promise((resolve,reject)=>{statusPending={resolve,reject};}));
+   }
+   return original(url,req);
+  };
+  visibility('hidden');
+  h.button('Update resources').click();await tick();
+  expect(0,h.w._('Updating…'),'pending');expect(1,h.w._('Updating…'),'pending');expect(2,'');
+  pending.resolve({state:'running',job});await sleep(70);
+  assert.equal(polls,0,'hidden start never polls');
+  await map.reset();expect(0,h.w._('Updating…'),'pending');
+  await sleep(70);assert.equal(polls,0,'hidden reset never polls');
+  visibility('visible');await until(()=>polls===1,'visible view resumes');
+  await map.reset();await sleep(70);assert.equal(polls,1,'held status is single-flight across reset');
+  visibility('hidden');statusPending.reject(Error('login expired / persistent offline'));
+  await until(()=>result(0).textContent===h.w._('Status unavailable'),'read failure is visible after reset');
+  expect(0,h.w._('Status unavailable'),'neutral');expect(1,h.w._('Status unavailable'),'neutral');expect(2,'');
+  assert.match(result(0).textContent,/状态/,'status uncertainty uses existing Chinese translation');
+  assert([...h.root().querySelectorAll('.hp-resources button')].every(b=>b.disabled),'unknown job retains busy');
+  await sleep(70);assert.equal(polls,1,'hidden after rejected in-flight status stays paused');
+  visibility('visible');await until(()=>polls===2,'foreground retries same job');
+  const detached=h.root();detached.remove();await tick();const detachedHTML=detached.innerHTML;
+  statusPending.reject(Error('still offline after leaving'));await sleep(80);
+  visibility('visible');await sleep(80);assert.equal(polls,2,'no resource views means no polling even in foreground');
+  visibility('hidden');
+  const fresh=await h.app.render(await h.app.load());h.w.document.querySelector('#view').append(fresh);await tick();
+  const reenteredMap=h.mods.dom.findClassInstance(h.root());
+  const reenteredRules=reenteredMap.section(h.mods.form.NamedSection,'config','homeproxy');
+  const reenteredOption=reenteredRules.option(h.mods.form.DummyValue,'_test_status_rules');
+  reenteredOption.render=ruleOption.render;
+  await reenteredMap.reset();await tick();
+  expect(0,h.w._('Status unavailable'),'neutral');expect(1,h.w._('Status unavailable'),'neutral');expect(2,'');
+  assert([...h.root().querySelectorAll('.hp-resources button')].every(b=>b.disabled),'route reentry retains session lock');
+  await sleep(70);assert.equal(polls,2,'hidden reentry stays paused');
+  visibility('visible');await until(()=>polls===3,'visible reentry resumes same job');
+  statusPending.reject(Error('network still unavailable'));await until(()=>polls===4,'visible offline retries');
+  expect(0,h.w._('Status unavailable'),'neutral');assert.equal(starts,1,'outage/reset/reentry never starts a second worker');
+  statusPending.resolve({state:'running'});
+  await until(()=>result(0).textContent===h.w._('Updating…'),'running reply clears unavailable state');
+  expect(0,h.w._('Updating…'),'pending');expect(1,h.w._('Updating…'),'pending');
+  visibility('hidden');await sleep(70);assert.equal(polls,4,'hide cancels the queued next read');
+  visibility('visible');
+  await until(()=>polls===5,'running job continues');
+  statusPending.resolve({state:'done',status:0,resources:[{type:'geoip_cn',status:0},{type:'geosite_cn',status:3}]});
+  await until(()=>[...h.root().querySelectorAll('.hp-resources button')].every(b=>!b.disabled),'terminal evidence unlocks');
+  expect(0,'已更新','success');expect(1,'已是最新版本','success');expect(2,'');
+  assert.equal(starts,1);assert.equal(polls,5);assert.equal(detached.innerHTML,detachedHTML,'detached route is not repainted after reentry');
+  console.log('PASS native resource lifecycle: manual pending, hidden/leave pause, held status across reset, Chinese neutral read failures, same-job reentry/offline recovery, terminal-only unlock');
   assert.equal(notifications,0); assert([...h.root().querySelectorAll('.hp-resources button')].every(b=>!b.disabled));
   assert.equal(h.root().querySelectorAll('.hp-resource-version').length,3,'version text has a scoped shrinkable wrapping container');
   const version=h.root().querySelector('.hp-resource-version');

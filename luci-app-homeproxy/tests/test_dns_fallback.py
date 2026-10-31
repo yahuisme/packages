@@ -85,7 +85,7 @@ class DNSFallbackGeneration(unittest.TestCase):
 
 
 class DNSFallbackRuntime(unittest.TestCase):
-    @unittest.skipUnless(os.environ.get('DNS_RUNTIME_BINARY'), 'Set DNS_RUNTIME_BINARY to verified official 1.14.2 binary')
+    @unittest.skipUnless(os.environ.get('DNS_RUNTIME_BINARY'), 'Set DNS_RUNTIME_BINARY to a verified official sing-box binary')
     def test_real_sing_box_in_private_loopback_namespace(self):
         worker = Path(__file__).with_name('dns_runtime_fixture.py')
         parent = os.readlink('/proc/self/ns/net')

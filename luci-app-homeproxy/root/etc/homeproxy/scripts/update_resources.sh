@@ -110,8 +110,22 @@ verify_blob() {
 	ucode -l fs -l digest -e 'let s = fs.readfile(ARGV[0]); exit(s == null || digest.sha1("blob " + length(s) + "\u0000" + s) != ARGV[1]);' "$1" "$2"
 }
 
-exec 9>"$RUN_DIR/update_resources.lock"
-flock -n 9 >/dev/null 2>&1 || exit 2
+# Resource task controls must survive init's recursive RUN_DIR service chown.
+JOB_DIR="${RUN_DIR}.resources"
+[ -d "$JOB_DIR" ] || mkdir -m 0700 "$JOB_DIR" || exit 1
+ucode -l fs -e 'let s=fs.lstat(ARGV[0]), p=fs.stat(ARGV[1]); exit(s?.type != "directory" || s.uid != p?.uid);' "$JOB_DIR" "${JOB_DIR%/*}" || exit 1
+chmod 0700 "$JOB_DIR" || exit 1
+if [ "$3" = --job ]; then
+	# Only the detached wrapper passes an already-locked descriptor. Keep it
+	# through finish() so neither cron nor another UI task can enter between
+	# publication and task-result capture.
+	flock -n 9 >/dev/null 2>&1 || exit 1
+	[ "$HOMEPROXY_RESOURCE_JOB_RESULT" = "$JOB_DIR/transaction" ] || exit 1
+	RESULT_PATH="$HOMEPROXY_RESOURCE_JOB_RESULT"
+else
+	exec 9>"$JOB_DIR/update.lock"
+	flock -n 9 >/dev/null 2>&1 || exit 2
+fi
 
 TMP_DIR=""
 RESOURCE_STAGE="${RESOURCES_DIR}.new.$$"

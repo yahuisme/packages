@@ -88,7 +88,8 @@ def run(binary, parent_namespace):
         routes = json.loads(subprocess.check_output(['ip', '-j', family, 'route', 'show', 'table', 'all'], text=True))
         assert all(route.get('dev') == 'lo' for route in routes), routes
     version = subprocess.check_output([binary, 'version'], text=True)
-    assert version.splitlines()[0] in ('sing-box version 1.14.2', 'sing-box version 1.14.3'), version
+    expected_version = os.environ.get('DNS_RUNTIME_VERSION', '1.14.4')
+    assert version.splitlines()[0] == 'sing-box version ' + expected_version, version
     report = {'namespace': namespace, 'parent_namespace': parent_namespace,
               'interfaces': ['lo'], 'version': version.splitlines()[0], 'cases': []}
     servers = [Upstream(15301, 'main'), Upstream(15302, 'china'), Upstream(53, 'default')]

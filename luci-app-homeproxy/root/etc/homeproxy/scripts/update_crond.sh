@@ -27,6 +27,7 @@ if [ "$RESOURCE_STATUS" -ne 2 ]; then
 	[ "$DASHBOARD_UPDATED" = "1" ] || DASHBOARD_UPDATED=0
 fi
 RESOURCES_UPDATED=$((CORE_RESOURCES_UPDATED || DASHBOARD_UPDATED))
+RELOAD_STATUS=0
 
 SUBSCRIPTION_URLS="$(uci -q get homeproxy.subscription.subscription_url)"
 SUBSCRIPTION_STATUS=0
@@ -43,7 +44,15 @@ if [ "$RESOURCES_UPDATED" -eq 1 ] && \
 	{ [ -z "$SUBSCRIPTION_URLS" ] || [ "$SUBSCRIPTION_STATUS" -eq 2 ]; } && \
 	   /etc/init.d/homeproxy running >/dev/null 2>&1; then
 	if ! /etc/init.d/homeproxy reload >/dev/null 2>&1; then
+		RELOAD_STATUS=1
 		printf '%s [RESOURCES] Failed to reload HomeProxy after updating resources.\n' \
 			"$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_PATH"
 	fi
 fi
+
+# Preserve independent updates; busy/current are deliberate non-failure states.
+if { [ "$RESOURCE_STATUS" -ne 0 ] && [ "$RESOURCE_STATUS" -ne 2 ] && [ "$RESOURCE_STATUS" -ne 3 ]; } || \
+	{ [ -n "$SUBSCRIPTION_URLS" ] && [ "$SUBSCRIPTION_STATUS" -ne 0 ] && [ "$SUBSCRIPTION_STATUS" -ne 2 ]; }; then
+	exit 1
+fi
+exit "$RELOAD_STATUS"

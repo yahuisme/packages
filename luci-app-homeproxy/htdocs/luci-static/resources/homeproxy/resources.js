@@ -10,6 +10,50 @@ const resourceSession = { busy: false, revision: 0, results: {}, views: new Set(
 const callResStatus = rpc.declare({ object: 'luci.homeproxy', method: 'resources_get', expect: { '': {} }, reject: true });
 const callResUpdate = rpc.declare({ object: 'luci.homeproxy', method: 'resources_update', params: ['scope'], expect: { '': {} }, reject: true });
 const callDashboard = rpc.declare({ object: 'luci.homeproxy', method: 'dashboard_manage', params: ['action'], expect: { '': {} }, reject: true });
+const callResJobStatus = rpc.declare({ object: 'luci.homeproxy', method: 'resources_job_status', params: ['job'], expect: { '': {} }, reject: true });
+function resourceTaskVisible() {
+	return document.visibilityState !== 'hidden' &&
+		Array.from(resourceSession.views).some((view) => view.connected());
+}
+async function waitResourceTask(result, report) {
+	if (result?.state !== 'running') return result;
+	const job = result.job;
+	if (typeof job !== 'string' || !job) return { status: 1 };
+	for (;;) {
+		// Pause reads, not the backend worker or the shared mutation lock.
+		// Reentry/visibility resumes this same promise and job, without a start RPC.
+		await new Promise((resolve) => {
+			let timer;
+			const wake = () => {
+				if (timer != null) window.clearTimeout(timer);
+				timer = null;
+				if (resourceTaskVisible()) timer = window.setTimeout(() => {
+					timer = null;
+					if (!resourceTaskVisible()) return;
+					document.removeEventListener('visibilitychange', wake);
+					resourceSession.wake = null;
+					resolve();
+				}, 1000);
+			};
+			resourceSession.wake = wake;
+			document.addEventListener('visibilitychange', wake);
+			wake();
+		});
+		if (!resourceTaskVisible()) continue;
+		try {
+			const status = await callResJobStatus(job);
+			if (status?.state === 'running') {
+				report(_('Updating…'), 'pending');
+				continue;
+			}
+			return status?.state === 'done' ? status : { status: 1 };
+		} catch (e) {
+			// Status transport loss is uncertainty, not updater failure or success.
+			// Retain busy and retry only this job when a visible view is attached.
+			report(_('Status unavailable'), 'neutral');
+		}
+	}
+}
 function openDashboard() {
 	return L.resolveDefault(callResStatus(), {}).then((res) => {
 		const dashboard = Array.isArray(res.resources) ? res.resources.find((r) => r?.type === 'dashboard') : null;
@@ -51,11 +95,16 @@ function getResources(o, types) {
 	});
 	const setResourceResult = (type, text, status) => {
 		state.results[type] = { text, status };
+		if (!root || root.isConnected) paintResult(type, text, status);
+		state.views.forEach((view) => {
+			if (view.connected()) view.paintResult(type, text, status);
+		});
+	};
+	const paintResult = (type, text, status) => {
 		const element = resourceResults[type];
-		if (element) {
-			element.textContent = text;
-			element.dataset.status = status;
-		}
+		if (!element) return;
+		element.textContent = text;
+		element.dataset.status = status;
 	};
 	const showResult = (type, res, action) => {
 		let text, status = 'error';
@@ -85,9 +134,11 @@ function getResources(o, types) {
 		// Manual participation comes from the locked backend transaction, not the DOM.
 		if (scope === 'manual') {
 			resources.forEach((r) => setResourceResult(r.type, '', 'neutral'));
-		} else targets.forEach((type) => setResourceResult(type, _('Updating…'), 'pending'));
+		}
+		const report = (text, status) => targets.forEach((type) => setResourceResult(type, text, status));
+		report(_('Updating…'), 'pending');
 		return L.resolveDefault(scope === 'status' ? Promise.resolve({}) :
-			scope === 'dashboard' ? callDashboard(action === 'remove' ? 'remove' : 'update') : callResUpdate(scope), {}).then((res) => {
+			scope === 'dashboard' ? callDashboard(action === 'remove' ? 'remove' : 'update') : callResUpdate(scope), {}).then((res) => waitResourceTask(res, report)).then((res) => {
 			if (scope === 'manual' && Array.isArray(res.resources) && res.resources.length) {
 				res.resources.forEach((item) => {
 					if (item && resources.some((r) => r.type === item.type))
@@ -200,8 +251,13 @@ function getResources(o, types) {
 			]),
 			E('div', { 'class': 'cbi-section' }, [ table ])
 		]);
-		const view = { sync, refresh };
-		lifecycle.watch(root, () => { state.views.add(view); sync(); }, () => state.views.delete(view));
+		const view = { sync, refresh, paintResult, connected: () => root.isConnected };
+		lifecycle.watch(root, () => {
+			state.views.add(view);
+			Object.entries(state.results).forEach(([type, result]) => paintResult(type, result.text, result.status));
+			sync();
+			state.wake?.();
+		}, () => { state.views.delete(view); state.wake?.(); });
 		return root;
 	});
 }

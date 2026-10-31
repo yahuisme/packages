@@ -17,46 +17,35 @@ import zipfile
 APP = Path(__file__).resolve().parents[1]
 
 class ResourceScopes(unittest.TestCase):
-    def test_rpc_request_contract(self):
+    def rpc_fixture(self, text, method='resources_update', args=None, code=0):
         src = (APP/'root/usr/share/rpcd/ucode/luci.homeproxy').read_text()
-        method = src[src.index('\tresources_update: {'):src.index('\n};', src.index('\tresources_update: {'))]
-        program = '''let calls = [], results = [];
+        helper = src[src.index('function resourceTask('):src.index('const RESOURCES = {')]
+        methods = src[src.index('\tdashboard_manage: {'):src.index('\n};', src.index('\tdashboard_manage: {'))]
+        program = """let calls = [];
 const HP_DIR='/fixture', RUN_DIR='/run';
 function cursor() { return {load:function(){},get:function(){return null;}}; }
 function shellQuote(s) { return s; }
-function readfile(p) { return 'status=0\ncore_updated=1\n'; }
-function system(s) { push(calls,s); return 0; }
-const methods={''' + method + '''};
-for (let args in [{}, {scope:'all'}, {scope:'geoip'}, {scope:'geosite'}, {scope:'manual'}, {scope:''}, {scope:'bad;touch /tmp/pwn'}, {scope:1}])
- push(results,methods.resources_update.call({args}));
-print(sprintf('%J',{args:methods.resources_update.args,calls,results}));'''
+function popen(s, mode) { push(calls,s); return {
+ read:function(){return TEXT;},close:function(){return CODE;}}; }
+""".replace('TEXT', json.dumps(text)).replace('CODE',str(code)) + helper + 'const methods={'+methods+'};\n' +             'const result=methods.'+method+'.call({args:'+json.dumps(args or {})+'});\nprint(sprintf("%J",{result,calls}));'
         p = subprocess.run(['ucode','-e',program],capture_output=True,text=True,check=True)
-        data = json.loads(p.stdout)
-        self.assertEqual(data['args'], {'scope':'all'})
-        self.assertEqual(data['calls'], ['/fixture/scripts/update_resources.sh rules '+s for s in ['all','all','geoip','geosite','manual']])
-        self.assertEqual([x['status'] for x in data['results']], [0]*5+[1]*3)
+        return json.loads(p.stdout)
+
+    def test_rpc_request_contract(self):
+        for scope in ['all','geoip','geosite','manual']:
+            data = self.rpc_fixture('state=running\njob=abc123\n', args={'scope':scope})
+            self.assertEqual(data['calls'], ['/fixture/scripts/resource_job.sh start rules '+scope])
+            self.assertEqual(data['result'], {'state':'running','job':'abc123'})
+        for scope in ['', 'bad;touch /tmp/pwn', 1]:
+            data = self.rpc_fixture('', args={'scope':scope})
+            self.assertEqual(data, {'calls':[], 'result':{'status':1}})
 
     def rpc_result(self, status, file_status, flags):
-        src = (APP/'root/usr/share/rpcd/ucode/luci.homeproxy').read_text()
-        method = src[src.index('\tresources_update: {'):src.index('\n};', src.index('\tresources_update: {'))]
-        with tempfile.TemporaryDirectory() as temp:
-            (Path(temp)/'update_resources.result').write_text(
-                f'status={file_status}\n' + ''.join(f'{k}={v}\n' for k, v in flags.items()))
-            program = '''import { readfile as fs_readfile } from 'fs';
-let reads = [], calls = [];
-const HP_DIR='/fixture', RUN_DIR=''' + json.dumps(temp) + ''';
-function cursor() { return {load:function(){},get:function(){return null;}}; }
-function shellQuote(s) { return s; }
-function readfile(p) { push(reads,p); return fs_readfile(p); }
-function system(s) { push(calls,s); return ''' + str(status) + '''; }
-const methods={''' + method + '''};
-const result=methods.resources_update.call({args:{scope:'manual'}});
-print(sprintf('%J',{result,reads,calls}));'''
-            p = subprocess.run(['ucode','-e',program], capture_output=True, text=True, check=True)
-            data = json.loads(p.stdout)
-            self.assertEqual(data['calls'], ['/fixture/scripts/update_resources.sh rules manual'])
-            self.assertEqual(data['reads'], [] if status == 2 else [temp+'/update_resources.result'])
-            return data['result']
+        text = 'state=done\nstatus='+str(file_status)+'\n'+''.join(f'{k}={v}\n' for k,v in flags.items())
+        if status == 2:
+            text = 'state=busy\nstatus=2\n'
+        return self.rpc_fixture(text, method='resources_job_status', args={'job':'abc123'},
+                                code=0 if status in (0,2) or status == file_status else 1)['result']
 
     def test_rpc_per_item_results(self):
         result = self.rpc_result(0, 0, {'geoip_cn':0, 'geosite_cn':3, 'dashboard':3})
@@ -73,17 +62,19 @@ print(sprintf('%J',{result,reads,calls}));'''
                 self.assertIs(result['apply_failed'], bool(apply))
                 self.assertIs(result['rollback_failed'], bool(rollback))
 
-    def test_rpc_mismatched_result_discards_stale_flags(self):
+    def test_rpc_failed_wrapper_discards_stale_flags(self):
         result = self.rpc_result(1, 0, {key:1 for key in
             ['apply_failed', 'rollback_failed', 'core_updated', 'dashboard_updated']})
-        self.assertEqual(result, dict(status=1, apply_failed=False, rollback_failed=False,
-            core_updated=False, dashboard_updated=False, updated=None, failed=None, resources=[]))
+        self.assertEqual(result, dict(state='done',status=1))
 
     def test_rpc_busy_does_not_read_old_result(self):
-        # Even a matching stale status must never supply flags while the lock is held.
         result = self.rpc_result(2, 2, {'apply_failed':1, 'rollback_failed':1})
-        self.assertEqual(result, dict(status=2, apply_failed=False, rollback_failed=False,
-            core_updated=False, dashboard_updated=False, updated=None, failed=None, resources=[]))
+        self.assertEqual(result, dict(state='done',status=2))
+
+    def test_rpc_status_rejects_invalid_job(self):
+        for job in ['', '../id', ';touch /tmp/pwn', 1]:
+            self.assertEqual(self.rpc_fixture('',method='resources_job_status',args={'job':job}),
+                             {'result':{'state':'done','status':1},'calls':[]})
 
     def test_http_scope_transactions(self):
         evidence = []
@@ -157,7 +148,7 @@ print(sprintf('%J',{result,reads,calls}));'''
                     self.assertEqual(dashboard.exists(),installed)
                     run(3); self.assertEqual(snapshot(),after)
                     self.assertEqual(item_results(),dict.fromkeys(expected,3))
-                    with (root/'run/update_resources.lock').open('w') as lock:
+                    with (root/'run.resources/update.lock').open('w') as lock:
                         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                         self.assertEqual(run(2), [])
                         self.assertEqual(run(2, ['dashboard-update']), [])

@@ -17,7 +17,7 @@ const RESOURCES = { dashboard: { version: '/fixture/dashboard/dashboard.ver', so
 function readfile(p) { if (p == '/fixture/dashboard/index.html') return installed ? 'html' : null; if (p == '/fixture/dashboard/dashboard.ver') return '20260908094002 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'; return ''; }
 function cursor() { return { load: function() {}, get: function() { return null; } }; }
 function shellQuote(s) { return s; }
-function system(s) { push(calls, s); return 0; }
+function resourceTask(args, start) { push(calls, args); return { state:'running', job:'fixture' }; }
 const methods = {''' + status + '''};
 let absent = methods.resources_get.call();
 installed = true;
@@ -29,7 +29,8 @@ print(sprintf('%J', { absent, present, calls }));'''
         self.assertFalse(data['absent']['resources'][0]['installed'])
         self.assertTrue(data['present']['resources'][0]['installed'])
         self.assertEqual(data['present']['resources'][0]['version'], '20260908094002')
-        self.assertEqual(data['calls'], ['/fixture/scripts/update_resources.sh dashboard-update', '/fixture/scripts/update_resources.sh dashboard-remove'])
+        self.assertEqual(data['calls'], ['start dashboard-update all', 'start dashboard-remove all'])
+        self.assertIn('resources_job_status', json.loads((APP/'root/usr/share/rpcd/acl.d/luci-app-homeproxy.json').read_text())['luci-app-homeproxy']['read']['ubus']['luci.homeproxy'])
         acl = json.loads((APP/'root/usr/share/rpcd/acl.d/luci-app-homeproxy.json').read_text())['luci-app-homeproxy']
         self.assertIn('dashboard_manage', acl['write']['ubus']['luci.homeproxy'])
         self.assertNotIn('dashboard_manage', acl['read']['ubus']['luci.homeproxy'])

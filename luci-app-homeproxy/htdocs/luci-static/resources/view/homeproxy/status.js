@@ -29,6 +29,7 @@ const callLogClean = rpc.declare({
 	object: 'luci.homeproxy',
 	method: 'log_clean',
 	params: ['type'],
+	reject: true,
 	expect: { '': {} }
 });
 

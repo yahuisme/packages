@@ -30,7 +30,10 @@ fi
 rm -rf /tmp/luci-*
 rm -f /etc/homeproxy/dashboard/.etag
 [ ! -d /etc/homeproxy/dashboard ] || chmod -R a+rX /etc/homeproxy/dashboard
-[ ! -f /var/run/homeproxy/sing-box-c.json ] || \
-	/etc/init.d/homeproxy restart >/dev/null 2>&1 || \
-	printf '%s\n' 'HomeProxy: failed to restart the running service after upgrade.' >&2
+if [ -f /var/run/homeproxy/sing-box-c.json ] || [ -f /var/run/homeproxy/sing-box-s.json ]; then
+	if ! /etc/init.d/homeproxy reload >/dev/null 2>&1; then
+		printf '%s\n' 'HomeProxy: failed to reload the running service after upgrade.' >&2
+		exit 1
+	fi
+fi
 exit 0

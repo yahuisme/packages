@@ -31,6 +31,7 @@ const callWriteDomainLists = rpc.declare({
 	object: 'luci.homeproxy',
 	method: 'domainlist_write',
 	params: ['lists', 'routing_mode', 'group_states', 'groups_complete'],
+	reject: true,
 	expect: { '': {} }
 });
 

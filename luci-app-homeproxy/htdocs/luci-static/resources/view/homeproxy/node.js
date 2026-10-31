@@ -781,7 +781,8 @@ function renderNodeSettings(section, data, features, node_latency_row_state) {
 
 		outputEl.appendChild(E('button', {
 			'class': 'cbi-button cbi-button-action',
-			'click': ui.createHandlerFn(this, 'onclick', section_id),
+			'type': 'button',
+			'click': ui.createHandlerFn(this, (section_id, ev) => this.onclick(ev, section_id), section_id),
 			'disabled': (this.map.readonly || row_state.state === NODE_LATENCY_ROW_STATES.TESTING) ? true : null
 		}, [ getNodeLatencyActionTitle(row_state) ]));
 
@@ -1829,6 +1830,7 @@ return view.extend({
 		o = s.taboption('subscription', form.DynamicList, 'filter_keywords', _('Filter keywords'),
 			_('Drop/keep nodes that contain the specific keywords. <a target="_blank" href="https://www.toolbox365.cn/tools/regex/">Regex</a> is supported.'));
 		o.depends({'filter_nodes': 'disabled', '!reverse': true});
+		o.retain = true;
 		o.rmempty = false;
 
 		o = s.taboption('subscription', form.Value, 'user_agent', _('User-Agent'));

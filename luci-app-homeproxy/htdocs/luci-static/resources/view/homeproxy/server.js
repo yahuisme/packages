@@ -27,6 +27,7 @@ const CBIGenValue = form.Value.extend({
 
 		(node.querySelector('.control-group') || node).appendChild(E('button', {
 			class: 'cbi-button cbi-button-add',
+			type: 'button',
 			title: _('Generate'),
 			click: ui.createHandlerFn(this, handleGenKey, this.hp_options || this.option)
 		}, [ _('Generate') ]));
@@ -57,6 +58,7 @@ function handleGenKey(option) {
 		object: 'luci.homeproxy',
 		method: 'singbox_generator',
 		params: ['type', 'params'],
+		reject: true,
 		expect: { '': {} }
 	});
 
@@ -67,7 +69,9 @@ function handleGenKey(option) {
 					widget(k).value = v ?? '';
 				});
 			else
-				ui.addNotification(null, E('p', _('Failed to generate %s, error: %s.').format(type, res.error)));
+				throw new Error(res.error || 'unknown_error');
+		}).catch((error) => {
+			ui.addNotification(null, E('p', _('Failed to generate %s, error: %s.').format(type, error.message || String(error))), 'error');
 		});
 	} else {
 		let password, required_method;

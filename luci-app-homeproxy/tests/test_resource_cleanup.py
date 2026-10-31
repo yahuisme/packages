@@ -569,7 +569,9 @@ exec busybox ash "$SCRIPT"
         self.run_dir.mkdir()
         stale = self.root/'resources.new.1234'
         stale.mkdir()
-        with (self.run_dir/'update_resources.lock').open('w') as lock:
+        controls = Path(str(self.run_dir)+'.resources')
+        controls.mkdir(mode=0o700, exist_ok=True)
+        with (controls/'update.lock').open('w') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             self.update(2)
             self.assertTrue(stale.exists())

@@ -11,12 +11,16 @@ async function until(check) { const end=performance.now()+3000; while(!check()) 
   assert.equal(h.root().querySelectorAll('textarea').length,1,'one selected-source log viewer');
   const source=()=>h.root().querySelector('select[aria-label="Log source"]');
   assert(source(),'accessible source selector');
-  assert.equal(source().value,'sing-box-c','client runtime is the default log source');
+  assert.equal(source().value,'homeproxy','orchestration log is the default source');
   assert.deepEqual([...source().options].map(o=>o.value),['homeproxy','sing-box-c','sing-box-s']);
   const reads=[]; let held;
   h.mods.fs.read_direct=async path=>{reads.push(path);return 'line one\nline two\nline three';};
   for(const poll of h.polls) await poll();
-  assert.deepEqual(reads,['/var/run/homeproxy/sing-box-c.log'],'only selected log is read');
+  assert.deepEqual(reads,['/var/run/homeproxy/homeproxy.log'],'only default orchestration log is read');
+  assert(h.root().querySelector('[aria-label="Log level"]').hidden,'default orchestration source has no core log-level control');
+  source().value='sing-box-c';source().dispatchEvent(new h.w.Event('change',{bubbles:true}));await tick();await tick();
+  assert.equal(reads.at(-1),'/var/run/homeproxy/sing-box-c.log','explicit client source reads its own log');
+  assert(!h.root().querySelector('[aria-label="Log level"]').hidden,'client source enables core log-level control');
   const area=()=>h.root().querySelector('textarea');
   area().focus();area().setSelectionRange(2,7,'backward');area().scrollTop=12;area().scrollLeft=6;
   h.mods.fs.read_direct=async path=>{reads.push(path);return 'line one\nline two\nline three\nnew';};

@@ -128,8 +128,9 @@ binary to also check every generated JSON. This is not router traffic evidence.
 For DNS timeout/fallback checks:
 
 ```sh
-DNS_RUNTIME_BINARY=/path/to/verified/sing-box-1.14.3 \
-SING_BOX_CHECK=/path/to/verified/sing-box-1.14.3 \
+DNS_RUNTIME_VERSION=1.14.4 \
+DNS_RUNTIME_BINARY=/path/to/verified/sing-box-1.14.4 \
+SING_BOX_CHECK=/path/to/verified/sing-box-1.14.4 \
 python3 luci-app-homeproxy/tests/test_dns_fallback.py -v
 ```
 
@@ -139,6 +140,11 @@ private upstream servers and synthetic rule sets: normal/delayed responses,
 3-second timeout fallback, explicit domain precedence, caching and global mode.
 It does not test live proxy transport or TUN routing. Without `DNS_RUNTIME_BINARY`,
 only the runtime test is skipped; generator regressions still run.
+
+`test_server_generation.py` executes the complete server generator for all 12
+protocols and five VMess transports using private UCI/path fixtures and a local
+self-signed certificate. Set `SING_BOX_CHECK` to validate every output with the
+verified official core; no listener or certificate issuance is started.
 
 # Reload regression
 
@@ -225,6 +231,18 @@ It verifies that `--start` returns immediately, busy reentry is reported, and
 both successful and failed worker exit codes arrive through the status RPC.
 CI passes `OPENWRT_ROOTFS` from the staged rootfs archive and runs this gate as
 root; it does not contact subscriptions or invoke router services.
+
+Resource mutation RPCs also return short background-job identifiers. The native
+`tests/resource-rpc-native.py` gate delays private rule-set and dashboard HTTP
+metadata by 22 seconds and checks short start/status requests, exact installed
+bytes, scope restrictions, busy reentry and retained rollback failures. Its
+decoder and service boundaries remain explicit stubs. Task controls live in a
+root-only sibling of the service-owned runtime directory.
+
+`test_upgrade_defaults.py`, `test_cron_status.py` and the certificate cleanup
+suite cover upgrade reload/retry, child failure propagation, private certificate
+staging, preplanted symlinks and the final runtime uid/mode contract. No host
+defaults or services are invoked.
 
 # Audit-boundary regressions
 

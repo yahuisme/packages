@@ -391,6 +391,7 @@ return baseclass.extend({
 			object: 'luci.homeproxy',
 			method: 'certificate_write',
 			params: ['filename'],
+			reject: true,
 			expect: { '': {} }
 		});
 

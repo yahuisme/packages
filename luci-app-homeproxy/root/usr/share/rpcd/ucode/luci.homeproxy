@@ -20,6 +20,42 @@ function hasKernelModule(kmod) {
 	return (system(sprintf('[ -e "/lib/modules/$(uname -r)"/%s ]', shellQuote(kmod))) === 0);
 }
 
+// Both short methods use the lock-backed wrapper; no RPC waits for a download.
+function resourceTask(args, start) {
+	let proxy = '';
+	if (start) {
+		const hpuci = cursor();
+		hpuci.load('homeproxy');
+		const port = int(hpuci.get('homeproxy', 'infra', 'mixed_port')) || 5330;
+		if (hpuci.get('homeproxy', 'subscription', 'update_via_proxy') === '1')
+			proxy = `HOMEPROXY_UPDATE_PROXY=${shellQuote(`http://127.0.0.1:${port}`)} `;
+	}
+	const fd = popen(`${proxy}${HP_DIR}/scripts/resource_job.sh ${args}`, 'r');
+	if (!fd) return { state: 'done', status: 1 };
+	const text = fd.read('all') || '';
+	if (fd.close() !== 0) return { state: 'done', status: 1 };
+	const result = {};
+	for (let line in split(trim(text), '\n')) {
+		const pair = match(line, /^([^=]+)=(.*)$/);
+		if (pair) result[pair[1]] = pair[2];
+	}
+	if (result.state === 'running' && (!start || result.job))
+		return { state: 'running', job: result.job || null };
+	if (result.state === 'busy') return { state: 'done', status: 2 };
+	if (result.state !== 'done' || !(result.status in ['0', '1', '2', '3']))
+		return { state: 'done', status: 1 };
+	const resources = [];
+	for (let name in ['geoip_cn', 'geosite_cn', 'dashboard'])
+		if (result[name] in ['0', '1', '3'])
+			push(resources, { type: name, status: int(result[name]) });
+	return {
+		state: 'done', status: int(result.status), resources,
+		core_updated: result.core_updated === '1', dashboard_updated: result.dashboard_updated === '1',
+		apply_failed: result.apply_failed === '1', rollback_failed: result.rollback_failed === '1',
+		updated: result.updated || null, failed: result.failed || null
+	};
+}
+
 const RESOURCES = {
 	geoip_cn: {
 		source: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/geoip-cn.srs',
@@ -330,12 +366,15 @@ const methods = {
 		args: { filename: 'filename' },
 		call: function(req) {
 			const tmpcert = '/tmp/homeproxy_certificate.tmp';
+			let stage;
 			const finish = (error, newcert) => {
 				const paths = newcert ? [ tmpcert, newcert ] : [ tmpcert ];
 				for (let path in paths) {
 					if (system(`/bin/rm -f ${shellQuote(path)}`) !== 0 || lstat(path))
 						error = 'failed to remove temporary certificate file';
 				}
+				if (stage && (!rmdir(stage) || lstat(stage)))
+					error = 'failed to remove temporary certificate file';
 				return error ? { result: false, error } : { result: true };
 			};
 			const writeCertificate = (filename, kind) => {
@@ -411,15 +450,21 @@ const methods = {
 					filecontent += '\n';
 
 				const certfile = `${HP_DIR}/certs/${filename}.pem`;
-				const newcert = `${certfile}.new`;
-				system(`/bin/mkdir -p ${shellQuote(HP_DIR + '/certs')}`);
+				// The service owns certs for ACME. Stage beside it in a root-only
+				// directory, never through a predictable service-writable .new path.
+				stage = makeTempDir(`${HP_DIR}/.certificate.XXXXXX`);
+				if (!stage || (lstat(stage)?.mode & 0777) !== 0700)
+					return finish('failed to write certificate file');
+				const newcert = `${stage}/certificate.pem`;
+				if (system(`/bin/mkdir -p ${shellQuote(HP_DIR + '/certs')}`) !== 0)
+					return finish('failed to write certificate file');
 				if (writefile(newcert, filecontent) === null ||
 					lstat(newcert)?.size !== length(filecontent)) {
 					return finish('failed to write certificate file', newcert);
 				}
 				if ((kind === 'private' && system(`/bin/chown sing-box:sing-box ${shellQuote(newcert)}`) !== 0) ||
 					system(`/bin/chmod ${kind === 'private' ? '600' : '644'} ${shellQuote(newcert)}`) !== 0 ||
-					system(`/bin/mv -f ${shellQuote(newcert)} ${shellQuote(certfile)}`) !== 0) {
+					!rename(newcert, certfile)) {
 					return finish('failed to protect private key file', newcert);
 				}
 
@@ -1012,65 +1057,25 @@ const methods = {
 		args: { action: 'update' },
 		call: function(request) {
 			const action = request.args.action;
-			if (!(action in ['update', 'remove']))
-				return { status: 1 };
-			const hpuci = cursor();
-			hpuci.load('homeproxy');
-			const port = int(hpuci.get('homeproxy', 'infra', 'mixed_port')) || 5330;
-			const proxy = hpuci.get('homeproxy', 'subscription', 'update_via_proxy') === '1' ?
-				`HOMEPROXY_UPDATE_PROXY=${shellQuote(`http://127.0.0.1:${port}`)} ` : '';
-			const status = system(`${proxy}${HP_DIR}/scripts/update_resources.sh dashboard-${action}`);
-			let result = {};
-			if (status !== 2) {
-				for (let line in split(trim(readfile(`${RUN_DIR}/dashboard.result`) || ''), '\n')) {
-					const pair = match(line, /^([^=]+)=(.*)$/);
-					if (pair) result[pair[1]] = pair[2];
-				}
-			}
-			if (result.status !== `${status}`) result = {};
-			return { status, apply_failed: result.apply_failed === '1', rollback_failed: result.rollback_failed === '1' };
+			if (!(action in ['update', 'remove'])) return { status: 1 };
+			return resourceTask(`start dashboard-${action} all`, true);
 		}
 	},
 	resources_update: {
 		args: { scope: 'all' },
 		call: function(request) {
 			const scope = request.args.scope ?? 'all';
-			if (scope !== 'all' && scope !== 'geoip' && scope !== 'geosite' && scope !== 'manual') return { status: 1 };
-			const hpuci = cursor();
-			hpuci.load('homeproxy');
-			const mixed_port = int(hpuci.get('homeproxy', 'infra', 'mixed_port')) || 5330;
-			const update_proxy = (hpuci.get('homeproxy', 'subscription', 'update_via_proxy') === '1') ?
-				`HOMEPROXY_UPDATE_PROXY=${shellQuote(`http://127.0.0.1:${mixed_port}`)} ` : '';
-			const status = system(`${update_proxy}${HP_DIR}/scripts/update_resources.sh rules ${shellQuote(scope)}`);
-			let update_result = {};
-			if (status !== 2) {
-				for (let line in split(trim(readfile(`${RUN_DIR}/update_resources.result`) || ''), '\n')) {
-					const pair = match(line, /^([^=]+)=(.*)$/);
-					if (pair)
-						update_result[pair[1]] = pair[2];
-				}
-			}
-			if (update_result.status !== `${status}`)
-				update_result = {};
-			const resources = [];
-			for (let name in ['geoip_cn', 'geosite_cn', 'dashboard']) {
-				if (update_result[name] in ['0', '1', '3'])
-					push(resources, { type: name, status: int(update_result[name]) });
-			}
-			const core_updated = update_result.core_updated === '1';
-			const dashboard_updated = update_result.dashboard_updated === '1';
-			const apply_failed = update_result.apply_failed === '1';
-			const rollback_failed = update_result.rollback_failed === '1';
-			return {
-				status,
-				resources,
-				core_updated,
-				dashboard_updated,
-				apply_failed,
-				rollback_failed,
-				updated: update_result.updated || null,
-				failed: update_result.failed || null
-			};
+			if (!(scope in ['all', 'geoip', 'geosite', 'manual'])) return { status: 1 };
+			return resourceTask(`start rules ${scope}`, true);
+		}
+	},
+	resources_job_status: {
+		args: { job: '' },
+		call: function(request) {
+			const job = request.args.job;
+			if (type(job) !== 'string' || !match(job, /^[a-zA-Z0-9-]{1,64}$/))
+				return { state: 'done', status: 1 };
+			return resourceTask(`status ${shellQuote(job)}`, false);
 		}
 	}
 };

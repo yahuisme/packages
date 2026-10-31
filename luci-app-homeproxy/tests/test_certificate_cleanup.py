@@ -25,10 +25,15 @@ class CertificateCleanup(unittest.TestCase):
         binary = helper[helper.index('export function isBinary'):helper.index('export function getTime')]
         cert = rpc[rpc.index('\tcertificate_write: {'):rpc.index('\n\tconnection_check: {')]
         cert = cert.replace("'/tmp/homeproxy_certificate.tmp'", json.dumps(str(self.upload))).rstrip().rstrip(',')
-        pre = '''import {lstat,readfile as rr,writefile as rw,popen} from 'fs';
+        allocator = rpc[rpc.index('function makeTempDir('):rpc.index('\nfunction validDomainListId(')]
+        pre = '''import {lstat,rmdir,dirname,rename as rn,readfile as rr,writefile as rw,popen} from 'fs';
 const HP_DIR=%s, FAULT=%s;
+function rename(a,b){return FAULT==='mv' ? false : rn(a,b);}
 function readfile(p){if(FAULT==='read')return null;return rr(p);}
-function writefile(p,c){if(FAULT==='short')return rw(p,substr(c,0,4));return rw(p,c);}
+function writefile(p,c){
+ if(FAULT==='private-stage' && ((lstat(dirname(p))?.mode & 0777)!==0700 || lstat(dirname(p))?.uid!==0))die('certificate staging is not root-only');
+ if(FAULT==='short')return rw(p,substr(c,0,4));return rw(p,c);
+}
 function system(s){
  s=replace(s, 'sing-box:sing-box', %s);
  if(FAULT==='chown' && index(s,'/bin/chown')===0)return 1;
@@ -40,7 +45,7 @@ function system(s){
 ''' % (json.dumps(str(self.root)), json.dumps(fault),
        json.dumps('5566:5566' if os.geteuid() == 0 else f'{os.getuid()}:{os.getgid()}'))
         script = self.root / 'case.uc'
-        script.write_text(pre + (quote + binary).replace('export function', 'function') +
+        script.write_text(pre + (quote + binary).replace('export function', 'function') + allocator +
                           'const methods={' + cert + '};\nprint(sprintf("%J", methods.certificate_write.call({args:{filename:' + json.dumps(filename) + '}})));')
         result = subprocess.run(['ucode', '-L', os.environ.get('UCODE_LIB_DIR', '/opt/test-tools/ucode/build'), str(script)],
                                 text=True, capture_output=True, timeout=10)
@@ -77,6 +82,38 @@ function system(s){
         self.assertFalse(self.invoke('chown', filename='server_privatekey')['result'])
         self.assertEqual(cert.read_text(), 'OLD KEY')
         self.assertFalse((cert.parent / 'server_privatekey.pem.new').exists())
+
+    @unittest.skipUnless(os.geteuid() == 0, 'root-only staging boundary requires root')
+    def test_private_key_is_written_only_inside_root_only_staging(self):
+        self.root.chmod(0o755)
+        self.upload.write_text(PEM.replace('CERTIFICATE', 'PRIVATE KEY'))
+        self.assertTrue(self.invoke('private-stage', filename='server_privatekey')['result'])
+        self.assertFalse(list(self.root.glob('.certificate.*')))
+
+    def test_preplanted_staging_symlink_cannot_overwrite_another_file(self):
+        certs = self.root / 'certs'
+        certs.mkdir()
+        target = self.root / 'unrelated-root-file'
+        target.write_text('KEEP ROOT DATA')
+        (certs / 'server_privatekey.pem.new').symlink_to(target)
+        self.upload.write_text(PEM.replace('CERTIFICATE', 'PRIVATE KEY'))
+        self.assertTrue(self.invoke(filename='server_privatekey')['result'])
+        self.assertEqual(target.read_text(), 'KEEP ROOT DATA')
+        self.assertFalse((certs / 'server_privatekey.pem').is_symlink())
+        self.assertFalse(list(self.root.glob('.certificate.*')))
+
+    def test_final_directory_symlink_is_replaced_without_following_it(self):
+        certs = self.root / 'certs'
+        certs.mkdir()
+        unrelated = self.root / 'unrelated-directory'
+        unrelated.mkdir()
+        marker = unrelated / 'certificate.pem'
+        marker.write_text('KEEP')
+        (certs / 'server_privatekey.pem').symlink_to(unrelated, target_is_directory=True)
+        self.upload.write_text(PEM.replace('CERTIFICATE', 'PRIVATE KEY'))
+        self.assertTrue(self.invoke(filename='server_privatekey')['result'])
+        self.assertFalse((certs / 'server_privatekey.pem').is_symlink())
+        self.assertEqual(marker.read_text(), 'KEEP')
 
     def test_cleanup_failure_cannot_report_success(self):
         result = self.invoke('cleanup')

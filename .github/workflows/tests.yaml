@@ -116,3 +116,9 @@ jobs:
           sudo env "OPENWRT_ROOTFS=$OPENWRT_TOOLS/rootfs.tar.gz" \
             "TMPDIR=$TMPDIR" PYTHONDONTWRITEBYTECODE=1 \
             python3 tests/subscription-rpc-native.py
+      - name: Verify native resource RPC background jobs
+        run: |
+          sudo env "OPENWRT_ROOTFS=$OPENWRT_TOOLS/rootfs.tar.gz" \
+            "OPENWRT_DIGEST=$OPENWRT_TOOLS/runtime/usr/lib/ucode/digest.so" \
+            "TMPDIR=$TMPDIR" PYTHONDONTWRITEBYTECODE=1 \
+            python3 tests/resource-rpc-native.py
