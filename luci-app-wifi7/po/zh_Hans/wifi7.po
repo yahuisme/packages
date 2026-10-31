@@ -326,8 +326,8 @@ msgstr "应用暂存更改"
 msgid "Reset wireless changes"
 msgstr "复位无线更改"
 
-msgid "Discard all staged wireless changes?"
-msgstr "丢弃所有已暂存的无线配置更改？"
+msgid "Discard all staged wireless changes and radio drafts?"
+msgstr "丢弃所有暂存的无线更改及射频草稿？"
 
 msgid "Apply all staged configuration changes? Wireless connections may be interrupted."
 msgstr "应用所有已暂存的配置更改？无线连接可能会中断。"
@@ -368,3 +368,12 @@ msgstr "连接已断开"
 
 msgid "Operation failed. Please retry."
 msgstr "操作失败，请重试"
+
+msgid "Wireless changes reset; radio drafts were discarded."
+msgstr "无线更改已复位，射频草稿已丢弃"
+
+msgid "Read-only access: configuration is visible but cannot be changed."
+msgstr "当前为只读权限，可查看配置但无法修改"
+
+msgid "Existing power outside 0–30 dBm is retained unchanged. Use Wireless to manage it, or enter a new value within this range."
+msgstr "现有超出 0–30 dBm 的功率值将原样保留，可前往“无线”页面管理，或在此输入范围内的新值"

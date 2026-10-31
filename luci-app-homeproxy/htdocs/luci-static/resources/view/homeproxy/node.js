@@ -686,42 +686,47 @@ function renderNodeSettings(section, data, features, node_latency_row_state) {
 		}
 	}
 
-	s.handleNodeLatencyTests = function(section_ids) {
+	s.handleNodeLatencyTests = async function(section_ids, onProgress) {
 		section_ids = Array.from(new Set(section_ids || [])).filter((sid) => !!sid);
 		for (let sid of section_ids) {
 			this.setNodeLatencyRowState(sid, NODE_LATENCY_ROW_STATES.TESTING, null);
 			this.refreshNodeLatencyRow(sid);
 		}
 
-		return callNodeLatencyTest(section_ids).then((response) => {
-			let results = Object.create(null);
-			for (let result of response?.results || [])
-				if (result?.node)
-					results[result.node] = result;
+		onProgress?.(0, section_ids.length);
+		for (let offset = 0; offset < section_ids.length; offset += 16) {
+			const batch = section_ids.slice(offset, offset + 16);
+			await callNodeLatencyTest(batch).then((response) => {
+				let results = Object.create(null);
+				for (let result of response?.results || [])
+					if (result?.node)
+						results[result.node] = result;
 
-			for (let sid of section_ids) {
-				if (results[sid])
-					this.setNodeLatencyRowStateFromProbeResult(sid, results[sid]);
-				else
+				for (let sid of batch) {
+					if (results[sid])
+						this.setNodeLatencyRowStateFromProbeResult(sid, results[sid]);
+					else
+						this.setNodeLatencyRowState(sid, NODE_LATENCY_ROW_STATES.ERROR, {
+							error: {
+								code: 'invalid_response',
+								message: 'missing node latency result'
+							}
+						});
+				}
+			}).catch((err) => {
+				for (let sid of batch)
 					this.setNodeLatencyRowState(sid, NODE_LATENCY_ROW_STATES.ERROR, {
 						error: {
-							code: 'invalid_response',
-							message: 'missing node latency result'
+							code: 'rpc_failed',
+							message: String(err)
 						}
 					});
-			}
-		}).catch((err) => {
-			for (let sid of section_ids)
-				this.setNodeLatencyRowState(sid, NODE_LATENCY_ROW_STATES.ERROR, {
-					error: {
-						code: 'rpc_failed',
-						message: String(err)
-					}
-				});
-		}).then(() => {
-			for (let sid of section_ids)
-				this.refreshNodeLatencyRow(sid);
-		});
+			}).then(() => {
+				for (let sid of batch)
+					this.refreshNodeLatencyRow(sid);
+			});
+			onProgress?.(Math.min(offset + 16, section_ids.length), section_ids.length);
+		}
 	}
 	s.handleNodeLatencyTest = function(section_id) {
 		return this.handleNodeLatencyTests([section_id]);
@@ -1908,8 +1913,19 @@ return view.extend({
 			subscriptionActionPending = true;
 			subscriptionURLs.onchange(null, section_id);
 			setSubscriptionResult(_('Saving settings and updating subscriptions…'));
-			let failure = _('Unable to save subscription settings.');
+			let failure = _('Subscription task status is unavailable. The task may still be running; check the subscription log before retrying.');
 			try {
+				let res = await fs.exec('/etc/homeproxy/scripts/update_subscriptions.sh', ['--status']);
+				if (res.code !== 0)
+					throw new Error('task status unavailable');
+				let task = JSON.parse(res.stdout || '{}');
+				if (!['idle', 'done', 'running'].includes(task.state))
+					throw new Error('invalid task status');
+				if (task.state === 'running') {
+					setSubscriptionResult(_('A subscription update is already running in the background. Check the subscription log before retrying.'));
+					return;
+				}
+				failure = _('Unable to save subscription settings.');
 				await this.map.save(null, true);
 				failure = _('Unable to apply subscription settings.');
 				// Map.save writes session deltas; the updater reads committed settings.
@@ -1924,9 +1940,27 @@ return view.extend({
 				}
 				ui.changes.setIndicator(0);
 				failure = _('Unable to update subscriptions. Check the subscription log.');
-				const res = await fs.exec('/etc/homeproxy/scripts/update_subscriptions.sh');
+				res = await fs.exec('/etc/homeproxy/scripts/update_subscriptions.sh', ['--start']);
 				if (res.code !== 0)
 					throw new Error(res.stderr || _('exit code %d').format(res.code));
+				task = JSON.parse(res.stdout || '{}');
+				while (task.state === 'running') {
+					setSubscriptionResult(_('Updating subscriptions in the background. You can leave this page; check the subscription log for progress.'));
+					await new Promise(resolve => setTimeout(resolve, 1000));
+					if (!this.map.root?.isConnected)
+						return; // Worker owns the lock and continues after navigation.
+					failure = _('Subscription task status is unavailable. The task may still be running; check the subscription log before retrying.');
+					res = await fs.exec('/etc/homeproxy/scripts/update_subscriptions.sh', ['--status']);
+					if (res.code !== 0)
+						throw new Error(_('Subscription task status is unavailable. The task may still be running; check the subscription log before retrying.'));
+					task = JSON.parse(res.stdout || '{}');
+				}
+				if (!this.map.root?.isConnected)
+					return;
+				if (task.state === 'done')
+					failure = _('Unable to update subscriptions. Check the subscription log.');
+				if (task.state !== 'done' || task.code !== 0)
+					throw new Error(_('exit code %d').format(task.code ?? 1));
 				failure = _('Subscriptions updated, but unable to refresh the node list.');
 				// reset() only renders cached form data. Invalidate UCI first, then
 				// refresh source choices and load the options before rendering.
@@ -2019,7 +2053,9 @@ return view.extend({
 					bulk_button.disabled = true;
 
 					try {
-						await nodeSection.handleNodeLatencyTests(section_ids);
+						await nodeSection.handleNodeLatencyTests(section_ids, (done, total) => {
+							bulk_button.textContent = _('Testing nodes: %s / %s').format(done, total);
+						});
 					} finally {
 						bulk_testing = false;
 						bulk_button.textContent = _('Test current list');
@@ -2066,7 +2102,7 @@ return view.extend({
 				E('style', {}, [
 					'#modal_overlay > .hp-node-modal { max-width: 100%; }' +
 					'.hp-node-list { max-width: 100%; overflow-x: auto; }' +
-					'#cbi-homeproxy-subscription{container-type:inline-size}' +
+					'#cbi-homeproxy-subscription{container-type:inline-size;container-name:hp-form}' +
 					'#cbi-homeproxy-subscription [data-tab="subscription"] .cbi-value-description{margin-top:8px;line-height:1.5}' +
 					'#cbi-homeproxy-subscription .hp-cron-fields{display:flex;flex-wrap:wrap;gap:4px 8px}' +
 					'#cbi-homeproxy-subscription .hp-cron-fields>span{white-space:nowrap}' +
@@ -2075,10 +2111,12 @@ return view.extend({
 					'#cbi-homeproxy-subscription [data-name="_remove_subscriptions"]{margin-top:24px}' +
 					'@media(max-width:600px){#cbi-homeproxy-subscription [data-name="_update_subscriptions"]>.cbi-value-title,' +
 					'#cbi-homeproxy-subscription [data-name="_remove_subscriptions"]>.cbi-value-title{display:none}}' +
-					'@container(max-width:600px){' +
-					'#cbi-homeproxy-subscription [data-name="subscription_url"]{display:block}' +
-					'#cbi-homeproxy-subscription [data-name="subscription_url"]>.cbi-value-title{display:block;float:none;width:auto;margin:0 0 8px;padding:0;text-align:left}' +
-					'#cbi-homeproxy-subscription [data-name="subscription_url"]>.cbi-value-field{display:block;flex:none;width:auto;margin:0;padding:0}}'
+					'@container hp-form (max-width:600px){' +
+					'#cbi-homeproxy-subscription [data-tab="subscription"] .cbi-value:not(.hidden){display:block}' +
+					'#cbi-homeproxy-subscription [data-tab="subscription"] .cbi-value>.cbi-value-title{display:block;float:none;flex:none;width:auto;margin:0 0 8px;padding:0;text-align:left}' +
+					'#cbi-homeproxy-subscription [data-tab="subscription"] .cbi-value>.cbi-value-field{display:block;flex:none;width:auto;margin:0;padding:0}' +
+					'#cbi-homeproxy-subscription [data-name="_update_subscriptions"]>.cbi-value-title,' +
+					'#cbi-homeproxy-subscription [data-name="_remove_subscriptions"]>.cbi-value-title{display:none}}'
 				]),
 				el
 			]);

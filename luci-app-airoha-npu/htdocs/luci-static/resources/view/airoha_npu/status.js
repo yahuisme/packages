@@ -88,6 +88,10 @@ return view.extend({
 		chart.appendChild(areaNode);
 		chart.appendChild(unitNode);
 		chart.appendChild(lineNode);
+		function setAttribute(node, name, value) {
+			value = String(value);
+			if (node.getAttribute(name) !== value) node.setAttribute(name, value);
+		}
 		var ticks = [], axisKey;
 		function drawChart() {
 			if (document.visibilityState === 'hidden') return;
@@ -101,7 +105,7 @@ return view.extend({
 			var top = 24, bottom = 168;
 			var peak = Math.max(ceiling, 100, ...samples.map(function(p) { return p.value || 0; }));
 			var step = Math.ceil(peak / 6 / 100) * 100, max = Math.ceil(peak / step) * step;
-			chart.setAttribute('viewBox', '0 0 ' + width + ' 200');
+			setAttribute(chart, 'viewBox', '0 0 ' + width + ' 200');
 			var key = width + ':' + max + ':' + step;
 			if (key !== axisKey) {
 				var tickIndex = 0;
@@ -114,8 +118,8 @@ return view.extend({
 						chart.insertBefore(pair[0], anchor ? anchor.node : lineNode);
 						chart.insertBefore(pair[1], anchor ? anchor.node : lineNode);
 					}
-					Object.keys(lineAttrs).forEach(function(k) { pair[0].setAttribute(k, lineAttrs[k]); });
-					Object.keys(textAttrs).forEach(function(k) { pair[1].setAttribute(k, textAttrs[k]); });
+					Object.keys(lineAttrs).forEach(function(k) { setAttribute(pair[0], k, lineAttrs[k]); });
+					Object.keys(textAttrs).forEach(function(k) { setAttribute(pair[1], k, textAttrs[k]); });
 					pair[1].textContent = label;
 				}
 				for (var value = 0; value <= max; value += step) {
@@ -151,15 +155,15 @@ return view.extend({
 					p.node = svgNode('circle', { 'class': 'npu-chart-point', 'data-time': p.time, 'data-mhz': p.value });
 					chart.insertBefore(p.node, lineNode);
 				}
-				p.node.setAttribute('cx', x);
-				p.node.setAttribute('cy', y);
-				p.node.setAttribute('r', isolated ? 2 : 1);
+				setAttribute(p.node, 'cx', x);
+				setAttribute(p.node, 'cy', y);
+				setAttribute(p.node, 'r', isolated ? 2 : 1);
 				previous = p;
 			});
 			if (previous && now - previous.time <= 3000) { path += ' H ' + right; area += ' H ' + right; areaEnd = right; }
 			closeArea();
-			areaNode.setAttribute('d', area);
-			lineNode.setAttribute('d', path);
+			setAttribute(areaNode, 'd', area);
+			setAttribute(lineNode, 'd', path);
 		}
 		function sample(s) {
 			var value = s && s.cpu_cur_freq;

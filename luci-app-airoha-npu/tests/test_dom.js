@@ -94,6 +94,16 @@ async function tick(ms = 3000) {
   const retained = [...svg.children];
   for (const fn of timers.values()) fn();
   assert([...svg.children].every((n, i) => n === retained[i]), 'expiry redraw reuses unchanged grid, ticks, paths and samples');
+  const writes=[]; const observer=new w.MutationObserver(rs=>writes.push(...rs));
+  observer.observe(svg,{subtree:true,attributes:true});
+  for (const fn of timers.values()) fn(); await flush(); observer.disconnect();
+  console.log('NPU same-clock chart attribute writes:',writes.length);
+  assert.equal(writes.length,0,'unchanged chart attributes must not be rewritten');
+  const movement=[]; const motion=new w.MutationObserver(rs=>movement.push(...rs));
+  motion.observe(svg,{subtree:true,attributes:true}); now+=1000;
+  for (const fn of timers.values()) fn(); await flush(); motion.disconnect(); now-=1000;
+  assert(movement.some(r=>r.attributeName==='cx'),'one-second chart aging moves real sample');
+  assert(!movement.some(r=>['viewBox','cy','r'].includes(r.attributeName)),'aging skips static geometry');
   const firstGrid = svg.querySelector('.npu-chart-grid');
   const firstPoint = points()[0], firstLine = svg.querySelector('.npu-chart-line');
   for (const width of [240, 360, 600, 960]) {

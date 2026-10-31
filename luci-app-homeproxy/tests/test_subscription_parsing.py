@@ -3,9 +3,9 @@ from pathlib import Path
 BASE = Path(__file__).resolve().parents[1] / 'root/etc/homeproxy/scripts'
 PREAMBLE = "\nfunction isEmpty(v) { return v === null || v === '' || (type(v) in ['object', 'array'] && length(v) === 0); }\nfunction validation(t,v) { if (t === 'port') return int(v)>0 && int(v)<65536; if(t==='ip6addr') return false; return !!v; }\nfunction urldecode(v) { return type(v)==='string' ? replace(v, /%([0-9a-fA-F]{2})/g, (_, x)=>chr(int(x,16))) : null; }\nfunction urldecode_params(v) { let o={}; for(let p in split(v,'&')) { let kv=split(p,'=',2); o[urldecode(kv[0])]=urldecode(kv[1]); } return o; }\nconst sing_features={with_quic:true,with_utls:true};\nfunction log(...args) {}\nfunction log_missing_quic(...args) {}\nfunction parseECHConfig(v) { return {}; }\n"
 class SubscriptionParsing(unittest.TestCase):
-    def parse(self, expression, production_ech=False):
+    def parse(self, expression, production_ech=False, with_utls=True):
         h=(BASE/'homeproxy.uc').read_text(); s=(BASE/'update_subscriptions.uc').read_text()
-        preamble = PREAMBLE
+        preamble = PREAMBLE.replace('with_utls:true', 'with_utls:' + str(with_utls).lower())
         ech = ''
         if production_ech:
             ech = h[h.index('export function parseECHConfig'):h.index('export function addECHDNS')].replace('export function', 'function')

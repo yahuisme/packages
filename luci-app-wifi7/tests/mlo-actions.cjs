@@ -37,7 +37,7 @@ const tick=()=>new Promise(r=>setImmediate(r));
   assert(button('apply'),'MLO must provide an explicit apply entry');
   assert(button('reset'),'MLO must provide an explicit reset entry');
   async function click(kind){button(kind).click();for(let i=0;i<100&&button(kind).disabled;i++)await new Promise(r=>setTimeout(r,25));await tick();}
-  await click('apply');assert.equal(h.db().committed.test.ssid,'After');
+  await click('apply');assert.equal(h.db().committed.test.ssid,'After');assert.equal(h.notifications.at(-1).text,'Configuration applied. Runtime status will refresh.');
   assert(h.calls.some(c=>c.method==='apply'&&c.params.rollback===true));
   await edit('Discard');await click('reset');assert.equal(h.db().staged.test.ssid,'After');assert.match(h.q('.mlo-overview-primary').textContent,/After/);
   await edit('Retry');h.state.applyCode=6;await click('apply');assert.equal(h.db().committed.test.ssid,'After');assert.equal(h.notifications.at(-1).text,h.w._('Failed to apply configuration: %s').replace('%s',h.w._('Permission denied')));

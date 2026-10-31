@@ -1,0 +1,14 @@
+const fs=require('fs'),path=require('path'),Module=require('module');
+const file=path.join(__dirname,'test_view.js');
+let src=fs.readFileSync(file,'utf8').split('(async()=>{')[0];
+src+=`(async()=>{await settle();await settle();const root=w.document.querySelector('.flowsense-settings');
+const state=()=>root.querySelector('[data-settings-state]').textContent;
+assert.match(state(),/No saved changes awaiting application/);
+const target=root.querySelector('[data-name="target"] input[type="text"]');
+assert.equal(target.maxLength,253);target.value='saved.example';target.dispatchEvent(new w.Event('input'));
+await mods.app.handleSave();assert.match(state(),/Acceleration: Saved; not yet applied/);assert.match(state(),/Probe Settings: Saved; not yet applied/);
+failure='monitor';await mods.app.handleSaveApply();assert.match(state(),/Acceleration: No saved changes/);assert.match(state(),/Probe Settings: Saved; not yet applied/);
+failure='';await mods.app.handleSaveApply();assert(!state().includes('not yet applied'));assert.match(state(),/No saved changes/);
+console.log('PASS persistent per-group saved status, partial failure/retry and target length');w.close();
+})().catch(e=>{console.error(e);w.close();process.exitCode=1});`;
+const m=new Module(file,module);m.filename=file;m.paths=Module._nodeModulePaths(__dirname);m._compile(src,file);

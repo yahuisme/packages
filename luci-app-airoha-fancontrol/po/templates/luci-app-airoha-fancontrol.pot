@@ -70,7 +70,7 @@ msgstr ""
 msgid "Custom"
 msgstr ""
 
-msgid "Custom - User defined"
+msgid "Custom - Adjust as needed"
 msgstr ""
 
 msgid "Custom Curve"
@@ -191,4 +191,7 @@ msgid "Dismiss"
 msgstr ""
 
 msgid "Save error"
+msgstr ""
+
+msgid "Low PWM values, including 0, may stop the fan. Monitor temperatures when using manual mode."
 msgstr ""

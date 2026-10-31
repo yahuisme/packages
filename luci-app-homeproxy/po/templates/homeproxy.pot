@@ -2618,3 +2618,22 @@ msgstr ""
 
 msgid "Weekday"
 msgstr ""
+
+
+msgid "valid email address"
+msgstr ""
+
+msgid "Waiting for node selection"
+msgstr ""
+
+msgid "Testing nodes: %s / %s"
+msgstr ""
+
+msgid "Updating subscriptions in the background. You can leave this page; check the subscription log for progress."
+msgstr ""
+
+msgid "Subscription task status is unavailable. The task may still be running; check the subscription log before retrying."
+msgstr ""
+
+msgid "A subscription update is already running in the background. Check the subscription log before retrying."
+msgstr ""

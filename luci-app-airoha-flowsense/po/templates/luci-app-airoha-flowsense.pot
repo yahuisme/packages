@@ -184,3 +184,12 @@ msgstr ""
 
 msgid "The operation failed for an unknown reason. Refresh the page and check the system log before retrying."
 msgstr ""
+
+msgid "Saved settings status is unknown."
+msgstr ""
+
+msgid "Saved; not yet applied"
+msgstr ""
+
+msgid "No saved changes awaiting application"
+msgstr ""

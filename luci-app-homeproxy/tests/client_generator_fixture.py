@@ -35,6 +35,9 @@ try:
         assert ipaddress.ip_address(value).version == 6
     elif kind == 'ip4addr':
         assert ipaddress.ip_address(value).version == 4
+    elif kind == 'hostname':
+        import re
+        assert re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?', value)
     elif kind == 'port':
         assert 0 < int(value) < 65536
     else:

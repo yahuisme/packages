@@ -30,14 +30,7 @@ const callReadDomainList = rpc.declare({
 const callWriteDomainLists = rpc.declare({
 	object: 'luci.homeproxy',
 	method: 'domainlist_write',
-	params: ['lists', 'routing_mode', 'group_states'],
-	expect: { '': {} }
-});
-
-const callRemoveDomainList = rpc.declare({
-	object: 'luci.homeproxy',
-	method: 'domainlist_remove',
-	params: ['id'],
+	params: ['lists', 'routing_mode', 'group_states', 'groups_complete'],
 	expect: { '': {} }
 });
 
@@ -166,6 +159,26 @@ let stubValidator = {
 	}
 };
 
+function validateDnsServer(section_id, value) {
+	if (!section_id || value === 'wan')
+		return true;
+	const error = _('Expecting: %s').format(_('valid DNS server address'));
+	if (stubValidator.apply('ipaddr', value))
+		return true;
+	const scheme = value?.match(/^([a-z][a-z0-9+.-]*):\/\//i)?.[1].toLowerCase();
+	if (!['udp', 'tcp', 'tls', 'quic', 'https', 'h3'].includes(scheme) ||
+		value.includes('#') || /^[^/]+:\/\/[^/]*@/.test(value))
+		return error;
+	try {
+		const url = new URL(value.replace(/^[^:]+:/, 'http:'));
+		if (!['https', 'h3'].includes(scheme) && (url.pathname !== '/' || url.search))
+			return error;
+		return stubValidator.apply('hostname', url.hostname) ||
+			stubValidator.apply('ip4addr', url.hostname) ||
+			stubValidator.apply('ip6addr', url.hostname.match(/^\[(.+)\]$/)?.[1]) || error;
+	} catch (e) { return error; }
+}
+
 return view.extend({
 	load() {
 		return Promise.all([
@@ -285,7 +298,7 @@ return view.extend({
 					uci.sections('homeproxy', 'domain_route', (section) => {
 						groupStates[section['.name']] = section.enabled === '0' ? '0' : '1';
 					});
-					return callWriteDomainLists(lists, routingMode, groupStates).then((result) => {
+					return callWriteDomainLists(lists, routingMode, groupStates, true).then((result) => {
 						if (!result.result)
 							throw new Error(result.error || _('Failed to save domain lists.'));
 						for (let id of ids) {
@@ -328,7 +341,10 @@ return view.extend({
 
 					if (current?.mode === 'urltest') {
 						let active = current.active || {};
-						let nodeName = (active?.id && active.id !== 'urltest') ? (proxy_nodes[active.id] || active.label || active.id) : _('Invalid node');
+						let nodeName = current.error === 'clash_api_unavailable' ? _('Status unavailable') :
+							current.error === 'missing_current_proxy' ? _('Waiting for node selection') :
+							(active?.id && active.id !== 'urltest') ? (proxy_nodes[active.id] || active.label || active.id) :
+							active.label && active.label !== 'URLTest' ? _('Unavailable node: %s').format(active.label) : _('Status unavailable');
 
 						current_label = _('URLTest: %s').format(nodeName);
 					}
@@ -416,29 +432,7 @@ return view.extend({
 		o.depends('routing_mode', 'bypass_mainland_china');
 		o.depends('routing_mode', 'global');
 		o.retain = true;
-		o.validate = function(section_id, value) {
-			if (section_id && !['wan'].includes(value)) {
-				if (!value)
-					return _('Expecting: %s').format(_('non-empty value'));
-
-				try {
-					let url = new URL(value.replace(/^.*:\/\//, 'http://'));
-					if (stubValidator.apply('hostname', url.hostname))
-						return true;
-					else if (stubValidator.apply('ip4addr', url.hostname))
-						return true;
-					else if (stubValidator.apply('ip6addr', url.hostname.match(/^\[(.+)\]$/)?.[1]))
-						return true;
-					else
-						return _('Expecting: %s').format(_('valid DNS server address'));
-				} catch(e) {}
-
-				if (!stubValidator.apply('ipaddr', value))
-					return _('Expecting: %s').format(_('valid DNS server address'));
-			}
-
-			return true;
-		}
+		o.validate = validateDnsServer;
 
 		o = s.taboption('routing', form.Value, 'china_dns_server', _('China DNS server'),
 			_('The dns server for resolving China domains. Support UDP, TCP, DoH, DoQ, DoT.'));
@@ -450,29 +444,7 @@ return view.extend({
 		o.default = 'https://dns.alidns.com/dns-query';
 		o.rmempty = false;
 		o.retain = true;
-		o.validate = function(section_id, value) {
-			if (section_id && !['wan'].includes(value)) {
-				if (!value)
-					return _('Expecting: %s').format(_('non-empty value'));
-
-				try {
-					let url = new URL(value.replace(/^.*:\/\//, 'http://'));
-					if (stubValidator.apply('hostname', url.hostname))
-						return true;
-					else if (stubValidator.apply('ip4addr', url.hostname))
-						return true;
-					else if (stubValidator.apply('ip6addr', url.hostname.match(/^\[(.+)\]$/)?.[1]))
-						return true;
-					else
-						return _('Expecting: %s').format(_('valid DNS server address'));
-				} catch(e) {}
-
-				if (!stubValidator.apply('ipaddr', value))
-					return _('Expecting: %s').format(_('valid DNS server address'));
-			}
-
-			return true;
-		}
+		o.validate = validateDnsServer;
 
 		o = s.taboption('routing', form.ListValue, 'routing_mode', _('Routing mode'));
 		o.value('bypass_mainland_china', _('Bypass mainland China'));
@@ -783,13 +755,11 @@ return view.extend({
 		const removeDomainRoute = domainRoutes.handleRemove;
 		domainRoutes.handleRemove = function(section_id, ev) {
 			delete pendingDomainLists[section_id];
-			return removeDomainRoute.call(this, section_id, ev).then(() => {
-				return callRemoveDomainList(section_id);
-			}).then((result) => {
-				if (!result.result)
-					throw new Error(result.error || _('Failed to save domain lists.'));
-				domainListCache[section_id] = '';
-			});
+			// Native removal only saves session deltas. Keep the list as a tombstone:
+			// UCI Apply can roll back, or the user can Revert without losing bytes.
+			// Unreferenced files are ignored by the generator; do not eagerly GC
+			// them at a non-transactional UI boundary.
+			return removeDomainRoute.call(this, section_id, ev);
 		};
 		/* Diversion settings end */
 
@@ -913,6 +883,11 @@ return view.extend({
 
 		return m.render().then(root => E('div', {}, [
 			E('style', {}, [
+				'#cbi-homeproxy-config{container-type:inline-size;container-name:hp-form}' +
+				'@container hp-form (max-width:600px){' +
+				'#cbi-homeproxy-config .cbi-value:not(.hidden){display:block}' +
+				'#cbi-homeproxy-config .cbi-value>.cbi-value-title{display:block;float:none;flex:none;width:auto;margin:0 0 8px;padding:0;text-align:left}' +
+				'#cbi-homeproxy-config .cbi-value>.cbi-value-field{display:block;flex:none;width:auto;margin:0;padding:0}}' +
 				'#cbi-homeproxy-config-main_urltest_interrupt_exist_connections:not(.hidden)~#cbi-homeproxy-config-dns_server{padding-top:16px}' +
 				'#cbi-homeproxy [data-tab="routing"] .cbi-value-description{margin-top:8px;line-height:1.5}'
 			]), root

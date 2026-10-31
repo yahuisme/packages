@@ -165,3 +165,15 @@ msgstr "查看 Airoha SoC 状态并管理内核 CPU 控制"
 
 msgid "Configure CPU governor and maximum scaling frequency."
 msgstr "配置 CPU 调速策略和最高运行频率。"
+
+msgid "Saved settings status is unknown."
+msgstr "已保存设置状态未知"
+
+msgid "Saved settings match the current runtime."
+msgstr "已保存设置与当前运行状态一致"
+
+msgid "Saved settings differ from the current runtime; apply to activate."
+msgstr "已保存设置与当前运行状态不同，应用后生效"
+
+msgid "CPU settings affect this runtime only and are not restored automatically after reboot."
+msgstr "CPU 设置仅对本次运行生效，重启后不会自动恢复"

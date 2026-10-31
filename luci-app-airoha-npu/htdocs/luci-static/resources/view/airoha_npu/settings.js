@@ -11,6 +11,7 @@ var saveSettings = rpc.declare({ object: 'luci.airoha_npu', method: 'saveSetting
 var applySettings = rpc.declare({ object: 'luci.airoha_npu', method: 'applySettings', params: ['expected'], expect: { '': {} }, reject: true });
 
 var settingsCSS = '\
+.npu-settings{container-type:inline-size}@container(max-width:600px){.npu-settings .cbi-value:not(.hidden){display:flex;flex-direction:column;align-items:stretch;gap:8px}.npu-settings .cbi-value-title{float:none;width:auto;flex:none;text-align:start;padding:0}.npu-settings .cbi-value-field{width:100%;min-width:0;margin:0;padding:0}.npu-settings .cbi-value select{max-width:100%}}\
 .npu-settings select,.npu-settings .cbi-input-select{max-width:280px}\
 @media(max-width:640px){.npu-settings select,.npu-settings .cbi-input-select{max-width:100%}}\
 ';
@@ -73,6 +74,15 @@ return view.extend({
 			]);
 		}
 
+		var settingsState;
+		function paintSettingsState() {
+			if (!settingsState) return;
+			var known = saved && saved.result === 'ok' && status && status.cpu_governor && status.cpu_max_freq;
+			settingsState.textContent = !known ? _('Saved settings status is unknown.')
+				: baseline.governor === status.cpu_governor && baseline.freq === String(status.cpu_max_freq)
+					? _('Saved settings match the current runtime.')
+					: _('Saved settings differ from the current runtime; apply to activate.');
+		}
 		var m, s, o;
 		// NamedSection renders only sections present in the JSON data model.
 		m = new form.JSONMap({ cpu: {} }, _('Airoha SoC Settings'),
@@ -134,14 +144,16 @@ return view.extend({
 				checked(result);
 				if (!result.pending || result.pending.governor !== desired.governor || result.pending.freq !== desired.freq)
 					fail('unavailable');
-				baseline = result.pending;
+				baseline = result.pending; saved = result; paintSettingsState();
 				m.lookupOption('governor', 'cpu')[0].default = baseline.governor;
 				m.lookupOption('frequency', 'cpu')[0].default = baseline.freq;
 				if (apply !== true) return;
 				if (!L.hasViewPermission()) fail('unavailable');
+				status = null; paintSettingsState();
 				return applySettings(JSON.stringify(desired)).then(checked).then(getStatus).then(function(current) {
 					if (!current || current.cpu_governor !== desired.governor || String(current.cpu_max_freq) !== desired.freq)
 						fail('unavailable');
+					status = current; paintSettingsState();
 				});
 			}).then(function() {
 				ui.addNotification(null, E('p', {}, [apply === true ? _('Settings applied.') : _('Settings saved.')]), 'info');
@@ -157,6 +169,9 @@ return view.extend({
 			return renderContents.apply(this, arguments).then(function(node) {
 				node.classList.add('npu-settings');
 				node.prepend(E('style', {}, settingsCSS));
+				settingsState = E('p', { 'class': 'cbi-section-descr', 'data-settings-state': '', role: 'status' });
+				node.querySelector('.cbi-map-descr').after(settingsState, E('p', { 'class': 'cbi-section-descr' }, _('CPU settings affect this runtime only and are not restored automatically after reboot.')));
+				paintSettingsState();
 				return node;
 			});
 		};

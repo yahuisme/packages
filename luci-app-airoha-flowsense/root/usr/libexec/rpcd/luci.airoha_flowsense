@@ -80,7 +80,17 @@ get_overview() {
     get_jitter; printf ',"interfaces":'; get_interfaces; printf '}'
 }
 
-set_monitor() {
+# The public legacy setter and staged Apply serialize the complete transaction.
+set_monitor() (
+    umask 077
+    mkdir /var/run/flowsense-settings.lock 2>/dev/null || { printf '{"success":false,"error":"busy"}'; exit; }
+    trap 'rmdir /var/run/flowsense-settings.lock' EXIT
+    trap 'exit 1' HUP INT TERM
+    set_monitor_locked
+)
+
+# Only call while holding flowsense-settings.lock; do not reacquire it.
+set_monitor_locked() {
     local input target enabled oldtarget oldenabled oldenabled_present=0 oldsection section changes failed=0 rollback=0
     read -r input
     target=$(printf '%s' "$input" | jsonfilter -e '@.target' 2>/dev/null); enabled=$(printf '%s' "$input" | jsonfilter -e '@.enabled' 2>/dev/null)

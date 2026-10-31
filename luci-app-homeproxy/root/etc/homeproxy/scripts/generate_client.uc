@@ -430,13 +430,22 @@ function parse_dnsserver(server_addr, default_protocol) {
 
 	if (!match(server_addr, /:\/\//))
 		server_addr = (default_protocol || 'udp') + '://' + (validation('ip6addr', server_addr) ? `[${server_addr}]` : server_addr);
+	const scheme = lc(match(server_addr, /^([^:]+):\/\//)?.[1] || '');
+	if (match(server_addr, /#/) || match(server_addr, /^[^\/]+:\/\/[^\/]*@/) ||
+	    (!(scheme in ['https', 'h3']) && match(server_addr, /\?/)))
+		die('Invalid DNS server address');
 	server_addr = parseURL(server_addr);
+	const protocol = lc(server_addr?.protocol || '');
+	if (!server_addr || !(protocol in ['udp', 'tcp', 'tls', 'quic', 'https', 'h3']) ||
+	    (server_addr.port && !validation('port', server_addr.port)) ||
+	    (!(protocol in ['https', 'h3']) && (server_addr.pathname !== '/' || server_addr.search)))
+		die('Invalid DNS server address');
 
 	return {
-		type: server_addr.protocol,
+		type: protocol,
 		server: server_addr.hostname,
 		server_port: strToInt(server_addr.port),
-		path: server_addr.protocol === 'https' && server_addr.search
+		path: (protocol in ['https', 'h3']) && server_addr.search
 			? server_addr.pathname + '?' + server_addr.search
 			: ((server_addr.pathname !== '/') ? server_addr.pathname : null),
 	}

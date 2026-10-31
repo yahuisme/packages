@@ -26,13 +26,14 @@ class BackendRealToolsTest(unittest.TestCase):
     def test_backend_durable_apply(self):
         with tempfile.TemporaryDirectory() as td:
             d = pathlib.Path(td)
-            for name in ('bin', 'config', 'delta', 'fresh'):
+            for name in ('bin', 'config', 'delta', 'override', 'fresh'):
                 (d / name).mkdir()
             (d / 'config/npu-monitor').write_text("config jitter\n option target '223.5.5.5'\n option enabled '1'\n")
             common = root / 'root/usr/libexec/flowsense-common.sh'
             rpc = (root / 'root/usr/libexec/rpcd/luci.airoha_flowsense').read_text().replace(
                 '/usr/libexec/flowsense-common.sh', str(common)).replace(
-                '/etc/init.d/npu-jitter restart', 'fake_restart')
+                '/etc/init.d/npu-jitter restart', 'fake_restart').replace(
+                '/var/run/flowsense-settings.lock', str(d / 'monitor.lock'))
             (d / 'rpc').write_text(rpc)
             assert UCI and JSONFILTER and BUSYBOX
             (d / 'bin/jsonfilter').symlink_to(JSONFILTER)
@@ -41,7 +42,7 @@ if [ -n "$FAIL_COMMAND" ] && [ "$1" = "$FAIL_COMMAND" ] && [ ! -e "$FAIL_MARKER"
     touch "$FAIL_MARKER"
     exit 1
 fi
-exec ''' + shlex.join([UCI, '-c', str(d / 'config'), '-t', str(d / 'delta')]) + ' "$@"\n')
+exec ''' + shlex.join([UCI, '-c', str(d / 'config'), '-C', str(d / 'override'), '-t', str(d / 'delta')]) + ' "$@"\n')
             (d / 'bin/fake_restart').write_text('''#!/bin/sh
 printf 'restart\n' >> "$RESTART_LOG"
 if [ "$FAIL_RESTART" = 1 ] && [ ! -e "$FAIL_MARKER" ]; then
@@ -66,7 +67,7 @@ fi
             def persisted():
                 assert UCI
                 return tuple(subprocess.check_output(
-                    [UCI, '-c', str(d / 'config'), '-t', str(d / 'fresh'), 'get',
+                    [UCI, '-c', str(d / 'config'), '-C', str(d / 'override'), '-t', str(d / 'fresh'), 'get',
                      'npu-monitor.@jitter[0].' + key], text=True).strip()
                              for key in ('target', 'enabled'))
 

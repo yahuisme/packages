@@ -85,6 +85,10 @@ def bridge(root, args):
             return status == 0 and lib.uci_set(context, ctypes.byref(pointer)) == 0
         finally:
             lib.uci_free_context(context)
+    if isinstance(args[3], dict):
+        # Native ucode UCI rejects object values; never hide a production type
+        # error by converting the object to Python's repr string.
+        return False
     if isinstance(args[3], list):
         if run('get', '.'.join(args[:3])).returncode == 0:
             if run('delete', '.'.join(args[:3])).returncode:

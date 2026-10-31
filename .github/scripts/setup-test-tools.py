@@ -29,6 +29,18 @@ def download(url, digest, target):
         raise RuntimeError('SHA256 mismatch: ' + url)
 
 
+def digest_package(machine):
+    packages = {
+        'aarch64': ('aarch64_generic', '7a36ffcfa4110e6884b2abdc25e693df0f69dca0a4b745287120fd6a2b10dd25'),
+        'x86_64': ('x86_64', 'f7ef2659ff2606e63cffa820878992c7795ffe572be9d03a29f88a600b0ae5c4'),
+    }
+    if machine not in packages:
+        raise ValueError('Unsupported runtime architecture: ' + machine)
+    arch, digest = packages[machine]
+    return (f'https://downloads.openwrt.org/releases/{VERSION}/packages/{arch}/base/'
+            f'ucode-mod-digest_2025.07.18~3f64c808-r2_{arch}.ipk', digest)
+
+
 def executable(path, text):
     path.write_text('#!/bin/sh\n' + text + '\n')
     path.chmod(0o755)
@@ -56,14 +68,8 @@ def main():
                 member.name = name
                 tar.extract(member, runtime, filter='data')
     # Stage the matching OpenWrt ucode digest module from the signed package feed.
-    arch_name = 'aarch64_generic' if platform.machine() == 'aarch64' else 'x86_64'
     digest_ipk = dest / 'ucode-mod-digest.ipk'
-    digest_url = ('https://downloads.openwrt.org/releases/24.10.4/packages/' +
-                  arch_name + '/base/ucode-mod-digest_2025.07.18~3f64c808-r1_' +
-                  arch_name + '.ipk')
-    digest_hash = ('9133d589bbf7d0a8c87b8808dd4da1a79f0a52aaa293716746be5be790df03eb'
-                   if arch_name == 'aarch64_generic' else
-                   'f03c94a9fe9fc2912df2c825f6b04b4dda3c2443cc8814982d8a289a34a7b6d6')
+    digest_url, digest_hash = digest_package(platform.machine())
     download(digest_url, digest_hash, digest_ipk)
     with tarfile.open(digest_ipk) as package:
         data_member = package.extractfile('./data.tar.gz')

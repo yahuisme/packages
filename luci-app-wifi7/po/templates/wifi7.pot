@@ -325,7 +325,7 @@ msgstr ""
 msgid "Reset wireless changes"
 msgstr ""
 
-msgid "Discard all staged wireless changes?"
+msgid "Discard all staged wireless changes and radio drafts?"
 msgstr ""
 
 msgid "Apply all staged configuration changes? Wireless connections may be interrupted."
@@ -365,4 +365,13 @@ msgid "Connection lost"
 msgstr ""
 
 msgid "Operation failed. Please retry."
+msgstr ""
+
+msgid "Wireless changes reset; radio drafts were discarded."
+msgstr ""
+
+msgid "Read-only access: configuration is visible but cannot be changed."
+msgstr ""
+
+msgid "Existing power outside 0–30 dBm is retained unchanged. Use Wireless to manage it, or enter a new value within this range."
 msgstr ""

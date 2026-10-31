@@ -7,7 +7,7 @@
 
 'use strict';
 
-import { lsdir, lstat, mkdtemp, open, popen, readfile, rename, rmdir, unlink, writefile } from 'fs';
+import { lsdir, lstat, open, popen, readfile, rename, rmdir, unlink, writefile } from 'fs';
 import { cursor } from 'uci';
 
 import {
@@ -42,6 +42,16 @@ const CONNECTION_SITES = {
 	github: 'https://github.com/',
 	youtube: 'https://www.youtube.com/'
 };
+
+// BusyBox mktemp is available on supported OpenWrt releases whose fs module
+// does not yet export mkdtemp. Allocate atomically; never guess a free name.
+function makeTempDir(template) {
+	const fd = popen(`/bin/mktemp -d ${shellQuote(template)}`, 'r');
+	if (!fd)
+		return null;
+	const directory = trim(fd.read('all') || '');
+	return fd.close() === 0 && directory && lstat(directory)?.type === 'directory' ? directory : null;
+}
 
 function validDomainListId(id) {
 	return type(id) === 'string' && match(id, /^[A-Za-z0-9_]+$/);
@@ -115,14 +125,15 @@ function withDomainListLock(callback) {
 	return result;
 }
 
-function validateDomainLists(changes, routingMode, groupStates) {
+function validateDomainLists(changes, routingMode, groupStates, groupsComplete) {
 	const uci = cursor();
 	uci.load('homeproxy');
 
 	let groups = [], seen = {};
 	function appendGroup(id) {
 		if (!(id in ['direct', 'proxy']) &&
-		    ((id in groupStates ? groupStates[id] : uci.get('homeproxy', id, 'enabled')) === '0'))
+		    ((groupsComplete && !(id in groupStates)) ||
+		     (id in groupStates ? groupStates[id] : uci.get('homeproxy', id, 'enabled')) === '0'))
 			return;
 		if (id in seen)
 			return;
@@ -203,7 +214,7 @@ const methods = {
 		}
 	},
 	domainlist_write: {
-		args: { lists: {}, routing_mode: 'routing_mode', group_states: {} },
+		args: { lists: {}, routing_mode: 'routing_mode', group_states: {}, groups_complete: false },
 		call: function(req) {
 			const lists = req.args?.lists;
 			const routingMode = req.args?.routing_mode;
@@ -228,14 +239,14 @@ const methods = {
 			}
 
 			return withDomainListLock(() => {
-				const conflict = validateDomainLists(changes, routingMode, groupStates);
+				const conflict = validateDomainLists(changes, routingMode, groupStates, req.args?.groups_complete === true);
 				if (conflict)
 					return {
 						result: false,
 						error: `domain ${conflict.left.value} conflicts with ${conflict.right.value}`
 					};
 
-				const stage = mkdtemp(`${HP_DIR}/diversion/.domainlist.XXXXXX`);
+				const stage = makeTempDir(`${HP_DIR}/diversion/.domainlist.XXXXXX`);
 				if (!stage)
 					return { result: false, error: 'failed to stage domain lists' };
 
@@ -406,7 +417,8 @@ const methods = {
 					lstat(newcert)?.size !== length(filecontent)) {
 					return finish('failed to write certificate file', newcert);
 				}
-				if (system(`/bin/chmod ${kind === 'private' ? '600' : '644'} ${shellQuote(newcert)}`) !== 0 ||
+				if ((kind === 'private' && system(`/bin/chown sing-box:sing-box ${shellQuote(newcert)}`) !== 0) ||
+					system(`/bin/chmod ${kind === 'private' ? '600' : '644'} ${shellQuote(newcert)}`) !== 0 ||
 					system(`/bin/mv -f ${shellQuote(newcert)} ${shellQuote(certfile)}`) !== 0) {
 					return finish('failed to protect private key file', newcert);
 				}
@@ -634,7 +646,7 @@ const methods = {
 				const runtime_root = RUN_DIR + '/latency-test';
 				if (system(`/bin/mkdir -p ${shellQuote(runtime_root)}`) !== 0)
 					return { error: 'failed to prepare temporary runtime root' };
-				const session_dir = mkdtemp(`${runtime_root}/session.XXXXXX`);
+				const session_dir = makeTempDir(`${runtime_root}/session.XXXXXX`);
 				if (!session_dir)
 					return { error: 'failed to allocate temporary runtime directory' };
 				const config_path = `${session_dir}/sing-box.json`;

@@ -399,7 +399,9 @@ export function renderOutbound(node) {
 		]))
 			return null;
 
-		const tls_utls_value = (node.type === 'anytls' && isEmpty(node.tls_utls)) ? 'chrome' : node.tls_utls;
+		// Defaults belong to capability-aware importers. Empty/manual Disable
+		// must stay disabled, including builds without uTLS.
+		const tls_utls_value = node.tls_utls;
 		return {
 			enabled: true,
 			server_name: node.tls_sni,

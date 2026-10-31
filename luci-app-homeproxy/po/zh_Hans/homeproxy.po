@@ -1688,3 +1688,21 @@ msgstr "月"
 
 msgid "Weekday"
 msgstr "周"
+
+msgid "valid email address"
+msgstr "有效的电子邮箱地址"
+
+msgid "Waiting for node selection"
+msgstr "等待选择节点"
+
+msgid "Testing nodes: %s / %s"
+msgstr "正在测试节点：%s / %s"
+
+msgid "Updating subscriptions in the background. You can leave this page; check the subscription log for progress."
+msgstr "正在后台更新订阅。可离开此页，在订阅日志中查看进度。"
+
+msgid "Subscription task status is unavailable. The task may still be running; check the subscription log before retrying."
+msgstr "无法获取订阅任务状态。任务可能仍在运行，请先查看订阅日志再重试。"
+
+msgid "A subscription update is already running in the background. Check the subscription log before retrying."
+msgstr "已有订阅更新正在后台运行，请先查看订阅日志再重试。"

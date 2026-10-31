@@ -607,9 +607,9 @@ return view.extend({
 			o.validate = function(section_id, value) {
 				if (section_id) {
 					if (!value)
-						return _('Expecting: %s').format('non-empty value');
+						return _('Expecting: %s').format(_('non-empty value'));
 					else if (!value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/))
-						return _('Expecting: %s').format('valid email address');
+						return _('Expecting: %s').format(_('valid email address'));
 				}
 
 				return true;

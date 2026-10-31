@@ -21,10 +21,43 @@ class SettingsTest(unittest.TestCase):
         source = (ROOT / 'root/usr/libexec/flowsense-settings.sh').read_text().replace('/usr/share/libubox/jshn.sh', str(TOOLS / 'share/libubox/jshn.sh')).replace('/etc/flowsense', str(self.d / 'etc/flowsense')).replace('/var/run/flowsense-settings.lock', str(self.d / 'var/run/flowsense-settings.lock'))
         (self.d / 'settings.sh').write_text(source)
         rpc = (self.d / 'rpc').read_text().replace('/usr/share/libubox/jshn.sh', str(TOOLS / 'share/libubox/jshn.sh')).replace('/usr/libexec/flowsense-settings.sh', str(self.d / 'settings.sh')).replace('/etc/init.d/npu-jitter restart', str(self.d / 'bin/monitor_restart'))
-        for prefix in ('/etc/config', '/tmp/flowsense-committed', '/var/run/npu-jitter.json', '/sys/class/net/*', '/proc/uptime'):
+        for prefix in ('/etc/config', '/tmp/flowsense-committed', '/var/run/flowsense-settings.lock', '/var/run/npu-jitter.json', '/sys/class/net/*', '/proc/uptime'):
             rpc = rpc.replace(prefix, str(self.d) + prefix)
         (self.d / 'proc/uptime').write_text('100.0 0\n')
         (self.d / 'rpc').write_text(rpc)
+
+    def test_direct_monitor_shares_settings_lock(self):
+        lock = self.d / 'var/run/flowsense-settings.lock'
+        lock.mkdir()
+        before = (self.d / 'etc/config/npu-monitor').read_bytes()
+        self.assertEqual(self.call('setMonitor', dict(target='direct.example', enabled=0)), dict(success=False, error='busy'))
+        self.assertEqual((self.d / 'etc/config/npu-monitor').read_bytes(), before)
+        lock.rmdir()
+        self.assertTrue(self.call('setMonitor', dict(target='direct.example', enabled=0))['success'])
+        self.assertFalse(lock.exists())
+
+    def test_monitor_failed_restart_cannot_overwrite_concurrent_writer(self):
+        import time
+        entered, release = self.d / 'entered', self.d / 'release'
+        self.script('monitor_restart', '#!/bin/sh\nif [ ! -e "' + str(entered) + '" ]; then touch "' + str(entered) + '"; while [ ! -e "' + str(release) + '" ]; do sleep .01; done; exit 1; fi\nexit 0\n')
+        a = subprocess.Popen([self.busybox, 'ash', str(self.d / 'rpc'), 'call', 'setMonitor'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.env)
+        a.stdin.write(json.dumps(dict(target='a.example', enabled=0))); a.stdin.close(); a.stdin = None
+        try:
+            for _ in range(500):
+                if entered.exists(): break
+                time.sleep(.01)
+            self.assertTrue(entered.exists())
+            b = self.call('setMonitor', dict(target='b.example', enabled=1))
+            self.assertEqual(self.call('applySettings'), dict(success=False, error='busy'))
+            self.assertEqual(self.call('saveSettings', dict(hardware=-1, vlan=-1, pppoe=-1, ap=-1, target='staged.example', enabled=1)), dict(success=False, error='busy'))
+        finally:
+            release.touch()
+            stdout, stderr = a.communicate(timeout=15)
+        self.assertEqual(b, dict(success=False, error='busy'))
+        self.assertEqual(json.loads(stdout), dict(success=False, error='apply'), stderr)
+        self.assertEqual(self.call('getOverview')['monitor'], dict(target='example.com', enabled=True))
+        self.assertTrue(self.call('setMonitor', dict(target='b.example', enabled=1))['success'])
+        self.assertEqual(self.call('getOverview')['monitor'], dict(target='b.example', enabled=True))
 
     def test_vlan_ap_native_form_preserves_intent(self):
         import os

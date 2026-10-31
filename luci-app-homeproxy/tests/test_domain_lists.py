@@ -1,6 +1,4 @@
 import json
-import shlex
-import shutil
 import subprocess
 import tempfile
 import unittest
@@ -17,22 +15,8 @@ def production_source():
     functions += HELPER[HELPER.index('export function isBinary'):HELPER.index('export function getTime')].replace('export function', 'function')
     helpers = RPC[RPC.index('function validDomainListId'):RPC.index('const methods =')]
     methods = RPC[RPC.index('\tdomainlist_write: {'):RPC.index('\n\tcertificate_write: {')]
-    # OpenWrt 24.10's fs lacks mkdtemp. Keep atomic private-directory creation
-    # real with BusyBox, rather than replacing transaction filesystem behavior.
-    busybox = shutil.which('busybox')
-    if busybox is None:
-        raise RuntimeError('domain-list fixture requires BusyBox mktemp')
-    filesystem = '''
-import { popen as fixture_popen } from 'fs';
-function mkdtemp(template) {
-    const command = %s + " " + shellQuote(template);
-    const pipe = fixture_popen(command, 'r');
-    if (!pipe) return null;
-    const directory = pipe.read('all');
-    const status = pipe.close();
-    return status === 0 && length(directory) ? trim(directory) : null;
-}
-''' % json.dumps(shlex.quote(busybox) + ' mktemp -d --')
+    filesystem = RPC[RPC.index('function makeTempDir'):RPC.index('function validDomainListId')]
+    filesystem = "import { popen } from 'fs';\n" + filesystem
     shell_quote = HELPER[HELPER.index('export function shellQuote'):HELPER.index('export function isBinary')]
     return shell_quote.replace('export function', 'function') + filesystem + functions + helpers + 'const methods = {\n' + methods + '\n};\n'
 

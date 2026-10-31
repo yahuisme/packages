@@ -12,7 +12,7 @@ INIT = (APP / 'root/etc/init.d/homeproxy').read_text()
 
 class AuditRegressions(unittest.TestCase):
     def test_latency_probe_allocates_unique_session_directory(self):
-        self.assertIn("mkdtemp(`${runtime_root}/session.XXXXXX`)", RPC)
+        self.assertIn("makeTempDir(`${runtime_root}/session.XXXXXX`)", RPC)
         self.assertIn("if (!session_dir)", RPC)
 
     def test_resource_downloads_have_a_size_limit(self):

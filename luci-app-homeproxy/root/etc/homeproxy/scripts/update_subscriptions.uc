@@ -309,6 +309,40 @@ function has_required_hysteria_bandwidth(config) {
 	return false;
 }
 
+// Mihomo maps are not native UCI values. Convert known plugin options to
+// SIP003 arguments; reject unknown/nested maps instead of stringifying them.
+function plugin_options(plugin, value) {
+	if (value === null || type(value) === 'string')
+		return value;
+	if (type(value) !== 'object')
+		die('Invalid Shadowsocks plugin options');
+	const aliases = plugin === 'obfs-local' ? { mode: 'obfs', host: 'obfs-host' } :
+		plugin === 'v2ray-plugin' ? { mode: 'mode', tls: 'tls', host: 'host', path: 'path', mux: 'mux' } : null;
+	if (!aliases)
+		die('Unsupported Shadowsocks plugin options');
+	let options = [];
+	for (let key, option in value) {
+		if (!(key in aliases) || !(type(option) in ['string', 'bool', 'int', 'double']))
+			die('Invalid Shadowsocks plugin option');
+		if ((key === 'tls' && type(option) !== 'bool') ||
+		    (key in ['host', 'path', 'mode'] && type(option) !== 'string') ||
+		    (key === 'mode' && !(option in (plugin === 'obfs-local' ? ['http', 'tls'] : ['websocket', 'quic']))) ||
+		    (key === 'mux' && type(option) !== 'bool' && !match(`${option}`, /^[0-9]+$/)))
+			die('Invalid Shadowsocks plugin option value');
+		if (key === 'mux' && type(option) === 'bool')
+			option = option ? '1' : '0';
+		if (option === false)
+			continue;
+		if (option === true)
+			push(options, aliases[key]);
+		else {
+			const escaped = replace(`${option}`, /[\\\\;=]/g, (character) => '\\' + character);
+			push(options, aliases[key] + '=' + escaped);
+		}
+	}
+	return join(';', options);
+}
+
 function parse_mihomo_proxy(proxy) {
 	if (type(proxy) !== 'object')
 		return null;
@@ -462,7 +496,7 @@ function parse_mihomo_proxy(proxy) {
 			shadowsocks_encrypt_method: proxy.cipher,
 			password: proxy.password,
 			shadowsocks_plugin: ss_plugin,
-			shadowsocks_plugin_opts: proxy['plugin-opts'],
+			shadowsocks_plugin_opts: plugin_options(ss_plugin, proxy['plugin-opts']),
 			udp_over_tcp: bool_to_uci(proxy['udp-over-tcp']),
 			udp_over_tcp_version: to_string(proxy['udp-over-tcp-version']),
 			tcp_fast_open: (proxy.tfo === true) ? '1' : null

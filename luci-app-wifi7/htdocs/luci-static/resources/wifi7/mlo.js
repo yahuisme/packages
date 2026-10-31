@@ -239,7 +239,7 @@ return baseclass.extend({
 			lockActions();
 			if (blocked() || !actionRoot.isConnected) return;
 			if (!window.confirm(reset
-				? _('Discard all staged wireless changes?')
+				? _('Discard all staged wireless changes and radio drafts?')
 				: _('Apply all staged configuration changes? Wireless connections may be interrupted.'))) return;
 			if (!operation.acquire()) return;
 			actionPending = true;
@@ -249,7 +249,11 @@ return baseclass.extend({
 			}).then(function() {
 				uci.unload('wireless');
 				return uci.load('wireless');
-			}).then(function() { return map.reset(); }).catch(function(error) {
+			}).then(function() {
+				return reset && operation.wirelessReverted ? operation.wirelessReverted() : null;
+			}).then(function() { return map.reset(); }).then(function() {
+				ui.addNotification(null, E('p', {}, reset ? _('Wireless changes reset; radio drafts were discarded.') : _('Configuration applied. Runtime status will refresh.')), 'info');
+			}).catch(function(error) {
 				ui.addNotification(null, E('p', {}, [ (reset ? _('Failed to update configuration: %s') : _('Failed to apply configuration: %s')).format(telemetry.errorText(error)) ]), 'error');
 			}).finally(function() { actionPending = false; operation.release(); });
 		}

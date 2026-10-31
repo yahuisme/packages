@@ -86,6 +86,7 @@ function updateCurvePreview(node) {
 }
 
 var previewCSS = '\
+.fan-settings .cbi-section:has(>[data-section-id="settings"]){container-type:inline-size}@container(max-width:600px){.fan-settings [data-section-id="settings"]>.cbi-value:not(.hidden){display:flex;flex-direction:column;align-items:stretch;gap:8px}.fan-settings [data-section-id="settings"]>.cbi-value>.cbi-value-title{float:none;width:auto;flex:none;text-align:start;padding:0}.fan-settings [data-section-id="settings"]>.cbi-value>.cbi-value-field{width:100%;min-width:0;margin:0;padding:0}}\
 .modal.fan-settings-modal{max-width:calc(100vw - 32px);box-sizing:border-box}\
 .fan-settings .fan-curve-table{display:grid;grid-template-columns:76px 148px 148px;gap:0 14px;width:max-content;max-width:100%;margin:0 0 16px;min-width:0}.fan-settings .fan-curve-table-head,.fan-settings .fan-curve-row{display:grid;grid-column:1 / -1;grid-template-columns:subgrid;align-items:center}.fan-settings .fan-curve-table-head{min-height:32px;color:var(--cbi-muted-color,var(--text-muted,#68727d));font-size:12px;font-weight:600}.fan-settings .fan-curve-row{min-height:60px;border-top:1px solid var(--cbi-border-color,var(--hairline,#edf0f3));padding:10px 0}.fan-settings .fan-curve-point{color:var(--cbi-muted-color,var(--text-muted,#4c5661));font-size:13px;font-weight:500;white-space:nowrap}.fan-settings .fan-curve-row>.cbi-value:not(.hidden){display:block;min-width:0;margin:0;padding:0}.fan-settings .fan-curve-row>.cbi-value .cbi-value-title{display:none}.fan-settings .fan-curve-row>.cbi-value .cbi-value-field{display:block;width:100%;min-width:0;margin:0;padding:0}.fan-settings .fan-curve-row>.cbi-value input{width:100%;min-width:0}.fan-settings .fan-curve-row>.cbi-value[data-name="point5_pwm"] input{background:var(--cbi-input-bg,var(--surface-sunken,#f3f5f7))}\
 .fan-settings .fan-curve-preview{max-width:none;margin:0;color:var(--cbi-text-color,currentColor)}\
@@ -98,7 +99,7 @@ var previewCSS = '\
 .fan-settings .cbi-section-node[data-section-id="custom"] .cbi-value-title{width:auto;padding:0;float:none;overflow-wrap:anywhere}\
 .fan-settings .cbi-section-node[data-section-id="custom"] .cbi-value-field{min-width:0;margin:0;padding:0}\
 .fan-settings .cbi-section-node[data-section-id="custom"] input{width:100%;min-width:0}\
-.fan-settings [data-name="_curve_preview"]:not(.hidden){display:block;margin-top:0}.fan-settings [data-name="_curve_preview"] .cbi-value-field{display:block;width:100%}.fan-settings [data-name="_curve_preview"] .cbi-value-title{display:block;margin-bottom:8px}\
+.fan-settings [data-name="_curve_preview"]:not(.hidden){display:block;margin-top:0}.fan-settings [data-name="_curve_preview"] .cbi-value-field{display:block;width:100%}.fan-settings [data-name="_curve_preview"] .cbi-value-title{display:block;margin-bottom:8px;text-align:start}\
 @container (max-width:440px){.fan-settings .fan-curve-table{grid-template-columns:64px 128px 128px;gap:0 12px}}\
 @container (max-width:360px){.fan-settings .fan-curve-table{grid-template-columns:52px minmax(0,1fr) minmax(0,1fr);gap:0 8px;width:276px}.fan-settings .fan-curve-table-head{font-size:11px}.fan-settings .fan-curve-row{min-height:56px;padding:8px 0}.fan-settings .fan-curve-row>.cbi-value input{padding-left:8px;padding-right:8px}}\
 @container (width < 640px){.fan-settings .cbi-section-node[data-section-id="custom"]{display:flex;flex-direction:column}.fan-settings .cbi-section-node[data-section-id="custom"]>[data-name="_curve_preview"]{order:-1;margin-bottom:16px}}\
@@ -177,7 +178,7 @@ return view.extend({
 		option.default = 'auto';
 
 		option = settings.option(form.Value, 'manual_pwm', _('Manual Fan Speed (PWM)'),
-			_('Set a fixed PWM value from 0 to 255.'));
+			_('Set a fixed PWM value from 0 to 255.') + ' ' + _('Low PWM values, including 0, may stop the fan. Monitor temperatures when using manual mode.'));
 		option.datatype = 'and(uinteger,range(0,255))';
 		option.default = '127';
 		option.validate = function(sectionId, value) {
@@ -192,7 +193,7 @@ return view.extend({
 		option.value('quiet', _('Quiet - Low noise priority'));
 		option.value('balanced', _('Balanced - Balanced cooling'));
 		option.value('performance', _('Performance - Maximum cooling'));
-		option.value('custom', _('Custom - User defined'));
+		option.value('custom', _('Custom - Adjust as needed'));
 		option.default = 'balanced';
 		option.depends('mode', 'auto');
 		option.retain = true;

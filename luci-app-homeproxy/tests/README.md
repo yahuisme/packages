@@ -24,9 +24,9 @@ These are isolated host contracts, not actual ECH handshakes or router upgrades.
 
 ```sh
 . /opt/test-tools/env.sh
-# Select the existing full runtime if a bootstrap/old ucode shadows it in PATH.
-export PATH=/usr/local/bin:/opt/test-tools/openwrt/bin:/opt/test-tools/python/common/bin:/usr/bin:/bin
-ucode -e 'import { mkdtemp } from "fs"; print(type(mkdtemp), "\n");'
+# Use the checksum-pinned native runtime and its ABI-matched modules.
+. /opt/test-tools/openwrt/packages-ci/env.sh
+ucode -e 'import { popen, lstat } from "fs"; print(type(popen), "\n");'
 node luci-app-homeproxy/tests/test_subscription_groups.cjs
 python3 -m unittest discover -s luci-app-homeproxy/tests -p 'test_urltest_options.py' -v
 ```
@@ -217,6 +217,60 @@ also checks the exact refreshed primary-node row's Applied label. Timer-backed
 stages use a monotonic deadline and timer-phase yielding, not a count of
 `setImmediate` turns. A separate unaccelerated production 1s delay case verifies
 that confirmation waits and that held confirmation still blocks the updater.
+
+# Audit-boundary regressions
+
+Run these through the caller's verified memory-bounded wrapper, after selecting
+checksum-pinned OpenWrt ucode/fs/UCI/digest and the native LuCI resource tree:
+
+```sh
+PYTHONPATH=luci-app-homeproxy/tests python3 -m unittest \
+  test_rpc_compatibility test_domain_lists test_certificate_cleanup \
+  test_anytls_generation test_subscription_plugin_native test_dns_validation \
+  test_subscription_jobs -v
+node tests/domain-remove-ui.cjs
+node tests/dns-validation-ui.cjs
+node tests/acme-validation-ui.cjs
+node tests/urltest-status-ui.cjs
+node tests/homeproxy-container-ui.cjs
+node tests/node-latency-batches-ui.cjs
+node tests/subscription-job-ui.cjs
+node tests/subscription-ui.cjs
+```
+
+All new cases are automatically discovered by the existing `.github/scripts/run-tests.sh`.
+The RPC-link test preserves the complete production native imports, changing only
+the absolute helper path and rpcd's final registration return. It links the real
+production helper, isolating only its unused LuCI HTTP query-decoding import. Domain transactions
+now execute the production atomic `mktemp -d` wrapper, not an fs compatibility shim.
+The uid-read test maps only the router's sing-box account name to a private numeric
+uid and requires root; it never creates a host account. The plugin test executes
+full updater main with native UCI confdir/savedir and checks committed strings,
+boolean mux semantics, SIP003 escaping and fail-closed unsupported maps.
+
+Contract changes are intentional: AnyTLS defaults are decided by capability-aware
+importers, while empty/manual Disable stays disabled in the renderer. Removing a
+domain group only changes the UCI session; unreferenced list files remain as
+recoverable tombstones (including after Apply) because Apply rollback is also
+reversible. The generator reads only referenced sections; destructive orphan GC
+is not performed at a nontransactional UI boundary. The old static mkdtemp-name
+assertion now checks the production atomic helper, with native allocation tested
+separately.
+
+Subscription UI calls the existing ACL-allowed wrapper with `--status`/`--start`.
+Only start detaches; the worker inherits the existing flock descriptor and writes
+an atomic exit result. Short status calls report real busy/done state without
+holding a download-sized RPC open. Busy reentry does not save/apply drafts; an
+uncertain status warns that the worker may still run. The no-argument cron path
+remains synchronous. `subscription-ui.cjs` fixtures explicitly return the new job
+JSON while retaining native save/apply/no-op/confirm ordering, failure and refresh
+coverage. Node latency uses sequential 16-node RPCs with completed/total feedback;
+fixtures do not start the core or claim network latency measurements.
+
+Container tests establish native reset/style retention, not browser geometry.
+Browser acceptance must still compare Aurora and Bootstrap light/dark at phone,
+sidebar tablet and desktop widths, and measure actual status transitions before
+claiming a CLS result. Equal-status DOM stability remains a separate regression.
 
 Reload guards/backup/submission adapter selectively reuse the repository's
 `e000a5c` implementation; current URLTest cleanup policy is retained. Cold

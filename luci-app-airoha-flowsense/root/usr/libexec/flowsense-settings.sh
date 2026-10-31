@@ -80,7 +80,7 @@ settings_rpc() (
                 else acceleration=failed; success=false; json_get_var acceleration_error error; fi
             fi
             if [ "$settings_enabled" != -1 ]; then
-                result=$(printf '{"target":"%s","enabled":%s}\n' "$settings_target" "$settings_enabled" | set_monitor)
+                result=$(printf '{"target":"%s","enabled":%s}\n' "$settings_target" "$settings_enabled" | set_monitor_locked)
                 json_load "$result"; json_get_var value success
                 if [ "$value" = 1 ]; then
                     monitor=applied; settings_enabled=-1; settings_target=

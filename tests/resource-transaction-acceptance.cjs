@@ -2,6 +2,7 @@
 // Real LuCI RPC validation, shared module and DOM, isolated transport only.
 const assert=require('assert/strict');
 const fs=require('fs'),path=require('path');
+const packagesRoot=process.env.PACKAGES_ROOT||path.resolve(__dirname,'..');
 const {pageBoot,tick}=require('./helpers/test_page_lifecycle.cjs');
 const watchdog=setTimeout(()=>{console.error('FAIL resource acceptance stalled');process.exit(1);},30000);
 const response=(h,req,value,status=0)=>({ok:true,status:200,json:()=>h.w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result:[status,value]}))});
@@ -30,7 +31,7 @@ async function panelLinkage(){
  }finally{h.w.close();}
 }
 function loadView(h,name){
- const source=fs.readFileSync(path.join(process.env.PACKAGES_ROOT,'luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/'+name+'.js'),'utf8');
+ const source=fs.readFileSync(path.join(packagesRoot,'luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/'+name+'.js'),'utf8');
  const deps=[...source.matchAll(/'require ([^';]+)';/g)].map(m=>m[1].split(' as '));
  const C=h.w.Function(...deps.map(([n,a])=>a||n.split('.').at(-1)),source)(...deps.map(([n])=>h.mods[n]));
  return typeof C==='function'?new C():C;

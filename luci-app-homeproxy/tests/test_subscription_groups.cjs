@@ -53,7 +53,9 @@ const watchdog = setTimeout(() => { console.error('subscription group UI stalled
     const root = await h.app.render(['homeproxy', await h.mods.homeproxy.getBuiltinFeatures(), { hosts: {} }]);
     h.w.document.querySelector('#view').append(root);
     await tick();
-    const map = h.mods.dom.findClassInstance(root);
+    const mapRoot = root.matches?.('#cbi-homeproxy') ? root : root.querySelector('#cbi-homeproxy');
+    const map = h.mods.dom.findClassInstance(mapRoot);
+    assert(map, 'native Map instance found inside view wrapper');
     const expected = `<${group}> [socks] ${label}`;
     for (const name of ['main_node', 'main_urltest_nodes', 'node']) {
       const option = options(map, name).find(o => Array.from(o.keylist || []).includes('n1'));

@@ -70,8 +70,8 @@ msgstr "曲线预览"
 msgid "Custom"
 msgstr "自定义"
 
-msgid "Custom - User defined"
-msgstr "自定义 - 自定曲线"
+msgid "Custom - Adjust as needed"
+msgstr "自定义 - 按需调节"
 
 msgid "Custom Curve"
 msgstr "自定义曲线"
@@ -192,3 +192,6 @@ msgstr "关闭"
 
 msgid "Save error"
 msgstr "保存失败"
+
+msgid "Low PWM values, including 0, may stop the fan. Monitor temperatures when using manual mode."
+msgstr "低 PWM 值（包括 0）可能使风扇停转，使用手动模式时请留意温度"

@@ -184,3 +184,12 @@ msgstr "应用失败，且未能完整恢复原配置。请立即检查当前配
 
 msgid "The operation failed for an unknown reason. Refresh the page and check the system log before retrying."
 msgstr "操作失败，无法确定原因。请刷新页面并检查系统日志后重试。"
+
+msgid "Saved settings status is unknown."
+msgstr "已保存设置状态未知"
+
+msgid "Saved; not yet applied"
+msgstr "已保存，尚未应用"
+
+msgid "No saved changes awaiting application"
+msgstr "没有待应用的已保存更改"

@@ -220,8 +220,14 @@ return view.extend({
 			if (!root.isConnected) return;
 			previous = null;
 			message.textContent = _('Data unavailable; previous readings cleared.');
-			portRows = {}; summaryCells = qualityCells = null; portOrder = '';
-			[interfaces, summary, quality].forEach(function(node) { node.replaceChildren(); });
+			ensureSummary().forEach(function(cell) { text(cell.value, '—'); text(cell.sub, _('Data unavailable')); });
+			ensureQuality().forEach(function(cell) { text(cell, '—'); });
+			// Retain known port identities, not their stale telemetry or rate baseline.
+			Object.keys(portRows).forEach(function(device) {
+				var row = portRows[device];
+				paintBadge(row.badge, null); text(row.speed, '—');
+				text(row.rate, '— / —'); text(row.errors, '— / —');
+			});
 		}
 		requestAnimationFrame(function() {
 			if (!root.isConnected) return;

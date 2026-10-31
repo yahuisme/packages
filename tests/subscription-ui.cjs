@@ -58,7 +58,9 @@ async function fixture(translations = {}, realTimers = false) {
 		}
 		return originalPost(url, req);
 	};
-	h.mods.fs.exec = async path => {
+	h.mods.fs.exec = async (path, args) => {
+		if (args?.[0] === '--status') return { code: 0, stdout: '{"state":"idle"}' };
+		assert.deepEqual(Array.from(args || []), ['--start']);
 		calls.push('exec');
 		assert.equal(path, '/etc/homeproxy/scripts/update_subscriptions.sh');
 		if (gates.exec)
@@ -67,7 +69,7 @@ async function fixture(translations = {}, realTimers = false) {
 			return { code: 1, stderr: 'injected updater status' };
 		if (failures.exec)
 			throw failures.exec;
-		return { code: 0, stdout: '', stderr: '' };
+		return { code: 0, stdout: '{"state":"done","code":0}', stderr: '' };
 	};
 	const nativeNotification = Object.getPrototypeOf(h.mods.ui).addNotification;
 	h.mods.ui.addNotification = (title, node, level) => {
@@ -213,7 +215,7 @@ async function fixture(translations = {}, realTimers = false) {
 	try {
 		const original = h.mods.request.post;
 		let updated = false;
-		h.mods.fs.exec = async () => { updated = true; return { code: 0 }; };
+		h.mods.fs.exec = async (_path, args) => { if (args?.[0] === '--status') return { code: 0, stdout: '{"state":"idle"}' }; updated = true; return { code: 0, stdout: '{"state":"done","code":0}' }; };
 		h.mods.request.post = async (url, req) => {
 			const response = await original(url, req);
 			if (updated && req.params[1] === 'uci' && req.params[2] === 'get') {
@@ -448,7 +450,7 @@ async function fixture(translations = {}, realTimers = false) {
     widget.setValue(['https://example.invalid/changed']);
     assert.deepEqual(Array.from(option.formvalue('subscription')),['https://example.invalid/changed']);
    }
-   h.mods.fs.exec=async path=>{assert.equal(path,'/etc/homeproxy/scripts/update_subscriptions.sh');updates.push(JSON.parse(JSON.stringify(committed.subscription)));return {code:0};};
+   h.mods.fs.exec=async (path,args)=>{assert.equal(path,'/etc/homeproxy/scripts/update_subscriptions.sh');if(args?.[0]==='--status')return {code:0,stdout:'{"state":"idle"}'};updates.push(JSON.parse(JSON.stringify(committed.subscription)));return {code:0,stdout:'{"state":"done","code":0}'};};
    await h.update();
    assert.equal(h.notices.filter(n=>n.level==='error').length,0);
    assert.equal(updates.length,['initial-default-save','unchanged-repeat','edited-url','unchanged-after-edit'].indexOf(stage)+1);

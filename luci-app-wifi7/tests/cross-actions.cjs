@@ -117,7 +117,7 @@ async function until(fn){for(let i=0;i<500&&!fn();i++)await tick();assert(fn(),'
    await tick();assert.equal(h.calls.length,before,'forced cross-tab actions and add cannot mutate');
    release();await until(()=>!h.save.disabled);assert(!button('apply').disabled);assert(!button('reset').disabled);
    if(first==='radio')assert.equal(h.db().committed.radio0.txpower,'24');
-   else {await h.clickSave();assert.equal(h.db().committed.radio0.txpower,'24');}
+   else {await h.clickSave();assert.equal(h.db().committed.radio0.txpower,first==='reset'?undefined:'24','explicit reset discards radio drafts; ordinary MLO Apply preserves them');}
    console.log('PASS cross-tab '+first+' hold, forced reverse actions, add guard, release/readback/retry');
   }finally{h.w.close();}
  }

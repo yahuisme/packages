@@ -36,6 +36,9 @@ node tests/telemetry.test.js
 node tests/radio-attribution.cjs
 for mode in radio mlo-runtime mlo-summary; do node tests/render-reuse.cjs "$mode"; done
 node tests/radio-refresh.cjs
+node tests/reset-radio.cjs
+node tests/legacy-power.cjs
+node tests/narrow-settings.cjs
 for mode in availability cost; do node tests/wireless-runtime.cjs "$mode"; done
 node tests/typography.cjs
 node tests/view.test.js
@@ -52,6 +55,8 @@ Requires BusyBox and gettext `msgfmt`; localization additionally requires LuCI `
 Error reasons follow LuCI `rpc.getStatusText()` and `uci.apply()`: numeric ubus status and the native `RPCError` ubus envelope are recognized; JSON-RPC/HTTP error numbers and arbitrary exception text are not ubus codes. Unknown failures use a translated fallback, without raw transport details. `wifi7/telemetry.js` owns the small shared reason helper; both configuration action surfaces use it.
 
 `radio-attribution.cjs` runs the production summary collector under BusyBox with temporary `iw`/`hostapd_cli` fixtures, then feeds its unmodified output through real LuCI RPC and DOM. It covers single-wiphy MLO/ordinary-interface frequency attribution, fallback, zero power, failed/empty enumeration and overview recovery, while asserting one `iw dev` enumeration and no station scans.
+
+`reset-radio.cjs` covers failed radio Apply → explicit MLO Reset → unrelated radio Apply without resurrecting reverted settings. Reset explicitly discards radio drafts; ordinary Apply preserves open editor drafts. `legacy-power.cjs` retains unchanged integer-shaped legacy power while enforcing 0–30 dBm for every new value; `narrow-settings.cjs` checks scoped container CSS only, not browser geometry.
 
 `radio-refresh.cjs` covers an existing `txpower=0` during another radio's Apply, bounded integer validation, and already-mounted MLO radio labels/editor choices after radio readback without discarding an open editor's draft. `wireless-runtime.cjs` loads real LuCI `network.js` to reproduce configured devices synthesized after denied runtime replies, then exercises the actual rejecting RPC boundary for unknown/down/recovery, shared polling, SSID/interface mapping, live frequency changes and detach. It counts logical RPC calls (not HTTP batches): with three radios, overview and active MLO each use one wireless-status call, one summary collector and three `iwinfo.info` calls per cycle; client diagnostics remain tab-gated.
 

@@ -93,6 +93,8 @@ async function scenario(readonly = false, loadFailure = false, capability = 'pre
    assert.equal(button.textContent, w._('Save')); button.click();
    await pending; await new Promise(r => setImmediate(r)); map.save = save;
   }
+  assert.equal(node.querySelector('[data-settings-state]').textContent, w._(loadFailure ? 'Saved settings status is unknown.' : 'Saved settings match the current runtime.'));
+  assert(node.textContent.includes(w._('CPU settings affect this runtime only and are not restored automatically after reboot.')));
   assert.equal(node.querySelectorAll('.cbi-value').length, 2, 'only native CPU controls must render');
   assert.equal(node.querySelector('.cbi-map-descr').textContent, w._('Configure CPU governor and maximum scaling frequency.'));
   for (const [name, section, expected] of [['governor', 'cpu', 'performance'], ['frequency', 'cpu', '1000000']]) {
@@ -153,6 +155,7 @@ async function scenario(readonly = false, loadFailure = false, capability = 'pre
    assert.deepEqual(calls.filter(c => c[0].startsWith('set')), [], 'Save must not execute immediate kernel setters');
    assert.equal(notices.at(-1), w._('Settings saved.'));
    assert.deepEqual(runtime, { cpu_governor: 'performance', cpu_max_freq: 1000000 }, 'Save leaves runtime untouched');
+   assert.equal(node.querySelector('[data-settings-state]').textContent, w._('Saved settings differ from the current runtime; apply to activate.'));
    const fresh = new C();
    await fresh.render(await fresh.load());
    assert.equal(fresh.settingsMap.lookupOption('governor', 'cpu')[0].default, 'schedutil', 'reload retrieves saved baseline');

@@ -85,12 +85,14 @@ return view.extend({
 				if (operation.pending || !root || !root.isConnected || !L.hasViewPermission()) return false;
 				operation.pending = true; operation.changed(); return true;
 			},
+			wirelessReverted: function() { return syncRadioConfiguration(); },
 			release: function() { operation.pending = false; operation.changed(); }
 		};
 		(data[0] || []).forEach(function(item) { channelLists[item.id] = item; });
 		var notice = E('div', { 'class': 'wifi7-notice', role: 'status' });
 		var grid = E('div', { 'class': 'wifi7-grid' });
 		var settings = E('div', { 'class': 'cbi-section' });
+		if (!L.hasViewPermission()) settings.appendChild(E('p', { 'class': 'cbi-section-descr' }, _('Read-only access: configuration is visible but cannot be changed.')));
 		radios.forEach(function(r) {
 			var id = r['.name'], band = r.band, prefix = 'wifi7-' + id + '-';
 			var c = cells[id] = {};
@@ -135,13 +137,15 @@ return view.extend({
 			var box = E('div', { 'class': 'cbi-section-node wifi7-settings-card' }, [ E('h4', {}, id + (names[band] ? ' (' + names[band] + ')' : '')),
 				field(_('Enabled'), enabled), field(_('Operating Channel'), channel, choices.length ? _('Channels reported by the driver; current configuration is preserved.') : _('Channel discovery unavailable; only the current setting is preserved.')),
 				field(_('Bandwidth / Mode'), width), field(_('TX Power (dBm)'), power, _('0-%d dBm, leave empty for regulatory auto').format(30)), field(_('Country Code'), country, _('After changing country, apply and reload to refresh permitted channels.')) ]);
+			var powerNotice = E('p', { 'class': 'cbi-section-descr', hidden: true });
+			box.appendChild(powerNotice);
 			var radar = null;
 			if (band === '5g') {
 				radar = E('input', { type: 'checkbox', id: prefix + 'radar', name: prefix + 'radar' });
 				radar.checked = r.background_radar === '1';
 				box.appendChild(field(_('Background Radar'), radar, _('Requires driver support; channel availability checks may still be required.')));
 			}
-			controls.push({ original: Object.assign({}, r), id: id, enabled: enabled, channel: channel, width: width, power: power, country: country, radar: radar });
+			controls.push({ original: Object.assign({}, r), id: id, enabled: enabled, channel: channel, width: width, power: power, country: country, radar: radar, powerNotice: powerNotice });
 			settings.appendChild(box);
 		});
 		var firmware = data[1];
@@ -207,7 +211,13 @@ return view.extend({
 		var save = E('button', { 'class': 'cbi-button cbi-button-apply', click: function() {
 			lockControls();
 			if (operation.pending || !root.isConnected || !L.hasViewPermission()) return;
-			if (controls.some(function(c) { return !c.channel.reportValidity() || !c.power.reportValidity() || !c.country.reportValidity(); })) return;
+			if (controls.some(function(c) {
+				if (c.missing) return false;
+				// Retain an unchanged integer-shaped legacy value without relaxing
+				// the 0–30 dBm contract for any new user input.
+				var legacyPower = /^(0|[1-9][0-9]*)$/.test(c.original.txpower || '') && c.power.value === c.original.txpower;
+				return !c.channel.reportValidity() || !legacyPower && !c.power.reportValidity() || !c.country.reportValidity();
+			})) return;
 			var changes = [];
 			controls.forEach(function(c) {
 				if (c.missing) return;
@@ -241,28 +251,8 @@ return view.extend({
 				uci.unload('wireless');
 				return uci.load('wireless');
 			}).then(function() {
-				var fresh = uci.sections('wireless', 'wifi-device');
 				if (operation.refreshMloConfiguration) operation.refreshMloConfiguration();
-				return Promise.all(controls.map(function(c) {
-					var original = fresh.find(function(r) { return r['.name'] === c.id; });
-					c.missing = !original;
-					if (!original) return;
-					var changedCountry = c.original.country !== original.country;
-					c.original = Object.assign({}, original);
-					c.pending = null;
-					c.enabled.checked = original.disabled !== '1';
-					c.channel.value = original.channel || 'auto';
-					c.width.value = original.htmode || '';
-					c.power.value = original.txpower || '';
-					c.country.value = original.country || '';
-					if (c.radar) c.radar.checked = original.background_radar === '1';
-					if (!changedCountry) return;
-					return settled(frequencies(c.id)).then(function(result) {
-						var replacement = channelSelect(c.channel.id, result, original);
-						c.channel.replaceChildren.apply(c.channel, Array.from(replacement.options));
-						c.channel.value = original.channel || 'auto';
-					});
-				}));
+				return syncRadioConfiguration();
 			}).then(function() {
 				ui.addNotification(null, E('p', {}, _('Configuration applied. Runtime status will refresh.')), 'info');
 				return update();
@@ -271,11 +261,37 @@ return view.extend({
 			}).finally(function() { operation.release(); });
 		} }, _('Save & Apply'));
 		settings.appendChild(E('div', { 'class': 'wifi7-save-bar' }, save));
+		function syncRadioConfiguration() {
+			var fresh = uci.sections('wireless', 'wifi-device');
+			return Promise.all(controls.map(function(c) {
+				var original = fresh.find(function(r) { return r['.name'] === c.id; });
+				c.missing = !original;
+				if (!original) return;
+				var changedCountry = c.original.country !== original.country;
+				c.original = Object.assign({}, original);
+				c.pending = null;
+				c.enabled.checked = original.disabled !== '1';
+				c.channel.value = original.channel || 'auto';
+				c.width.value = original.htmode || '';
+				c.power.value = original.txpower || '';
+				c.country.value = original.country || '';
+				if (c.radar) c.radar.checked = original.background_radar === '1';
+				if (!changedCountry) return;
+				return settled(frequencies(c.id)).then(function(result) {
+					var replacement = channelSelect(c.channel.id, result, original);
+					c.channel.replaceChildren.apply(c.channel, Array.from(replacement.options));
+					c.channel.value = original.channel || 'auto';
+				});
+			}));
+		}
 		function lockControls() {
 			var readonly = !L.hasViewPermission();
 			save.disabled = operation.pending || readonly;
 			controls.forEach(function(c) {
 				['enabled', 'channel', 'width', 'power', 'country', 'radar'].forEach(function(key) { if (c[key]) c[key].disabled = operation.pending || readonly || c.missing; });
+				var legacyPower = /^(0|[1-9][0-9]*)$/.test(c.original.txpower || '') && Number(c.original.txpower) > 30;
+				c.powerNotice.hidden = !legacyPower;
+				c.powerNotice.textContent = legacyPower ? _('Existing power outside 0–30 dBm is retained unchanged. Use Wireless to manage it, or enter a new value within this range.') : '';
 				c.channel.disabled = operation.pending || readonly || c.missing || c.country.value.toUpperCase() !== (c.original.country || '').toUpperCase();
 			});
 		}
@@ -459,6 +475,7 @@ return view.extend({
 			return update(activeTab === 3);
 		};
 		var root = E('div', { 'class': 'cbi-map wifi7-map' }, [ E('style', {}, `
+			.wifi7-map{container-type:inline-size}
 			.wifi7-map .cbi-tabmenu { margin-bottom:16px; }
 			.wifi7-map .wifi7-notice { color:var(--cbi-muted-color,var(--text-muted,inherit)); min-height:18px; margin:0 0 16px; font-variant-numeric:tabular-nums; }
 			.wifi7-map .wifi7-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:8px; margin-bottom:16px; }
@@ -499,6 +516,7 @@ return view.extend({
 			.wifi7-map .wifi7-mlo-content { margin:0; padding:0; }
 			.wifi7-map .wifi7-mlo-content > .cbi-map-descr { display:none; }
 			.wifi7-map .wifi7-mlo-content > .cbi-section { margin:0 0 16px; }
+			@container(max-width:600px){.wifi7-map .wifi7-settings-card .cbi-value{flex-direction:column;align-items:stretch;gap:8px}.wifi7-map .wifi7-settings-card .cbi-value-title{width:auto;flex:none;text-align:start;padding:0}.wifi7-map .wifi7-settings-card .cbi-value-field{width:100%;min-width:0;padding:0}.wifi7-map .wifi7-settings-card .cbi-input-select{max-width:100%}}
 			@media (max-width:640px) {
 				.wifi7-map .wifi7-grid { grid-template-columns:1fr; }
 				.wifi7-map .wifi7-card,.wifi7-map .wifi7-settings-card { padding:16px; }

@@ -30,6 +30,8 @@ const HP_DIR=%s, FAULT=%s;
 function readfile(p){if(FAULT==='read')return null;return rr(p);}
 function writefile(p,c){if(FAULT==='short')return rw(p,substr(c,0,4));return rw(p,c);}
 function system(s){
+ s=replace(s, 'sing-box:sing-box', '5566:5566');
+ if(FAULT==='chown' && index(s,'/bin/chown')===0)return 1;
  if(FAULT==='cleanup' && index(s,'/bin/rm')===0)return 1;
  if(FAULT==='mv' && index(s,'/bin/mv')===0)return 1;
  if(FAULT==='chmod' && index(s,'/bin/chmod')===0)return 1;
@@ -44,6 +46,36 @@ function system(s){
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, '')
         return json.loads(result.stdout)
+
+    @unittest.skipUnless(os.geteuid() == 0, 'uid read boundary requires root')
+    def test_server_private_key_remains_readable_by_runtime_uid(self):
+        cert = self.root / 'certs/server_privatekey.pem'
+        cert.parent.mkdir()
+        self.root.chmod(0o755)
+        cert.write_text('OLD KEY')
+        os.chown(cert, 5566, 5566)
+        cert.chmod(0o600)
+        def read_as_runtime():
+            def drop_uid():
+                os.setgroups([])
+                os.setgid(5566)
+                os.setuid(5566)
+            return subprocess.run(['python3', '-c', 'from pathlib import Path; print(Path("certs/server_privatekey.pem").read_text())'],
+                                  cwd=self.root, preexec_fn=drop_uid, capture_output=True, text=True)
+        self.assertEqual(read_as_runtime().returncode, 0)
+        self.upload.write_text(PEM.replace('CERTIFICATE', 'PRIVATE KEY'))
+        self.assertTrue(self.invoke(filename='server_privatekey')['result'])
+        self.assertEqual((cert.stat().st_uid, cert.stat().st_gid, cert.stat().st_mode & 0o777), (5566, 5566, 0o600))
+        self.assertEqual(read_as_runtime().returncode, 0)
+
+    def test_failed_key_owner_change_preserves_previous_key(self):
+        cert = self.root / 'certs/server_privatekey.pem'
+        cert.parent.mkdir()
+        cert.write_text('OLD KEY')
+        self.upload.write_text(PEM.replace('CERTIFICATE', 'PRIVATE KEY'))
+        self.assertFalse(self.invoke('chown', filename='server_privatekey')['result'])
+        self.assertEqual(cert.read_text(), 'OLD KEY')
+        self.assertFalse((cert.parent / 'server_privatekey.pem.new').exists())
 
     def test_cleanup_failure_cannot_report_success(self):
         result = self.invoke('cleanup')
