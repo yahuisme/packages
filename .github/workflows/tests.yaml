@@ -111,3 +111,8 @@ jobs:
           # This isolated fixture needs uid switching; no service is started.
           sudo env "PATH=$PATH" "UCODE_LIB_DIR=$UCODE_LIB_DIR" "TMPDIR=$TMPDIR" \
             PYTHONDONTWRITEBYTECODE=1 python3 luci-app-homeproxy/tests/test_certificate_cleanup.py
+      - name: Verify native subscription RPC worker
+        run: |
+          sudo env "OPENWRT_ROOTFS=$OPENWRT_TOOLS/rootfs.tar.gz" \
+            "TMPDIR=$TMPDIR" PYTHONDONTWRITEBYTECODE=1 \
+            python3 tests/subscription-rpc-native.py

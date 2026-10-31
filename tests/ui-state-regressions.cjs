@@ -143,6 +143,7 @@ async function logClean() {
 		};
 		const clean = () => h.button('Clean log');
 		const textarea = () => h.root().querySelector('textarea');
+		assert.equal(textarea().id, 'homeproxy-log');
 		for (const poll of h.polls) await poll();
 		for (const mode of ['business', 'transport', 'malformed', 'truthy', 'success']) {
 			const before = notices.length, count = calls;
@@ -203,7 +204,7 @@ async function logClearRace() {
 			}
 			h.button('Clean log').click();
 			await until(()=>clears.length===1,'native clear RPC starts');
-			assert.equal(clears[0].source,'sing-box-c','clear captures invocation source');
+			assert.equal(clears[0].source,'homeproxy','clear captures the default HomeProxy source');
 			assert.equal(area().value,'confirmed before clear','no optimistic clearing');
 			const old=area();
 			if (scenario.startsWith('reset')) await h.mods.dom.findClassInstance(h.root()).reset();
@@ -212,7 +213,7 @@ async function logClearRace() {
 				h.w.document.querySelector('#view').append(await h.app.render());
 			}
 			if (scenario==='switch-back' || scenario==='other-source') choose('sing-box-s');
-			if (scenario==='switch-back') choose('sing-box-c');
+			if (scenario==='switch-back') choose('homeproxy');
 			await tick();
 			if (replacementRead) {
 				pendingRead = Promise.all(h.polls.map(poll=>poll()));

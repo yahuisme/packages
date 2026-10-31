@@ -218,6 +218,14 @@ stages use a monotonic deadline and timer-phase yielding, not a count of
 `setImmediate` turns. A separate unaccelerated production 1s delay case verifies
 that confirmation waits and that held confirmation still blocks the updater.
 
+`tests/subscription-rpc-native.py` runs the production shell wrapper against the
+checksum-verified OpenWrt rootfs in private network/PID namespaces with native
+ash, rpcd, file.exec and ubus. Only the downloader is held by a local fixture.
+It verifies that `--start` returns immediately, busy reentry is reported, and
+both successful and failed worker exit codes arrive through the status RPC.
+CI passes `OPENWRT_ROOTFS` from the staged rootfs archive and runs this gate as
+root; it does not contact subscriptions or invoke router services.
+
 # Audit-boundary regressions
 
 Run these through the caller's verified memory-bounded wrapper, after selecting

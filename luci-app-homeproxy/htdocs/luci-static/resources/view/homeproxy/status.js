@@ -190,7 +190,7 @@ function getConnectionStatus() {
 }
 
 function getRuntimeLog(o) {
-	const session = this.logSession || (this.logSession = { source: 'sing-box-c', busy: false, revision: 0 });
+	const session = this.logSession || (this.logSession = { source: 'homeproxy', busy: false, revision: 0 });
 	const sources = {
 		homeproxy: { name: _('HomeProxy') },
 		'sing-box-c': { name: _('sing-box Client'), section: 'config' },

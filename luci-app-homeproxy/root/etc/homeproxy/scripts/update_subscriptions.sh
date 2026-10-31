@@ -42,8 +42,11 @@ case "$1" in
 		exit 0 ;;
 	--start)
 		rm -f "$RESULT_PATH" || exit 1
-		/bin/sh "$0" --worker </dev/null >/dev/null 2>&1 &
 		printf '{"state":"running"}\n'
+		# Close captured RPC pipes before forking; the worker must not inherit
+		# them even briefly, or rpcd can miss EOF and time out after success.
+		exec >/dev/null 2>&1
+		/bin/sh "$0" --worker </dev/null &
 		exit 0 ;;
 	--worker|'') ;;
 	*) exit 1 ;;
