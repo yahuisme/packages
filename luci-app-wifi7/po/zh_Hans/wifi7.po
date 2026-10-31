@@ -136,6 +136,12 @@ msgstr "导出无线诊断"
 msgid "Failed to apply configuration: %s"
 msgstr "应用配置失败：%s"
 
+msgid "Configuration applied, but runtime status refresh failed. %s"
+msgstr "配置已应用，但运行状态刷新失败：%s"
+
+msgid "Enter 8–63 characters for WPA3-SAE."
+msgstr "WPA3-SAE 密码长度须为 8 至 63 个字符"
+
 msgid "General"
 msgstr "常规"
 

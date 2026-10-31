@@ -243,9 +243,10 @@ return baseclass.extend({
 				: _('Apply all staged configuration changes? Wireless connections may be interrupted.'))) return;
 			if (!operation.acquire()) return;
 			actionPending = true;
+			let applied = false;
 			lockActions();
 			return Promise.resolve().then(function() {
-				return reset ? revertWireless('wireless') : map.save().then(function() { return uci.apply(); });
+				return reset ? revertWireless('wireless') : map.save().then(function() { return uci.apply(); }).then(function(result) { applied = true; return result; });
 			}).then(function() {
 				uci.unload('wireless');
 				return uci.load('wireless');
@@ -254,7 +255,10 @@ return baseclass.extend({
 			}).then(function() { return map.reset(); }).then(function() {
 				ui.addNotification(null, E('p', {}, reset ? _('Wireless changes reset; radio drafts were discarded.') : _('Configuration applied. Runtime status will refresh.')), 'info');
 			}).catch(function(error) {
-				ui.addNotification(null, E('p', {}, [ (reset ? _('Failed to update configuration: %s') : _('Failed to apply configuration: %s')).format(telemetry.errorText(error)) ]), 'error');
+				if (applied)
+					ui.addNotification(null, E('p', {}, [_('Configuration applied, but runtime status refresh failed. %s').format(telemetry.errorText(error))]), 'warning');
+				else
+					ui.addNotification(null, E('p', {}, [ (reset ? _('Failed to update configuration: %s') : _('Failed to apply configuration: %s')).format(telemetry.errorText(error)) ]), 'error');
 			}).finally(function() { actionPending = false; operation.release(); });
 		}
 
@@ -391,6 +395,12 @@ return baseclass.extend({
 		option.value('owe', _('OWE')); option.value('none', _('No encryption')); option.default = 'sae'; option.rmempty = false;
 		option = section.taboption('security', form.Value, 'key', _('Passphrase'));
 		option.password = true; option.datatype = 'wpakey'; option.rmempty = false;
+		option.validate = function(sectionId, value) {
+			let encryption = this.section.children.find(option => option.option == 'encryption').formvalue(sectionId);
+			if ([ 'sae', 'sae-mixed' ].includes(encryption) && value.length === 64 && /^[a-fA-F0-9]{64}$/.test(value))
+				return _('Enter 8–63 characters for WPA3-SAE.');
+			return true;
+		};
 		for (let encryption of [ 'sae', 'sae-mixed', 'psk2', 'psk-mixed' ]) option.depends('encryption', encryption);
 		option = section.taboption('security', form.ListValue, 'ieee80211w', _('802.11w Management Frame Protection'));
 		option.value('0', _('Disabled')); option.value('1', _('Optional')); option.value('2', _('Required')); option.default = '2'; option.rmempty = false;

@@ -135,6 +135,12 @@ msgstr ""
 msgid "Failed to apply configuration: %s"
 msgstr ""
 
+msgid "Configuration applied, but runtime status refresh failed. %s"
+msgstr ""
+
+msgid "Enter 8–63 characters for WPA3-SAE."
+msgstr ""
+
 msgid "General"
 msgstr ""
 

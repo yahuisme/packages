@@ -247,7 +247,9 @@ return view.extend({
 				else uci.unset('wireless', change.id, change.key);
 			});
 			lockControls();
+			var applied = false;
 			return uci.save().then(function() { return uci.apply(); }).then(function() {
+				applied = true;
 				uci.unload('wireless');
 				return uci.load('wireless');
 			}).then(function() {
@@ -257,7 +259,11 @@ return view.extend({
 				ui.addNotification(null, E('p', {}, _('Configuration applied. Runtime status will refresh.')), 'info');
 				return update();
 			}).catch(function(err) {
-				ui.addNotification(null, E('p', {}, [_('Failed to apply configuration: %s').format(telemetry.errorText(err))]), 'error');
+				if (!applied) {
+					ui.addNotification(null, E('p', {}, [_('Failed to apply configuration: %s').format(telemetry.errorText(err))]), 'error');
+					return;
+				}
+				ui.addNotification(null, E('p', {}, [_('Configuration applied, but runtime status refresh failed. %s').format(telemetry.errorText(err))]), 'warning');
 			}).finally(function() { operation.release(); });
 		} }, _('Save & Apply'));
 		settings.appendChild(E('div', { 'class': 'wifi7-save-bar' }, save));
@@ -299,6 +305,7 @@ return view.extend({
 		lockControls();
 
 		function update(includeClients) {
+			if (document.visibilityState === 'hidden') return Promise.resolve();
 			// Detachment is enforced after the await below; the first paint happens
 			// before the map is mounted, so there is no entry-time DOM check.
 			if (busy) return busy;

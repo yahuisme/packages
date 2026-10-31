@@ -7,9 +7,10 @@ const OUT=process.env.AUDIT_OUT;
 const SOURCE=fs.readFileSync(APP,'utf8'), TELEMETRY=fs.readFileSync(path.join(path.dirname(APP),'../../wifi7/telemetry.js'),'utf8'), MLO=fs.readFileSync(path.join(path.dirname(APP),'../../wifi7/mlo.js'),'utf8');
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
 const tick=()=>new Promise(r=>setImmediate(r));
-async function boot({readonly=false,missing=false,frequencyFailure=false,zeroPower=false}={}) {
+async function boot({readonly=false,missing=false,frequencyFailure=false,zeroPower=false,hidden=false}={}) {
  const j=new JSDOM('<!doctype html><html><head><meta charset="utf-8"></head><body><div id="maincontent"><div id="view"></div></div></body></html>',{url:'http://localhost/cgi-bin/luci/admin/network/wifi7',runScripts:'outside-only',pretendToBeVisual:true}),w=j.window;
  const translations=process.env.WIFI7_TRANSLATIONS?JSON.parse(fs.readFileSync(process.env.WIFI7_TRANSLATIONS,'utf8')):{};
+ if(hidden)Object.defineProperty(w.document,'visibilityState',{configurable:true,value:'hidden'});
  w._=s=>translations[s]||s;w.N_=(n,a,b)=>n===1?a:b;w.scrollTo=()=>{};w.confirm=()=>true;
  let core=fs.readFileSync(ROOT+'/luci.js','utf8').replace('window.LuCI = LuCI;','window.LuCI = LuCI; window.__classes=classes; window.__env=env;');
  w.eval(fs.readFileSync(ROOT+'/cbi.js','utf8'));w.TR={};
@@ -69,6 +70,8 @@ async function boot({readonly=false,missing=false,frequencyFailure=false,zeroPow
 module.exports={boot};
 async function main(){if(OUT)fs.mkdirSync(OUT,{recursive:true});const results=[];
  async function test(name,fn,opts){let h;try{h=await boot(opts);await fn(h);results.push({name,pass:true});}catch(e){results.push({name,pass:false,error:e.stack});}finally{if(h){if(OUT)fs.writeFileSync(path.join(OUT,name+'.rpc.json'),JSON.stringify(h.calls,null,2));h.j.window.close();}}console.log((results.at(-1).pass?'PASS ':'FAIL ')+name);}
+ await test('post-apply refresh failure does not report failed commit',async h=>{h.field('radio0','power').value='24';const load=h.mods.uci.load;let failReload=false;const apply=h.mods.uci.apply;h.mods.uci.apply=function(){return apply.call(this).then(value=>{failReload=true;return value;});};h.mods.uci.load=function(...args){return failReload?Promise.reject(new Error('fixture refresh failure')):load.apply(this,args);};await h.clickSave();assert(h.calls.some(c=>c.object==='uci'&&c.method==='apply'));assert.equal(h.notifications.at(-1).text,'Configuration applied, but runtime status refresh failed. Operation failed. Please retry.');});
+ await test('hidden initial render skips telemetry',async h=>{assert.equal(h.calls.filter(c=>c.object==='file'&&c.method==='exec'&&c.params.command==='/usr/libexec/wifi7-status-summary').length,0);await h.poll();assert.equal(h.calls.filter(c=>c.object==='file'&&c.method==='exec'&&c.params.command==='/usr/libexec/wifi7-status-summary').length,0);},{hidden:true});
  await test('no-op-and-unsupported-mode',async h=>{assert.equal(h.field('radio1','width').value,'VENDOR_UNKNOWN');await h.clickSave();assert.equal(h.writes().length,0);});
  await test('missing-mode-no-op',async h=>{await h.clickSave();assert.equal(h.writes().length,0);},{missing:true});
  await test('failed-freqlist-preserves-config',async h=>{assert.equal(h.field('radio1','channel').value,'104');await h.clickSave();assert.equal(h.writes().length,0);},{frequencyFailure:true});
