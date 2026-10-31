@@ -67,6 +67,9 @@ jobs:
       - name: Configure Git defaults
         run: git config --global init.defaultBranch main
       - uses: actions/checkout@v7
+        with:
+          # Native editor parity replays its immutable historical source.
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
@@ -103,3 +106,8 @@ jobs:
         env:
           LUCI_RESOURCE_DIR: ${{ github.workspace }}/.luci/modules/luci-base/htdocs/luci-static/resources
         run: ./.github/scripts/run-tests.sh
+      - name: Verify private key ownership
+        run: |
+          # This isolated fixture needs uid switching; no service is started.
+          sudo env "PATH=$PATH" "UCODE_LIB_DIR=$UCODE_LIB_DIR" "TMPDIR=$TMPDIR" \
+            PYTHONDONTWRITEBYTECODE=1 python3 luci-app-homeproxy/tests/test_certificate_cleanup.py

@@ -30,14 +30,15 @@ const HP_DIR=%s, FAULT=%s;
 function readfile(p){if(FAULT==='read')return null;return rr(p);}
 function writefile(p,c){if(FAULT==='short')return rw(p,substr(c,0,4));return rw(p,c);}
 function system(s){
- s=replace(s, 'sing-box:sing-box', '5566:5566');
+ s=replace(s, 'sing-box:sing-box', %s);
  if(FAULT==='chown' && index(s,'/bin/chown')===0)return 1;
  if(FAULT==='cleanup' && index(s,'/bin/rm')===0)return 1;
  if(FAULT==='mv' && index(s,'/bin/mv')===0)return 1;
  if(FAULT==='chmod' && index(s,'/bin/chmod')===0)return 1;
  const fd=popen(s,'r');fd.read('all');return fd.close();
 }
-''' % (json.dumps(str(self.root)), json.dumps(fault))
+''' % (json.dumps(str(self.root)), json.dumps(fault),
+       json.dumps('5566:5566' if os.geteuid() == 0 else f'{os.getuid()}:{os.getgid()}'))
         script = self.root / 'case.uc'
         script.write_text(pre + (quote + binary).replace('export function', 'function') +
                           'const methods={' + cert + '};\nprint(sprintf("%J", methods.certificate_write.call({args:{filename:' + json.dumps(filename) + '}})));')
