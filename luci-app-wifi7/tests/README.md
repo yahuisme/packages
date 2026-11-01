@@ -62,4 +62,23 @@ Error reasons follow LuCI `rpc.getStatusText()` and `uci.apply()`: numeric ubus 
 
 `render-reuse.cjs` checks stable radio status nodes and zero unchanged-input DOM mutations, up/down/unknown transitions, RPC and processing-error cleanup/recovery with ARIA intact, and detached polling cleanup. Its MLO modes reject runtime refreshes that build discarded configuration DOM, require stable runtime-state nodes with zero unchanged-input mutations across down/unknown/recovery, and verify summary reuse through empty/incomplete/valid configuration, native Map.reset, held refresh across reset, runtime failure/recovery and detach. It uses real LuCI DOM/form/RPC with isolated transport; it does not measure browser layout or router CPU.
 
+`performance-equivalence.cjs` compares complete ordered parent/modal DOM, live form values, RPC sequence, staged/committed data and notifications against immutable baseline production sources. With no argument it runs `clients`, `channels`, then `mlo` serially; an explicit mode selects only that branch. It seeds LuCI random IDs before loading native modules and does not normalize away DOM differences. Operation bounds require fewer attribution filters/no unused per-interface Sets, one freqlist filter/no per-option find, and no discarded MLO configuration overview DOM.
+
+`collector-equivalence.py` is a real unittest entrypoint, including when imported by the CI exact-file loader. It requires BusyBox and strace on `PATH` (every private fixture shell and applet uses that selected BusyBox, including the prebuilt runtime). It compares complete stdout/stderr/exit status and ordered iw/hostapd arguments over 34 full/summary cases: whitespace, malformed/empty/failed/recovered snapshots, EOF without newline, and explicit CR/VT/FF boundaries. It verifies unchanged input bytes, identical awk call counts (one per successful enumeration, zero on failure), and fewer successfully created child processes for every successful enumeration, with unchanged counts on failure. Production retains the selected awk's field semantics; only the `printf | awk` pipeline is replaced by an awk here-document, with no custom IFS parser. Runtime-specific whitespace behavior is preserved, not normalized across BusyBox builds. All sockets and commands are private fixtures.
+
+Both differential suites work without any `PERF_*` environment variables. They use `git show` at fixed commit `c9636f029c8fbd631cfecff43eff301d8eb898ba` (checkout history must contain it; CI uses `fetch-depth: 0`) and private directories below required scratch `TMPDIR`, cleaned on exit. The DOM suite extracts `index.js`, `mlo.js`, `telemetry.js` with their resource paths intact, plus `root/usr/libexec/wifi7-status`. The collector extracts that same baseline status helper. Default output is temporary too; explicit `PERF_OUT` retains complete before/after artifacts and source SHA-256 hashes. Optional `PERF_BASELINE_DIR` overrides the DOM baseline resources tree (`view/wifi7/index.js`, `wifi7/{mlo,telemetry}.js`), and `PERF_BASELINE_STATUS` overrides the collector baseline file; each override is independent of `PERF_OUT`.
+
+Run inside a verified memory cgroup (these differential workers are accepted at `memory.max <= 805306368`, 768 MiB), with private scratch and the dependencies above. No browser, compiler or service is needed:
+
+```sh
+# From the package directory; TMPDIR must already be a private scratch directory.
+node tests/performance-equivalence.cjs
+python3 tests/collector-equivalence.py
+# Or from the repository root, use the same default entrypoints as CI, no PERF_*:
+.github/scripts/run-tests.sh luci-app-wifi7/tests/performance-equivalence.cjs luci-app-wifi7/tests/collector-equivalence.py
+# Optional retained local evidence (baseline overrides are not required):
+PERF_OUT=/private/evidence/dom node tests/performance-equivalence.cjs
+PERF_OUT=/private/evidence/collector python3 tests/collector-equivalence.py
+```
+
 `harness.js` and `mlo-luci-dom.cjs` are support modules, not test entrypoints. `integration.cjs` is both a harness and executable test. Typography-named DOM checks stay because they also assert real Map.reset, scoped modal ownership/reopen and teardown; `native-tabs.cjs` checks actual tab/poll behavior. All collector commands use temporary boundary fixtures.

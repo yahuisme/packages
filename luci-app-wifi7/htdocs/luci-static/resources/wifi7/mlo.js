@@ -178,14 +178,18 @@ function runtimeState(sectionId, runtime, node) {
 	return E('span', { class: stateClass, 'data-mlo-runtime-section': sectionId }, stateText);
 }
 
-function overview(sectionId, radiosByName, runtime) {
+function overviewRadios(sectionId, radiosByName) {
 	let section = uci.get('wireless', sectionId) || {};
 	let devices = uniqueValues(section.device);
-	let radioText = devices.length ? E('span', { class: 'mlo-overview-radios' }, devices.map(device => E('span', {}, radiosByName[device] ? radioLabel(radiosByName[device], true) : [ device ]))) : _('None');
+	return devices.length ? E('span', { class: 'mlo-overview-radios' }, devices.map(device => E('span', {}, radiosByName[device] ? radioLabel(radiosByName[device], true) : [ device ]))) : _('None');
+}
+
+function overview(sectionId, radiosByName, runtime) {
+	let section = uci.get('wireless', sectionId) || {};
 
 	return E('div', { class: 'mlo-overview', 'data-mlo-overview-section': sectionId }, [
 		E('span', { class: 'mlo-overview-primary' }, [ section.ssid || _('Unnamed network') ]),
-		E('span', {}, [ radioText ]),
+		E('span', {}, [ overviewRadios(sectionId, radiosByName) ]),
 		runtimeState(sectionId, runtime)
 	]);
 }
@@ -370,9 +374,12 @@ return baseclass.extend({
 				widget.setValue(selected);
 			}
 			if (actionRoot) for (let node of actionRoot.querySelectorAll('[data-mlo-overview-section]')) {
-				let next = overview(node.getAttribute('data-mlo-overview-section'), radiosByName, runtime);
 				let label = node.querySelector('.mlo-overview-radios');
-				if (label) label.replaceWith(next.querySelector('.mlo-overview-radios'));
+				if (label) {
+					let next = overviewRadios(node.getAttribute('data-mlo-overview-section'), radiosByName);
+					// Preserve the existing no-device refresh result (no radio span).
+					label.replaceWith(typeof next === 'string' ? null : next);
+				}
 			}
 		}
 		operation.refreshMloConfiguration = function() { refreshRadios(true); };

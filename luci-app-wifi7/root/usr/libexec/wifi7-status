@@ -18,7 +18,11 @@ devices=$(iw dev 2>/dev/null)
 code=$?
 printf '@@ devices %s\n%s\n' "$code" "$devices"
 if [ "$code" -eq 0 ]; then
-    for iface in $(printf '%s\n' "$devices" | awk '$1 == "Interface" {print $2}'); do
+    # Keep this BusyBox awk's field contract, without a printf pipeline child.
+    for iface in $(awk '$1 == "Interface" {print $2}' <<EOF
+$devices
+EOF
+    ); do
         case "$iface" in ''|*[!a-zA-Z0-9_.:-]*) continue;; esac
         [ -z "$stations" ] || probe stations "$iface" iw dev "$iface" station dump
         probe survey "$iface" iw dev "$iface" survey dump

@@ -89,7 +89,7 @@ jobs:
           set -eu
           mkdir -p "$TMPDIR"
           sudo apt-get update
-          sudo apt-get install -y gettext
+          sudo apt-get install -y gettext strace
           python3 .github/scripts/setup-test-tools.py --dest "$RUNNER_TEMP/packages-tools"
           . "$RUNNER_TEMP/packages-tools/env.sh"
           # Reuse the exact same exported paths in subsequent steps.

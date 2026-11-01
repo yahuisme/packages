@@ -15,6 +15,7 @@ node tests/test_dom.js
 node tests/test_settings.js
 node tests/test_settings_form.js
 python3 tests/test_backend.py
+python3 tests/test_flow_cost.py
 python3 tests/test_catalog.py
 ```
 
@@ -48,7 +49,9 @@ expiry, resize and new samples, alongside cadence, outages and teardown. Backend
 status tests compare complete short-file output with the cat-based reader (missing,
 empty, no final newline, multiple lines and escaped characters) and enforce no
 status-file cat commands; transactional reads remain separate. Flow getters retain
-per-read failure checks and committed-only UCI isolation.
+per-read failure checks and committed-only UCI isolation. `test_flow_cost.py`
+requires real prebuilt UCI, BusyBox and strace; it compares complete getter output
+and counts child-process creation separately from unchanged UCI executions.
 
 The first-frame test remains: complete production render, mount/reentry/resize/fallback/disposal with intervals frozen. Requires Playwright/Chromium and unchanged Aurora:
 

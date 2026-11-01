@@ -31,25 +31,29 @@ function standard(value) {
 	}
 	return value ? (value.eht ? 'Wi-Fi 7' : value.he ? 'Wi-Fi 6' : value.vht ? 'Wi-Fi 5' : value.ht ? 'Wi-Fi 4' : _('Legacy')) + (value.mhz ? ' / ' + value.mhz + ' MHz' : '') : '—';
 }
-function select(id, values, current) {
+function select(id, values, current, labels) {
 	values = values.slice();
 	if (current && values.indexOf(String(current)) < 0) values.push(String(current));
 	var el = E('select', { id: id, name: id, 'class': 'cbi-input-select' }, values.map(function(v) {
-		return E('option', { value: v }, v === 'auto' || v === '' ? _('Auto') : v);
+		return E('option', { value: v }, labels && labels[v] || (v === 'auto' || v === '' ? _('Auto') : v));
 	}));
 	el.value = current || values[0];
 	return el;
 }
-function channelSelect(id, result, radio) {
-	var choices = result && result.ok ? result.value.filter(function(f) {
+function channelChoices(result, radio) {
+	return result && result.ok ? result.value.filter(function(f) {
 		return telemetry.band(f.mhz) === radio.band && !(f.restricted && (!f.flags || f.flags.indexOf('no_ir') !== -1));
 	}) : [];
-	var el = select(id, ['auto'].concat(choices.map(function(f) { return String(f.channel); })), radio.channel || 'auto');
-	Array.from(el.options).forEach(function(o) {
-		var f = choices.find(function(f) { return String(f.channel) === o.value; });
-		if (f) o.textContent = f.channel + ' (' + f.mhz + ' MHz)';
+}
+function channelSelect(id, choices, radio) {
+	var labels = Object.create(null);
+	var values = choices.map(function(f) {
+		var value = String(f.channel);
+		// Duplicate channel options keep the first driver's label, as before.
+		if (!(value in labels)) labels[value] = f.channel + ' (' + f.mhz + ' MHz)';
+		return value;
 	});
-	return el;
+	return select(id, ['auto'].concat(values), radio.channel || 'auto', labels);
 }
 function field(label, input, description) {
 	return E('div', { 'class': 'cbi-value' }, [ E('label', { 'class': 'cbi-value-title', 'for': input.id }, label),
@@ -116,10 +120,8 @@ return view.extend({
 			var enabled = E('input', { type: 'checkbox', id: prefix + 'enabled', name: prefix + 'enabled' });
 			enabled.checked = r.disabled !== '1';
 			var discovery = channelLists[id], channelResult = discovery && discovery.result;
-			var choices = channelResult && channelResult.ok ? channelResult.value.filter(function(f) {
-				return telemetry.band(f.mhz) === band && !(f.restricted && (!f.flags || f.flags.indexOf('no_ir') !== -1));
-			}) : [];
-			var channel = channelSelect(prefix + 'channel', channelResult, r);
+			var choices = channelChoices(channelResult, r);
+			var channel = channelSelect(prefix + 'channel', choices, r);
 			// iwinfo.info reports supported htmodes (network.WifiDevice.getHTModes).
 			var capabilities = discovery && discovery.capabilities;
 			var modes = capabilities && capabilities.ok && Array.isArray(capabilities.value.htmodes) ? capabilities.value.htmodes.filter(function(mode) {
@@ -284,7 +286,7 @@ return view.extend({
 				if (c.radar) c.radar.checked = original.background_radar === '1';
 				if (!changedCountry) return;
 				return settled(frequencies(c.id)).then(function(result) {
-					var replacement = channelSelect(c.channel.id, result, original);
+					var replacement = channelSelect(c.channel.id, channelChoices(result, original), original);
 					c.channel.replaceChildren.apply(c.channel, Array.from(replacement.options));
 					c.channel.value = original.channel || 'auto';
 				});
@@ -334,7 +336,7 @@ return view.extend({
 					});
 				}
 				if (native.ok) native.value.forEach(function(n) { nativeByName[n.name] = n; });
-				radios.forEach(function(r) { stats[r['.name']] = { count: 0, known: false, failed: false, util: null, current: null }; });
+				radios.forEach(function(r) { stats[r['.name']] = { util: null, current: null }; });
 				function radioFor(iface, frequency) {
 					var b = telemetry.band(frequency), matches = radios.filter(function(r) { return b && r.band === b; });
 					return matches.length === 1 ? matches[0]['.name'] : !b ? ifaceRadio[iface] : null;
@@ -343,13 +345,10 @@ return view.extend({
 				var anyKnown = false, anyFailed = false;
 				ifaces.forEach(function(iface) {
 					var n = nativeByName[iface], dev = parsed.devices[iface] || {}, ni = n && n.info.ok ? n.info.value : {};
-					var frequency = dev.frequency || ni.frequency, radio = radioFor(iface, frequency);
+					var frequency = dev.frequency || ni.frequency;
 					var known = Object.prototype.hasOwnProperty.call(parsed.stations, iface) || !!(n && n.stations.ok && !Object.keys(dev.links || {}).length);
 					anyKnown = anyKnown || known; anyFailed = anyFailed || !known;
-					var mapped = new Set();
-					if (radio) mapped.add(radio);
-					Object.keys(dev.links || {}).forEach(function(lid) { var r = radioFor(iface, dev.links[lid].frequency); if (r) mapped.add(r); });
-					mapped.forEach(function(r) { stats[r].known = stats[r].known || known; stats[r].failed = stats[r].failed || !known; });
+
 					function measurement(data) {
 						var r = radioFor(iface, data.frequency);
 						if (r && data.frequency) stats[r].current = data;
@@ -372,15 +371,13 @@ return view.extend({
 					Object.keys(merged).forEach(function(mac) {
 						var s = merged[mac], linkIds = Object.keys(s.links || {});
 						function row(value, lid) {
-							var f = lid != null ? ((dev.links || {})[lid] || {}).frequency : linkIds.length ? null : frequency, r = linkIds.length && lid == null ? null : radioFor(iface, f), b = telemetry.band(f);
-							if (r) stats[r].count++;
+							var f = lid != null ? ((dev.links || {})[lid] || {}).frequency : linkIds.length ? null : frequency, b = telemetry.band(f);
 							rows.push({ clientKey: iface + '/' + mac, linkKey: lid == null ? 'station' : String(lid), ssid: ssids[iface] || '',
 								label: iface + (lid != null ? ' / MLO ' + lid : '') + ' (' + (names[b] || _('Unknown')) + ')', mac: mac,
 								standard: standard(value.tx || value.rx), signal: value.signal < 0 ? value.signal + ' dBm' : '—',
 								tx: rate(value.tx), rx: rate(value.rx), connected: s.connected != null ? s.connected + ' s' : '—' });
 						}
-						if (linkIds.some(function(lid) { return !(s.links[lid].signal < 0) || !((dev.links || {})[lid] || {}).frequency; }))
-							mapped.forEach(function(r) { stats[r].failed = true; });
+
 						if (linkIds.length) linkIds.forEach(function(lid) { row(s.links[lid], lid); }); else row(s, null);
 					});
 				});

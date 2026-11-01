@@ -4,8 +4,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-wifi7
-PKG_VERSION:=20261031
-PKG_RELEASE:=2
+PKG_VERSION:=20261101
+PKG_RELEASE:=1
 
 LUCI_PKGNAME:=luci-app-wifi7
 LUCI_TITLE:=LuCI Support for WiFi 7 (MT7996)

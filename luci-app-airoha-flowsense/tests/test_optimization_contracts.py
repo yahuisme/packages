@@ -14,8 +14,10 @@ class OptimizationContracts(unittest.TestCase):
         self.assertIn('line=${result%%|*}', DAEMON)
 
     def test_interface_index_is_read_once_per_interface(self):
-        self.assertIn('ifindex=$(fs_read "$dev/ifindex")', RPC)
-        self.assertNotIn('fs_uint "$(fs_read "$dev/ifindex")" && fs_read "$dev/ifindex"', RPC)
+        getter = RPC[RPC.index('get_interfaces()'):RPC.index('get_jitter()')]
+        self.assertEqual(getter.count('interface_read "$dev/ifindex" uint'), 1)
+        self.assertNotIn('$(fs_read', getter)
+        self.assertNotIn('$(fs_counter_read', getter)
 
 
 if __name__ == '__main__':
