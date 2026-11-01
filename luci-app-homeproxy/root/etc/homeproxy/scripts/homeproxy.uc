@@ -568,21 +568,21 @@ export function removeBlankAttrs(res) {
 
 	if (type(res) === 'object') {
 		content = {};
-		map(keys(res), (k) => {
+		for (let k in keys(res)) {
 			if (type(res[k]) in ['array', 'object'])
 				content[k] = removeBlankAttrs(res[k]);
 			else if (res[k] !== null && (res[k] !== '' ||
 			    (k === 'packet_encoding' && res.type in ['vless', 'vmess'])))
 				content[k] = res[k];
-		});
+		}
 	} else if (type(res) === 'array') {
 		content = [];
-		map(res, (k, i) => {
+		for (let k in res) {
 			if (type(k) in ['array', 'object'])
 				push(content, removeBlankAttrs(k));
 			else if (k !== null && k !== '')
 				push(content, k);
-		});
+		}
 	} else
 		return res;
 

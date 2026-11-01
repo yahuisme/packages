@@ -1,3 +1,47 @@
+# Subscription/helper efficiency regression
+
+Run the focused gates through the existing exact-file runner, inside the caller's
+verified `MemoryMax=768M`, `MemorySwapMax=0` cgroup and private `TMPDIR`:
+
+```sh
+. /opt/test-tools/env.sh
+. /opt/test-tools/openwrt/packages-ci/env.sh
+sh .github/scripts/run-tests.sh \
+  luci-app-homeproxy/tests/test_subscription_efficiency.py \
+  luci-app-homeproxy/tests/test_subscription_efficiency_native.py \
+  luci-app-homeproxy/tests/test_subscription_efficiency_consumers.py \
+  luci-app-homeproxy/tests/test_subscription_reconcile.py
+```
+
+All three new modules expose ordinary unittest cases, run nonzero case counts,
+and enforce work-count assertions without a PERF/allow-baseline environment flag.
+`HP_SUBSCRIPTION_OPT_EVIDENCE=/private/path` only retains complete inputs, outputs,
+operation traces and executed-source hashes; it never changes acceptance.
+
+The source-driven tests compare the single JSON parse with the old complete
+JSON/YAML/Base64 branch, require zero discarded cleaner-map arrays, compare
+complete/mixed/ambiguous/claimed-ID/label-first reconciliation, and exercise
+main/URLTest fallback with no redundant post-helper reads. Connection identity
+includes the fixed-length MD5 group prefix: equal connection options in different
+groups cannot collide in this index. Keep complete-group ID claims even though
+their incoming connection/label counters are omitted.
+
+The native suite uses real ucode `uci.cursor(private_confdir, private_savedir)`
+with a tracing/fault wrapper, not the CLI adapter. It covers mixed complete,
+partial and failed groups with identical connections/names in both URL orders,
+selected references, repeated zero-write refreshes, atomic rejection, write/commit
+failure and the existing commit-then-reload-failure output contract. Downloads,
+validation and service boundaries remain fixtures. The existing reconciliation
+suite independently covers broader identities/rollback using private native
+libuci CLI storage. Neither test touches host UCI or starts a core/service.
+
+Consumer checks compare full serialized client/server generator outputs and the
+production RPC latency config-construction/serialization block with the legacy
+cleaner. They do not execute latency session allocation, launch a core or claim
+real network behavior. Optional tests/core-check variables must stay unset under
+a no-core-execution policy. Work counts represent removed temporary work, not
+measured router RSS/PSS savings.
+
 # ECH import, migration and previously isolated runtime gates
 
 ```sh

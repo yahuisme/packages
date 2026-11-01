@@ -119,16 +119,16 @@ validate_cron() {
 
 notify_cron() {
 	# Restarting crond from its own job can terminate the entire update process.
-	printf '%s\n' 'root' >> "$(dirname "$CRON_FILE")/cron.update"
+	printf '%s\n' 'root' >> "${CRON_FILE%/*}/cron.update"
 }
 
 configure_subscription_cron() {
 	local enabled="$1" schedule="$2"
 	local tmp changed=0
 
-	mkdir -p "$(dirname "$CRON_FILE")" "$(dirname "$CRON_LOCK")" || return 1
+	mkdir -p "${CRON_FILE%/*}" "${CRON_LOCK%/*}" || return 1
 	lock "$CRON_LOCK" || return 1
-	tmp="$(mktemp "$(dirname "$CRON_FILE")/.homeproxy-cron.XXXXXX")" || {
+	tmp="$(mktemp "${CRON_FILE%/*}/.homeproxy-cron.XXXXXX")" || {
 		lock -u "$CRON_LOCK"
 		return 1
 	}

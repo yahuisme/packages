@@ -1235,7 +1235,8 @@ function main() {
 
 			let nodes;
 			try {
-				nodes = json(res).servers || json(res);
+				const parsed = json(res);
+				nodes = parsed.servers || parsed;
 
 				/* Shadowsocks SIP008 format */
 				if (nodes[0].server && nodes[0].method)
@@ -1340,13 +1341,16 @@ function main() {
 		}
 	});
 	for (let node in node_result) {
+		if (reconcile_group[node.grouphash] === true) {
+			claimed[node.__section_id] = true;
+			continue;
+		}
+		/* Both keys include grouphash; complete groups cannot contribute to
+		 * the partial-group uniqueness checks below. Keep their ID claims. */
 		const key = connection_key(node), label_key = node.grouphash + ':' + node.label;
 		incoming_connections[key] = (incoming_connections[key] || 0) + 1;
 		incoming_labels[label_key] = (incoming_labels[label_key] || 0) + 1;
-		if (reconcile_group[node.grouphash] !== true)
-			node_cache[node.grouphash] = {};
-		else
-			claimed[node.__section_id] = true;
+		node_cache[node.grouphash] = {};
 	}
 	/* Current label identity takes priority over connection-only renames. */
 	for (let node in node_result) {
@@ -1492,16 +1496,6 @@ function main() {
 
 	reconcileUrltestNodes(writer, uciconfig, (message) => log(message));
 
-	const current_main_node = uci.get(uciconfig, ucimain, 'main_node') || 'nil';
-	if (current_main_node !== 'nil' && current_main_node !== 'urltest' &&
-	    uci.get(uciconfig, current_main_node) !== ucinode) {
-		const first_server = uci.get_first(uciconfig, ucinode);
-		writer.set(uciconfig, ucimain, 'main_node', first_server || 'nil');
-		if (first_server)
-			log('Main node is gone, switching to the first node.');
-		else
-			log('No available node, disabling the client.');
-	}
 	const config_changed = !isEmpty(uci.changes(uciconfig));
 	/* Reload reads committed UCI. Keep imported nodes on apply failure, but
 	 * return failure and let transactional reload preserve the old runtime. */
