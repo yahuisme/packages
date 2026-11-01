@@ -13,7 +13,7 @@
 | `patches/610-*` | CN/US 功率与频段定制，包含 [A] 的 US 高频段及 6 GHz 设置；两版最终 regdb 内容一致 |
 | `tree/package/network/utils/iwinfo/patches/999-*` | 按当前频率展示功率列表，[A]/[B] |
 | `patches/920-*` | 本项目实现：非 MLO AP 按 BSS 设置功率 |
-| `patches/998-*` | single-wiphy 多射频信道分析适配，作者 Gilly1970 |
+| `patches/998-*` | single-wiphy 多射频信道分析适配，作者 Gilly1970；本项目跳过禁用接口与 LuCI 逻辑标识，使用活动网卡 |
 
 - [A] [OpenWRT-fanboy/OpenW1700k `bce05fa86b22`](https://github.com/OpenWRT-fanboy/OpenW1700k/commit/bce05fa86b222741d8afcef2e5468a9481679041)
 - [B] [OpenWRT-fanboy/OpenW1700k `972634e64d19`](https://github.com/OpenWRT-fanboy/OpenW1700k/commit/972634e64d19cba0095b662a0bfd9561ebef635c)

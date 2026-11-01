@@ -61,7 +61,7 @@ freqlist resolves per-radio correctly and is left on the radio name.
 +					tasks.push(d.getWifiNetworks().then(L.bind(function(radio, nets) {
 +						for (let n of nets) {
 +							const ifname = n.getIfname();
-+							if (ifname) {
++							if (n.isUp() && ifname && ifname != n.getID()) {
 +								ret[radio.getName()].ifname = ifname;
 +								break;
 +							}

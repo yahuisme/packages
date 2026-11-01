@@ -71,6 +71,17 @@ class MigrationIntegrity(unittest.TestCase):
                     if source == "patches/920-wifi-non-mlo-ap-txpower.patch":
                         self.assertEqual(original.count(REMOVED_920_HUNK), 1)
                         original = original.replace(REMOVED_920_HUNK, b"", 1)
+                        old_context = b"@@ -745,7 +745,8 @@\n {\n"
+                        self.assertEqual(original.count(old_context), 1)
+                        original = original.replace(old_context, b"@@ -745,5 +745,6 @@\n", 1)
+                        old_tail = b" \tswitch (radio_reload_class(old_config.radio, config.radio)) {\n"
+                        self.assertEqual(original.count(old_tail), 1)
+                        original = original.replace(old_tail, b"", 1)
+                    if source == "patches/998-single-wiphy.patch":
+                        old = b"if (ifname) {"
+                        new = b"if (n.isUp() && ifname && ifname != n.getID()) {"
+                        self.assertEqual(original.count(old), 1)
+                        original = original.replace(old, new, 1)
                     self.assertEqual((ROOT / destination).read_bytes(), original,
                                      f"changed bytes: {distro}/{source}")
         self.assertNotEqual(power_bytes["openwrt"], power_bytes["immortalwrt"],
