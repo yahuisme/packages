@@ -55,14 +55,7 @@ return view.extend({
 		var initialAcceleration = Array.isArray(initial) ? initial[1] : null;
 		initial = Array.isArray(initial) ? initial[0] : initial;
 		var root, target, enabled, accelerationInputs = {}, accelerationState = initialAcceleration || {};
-		var accelerationSaving = false, dirty = false, accelerationDirty = {}, settingsState, settingsStateKnown = settingsReady;
-		function paintSettingsState() {
-			if (!settingsState) return;
-			var pending = _('Saved; not yet applied'), none = _('No saved changes awaiting application');
-			settingsState.textContent = !settingsStateKnown ? _('Saved settings status is unknown.')
-				: _('Acceleration') + ': ' + (baseline && accelerationKeys.some(function(key) { return baseline[key] !== -1; }) ? pending : none)
-					+ '; ' + _('Probe Settings') + ': ' + (baseline && baseline.enabled !== -1 ? pending : none);
-		}
+		var accelerationSaving = false, dirty = false, accelerationDirty = {};
 		var m = new form.JSONMap({ acceleration: {}, monitor: {} }, _('Airoha FlowSense'), _('Configure acceleration and periodic probes.'));
 		m.readonly = !settingsReady || !L.hasViewPermission();
 		var section = m.section(form.NamedSection, 'acceleration', 'acceleration', _('Acceleration'));
@@ -151,18 +144,17 @@ return view.extend({
 			}).then(function(result) {
 				if (!result || result.success !== true || !result.pending || !Object.keys(desired).every(function(key) { return result.pending[key] === desired[key]; }))
 					fail(result && result.error ? settingsError(result.error) : _('Unable to verify saved settings.'));
-				baseline = result.pending; settingsStateKnown = true; paintSettingsState(); dirty = false; accelerationDirty = {};
+				baseline = result.pending; dirty = false; accelerationDirty = {};
 				if (!apply) { ui.addNotification(null, E('p', {}, _('Settings saved; not yet applied.')), 'info'); return; }
 				if (!root.isConnected || !L.hasViewPermission()) fail(_('Unable to save settings.'));
 				return applySettings(JSON.stringify(desired)).then(function(result) {
 					return Promise.all([getAcceleration(), getOverview(), getSettings()].map(function(request) { return request.catch(function() { return null; }); })).then(function(data) {
 						if (!root.isConnected) return;
 						if (!data[2] || data[2].success !== true) {
-							settingsStateKnown = false; paintSettingsState();
 							paintAcceleration(data[0], true); paint(data[1]);
 							fail(data[2] && data[2].error ? settingsError(data[2].error) : _('Unable to verify saved settings.'));
 						}
-						baseline = data[2].pending; settingsStateKnown = true; paintSettingsState();
+						baseline = data[2].pending;
 						paintAcceleration(data[0], true); paint(data[1]);
 						var accOK = accelerationKeys.every(function(key) { return desired[key] === -1 || editable(key) && accelerationState[key].configured === !!desired[key] && accelerationState[key].enabled === !!desired[key]; });
 						var monOK = desired.enabled === -1 || monitorState && monitorState.target === desired.target && monitorState.enabled === !!desired.enabled;
@@ -187,8 +179,6 @@ return view.extend({
 		return m.render().then(function(node) {
 			root = node; root.classList.add('flowsense-settings');
 			root.prepend(E('style', {}, '.flowsense-settings{container-type:inline-size}.flowsense-settings [data-name="target"] input{max-width:100%;box-sizing:border-box}@container(max-width:600px){.flowsense-settings .cbi-value:not(.hidden){display:flex;flex-direction:column;align-items:stretch;gap:8px}.flowsense-settings .cbi-value-title{float:none;width:auto;flex:none;text-align:start;padding:0}.flowsense-settings .cbi-value-field{width:100%;min-width:0;margin:0;padding:0}}'));
-			settingsState = E('p', { 'class': 'cbi-section-descr', 'data-settings-state': '', role: 'status' });
-			root.querySelector('.cbi-map-descr').after(settingsState); paintSettingsState();
 			accelerationKeys.forEach(function(key) { accelerationInputs[key] = root.querySelector('[data-name="' + key + '"] input[type="checkbox"]'); accelerationInputs[key].addEventListener('change', function() { accelerationDirty[key] = true; }); });
 			target = root.querySelector('[data-name="target"] input[type="text"]');
 			target.maxLength = 253;
