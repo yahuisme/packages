@@ -51,6 +51,20 @@ assert.equal(polls.size,1);overviewError=true;accelerationError=true;await polls
 overviewError=false;accelerationError=false;await polls.get(5)();await settle();
 assert.equal(rateText(),'— / —','failure clears baseline before first recovery sample');assert.deepEqual([...root.querySelectorAll('.flowsense-port')],portRows,'failure and recovery retain port identity');assert.deepEqual([...root.querySelectorAll('.flowsense-summary .flowsense-card,.flowsense-section.cbi-section:not(.flowsense-acceleration) .cbi-value')],skeleton);
 assert.deepEqual([...root.querySelectorAll('.flowsense-acceleration-state')].map(n=>n.textContent),['Enabled','Not enabled','Unknown','Unknown'],'identical success recovers after failure');assert.equal(root.querySelectorAll('.flowsense-active').length,1);
+// Device names are data, including keys inherited by ordinary JavaScript objects.
+for(const device of ['__proto__','constructor','toString','hasOwnProperty']) {
+ sample.interfaces[0].device=device;sample.uptime+=5;await polls.get(5)();
+ assert.equal(root.querySelector('.flowsense-port-name').textContent,device.toUpperCase());
+ assert.equal(root.querySelectorAll('.flowsense-port').length,1,'old port must disappear');
+ assert(!root.textContent.includes('previous readings cleared'),'legal interface name must not break telemetry');
+ assert.equal(rateText(),'— / —','new identity starts with no rate baseline');
+ const retained=root.querySelector('.flowsense-port');
+ sample.interfaces[0].stats.rx_bytes+=625000;sample.uptime+=5;await polls.get(5)();
+ assert.equal(rateText(),'1.0 Mbit/s / 0.00 Mbit/s','special-name identity retains its own counter baseline');
+ assert.equal(root.querySelector('.flowsense-port'),retained,'special-name row is reused');
+}
+sample.interfaces=[];sample.uptime+=5;await polls.get(5)();
+assert.equal(root.querySelectorAll('.flowsense-port').length,0,'all special-name rows are removable');
 root.remove();await settle();assert.equal(polls.size,0);assert.equal(count('saveSettings'),0);assert.equal(count('applySettings'),0);console.log('PASS real LuCI status: unique title/description, runtime only, enabled/disabled/unknown, no footer/controls/settings RPC/PPE, failure cleanup');w.close();
 })().catch(e=>{console.error(e);w.close();process.exitCode=1});`;
 const m=new Module(file,module);m.filename=file;m.paths=Module._nodeModulePaths(__dirname);m._compile(src,file);

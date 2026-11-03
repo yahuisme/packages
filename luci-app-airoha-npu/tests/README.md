@@ -31,7 +31,9 @@ An intervening Save from another session is rejected before runtime writes; lega
 callers omitting `expected` retain their previous behavior. External kernel/config
 writers are outside the package lock. Settings notification
 regressions cover localized known/unknown errors and transport failures at Save,
-saved readback, Apply and runtime readback, followed by a successful retry.
+saved readback and Apply, followed by a successful retry. After a confirmed Apply,
+a failed or mismatching status refresh resolves with an applied-but-refresh-failed
+warning, not an Apply failure or a duplicate-retry prompt.
 Held native-footer tests cover Save/Apply in both orders and Reset: conflicting
 actions report busy without replacing the active operation or discarding edits.
 The retired single-field CPU setters reject calls without changing sysfs; only

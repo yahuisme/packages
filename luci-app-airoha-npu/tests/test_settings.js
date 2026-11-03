@@ -34,7 +34,11 @@ async function scenario(failure) {
   {cpu_governor:'performance',cpu_max_freq:1000000}, {result:'ok',pending:null}]);
  const first = map.save(true), duplicate = map.save(true);
  assert.equal(first, duplicate, 'concurrent actions share one operation');
- await assert.rejects(first);
+ if (failure === 'runtime') {
+  await first;
+  assert(notices.some(n => n.includes('Settings applied, but the current status could not be refreshed.')),
+   'post-Apply readback failure must retain confirmed success');
+ } else await assert.rejects(first);
  assert.equal(calls.filter(c=>c==='saveSettings').length, 1);
  assert.equal(calls.filter(c=>c==='applySettings').length, ['apply','runtime'].includes(failure) ? 1 : 0);
  assert(notices.length, 'failure must be notified');

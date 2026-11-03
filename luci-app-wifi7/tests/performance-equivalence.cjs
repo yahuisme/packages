@@ -8,7 +8,16 @@ function baselineSources(root) {
  const resources = path.join(root, 'resources');
  for (const relative of ['htdocs/luci-static/resources/view/wifi7/index.js', 'htdocs/luci-static/resources/wifi7/mlo.js', 'htdocs/luci-static/resources/wifi7/telemetry.js', 'root/usr/libexec/wifi7-status']) {
   const target = relative.startsWith('htdocs/') ? path.join(resources, relative.slice('htdocs/luci-static/resources/'.length)) : path.join(root, relative);
-  const source = cp.execFileSync('git', ['show', BASELINE_COMMIT + ':luci-app-wifi7/' + relative], {cwd: path.join(__dirname, '../..')});
+  let source = cp.execFileSync('git', ['show', BASELINE_COMMIT + ':luci-app-wifi7/' + relative], {cwd: path.join(__dirname, '../..')});
+  if (relative.endsWith('/wifi7/mlo.js')) {
+   // Carry only the authorized empty-radio bug fix into the immutable oracle.
+   // Keep its intentionally expensive full-overview refresh for cost comparison.
+   const old = "let radioText = devices.length ? E('span', { class: 'mlo-overview-radios' }, devices.map(device => E('span', {}, radiosByName[device] ? radioLabel(radiosByName[device], true) : [ device ]))) : _('None');";
+   const fixed = "let radioText = E('span', { class: 'mlo-overview-radios' }, devices.length ? devices.map(device => E('span', {}, radiosByName[device] ? radioLabel(radiosByName[device], true) : [ device ])) : _('None'));";
+   const text = source.toString();
+   assert.equal(text.split(old).length, 2, 'baseline empty-radio correction must match exactly once');
+   source = Buffer.from(text.replace(old, fixed));
+  }
   fs.mkdirSync(path.dirname(target), {recursive:true});
   fs.writeFileSync(target, source, {mode:0o600});
  }

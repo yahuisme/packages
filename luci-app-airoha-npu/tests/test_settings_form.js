@@ -30,7 +30,7 @@ async function scenario(readonly = false, loadFailure = false, capability = 'pre
   L.require = n => Promise.resolve(mods[n]); L.hasViewPermission = () => !readonly;
   w.E = mods.dom.create.bind(mods.dom);
   mods.uci = { load: async () => {}, loadPackage: async () => {}, get: () => null };
-  const calls = [], notices = []; let rejectSave = false, staged = capability === 'fixed' ? { governor: 'schedutil', freq: '800000' } : null, fault = null;
+  const calls = [], notices = [], noticeClasses = []; let rejectSave = false, staged = capability === 'fixed' ? { governor: 'schedutil', freq: '800000' } : null, fault = null;
   let holdSave = null;
   const runtime = { cpu_governor: 'performance', cpu_max_freq: 1000000 };
   mods.rpc = { declare: spec => async (...args) => {
@@ -38,7 +38,7 @@ async function scenario(readonly = false, loadFailure = false, capability = 'pre
    if (spec.object === 'session') return true;
    if (fault && fault.method === spec.method) {
     if (fault.transport) throw new Error('<img src=x onerror=alert(1)> transport details');
-    return { error: fault.code };
+    return fault.payload || { error: fault.code };
    }
    if (spec.method === capability) throw Error('offline');
    if (spec.method === 'getInfo') return capability === 'present' ? { governors: 'performance schedutil', frequencies: '1000000 800000' } : { governors: '', frequencies: '' };
@@ -61,7 +61,7 @@ async function scenario(readonly = false, loadFailure = false, capability = 'pre
   }
   load('validation'); load('ui'); load('form');
   const notify = mods.ui.addNotification.bind(mods.ui);
-  mods.ui.addNotification = (title, node, ...classes) => { notices.push(node.textContent); return notify(title, node, ...classes); };
+  mods.ui.addNotification = (title, node, ...classes) => { notices.push(node.textContent); noticeClasses.push(classes[0]); return notify(title, node, ...classes); };
   // Disable only top-level automatic navigation; use the actual form lifecycle.
   const view = mods.view.extend({ __init__() {} });
   const C = w.Function('view', 'form', 'rpc', 'ui', source)(view, mods.form, mods.rpc, mods.ui);
@@ -187,15 +187,29 @@ async function scenario(readonly = false, loadFailure = false, capability = 'pre
    map.lookupOption('governor', 'cpu')[0].getUIElement('cpu').setValue('schedutil');
    await map.save();
    await assertSavedReset();
-   for (const method of ['saveSettings', 'getSettings', 'applySettings', 'getStatus']) {
+   for (const method of ['saveSettings', 'getSettings', 'applySettings']) {
     for (const failure of [{transport:true}, {code:'<img src=x onerror=alert(1)>'}, {code:'toString'}]) {
      fault = {method, ...failure};
      await assert.rejects(app.handleSaveApply());
-     assert.equal(notices.at(-1), w._(method === 'getStatus' && !failure.transport
-      ? 'The required system interface is unavailable.' : 'The operation failed. Refresh the page and try again.'),
+     assert.equal(notices.at(-1), w._('The operation failed. Refresh the page and try again.'),
       'transport and unknown codes must produce only the localized fallback');
      assert.equal(w.document.querySelectorAll('.alert-message img').length, 0);
     }
+   }
+   for (const failure of [{transport:true}, {code:'unavailable'},
+                          {payload:{cpu_governor:'performance',cpu_max_freq:1000000}}]) {
+    fault = {method:'getStatus', ...failure};
+    const before = calls.filter(c => c[0] === 'applySettings').length;
+    await app.handleSaveApply();
+    assert.equal(calls.filter(c => c[0] === 'applySettings').length, before + 1);
+    assert.deepEqual(runtime, {cpu_governor:'schedutil',cpu_max_freq:800000},
+     'Apply succeeded before the independent readback fault');
+    assert.equal(notices.at(-1), w._('Settings applied, but the current status could not be refreshed.'));
+    assert.equal(noticeClasses.at(-1), 'warning', 'confirmed Apply refresh failure is a warning, not an error');
+    assert.equal(node.querySelector('[data-settings-state]').textContent, w._('Saved settings status is unknown.'),
+     'failed refresh must not fabricate a current runtime reading');
+    assert(!notices.at(-1).includes(w._('The operation failed. Refresh the page and try again.')),
+     'a confirmed Apply must not invite a duplicate retry');
    }
    fault = null;
    await app.handleSaveApply();

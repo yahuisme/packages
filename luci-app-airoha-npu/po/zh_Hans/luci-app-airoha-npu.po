@@ -121,6 +121,9 @@ msgstr "设置"
 msgid "Settings applied."
 msgstr "设置已应用"
 
+msgid "Settings applied, but the current status could not be refreshed."
+msgstr "设置已应用，当前状态刷新失败"
+
 msgid "SoC & CPU Architecture"
 msgstr "SoC 与 CPU 架构"
 

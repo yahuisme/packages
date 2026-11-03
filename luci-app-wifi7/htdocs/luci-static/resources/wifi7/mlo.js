@@ -181,7 +181,9 @@ function runtimeState(sectionId, runtime, node) {
 function overviewRadios(sectionId, radiosByName) {
 	let section = uci.get('wireless', sectionId) || {};
 	let devices = uniqueValues(section.device);
-	return devices.length ? E('span', { class: 'mlo-overview-radios' }, devices.map(device => E('span', {}, radiosByName[device] ? radioLabel(radiosByName[device], true) : [ device ]))) : _('None');
+	return E('span', { class: 'mlo-overview-radios' }, devices.length
+		? devices.map(device => E('span', {}, radiosByName[device] ? radioLabel(radiosByName[device], true) : [ device ]))
+		: _('None'));
 }
 
 function overview(sectionId, radiosByName, runtime) {
@@ -377,8 +379,7 @@ return baseclass.extend({
 				let label = node.querySelector('.mlo-overview-radios');
 				if (label) {
 					let next = overviewRadios(node.getAttribute('data-mlo-overview-section'), radiosByName);
-					// Preserve the existing no-device refresh result (no radio span).
-					label.replaceWith(typeof next === 'string' ? null : next);
+					label.replaceWith(next);
 				}
 			}
 		}

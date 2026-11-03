@@ -126,7 +126,7 @@ return view.extend({
 			if (m.readonly || !L.hasViewPermission()) return Promise.resolve();
 			if (inFlight) return applying === (apply === true) ? inFlight : busyNotice();
 			applying = apply === true;
-			var failureMessage = message();
+			var failureMessage = message(), refreshFailed = false;
 			function fail(code) {
 				failureMessage = message(code);
 				throw new Error(failureMessage);
@@ -150,13 +150,19 @@ return view.extend({
 				if (apply !== true) return;
 				if (!L.hasViewPermission()) fail('unavailable');
 				status = null; paintSettingsState();
-				return applySettings(JSON.stringify(desired)).then(checked).then(getStatus).then(function(current) {
-					if (!current || current.cpu_governor !== desired.governor || String(current.cpu_max_freq) !== desired.freq)
-						fail('unavailable');
-					status = current; paintSettingsState();
+				return applySettings(JSON.stringify(desired)).then(checked).then(function() {
+					// The backend already verified both writes. A later status read
+					// cannot turn that confirmed Apply into a failed transaction.
+					return getStatus().then(function(current) {
+						if (!current || current.cpu_governor !== desired.governor || String(current.cpu_max_freq) !== desired.freq)
+							refreshFailed = true;
+						else status = current;
+					}, function() { refreshFailed = true; }).then(paintSettingsState);
 				});
 			}).then(function() {
-				ui.addNotification(null, E('p', {}, [apply === true ? _('Settings applied.') : _('Settings saved.')]), 'info');
+				ui.addNotification(null, E('p', {}, [refreshFailed
+					? _('Settings applied, but the current status could not be refreshed.')
+					: apply === true ? _('Settings applied.') : _('Settings saved.')]), refreshFailed ? 'warning' : 'info');
 			}).catch(function(err) {
 				ui.addNotification(null, E('p', {}, [failureMessage]), 'error');
 				throw err;

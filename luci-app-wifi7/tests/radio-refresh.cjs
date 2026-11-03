@@ -63,6 +63,20 @@ async function mlo() {
   h.mods.ui.hideModal(); await section.renderMoreOptionsModal('test');
   assert.match(h.w.document.querySelector('.wifi7-mlo-modal').textContent,/channel 36/,'next editor uses fresh radio choices');
   assert.doesNotMatch(h.w.document.querySelector('.wifi7-mlo-modal').textContent,/channel 104/);
+  h.mods.ui.hideModal(); h.mods.request.post=post;
+  delete h.db().staged.test.device; delete h.db().committed.test.device;
+  h.field('radio0','power').value='24'; await h.clickSave();
+  let overview=h.q('[data-mlo-overview-section="test"]');
+  assert.equal(overview.querySelector('.mlo-overview-radios').textContent,'None',
+   'no radios must retain an explicit empty-state label, not the string null');
+  assert.doesNotMatch(overview.textContent,/null/);
+  h.db().staged.test.device=['radio1','radio2'];
+  h.db().committed.test.device=['radio1','radio2'];
+  h.field('radio0','power').value='25'; await h.clickSave();
+  overview=h.q('[data-mlo-overview-section="test"]');
+  assert.match(overview.querySelector('.mlo-overview-radios').textContent,/channel 36/,
+   'radios restored after an empty state must refresh in place');
+  assert.doesNotMatch(overview.querySelector('.mlo-overview-radios').textContent,/None|null/);
   console.log('PASS MLO applied snapshot, editor choices, unsaved input and shared lock');
  } finally { h.w.close(); }
 }

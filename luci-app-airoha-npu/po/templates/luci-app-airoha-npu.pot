@@ -121,6 +121,9 @@ msgstr ""
 msgid "Settings applied."
 msgstr ""
 
+msgid "Settings applied, but the current status could not be refreshed."
+msgstr ""
+
 msgid "SoC & CPU Architecture"
 msgstr ""
 
