@@ -76,8 +76,8 @@ msgstr "调速策略"
 msgid "Hardware PPE Offload"
 msgstr "硬件流控 PPE"
 
-msgid "Hardware flow offload"
-msgstr "硬件流控 PPE"
+msgid "Bound flows:"
+msgstr "已绑定流表:"
 
 msgid "Kernel CPU Controls"
 msgstr "内核 CPU 控制"
@@ -91,8 +91,11 @@ msgstr "最高运行频率"
 msgid "NPU & Acceleration Engine"
 msgstr "NPU 与流控引擎"
 
-msgid "NPU Core"
-msgstr "NPU 核心"
+msgid "NPU Status"
+msgstr "NPU 状态"
+
+msgid "Online CPUs:"
+msgstr "在线 CPU:"
 
 msgid "Settings saved."
 msgstr "设置已保存"

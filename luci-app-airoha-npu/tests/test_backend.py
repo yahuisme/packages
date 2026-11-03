@@ -194,6 +194,21 @@ class Backend(unittest.TestCase):
                 cats = re.findall(rb'^\++ cat(?: |$)', actual.stderr, re.M)
                 self.assertEqual(len(cats), 1, 'six status file reads must use shell builtins')
 
+    def test_bound_flow_count(self):
+        bind = self.root / 'sys/kernel/debug/ppe/bind'
+        self.assertIsNone(self.call('getPpeStatus')['bound_entries'])
+        bind.parent.mkdir(parents=True)
+        for content, expected in [('', 0),
+                ('00000 BND IPv4 5T orig=fixture packets=1 bytes=80\n'
+                 '08000 BND L2B eth=fixture packets=0 bytes=0\n', 2),
+                ('00001 BND IPv6 5T orig=fixture', 1),
+                ('00001 UNB IPv4 5T\n', None),
+                ('unrecognized output\n', None)]:
+            bind.write_text(content)
+            self.assertEqual(self.call('getPpeStatus')['bound_entries'], expected)
+        bind.unlink(); bind.mkdir()
+        self.assertIsNone(self.call('getPpeStatus')['bound_entries'])
+
     def test_cpu_validation(self):
         payload = {'governor': 'performance', 'freq': '1400000'}
         before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()}
@@ -431,7 +446,7 @@ class Backend(unittest.TestCase):
         for forbidden in ('devmem', 'setOverclock', 'getPpeEntries', 'modprobe', 'bridge-nf-', '_run_with_deadline'):
             self.assertNotIn(forbidden, source)
         methods = json.loads(subprocess.check_output(['sh', str(BACKEND), 'list']))
-        self.assertEqual(set(methods), {'getStatus', 'getInfo', 'getFlowOffload', 'getSettings', 'saveSettings', 'applySettings'})
+        self.assertEqual(set(methods), {'getStatus', 'getInfo', 'getFlowOffload', 'getPpeStatus', 'getSettings', 'saveSettings', 'applySettings'})
 
 if __name__ == '__main__':
     unittest.main()

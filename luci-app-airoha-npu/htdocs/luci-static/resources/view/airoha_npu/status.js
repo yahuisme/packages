@@ -6,6 +6,7 @@
 var getStatus = rpc.declare({ object: 'luci.airoha_npu', method: 'getStatus', expect: { '': {} }, reject: true, nobatch: true });
 var getInfo = rpc.declare({ object: 'luci.airoha_npu', method: 'getInfo', expect: { '': {} }, reject: true });
 var getFlow = rpc.declare({ object: 'luci.airoha_npu', method: 'getFlowOffload', expect: { '': {} }, reject: true });
+var getPpe = rpc.declare({ object: 'luci.airoha_npu', method: 'getPpeStatus', expect: { '': {} }, reject: true, nobatch: true });
 
 var themeCSS = '\
 .npu-dashboard{--npu-chart-accent:var(--success,light-dark(#15803d,#16a34a))}\
@@ -44,7 +45,7 @@ function detailRow(label, valueNode) {
 
 return view.extend({
 	load: function() {
-		return Promise.all([getInfo(), getStatus(), getFlow()].map(function(p) {
+		return Promise.all([getInfo(), getStatus(), getFlow(), getPpe()].map(function(p) {
 			return p.catch(function() { return null; });
 		}));
 	},
@@ -54,6 +55,7 @@ return view.extend({
 		var info = data[0] || {};
 		var status = data[1] || {};
 		var flow = data[2] || {};
+		var ppe = data[3] || {};
 		self.cleanup();
 		self.active = true;
 
@@ -72,7 +74,7 @@ return view.extend({
 			]);
 		}
 
-		var samples = [], lastRequest = Date.now(), lastFlowRequest = Date.now(), ceiling = 1000;
+		var samples = [], lastRequest = Date.now(), lastFlowRequest = Date.now(), lastPpeRequest = Date.now(), ceiling = 1000;
 		var chartValue = E('span', { id: 'npu-chart-value' }, '—');
 		function svgNode(tag, attrs, text) {
 			var node = document.createElementNS('http://www.w3.org/2000/svg', tag);
@@ -204,11 +206,11 @@ return view.extend({
 			setText(cards.freq.val, curFreqStr);
 			setText(cards.freq.sub, _('Max limit:') + ' ' + maxFreqStr);
 			setText(cards.gov.val, govStr);
-			setText(cards.gov.sub, s.cpu_governor ? s.cpu_governor : '—');
+			setText(cards.gov.sub, _('Online CPUs:') + ' ' + text(s.cpu_count));
 			setText(cards.npu.val, npuBoundStr);
 			setText(cards.npu.sub, npuClockStr);
 			setText(cards.flow.val, flowStr);
-			setText(cards.flow.sub, _('Hardware flow offload'));
+			setText(cards.flow.sub, _('Bound flows:') + ' ' + (Number.isInteger(ppe.bound_entries) && ppe.bound_entries >= 0 ? ppe.bound_entries : _('Unknown')));
 
 
 			setText(detailNodes.online, text(s.cpu_count));
@@ -227,7 +229,7 @@ return view.extend({
 			E('div', { 'class': 'npu-summary-grid' }, [
 				summaryCard('freq', _('CPU Frequency'), cards.freq),
 				summaryCard('gov', _('Governor'), cards.gov),
-				summaryCard('npu', _('NPU Core'), cards.npu),
+				summaryCard('npu', _('NPU Status'), cards.npu),
 				summaryCard('flow', _('Flow Offload'), cards.flow)
 			]),
 			E('div', { 'class': 'npu-frequency-chart' }, [
@@ -263,7 +265,7 @@ return view.extend({
 		update(status, flow);
 		sample(status);
 
-		var statusPending = false, flowPending = false;
+		var statusPending = false, flowPending = false, ppePending = false;
 		self.pollFn = function() {
 			if (!self.active || !page.isConnected || document.visibilityState === 'hidden') return Promise.resolve();
 			// The chart timer below ages the window every second; redrawing here
@@ -276,6 +278,13 @@ return view.extend({
 					if (!self.active || !page.isConnected) return;
 					flow = f; update(status, flow);
 				}).finally(function() { flowPending = false; });
+			}
+			if (!ppePending && Date.now() - lastPpeRequest >= 6000) {
+				lastPpeRequest = Date.now(); ppePending = true;
+				getPpe().catch(function() { return null; }).then(function(p) {
+					if (!self.active || !page.isConnected) return;
+					ppe = p || {}; update(status, flow);
+				}).finally(function() { ppePending = false; });
 			}
 			if (statusPending || Date.now() - lastRequest < 3000) return Promise.resolve();
 			lastRequest = Date.now(); statusPending = true;

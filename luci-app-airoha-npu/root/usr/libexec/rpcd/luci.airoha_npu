@@ -170,9 +170,21 @@ get_flow() (
 		*) printf '{"enabled":null}\n';;
 	esac
 )
+# Official airoha_ppe_debugfs.c: bind emits one BND row per bound FOE entry.
+# Stream the rows; never treat entries output length as hardware capacity.
+get_ppe() {
+	local count
+	[ -r "$ROOT/sys/kernel/debug/ppe/bind" ] && [ ! -d "$ROOT/sys/kernel/debug/ppe/bind" ] || { printf '{"bound_entries":null}\n'; return; }
+	count=$(awk '
+		length($1) != 5 || $1 ~ /[^0-9a-f]/ || $2 != "BND" || NF < 3 { bad=1; exit }
+		{ count++ }
+		END { if (!bad) print count+0; else exit 1 }
+	' "$ROOT/sys/kernel/debug/ppe/bind" 2>/dev/null) || count=null
+	printf '{"bound_entries":%s}\n' "$count"
+}
 case "$1" in
 	list)
-		printf '%s\n' '{"getSettings":{},"saveSettings":{"governor":"str","freq":"str"},"applySettings":{"expected":"str"},"getStatus":{},"getInfo":{},"getFlowOffload":{}}';;
+		printf '%s\n' '{"getSettings":{},"saveSettings":{"governor":"str","freq":"str"},"applySettings":{"expected":"str"},"getStatus":{},"getInfo":{},"getFlowOffload":{},"getPpeStatus":{}}';;
 	call)
 		input=$(cat)
 		case "$2" in
@@ -180,6 +192,7 @@ case "$1" in
 			getStatus) get_status;;
 			getInfo) get_info;;
 			getFlowOffload) get_flow;;
+			getPpeStatus) get_ppe;;
 			*) error unsupported;;
 		esac;;
 esac

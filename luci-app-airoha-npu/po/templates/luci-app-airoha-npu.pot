@@ -76,7 +76,7 @@ msgstr ""
 msgid "Hardware PPE Offload"
 msgstr ""
 
-msgid "Hardware flow offload"
+msgid "Bound flows:"
 msgstr ""
 
 msgid "Kernel CPU Controls"
@@ -91,7 +91,10 @@ msgstr ""
 msgid "NPU & Acceleration Engine"
 msgstr ""
 
-msgid "NPU Core"
+msgid "NPU Status"
+msgstr ""
+
+msgid "Online CPUs:"
 msgstr ""
 
 msgid "Settings saved."

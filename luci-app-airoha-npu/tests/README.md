@@ -55,6 +55,13 @@ per-read failure checks and committed-only UCI isolation. `test_flow_cost.py`
 requires real prebuilt UCI, BusyBox and strace; it compares complete getter output
 and counts child-process creation separately from unchanged UCI executions.
 
+The bound-flow RPC streams `/sys/kernel/debug/ppe/bind`, whose official Airoha
+debugfs producer emits one `BND` row per bound FOE entry. It does not report
+connections, capacity or a hit rate. Missing/failed/malformed reads are unknown;
+an empty successful read is zero. Its independent six-second, single-flight
+poll never blocks CPU samples and stops in hidden/detached views. Reading this
+interface scans the hardware table; fixture passes do not establish router cost.
+
 The first-frame test remains: complete production render, mount/reentry/resize/fallback/disposal with intervals frozen. Requires Playwright/Chromium and unchanged Aurora:
 
 ```sh

@@ -22,15 +22,17 @@ w.setInterval = fn => { timers.set(++next, fn); return next; };
 w.clearInterval = id => timers.delete(id);
 let fail = false, flowFail = false, held = false, release, statusHeld = false, releaseStatus, calls = 0;
 const methodCalls = [];
-let value = 500000;
+let value = 500000, boundEntries = 23, ppeFail = false, ppeHeld = false, releasePpe;
+const ppe = () => ({ bound_entries: boundEntries });
 const status = () => ({ cpu_cur_freq: value, cpu_max_freq: 1200000, cpu_count: 2, cpu_governor: 'schedutil', npu_bound: true });
 mods.request.post = async (url, req, options) => {
  const method = req.params[2];
  if (method === 'getStatus') { assert.equal(options.nobatch, true, 'CPU request bypasses unrelated RPC batches'); if (statusHeld) await new Promise(r => { releaseStatus = r; }); }
  calls++; methodCalls.push({ method, time: now });
  if (held && method === 'getFlowOffload') await new Promise(r => { release = r; });
- const failure = (method === 'getStatus' && fail) || (method === 'getFlowOffload' && flowFail);
- const payload = method === 'getStatus' ? status() : method === 'getInfo' ? { soc_compat: 'airoha,test' } : { enabled: true };
+ if (ppeHeld && method === 'getPpeStatus') await new Promise(r => { releasePpe = r; });
+ const failure = (method === 'getStatus' && fail) || (method === 'getFlowOffload' && flowFail) || (method === 'getPpeStatus' && ppeFail);
+ const payload = method === 'getStatus' ? status() : method === 'getInfo' ? { soc_compat: 'airoha,test' } : method === 'getPpeStatus' ? ppe() : { enabled: true };
  return { ok: true, status: 200, json: () => w.JSON.parse(JSON.stringify({ jsonrpc: '2.0', id: req.id, result: failure ? [4] : [0, payload] })) };
 };
 function load(name) {
@@ -55,6 +57,9 @@ async function tick(ms = 3000) {
   if (process.env.NPU_ZH) assert.equal(w._('Max limit:'), '上限:');
   let node = app.render(await app.load()); w.document.getElementById('view').append(node); await flush();
   assert.equal(node.querySelector(':scope > h2').textContent, w._('Airoha SoC Status'));
+  assert.equal(node.querySelector('#npu-summary-gov .npu-card-sub').textContent, w._('Online CPUs:') + ' 2');
+  assert.equal(node.querySelector('#npu-summary-npu .npu-card-title').textContent, w._('NPU Status'));
+  assert.equal(node.querySelector('#npu-summary-flow .npu-card-sub').textContent, w._('Bound flows:') + ' 23');
   assert.equal(points().length, 1, 'only initial real reading');
   assert.equal(points()[0].getAttribute('data-mhz'), '500');
   assert.equal(mods.poll.queue.length, 1);
@@ -141,6 +146,7 @@ async function tick(ms = 3000) {
   assert(!/ H 944$/.test(node.querySelector('.npu-chart-line').getAttribute('d')), 'hold expires after 3s');
   now -= 4001;
   fail = true; await tick(); assert.equal(points().length, 3); assert.equal(w.document.querySelector('#npu-current').textContent, w._('Unknown'));
+  assert.equal(node.querySelector('#npu-summary-gov .npu-card-sub').textContent, w._('Online CPUs:') + ' ' + w._('Unknown'));
   assert(!/ H 944$/.test(node.querySelector('.npu-chart-line').getAttribute('d')), 'RPC failure stops display hold');
   fail = false; await tick(); assert.equal(segments(), 2, 'failure breaks path');
   assert.equal((node.querySelector('.npu-chart-area').getAttribute('d').match(/Z/g) || []).length, 2, 'area closes separately across null');
@@ -178,10 +184,25 @@ async function tick(ms = 3000) {
   assert.equal(hiddenWrites.length, 0, 'hidden tab must not redraw the chart');
   Object.defineProperty(w.document, 'visibilityState', { configurable: true, value: 'visible' });
   await app.pollFn(); await flush();
-  assert.equal(calls, hiddenCalls + 2, 'visible tab resumes overdue CPU and firewall reads');
+  assert.equal(calls, hiddenCalls + 3, 'visible tab resumes overdue CPU, firewall and PPE reads');
   assert.equal(points().at(-1).dataset.time, String(now), 'resume records only an actual reply');
   assert(segments() > 1, 'background pause stays a real gap');
+  const flowSub = () => again.querySelector('#npu-summary-flow .npu-card-sub').textContent;
+  for (const v of [0, null, -1, 1.5, '23', 23]) {
+   boundEntries = v; await tick(6000);
+   assert.equal(flowSub(), w._('Bound flows:') + ' ' + (Number.isInteger(v) && v >= 0 ? v : w._('Unknown')));
+  }
+  ppeFail = true; await tick(6000); assert.equal(flowSub(), w._('Bound flows:') + ' ' + w._('Unknown'));
+  ppeFail = false; await tick(6000); assert.equal(flowSub(), w._('Bound flows:') + ' 23');
+  ppeHeld = true; await tick(6000);
+  const ppeCalls = methodCalls.filter(c => c.method === 'getPpeStatus').length;
+  const cpuBefore = methodCalls.filter(c => c.method === 'getStatus').length;
+  await tick(6000); await tick(6000);
+  assert.equal(methodCalls.filter(c => c.method === 'getPpeStatus').length, ppeCalls, 'PPE remains single flight');
+  assert.equal(methodCalls.filter(c => c.method === 'getStatus').length, cpuBefore + 2, 'held PPE does not block CPU sampling');
   w.dispatchEvent(new w.Event('pagehide')); assert.equal(mods.poll.queue.length, 0); assert.equal(timers.size, 0);
+  const detached = again.innerHTML; ppeHeld = false; releasePpe(); await flush();
+  assert.equal(again.innerHTML, detached, 'late PPE reply ignored after teardown');
   console.log('PASS real LuCI DOM/RPC/poll: 3s sampling, 120s expiry, missing/invalid data gaps, stalled transport no overlap, detach/pagehide cleanup');
  } finally { w.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

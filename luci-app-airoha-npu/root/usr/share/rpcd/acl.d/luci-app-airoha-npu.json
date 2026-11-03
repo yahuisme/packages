@@ -3,7 +3,7 @@
 		"description": "View Airoha SoC status and manage kernel CPU controls",
 		"read": {
 			"ubus": {
-				"luci.airoha_npu": [ "getStatus", "getInfo", "getFlowOffload", "getSettings" ]
+				"luci.airoha_npu": [ "getStatus", "getInfo", "getFlowOffload", "getPpeStatus", "getSettings" ]
 			}
 		},
 		"write": {
