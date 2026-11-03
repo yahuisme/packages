@@ -93,10 +93,16 @@ async function scenario(readonly = false, loadFailure = false, capability = 'pre
    assert.equal(button.textContent, w._('Save')); button.click();
    await pending; await new Promise(r => setImmediate(r)); map.save = save;
   }
-  assert.equal(node.querySelector('[data-settings-state]').textContent, w._(loadFailure ? 'Saved settings status is unknown.' : 'Saved settings match the current runtime.'));
-  assert(node.textContent.includes(w._('CPU settings affect this runtime only and are not restored automatically after reboot.')));
+  assert.equal(node.querySelector('[data-settings-state]').textContent, loadFailure ? w._('Settings status unknown.') : '');
+  assert.equal(node.querySelector('[data-settings-state]').hidden, !loadFailure);
+  assert(!node.textContent.includes(w._('CPU settings affect this runtime only and are not restored automatically after reboot.')));
   assert.equal(node.querySelectorAll('.cbi-value').length, 2, 'only native CPU controls must render');
-  assert.equal(node.querySelector('.cbi-map-descr').textContent, w._('Configure CPU governor and maximum scaling frequency.'));
+  assert.equal(node.querySelector('.cbi-map-descr').textContent, w._('Adjust CPU governor and maximum frequency. Defaults are restored after reboot.'));
+  if (process.env.NPU_ZH) {
+   assert.equal(node.querySelector('.cbi-map-descr').textContent, '调整 CPU 调速策略和最高频率，重启后恢复默认。');
+   assert.equal(w._('Settings pending application.'), '设置待应用。');
+   assert.equal(w._('Settings status unknown.'), '设置状态未知。');
+  }
   for (const [name, section, expected] of [['governor', 'cpu', 'performance'], ['frequency', 'cpu', '1000000']]) {
    const option = map.lookupOption(name, section)[0];
    assert.equal(option.formvalue(section), expected, `${name} must show the RPC value`);
@@ -155,7 +161,8 @@ async function scenario(readonly = false, loadFailure = false, capability = 'pre
    assert.deepEqual(calls.filter(c => c[0].startsWith('set')), [], 'Save must not execute immediate kernel setters');
    assert.equal(notices.at(-1), w._('Settings saved.'));
    assert.deepEqual(runtime, { cpu_governor: 'performance', cpu_max_freq: 1000000 }, 'Save leaves runtime untouched');
-   assert.equal(node.querySelector('[data-settings-state]').textContent, w._('Saved settings differ from the current runtime; apply to activate.'));
+   assert.equal(node.querySelector('[data-settings-state]').textContent, w._('Settings pending application.'));
+   assert.equal(node.querySelector('[data-settings-state]').hidden, false);
    const fresh = new C();
    await fresh.render(await fresh.load());
    assert.equal(fresh.settingsMap.lookupOption('governor', 'cpu')[0].default, 'schedutil', 'reload retrieves saved baseline');
@@ -206,14 +213,17 @@ async function scenario(readonly = false, loadFailure = false, capability = 'pre
      'Apply succeeded before the independent readback fault');
     assert.equal(notices.at(-1), w._('Settings applied, but the current status could not be refreshed.'));
     assert.equal(noticeClasses.at(-1), 'warning', 'confirmed Apply refresh failure is a warning, not an error');
-    assert.equal(node.querySelector('[data-settings-state]').textContent, w._('Saved settings status is unknown.'),
+    assert.equal(node.querySelector('[data-settings-state]').textContent, w._('Settings status unknown.'),
      'failed refresh must not fabricate a current runtime reading');
+    assert.equal(node.querySelector('[data-settings-state]').hidden, false);
     assert(!notices.at(-1).includes(w._('The operation failed. Refresh the page and try again.')),
      'a confirmed Apply must not invite a duplicate retry');
    }
    fault = null;
    await app.handleSaveApply();
    assert.equal(notices.at(-1), w._('Settings applied.'));
+   assert.equal(node.querySelector('[data-settings-state]').hidden, true, 'matching state is hidden again after Apply');
+   assert.equal(node.querySelector('[data-settings-state]').textContent, '');
    assert.equal(globalApply, 0);
    const writes = calls.filter(c => /^(set|save|apply)/.test(c[0])).length;
    L.hasViewPermission = () => false;

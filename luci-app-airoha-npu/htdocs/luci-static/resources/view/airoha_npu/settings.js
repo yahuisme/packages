@@ -78,15 +78,15 @@ return view.extend({
 		function paintSettingsState() {
 			if (!settingsState) return;
 			var known = saved && saved.result === 'ok' && status && status.cpu_governor && status.cpu_max_freq;
-			settingsState.textContent = !known ? _('Saved settings status is unknown.')
-				: baseline.governor === status.cpu_governor && baseline.freq === String(status.cpu_max_freq)
-					? _('Saved settings match the current runtime.')
-					: _('Saved settings differ from the current runtime; apply to activate.');
+			var matches = known && baseline.governor === status.cpu_governor && baseline.freq === String(status.cpu_max_freq);
+			settingsState.hidden = !!matches;
+			settingsState.textContent = !known ? _('Settings status unknown.')
+				: matches ? '' : _('Settings pending application.');
 		}
 		var m, s, o;
 		// NamedSection renders only sections present in the JSON data model.
 		m = new form.JSONMap({ cpu: {} }, _('Airoha SoC Settings'),
-			_('Configure CPU governor and maximum scaling frequency.'));
+			_('Adjust CPU governor and maximum frequency. Defaults are restored after reboot.'));
 		m.readonly = !L.hasViewPermission() || !saved || saved.result !== 'ok';
 		this.settingsMap = m;
 		if (!saved || saved.result !== 'ok')
@@ -176,7 +176,7 @@ return view.extend({
 				node.classList.add('npu-settings');
 				node.prepend(E('style', {}, settingsCSS));
 				settingsState = E('p', { 'class': 'cbi-section-descr', 'data-settings-state': '', role: 'status' });
-				node.querySelector('.cbi-map-descr').after(settingsState, E('p', { 'class': 'cbi-section-descr' }, _('CPU settings affect this runtime only and are not restored automatically after reboot.')));
+				node.querySelector('.cbi-map-descr').after(settingsState);
 				paintSettingsState();
 				return node;
 			});
