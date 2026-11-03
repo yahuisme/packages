@@ -188,24 +188,28 @@ sync_subscription_cron() {
 }
 
 _homeproxy_start_service() {
+	local outbound_node server_enabled
 	mkdir -p "$RUN_DIR" || return 1
-	if ! /usr/libexec/homeproxy-runtime-init; then
-		log "Error: failed to initialize runtime ports."
-		return 1
-	fi
-	if ! ucode -S "$HP_DIR/scripts/cleanup_urltest.uc" >>"$LOG_PATH" 2>&1; then
-		log "Error: failed to clean unavailable URLTest nodes."
-		return 1
-	fi
 	config_load "$CONF"
+	config_get outbound_node "config" "main_node" "nil"
+	config_get_bool server_enabled "server" "enabled" "0"
+	# Stopping must not depend on startup-only port/core checks or node repair.
+	if [ "$outbound_node" != "nil" ] || [ "$server_enabled" -eq 1 ]; then
+		if ! /usr/libexec/homeproxy-runtime-init; then
+			log "Error: failed to initialize runtime ports."
+			return 1
+		fi
+		if ! ucode -S "$HP_DIR/scripts/cleanup_urltest.uc" >>"$LOG_PATH" 2>&1; then
+			log "Error: failed to clean unavailable URLTest nodes."
+			return 1
+		fi
+		config_load "$CONF"
+	fi
 
 	local routing_mode
 	config_get routing_mode "config" "routing_mode" "bypass_mainland_china"
 
-	local outbound_node
 	config_get outbound_node "config" "main_node" "nil"
-
-	local server_enabled
 	config_get_bool server_enabled "server" "enabled" "0"
 	local client_ready=0 server_ready=0
 	local dashboard_enabled dashboard_ready=0
@@ -471,6 +475,12 @@ stop_service() {
 	rm -f "$RUN_DIR/sing-box-c.json" "$RUN_DIR/sing-box-c.json.new" \
 		"$RUN_DIR/sing-box-s.json" "$RUN_DIR/sing-box-s.json.new"
 
+	# A transactional disable must retain log inodes until procd accepts it.
+	if [ "${HP_TRANSACTION:-0}" -eq 1 ]; then
+		HP_CLIENT_STOPPED="$client_was_running"
+		HP_SERVER_STOPPED="$server_was_running"
+		return "$status"
+	fi
 	if [ "$client_was_running" -eq 1 ]; then
 		rm -f "$RUN_DIR/sing-box-c.log"
 		log "sing-box client stopped."
@@ -545,7 +555,7 @@ homeproxy_reload_phase() {
 }
 
 homeproxy_transaction() {
-	local service_open="${1:-0}" HP_TRANSACTION=1
+	local service_open="${1:-0}" HP_TRANSACTION=1 HP_CLIENT_STOPPED=0 HP_SERVER_STOPPED=0
 	local backup="$RUN_DIR/.reload.pending" file status=0 HP_CONFIG_CHANGED=0 HP_NETWORK_CHANGED=0
 	mkdir -p "$RUN_DIR" || return 1
 	homeproxy_reload_cleanup || return 1
@@ -570,6 +580,14 @@ homeproxy_transaction() {
 	homeproxy_reload_phase installing || return 1
 	[ "$service_open" -eq 1 ] || procd_open_service "$CONF" "$initscript"
 	if _homeproxy_start_service && homeproxy_close_service; then
+		if [ "$HP_CLIENT_STOPPED" -eq 1 ]; then
+			rm -f "$RUN_DIR/sing-box-c.log"
+			log "sing-box client stopped."
+		fi
+		if [ "$HP_SERVER_STOPPED" -eq 1 ]; then
+			rm -f "$RUN_DIR/sing-box-s.log"
+			log "sing-box server stopped."
+		fi
 		homeproxy_reload_phase clean || return 1
 		homeproxy_reload_cleanup || {
 			log "Error: service configured but runtime backup cleanup failed at $backup."
@@ -622,7 +640,16 @@ reload_service() {
 }
 
 service_triggers() {
+	local outbound_node server_enabled
+	config_load "$CONF"
+	config_get outbound_node "config" "main_node" "nil"
+	config_get_bool server_enabled "server" "enabled" "0"
+
+	# Keep Apply able to enable the service, but do not wake a disabled service
+	# on interface events. The disabling reload still completes runtime cleanup.
 	procd_add_reload_trigger "$CONF"
-	# The next uplink may not exist yet; reload on any interface transition.
-	procd_add_raw_trigger "interface.*" 1000 /etc/init.d/$CONF reload
+	if [ "$outbound_node" != "nil" ] || [ "$server_enabled" -eq 1 ]; then
+		# The next uplink may not exist yet; observe all interfaces while enabled.
+		procd_add_raw_trigger "interface.*" 1000 /etc/init.d/$CONF reload
+	fi
 }

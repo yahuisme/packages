@@ -15,7 +15,8 @@ harness.js mlo-luci-dom.cjs test_view.js l10n.js'
 # Full router/compiler fixtures are optional; runtime replays use pinned sources.
 ROUTER='test_portability.py'
 BROWSER='test_curve_browser.js test_chart_mount.js'
-HOST='luci-app-airoha-flowsense/tests/test_coupling.js'
+HOST='luci-app-airoha-flowsense/tests/test_coupling.js
+luci-app-homeproxy/tests/test_subscription_jobs.py'
 NEED_MSGFMT='luci-app-airoha-npu/tests/test_catalog.py
 luci-app-airoha-flowsense/tests/test_i18n.py
 luci-app-wifi7/tests/mlo-localization.cjs'

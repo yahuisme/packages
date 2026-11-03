@@ -1892,6 +1892,12 @@ msgstr ""
 msgid "Subscriptions updated successfully."
 msgstr ""
 
+msgid "Some subscriptions failed. Updated nodes were refreshed; check the subscription log."
+msgstr ""
+
+msgid "Some subscriptions failed, and the node list could not be refreshed. Check the subscription log."
+msgstr ""
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1935
 msgid "Subscriptions updated, but unable to refresh the node list."
 msgstr ""

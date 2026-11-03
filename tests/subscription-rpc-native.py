@@ -34,7 +34,8 @@ class SubscriptionRPC(unittest.TestCase):
             script.write_bytes((ROOT / 'luci-app-homeproxy/root/etc/homeproxy/scripts/update_subscriptions.sh').read_bytes())
             script.chmod(0o755)
             downloader = root / 'usr/bin/ucode'
-            downloader.write_text('#!/bin/sh\nprintf x >> /tmp/executions\nwhile [ ! -f /tmp/release ]; do sleep 1; done\nexit "$(cat /tmp/release)"\n')
+            downloader.rename(root / 'usr/bin/ucode.real')
+            downloader.write_text('#!/bin/sh\n[ "$1" != -l ] || exec /usr/bin/ucode.real "$@"\nprintf x >> /tmp/executions\nwhile [ ! -f /tmp/release ]; do sleep 1; done\nexit "$(cat /tmp/release)"\n')
             downloader.chmod(0o755)
             (root / 'probe.sh').write_text('''#!/bin/sh
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin

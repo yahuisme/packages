@@ -33,6 +33,33 @@ const {pageBoot,tick}=require('./helpers/test_page_lifecycle.cjs');
   held();await task;
   assert(h.root().querySelector('.hp-subscription-result').textContent.includes('successfully'));
   assert.equal(polls,1);
+  let partialStarted=false, refreshed=0, beforePartialDone;
+  const partialMap=h.mods.dom.findClassInstance(h.root());
+  const load=partialMap.load.bind(partialMap);
+  partialMap.load=async(...args)=>{refreshed++;return load(...args);};
+  h.mods.fs.exec=async(_path,args)=>{
+   if(args[0]==='--start'){partialStarted=true;return {code:0,stdout:'{"state":"running"}'};}
+   if(partialStarted)beforePartialDone=refreshed;
+   return {code:0,stdout:partialStarted?'{"state":"done","code":3}':'{"state":"idle"}'};
+  };
+  await partialMap.lookupOption('_update_subscriptions','subscription')[0].onclick(null,'subscription');
+  assert(refreshed>beforePartialDone,'partial success must refresh successfully updated groups');
+  const partial=h.root().querySelector('.hp-subscription-result');
+  assert(partial.textContent.includes('Some subscriptions failed'));
+  assert(!partial.textContent.includes('successfully'));
+  // Save loads before starting: inject failure only after the done reply.
+  partialStarted=false;
+  let done=false;
+  h.mods.fs.exec=async(_path,args)=>{
+   if(args[0]==='--start'){partialStarted=true;return {code:0,stdout:'{"state":"running"}'};}
+   if(partialStarted)done=true;
+   return {code:0,stdout:partialStarted?'{"state":"done","code":3}':'{"state":"idle"}'};
+  };
+  const retryMap=h.mods.dom.findClassInstance(h.root());
+  const retryLoad=retryMap.load.bind(retryMap);
+  retryMap.load=async(...args)=>{if(done)throw Error('refresh failed');return retryLoad(...args);};
+  await retryMap.lookupOption('_update_subscriptions','subscription')[0].onclick(null,'subscription');
+  assert(h.root().querySelector('.hp-subscription-result').textContent.includes('could not be refreshed'));
   const fresh=h.mods.dom.findClassInstance(h.root());
   let saves=0;fresh.save=async()=>{saves++;throw Error('must not save during an existing job');};
   h.mods.fs.exec=async(_path,args)=>{assert.equal(args[0],'--status');return {code:0,stdout:'{"state":"running"}'};};

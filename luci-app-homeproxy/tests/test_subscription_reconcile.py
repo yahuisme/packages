@@ -315,7 +315,7 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
         for generation in range(6):
             payload = GOOD.replace('name: good', f'name: renamed-{generation}') + BAD
             state = self.run_native(payload, original=original)
-            self.assertEqual(state['result'].returncode, 0, state['result'].stderr)
+            self.assertEqual(state['result'].returncode, 3, state['result'].stderr)
             nodes = {key: node for key, node in state['sections'].items() if node.get('grouphash') == GROUP}
             counts.append(len(nodes))
             sizes.append(len(state['after'].encode()))
@@ -330,7 +330,7 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
         self.assertEqual(counts, [2] * 6)
         self.assertEqual(len(set(sizes)), 1)
         repeated = self.run_native(payload, original=original)
-        self.assertEqual(repeated['result'].returncode, 0, repeated['result'].stderr)
+        self.assertEqual(repeated['result'].returncode, 1, repeated['result'].stderr)
         self.assertEqual(repeated['after'], original)
         self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in repeated['calls']))
 
@@ -345,7 +345,7 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
                     seed = self.run_native(GOOD + BAD + '    password: unseen-secret\n', original=original)
                     self.assertEqual(seed['result'].returncode, 0, seed['result'].stderr)
                     state = self.run_native(renamed + BAD, original=seed['after'])
-                    self.assertEqual(state['result'].returncode, 0, state['result'].stderr)
+                    self.assertEqual(state['result'].returncode, 3, state['result'].stderr)
                     old_id = hashlib.md5((GROUP + ':old-unparsed').encode()).hexdigest()
                     entries = [unrelated.split('proxies:\n')[1], renamed.split('proxies:\n')[1]]
                     payload = 'proxies:\n' + ''.join(reversed(entries) if reverse else entries) + BAD
@@ -381,10 +381,10 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
                     seed = self.run_native({URL: GOOD + BAD + '    password: unseen-secret\n',
                                            other_url: other if cross_group else None},
                                            original=original, urls=urls)
-                    self.assertEqual(seed['result'].returncode, 0, seed['result'].stderr)
+                    self.assertEqual(seed['result'].returncode, 0 if cross_group else 3, seed['result'].stderr)
                     renamed = GOOD.replace('name: good', f'name: {raw_label}')
                     state = self.run_native({URL: renamed + BAD, other_url: None}, original=seed['after'], urls=urls)
-                    self.assertEqual(state['result'].returncode, 0, state['result'].stderr)
+                    self.assertEqual(state['result'].returncode, 3, state['result'].stderr)
                     self.assertNotEqual(state['sections'][good_id]['label'], raw_label)
                     if not cross_group:
                         self.assertEqual(state['sections'][good_id]['label'], 'direct-out (2)')
@@ -397,7 +397,7 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
                             renamed.replace('password: secret', 'password: final') + BAD,
                             renamed.replace('password: secret', 'password: final') + BAD)):
                         state = self.run_native({URL: payload, other_url: None}, original=original, urls=urls)
-                        self.assertEqual(state['result'].returncode, 0, state['result'].stderr)
+                        self.assertEqual(state['result'].returncode, 1 if generation in (1, 3) else 3, state['result'].stderr)
                         self.assertEqual(len(state['sections']), initial_count)
                         expected_password = 'changed' if payload == updated + BAD else 'final'
                         node = state['sections'][good_id]
@@ -427,7 +427,7 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
                         original = state['after']
                     full = self.run_native({URL: GOOD.replace('name: good', 'name: complete'), other_url: None},
                                            original=original, urls=urls)
-                    self.assertEqual(full['result'].returncode, 0, full['result'].stderr)
+                    self.assertEqual(full['result'].returncode, 3, full['result'].stderr)
                     self.assertNotIn(old_id, full['sections'])
                     self.assertNotIn(good_id, full['sections'])
                     self.assertEqual({key: n for key, n in full['sections'].items() if n.get('grouphash') == other_group}, other_nodes)
@@ -436,14 +436,14 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
         seed = self.run_native(WS, original="config config 'config'\n option main_node 'nil'\n")
         renamed = WS.replace('name: keep', 'name: renamed')
         state = self.run_native(renamed + BAD, original=seed['after'])
-        self.assertEqual(state['result'].returncode, 0, state['result'].stderr)
+        self.assertEqual(state['result'].returncode, 3, state['result'].stderr)
         self.assertIn(NODE, state['sections'])
         # A later refresh changes options but not the new label. Existing label
         # identity must still find the section whose ID predates the rename.
         original = state['after'].replace("option transport 'ws'",
             "option transport 'ws'\n option ws_path '/old'\n option tls_sni 'old.example'\n option tls_insecure '1'")
         updated = self.run_native(renamed + BAD, original=original)
-        self.assertEqual(updated['result'].returncode, 0, updated['result'].stderr)
+        self.assertEqual(updated['result'].returncode, 3, updated['result'].stderr)
         self.assertEqual(set(updated['sections']), {'config', NODE})
         for key in ('ws_path', 'tls_sni', 'tls_insecure'):
             self.assertNotIn(key, updated['sections'][NODE])
@@ -459,12 +459,12 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
         self.assertEqual(seed['result'].returncode, 0, seed['result'].stderr)
         good_id = hashlib.md5((GROUP + ':good').encode()).hexdigest()
         state = self.run_native(payload.replace('name: good', 'name: renamed') + BAD, original=seed['after'])
-        self.assertEqual(state['result'].returncode, 0, state['result'].stderr)
+        self.assertEqual(state['result'].returncode, 3, state['result'].stderr)
         self.assertEqual(set(state['sections']), {'config', good_id})
         self.assertEqual(state['sections'][good_id]['tls_alpn'], 'h2')
         repeated = self.run_native(payload.replace('name: good', 'name: renamed') + BAD,
                                    original=state['after'])
-        self.assertEqual(repeated['result'].returncode, 0, repeated['result'].stderr)
+        self.assertEqual(repeated['result'].returncode, 1, repeated['result'].stderr)
         self.assertEqual(repeated['after'], state['after'])
         self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in repeated['calls']))
 
@@ -475,7 +475,7 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
         original = seed['after'].replace("option main_node 'nil'",
             f"option main_node 'urltest'\n list main_urltest_nodes '{good_id}'")
         state = self.run_native(GOOD.replace('name: good', 'name: renamed') + BAD, original=original)
-        self.assertEqual(state['result'].returncode, 0, state['result'].stderr)
+        self.assertEqual(state['result'].returncode, 3, state['result'].stderr)
         self.assertEqual(state['sections']['config']['main_node'], 'urltest')
         self.assertEqual(state['sections']['config']['main_urltest_nodes'], good_id)
         self.assertEqual(set(state['sections']), {'config', good_id})
@@ -545,7 +545,7 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
         self.assertEqual(seed['result'].returncode, 0, seed['result'].stderr)
         state = self.run_native(payload + payload.split('proxies:\n')[1] + BAD,
                                 original=seed['after'], urls=[URL, URL + '#alias'])
-        self.assertEqual(state['result'].returncode, 0, state['result'].stderr)
+        self.assertEqual(state['result'].returncode, 3, state['result'].stderr)
         good_id = hashlib.md5((GROUP + ':good').encode()).hexdigest()
         self.assertEqual(set(state['sections']), {'config', good_id})
         self.assertEqual(state['sections'][good_id]['label'], 'renamed')
@@ -639,7 +639,7 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
         for partial in (False, True):
             with self.subTest(partial=partial):
                 state = self.run_native(TCP + (BAD if partial else ''), extra=extra)
-                self.assertEqual(state['result'].returncode, 0, state['result'].stderr)
+                self.assertEqual(state['result'].returncode, 3 if partial else 0, state['result'].stderr)
                 self.assertNotIn('transport', state['sections'][NODE])
                 self.assertNotIn('ws_path', state['sections'][NODE])
                 self.assertEqual('unmatched' in state['sections'], partial)

@@ -131,7 +131,8 @@ lock() { :; }
             else:
                 self.assertEqual(result.returncode, 0, events)
 
-    def run_case(self, fault='', mode='client', operation='reload', preexisting=True):
+    def run_case(self, fault='', mode='client', operation='reload', preexisting=True, cycle=False,
+                 expect_disabled_cleanup=False):
         with tempfile.TemporaryDirectory(prefix='homeproxy-reload-') as d:
             root = Path(d)
             run = root / 'run'
@@ -149,6 +150,7 @@ lock() { :; }
             logs = {run / 'sing-box-c.log': 'CLIENT HISTORY', run / 'sing-box-s.log': 'SERVER HISTORY'}
             for path, text in logs.items():
                 path.write_text(text)
+            log_inodes = {path: path.stat().st_ino for path in logs}
             inodes = {path: path.stat().st_ino for path in old} if preexisting else {}
             (root / 'bin').mkdir()
             ubus = root / 'bin/ubus'
@@ -183,7 +185,8 @@ procd_append_param() { procd_set_param "$@"; }
 procd_close_service() { _procd_call _procd_close_service "$@"; }
 _procd_open_trigger() { :; }
 _procd_close_trigger() { :; }
-service_triggers() { :; }
+procd_add_reload_trigger() { printf 'config-trigger\n' >> "$ROOT/events"; }
+procd_add_raw_trigger() { printf 'interface-trigger\n' >> "$ROOT/events"; }
 json_set_namespace() { [ -z "$2" ] || eval "$2=old"; return 0; }
 json_close_object() { :; }
 json_dump() { printf '%s' "$INSTANCES"; }
@@ -211,7 +214,20 @@ mv() { if [ "$FAULT" = install ] && [ "$1" = -f ] && [ "$2" = "$RUN_DIR/sing-box
             code += 'LOG_PATH="$RUN_DIR/log"\nCACHE_DIR="$HP_DIR/cache"\nCACHE_PATH="$CACHE_DIR/cache.db"\n'
             code += 'mkdir -p "$DASHBOARD_DIR"; printf index > "$DASHBOARD_DIR/index.html"\n'
             code += 'CONF=homeproxy\nPROG=check_stub\ninitscript=/etc/init.d/homeproxy\n'
-            code += ('reload\n' if operation == 'reload' else 'start\n') + 'exit $?\n'
+            if cycle:
+                code += '''
+MODE=disabled
+reload || exit $?
+[ ! -e "$RUN_DIR/sing-box-c.json" ] || exit 93
+[ ! -e "$RUN_DIR/sing-box-s.json" ] || exit 94
+[ ! -e "$DNSMASQ_DIR" ] || exit 95
+[ ! -e "${DNSMASQ_DIR%/*}/dnsmasq-homeproxy.conf" ] || exit 96
+MODE=client
+reload
+exit $?
+'''
+            else:
+                code += ('reload\n' if operation == 'reload' else 'start\n') + 'exit $?\n'
             script = root / 'test.sh'
             script.write_text(code)
             env = dict(os.environ, ROOT=d, FAULT=fault, MODE=mode,
@@ -219,10 +235,20 @@ mv() { if [ "$FAULT" = install ] && [ "$1" = -f ] && [ "$2" = "$RUN_DIR/sing-box
             result = subprocess.run(['busybox', 'ash', str(script)], env=env, capture_output=True, text=True)
             events = (root / 'events').read_text().splitlines() if (root / 'events').exists() else []
             self.assertEqual(result.stderr, '')
-            if preexisting and mode != 'disabled':
+            if preexisting and not cycle and not expect_disabled_cleanup and (mode != 'disabled' or fault):
                 for path, text in logs.items():
+                    self.assertTrue(path.exists(), (fault, path, events))
                     self.assertEqual(path.read_text(), text, (fault, path))
+                    self.assertEqual(path.stat().st_ino, log_inodes[path], (fault, path))
             self.assertNotIn('kill', events)
+            if expect_disabled_cleanup:
+                self.assertEqual(result.returncode, 0, (fault, events))
+                self.assertFalse(any(run.glob('sing-box-*.json')))
+                self.assertFalse(dns.exists())
+                self.assertFalse((dns.parent / 'dnsmasq-homeproxy.conf').exists())
+                self.assertEqual([e for e in events if e.endswith('-trigger')], ['config-trigger'])
+                self.assertEqual([e for e in events if e.startswith('ubus:')], ['ubus:'])
+                return
             if fault.startswith('restore-'):
                 self.assertNotEqual(result.returncode, 0)
                 backups = list(run.glob('.reload.*'))
@@ -247,10 +273,18 @@ mv() { if [ "$FAULT" = install ] && [ "$1" = -f ] && [ "$2" = "$RUN_DIR/sing-box
             else:
                 self.assertEqual(result.returncode, 0, events)
                 submitted = [e for e in events if e.startswith('ubus:')]
-                self.assertEqual(len(submitted), 1)
+                self.assertEqual(len(submitted), 2 if cycle else 1)
+                self.assertEqual(events.count('config-trigger'), 2 if cycle else 1)
+                self.assertEqual(events.count('interface-trigger'), 0 if mode == 'disabled' else 1)
+                if cycle:
+                    self.assertEqual([e for e in events if e.endswith('-trigger')],
+                                     ['config-trigger', 'config-trigger', 'interface-trigger'])
+                    self.assertNotIn('sing-box-', submitted[0])
                 for suffix, enabled in [('c', mode in ('client', 'both')), ('s', mode in ('server', 'both'))]:
                     self.assertEqual((run / f'sing-box-{suffix}.json').exists(), enabled)
-                    self.assertEqual(f'sing-box-{suffix}' in submitted[0], enabled)
+                    self.assertEqual(f'sing-box-{suffix}' in submitted[-1], enabled)
+                if mode == 'disabled':
+                    self.assertFalse(any(path.exists() for path in logs))
                 if mode != 'disabled':
                     params = (root / 'params').read_text()
                     if mode != 'server':
@@ -272,6 +306,9 @@ mv() { if [ "$FAULT" = install ] && [ "$1" = -f ] && [ "$2" = "$RUN_DIR/sing-box
             with self.subTest(mode=mode):
                 self.run_case(mode=mode)
 
+    def test_disable_cleanup_and_reenable_restore_interface_trigger(self):
+        self.run_case(mode='client', cycle=True)
+
     def test_preexisting_logs_retained_on_success_and_failure(self):
         for fault in ['', 'generate', 'check', 'fw4', 'dns', 'ubus']:
             with self.subTest(fault=fault):
@@ -291,6 +328,16 @@ mv() { if [ "$FAULT" = install ] && [ "$1" = -f ] && [ "$2" = "$RUN_DIR/sing-box
 
     def test_cold_start_preparation_failure_leaves_runtime_empty(self):
         self.run_real_cold_start('generate', preexisting=False)
+
+    def test_disabled_cleanup_does_not_require_startup_initialization(self):
+        for fault in ['runtime-init', 'cleanup']:
+            with self.subTest(fault=fault):
+                self.run_case(fault, 'disabled', expect_disabled_cleanup=True)
+
+    def test_disabled_submission_failure_restores_previous_runtime(self):
+        for fault in ['ubus', 'fw4', 'dns']:
+            with self.subTest(fault=fault):
+                self.run_case(fault, 'disabled')
 
     def test_disabled_dns_failure(self):
         self.run_case('dns', 'disabled')

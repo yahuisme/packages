@@ -6,15 +6,23 @@
 SCRIPTS_DIR="/etc/homeproxy/scripts"
 RUN_DIR="/var/run/homeproxy"
 LOG_PATH="$RUN_DIR/homeproxy.log"
-LOCK_PATH="$RUN_DIR/update_subscriptions.lock"
+JOB_DIR="${RUN_DIR}.subscriptions"
+LOCK_PATH="$JOB_DIR/update_subscriptions.lock"
 
+umask 077
 mkdir -p "$RUN_DIR" || exit 1
+# init recursively chowns RUN_DIR to sing-box; root task controls must stay
+# outside it. Reject preexisting links, foreign owners and permissive modes.
+if [ ! -d "$JOB_DIR" ]; then
+	mkdir -m 0700 "$JOB_DIR" || [ -d "$JOB_DIR" ] || exit 1
+fi
+ucode -l fs -e 'let s=fs.lstat(ARGV[0]), p=fs.stat(ARGV[1]); exit(s?.type != "directory" || s.uid != 0 || p?.uid != 0 || (s.mode & 0o7777) != 0o700);' "$JOB_DIR" "${JOB_DIR%/*}" || exit 1
 
 log() {
 	printf '%s [SUBSCRIBE] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG_PATH"
 }
 
-RESULT_PATH="$RUN_DIR/update_subscriptions.result"
+RESULT_PATH="$JOB_DIR/update_subscriptions.result"
 
 # The worker inherits fd 9, so the existing single-flight lock also covers
 # detached UI updates. Every caller observes the same task; no guessed timers.
@@ -55,7 +63,8 @@ esac
 rm -f "$RESULT_PATH" || exit 1
 ucode "$SCRIPTS_DIR/update_subscriptions.uc" 2>>"$LOG_PATH"
 status="$?"
-printf '%s\n' "$status" >"$RESULT_PATH.new" && mv -f "$RESULT_PATH.new" "$RESULT_PATH" || exit 1
+rm -f "$RESULT_PATH.new" || exit 1
+printf '%s\n' "$status" >"$RESULT_PATH.new" && mv -fT "$RESULT_PATH.new" "$RESULT_PATH" || exit 1
 if [ "$status" -ne 0 ]; then
 	log "Subscription update failed with exit code $status."
 fi

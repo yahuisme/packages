@@ -79,7 +79,9 @@ class Portability(unittest.TestCase):
         src = (BASE / 'root/etc/init.d/homeproxy').read_text()
         block = src[src.index('service_triggers()'):]
         code = ('. ' + shlex.quote(jshn) + '\n' + native + '\n' + block +
-                '\nCONF=homeproxy; PROCD_RELOAD_DELAY=1000; initscript=/etc/init.d/homeproxy; '
+                '\nconfig_load() { :; }; config_get() { export "$1=node"; }; '
+                'config_get_bool() { export "$1=0"; }; '
+                'CONF=homeproxy; PROCD_RELOAD_DELAY=1000; initscript=/etc/init.d/homeproxy; '
                 'json_init; _procd_open_trigger; service_triggers; '
                 '_procd_close_trigger; json_dump')
         out = subprocess.run(['busybox', 'ash', '-c', code],
@@ -89,13 +91,16 @@ class Portability(unittest.TestCase):
         self.assertEqual(triggers, [
             ['config.change', ['if', ['eq', 'package', 'homeproxy'], command], 1000],
             ['interface.*', [command], 1000]])
-        # In particular raw event data has no interface == wan/empty predicate.
+
+    def test_interface_trigger_event_matching(self):
+        # Separate compilation from native trigger serialization so the latter
+        # remains runnable under the no-local-build verification policy.
         with tempfile.TemporaryDirectory(prefix='homeproxy-trigger-') as tmp:
             probe = str(Path(tmp) / 'match')
             subprocess.run([os.environ.get('CC', 'cc'), '-Wall', '-Werror',
                             str(BASE / 'tests/fixtures/procd-trigger-match.c'),
                             '-o', probe], check=True, capture_output=True)
-            for pattern in (triggers[1][0], 'interface.*.up'):
+            for pattern in ('interface.*', 'interface.*.up'):
                 for event, expected in [('interface.update', '1'),
                                         ('interface.down', '1'),
                                         ('interface.up', '1'),

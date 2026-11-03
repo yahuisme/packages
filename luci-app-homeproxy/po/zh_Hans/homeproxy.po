@@ -1203,6 +1203,12 @@ msgstr "订阅"
 msgid "Subscriptions updated successfully."
 msgstr "订阅更新成功"
 
+msgid "Some subscriptions failed. Updated nodes were refreshed; check the subscription log."
+msgstr "部分订阅更新失败，已刷新成功更新的节点，请查看订阅日志"
+
+msgid "Some subscriptions failed, and the node list could not be refreshed. Check the subscription log."
+msgstr "部分订阅更新失败，节点列表刷新失败，请查看订阅日志"
+
 msgid "Subscriptions updated, but unable to refresh the node list."
 msgstr "订阅已更新，但节点列表刷新失败"
 

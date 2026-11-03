@@ -1961,9 +1961,12 @@ return view.extend({
 					return;
 				if (task.state === 'done')
 					failure = _('Unable to update subscriptions. Check the subscription log.');
-				if (task.state !== 'done' || task.code !== 0)
+				const partial = task.state === 'done' && task.code === 3;
+				if (task.state !== 'done' || (task.code !== 0 && !partial))
 					throw new Error(_('exit code %d').format(task.code ?? 1));
-				failure = _('Subscriptions updated, but unable to refresh the node list.');
+				failure = partial
+					? _('Some subscriptions failed, and the node list could not be refreshed. Check the subscription log.')
+					: _('Subscriptions updated, but unable to refresh the node list.');
 				// reset() only renders cached form data. Invalidate UCI first, then
 				// refresh source choices and load the options before rendering.
 				uci.unload(data[0]);
@@ -1971,7 +1974,9 @@ return view.extend({
 				nodeSources();
 				await this.map.load();
 				await this.map.reset();
-				setSubscriptionResult(_('Subscriptions updated successfully.'), 'success');
+				setSubscriptionResult(partial
+					? _('Some subscriptions failed. Updated nodes were refreshed; check the subscription log.')
+					: _('Subscriptions updated successfully.'), partial ? 'error' : 'success');
 			} catch (err) {
 				setSubscriptionResult(failure, 'error');
 			} finally {

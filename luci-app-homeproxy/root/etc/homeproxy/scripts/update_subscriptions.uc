@@ -35,7 +35,9 @@ const allow_insecure = uci.get(uciconfig, ucisubscription, 'allow_insecure') || 
       filter_mode = uci.get(uciconfig, ucisubscription, 'filter_nodes') || 'disabled',
       filter_keywords = uci.get(uciconfig, ucisubscription, 'filter_keywords') || [],
       packet_encoding = uci.get(uciconfig, ucisubscription, 'packet_encoding') || 'xudp',
-      subscription_urls = uci.get(uciconfig, ucisubscription, 'subscription_url') || [],
+      subscription_urls_raw = uci.get(uciconfig, ucisubscription, 'subscription_url'),
+      subscription_urls = type(subscription_urls_raw) === 'array' ? subscription_urls_raw :
+          (subscription_urls_raw ? [subscription_urls_raw] : []),
       user_agent = uci.get(uciconfig, ucisubscription, 'user_agent'),
       via_proxy = uci.get(uciconfig, ucisubscription, 'update_via_proxy') || '0';
 const resources_updated = getenv('HOMEPROXY_RESOURCES_UPDATED') === '1';
@@ -1214,6 +1216,7 @@ function connection_key(node) {
 
 function main() {
 	const seen_urls = {};
+	let failed_subscriptions = 0;
 	for (let configured_url in subscription_urls) {
 		const url = replace(configured_url, /#.*$/, '');
 		if (seen_urls[url]) {
@@ -1230,6 +1233,7 @@ function main() {
 			const res = wGET(url, user_agent, update_proxy);
 			if (isEmpty(res)) {
 				log(sprintf('Failed to fetch resources from %s.', url));
+				failed_subscriptions++;
 				continue;
 			}
 
@@ -1304,6 +1308,8 @@ function main() {
 				}
 			}
 			reconcile_group[groupHash] = parse_complete;
+			if (!parse_complete || isEmpty(nodes))
+				failed_subscriptions++;
 
 			if (count == 0)
 				log(sprintf('No valid node found in %s.', url));
@@ -1312,6 +1318,7 @@ function main() {
 			if (!parse_complete)
 				log(sprintf('Preserving unmatched existing nodes from %s because part of the response could not be parsed.', url));
 		} catch (e) {
+			failed_subscriptions++;
 			log_error(sprintf('Failed to process subscription %s', url), e);
 		}
 	}
@@ -1505,12 +1512,24 @@ function main() {
 		return false;
 
 	log(sprintf('%s added, %s updated, %s removed.', added, updated, removed));
+	if (failed_subscriptions) {
+		log(sprintf('Failed to fully update subscriptions: %s subscription(s) failed. Valid nodes were processed; unmatched nodes from failed groups were preserved.', failed_subscriptions));
+		if (config_changed) {
+			log('Partial subscription update applied; returning partial-failure status 3.');
+			return 3;
+		}
+		log('No subscription changes were applied; returning failure status 1.');
+		return false;
+	}
 	log('Successfully updated subscriptions.');
 }
 
 if (!isEmpty(subscription_urls))
 	try {
-		if (call(main) === false)
+		const result = call(main);
+		if (result === 3)
+			exit(3);
+		if (result === false)
 			exit(1);
 	} catch(e) {
 		log_error('[FATAL ERROR] An error occurred during updating subscriptions', e);

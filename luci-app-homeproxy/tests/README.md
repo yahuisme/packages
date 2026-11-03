@@ -147,8 +147,10 @@ For explicit pre-optimization comparisons only, `HP_STATUS_ALLOW_REBUILD=1` and
 `HP_NODE_ALLOW_FULL_SCAN=1` disable the respective performance assertion, not
 semantic assertions. Never enable them for the optimized regression run.
 
-**No-build boundary:** exclude `test_portability.py` when local compilation is
-forbidden (it compiles a C trigger probe). Leave `DNS_RUNTIME_BINARY` unset when
+**No-build boundary:** do not run the complete `test_portability.py` locally
+(it compiles a C trigger probe). Its native trigger serialization can run alone:
+`PYTHONPATH=luci-app-homeproxy/tests python3 -m unittest test_portability.Portability.test_interface_trigger_not_named_wan -v`.
+Leave `DNS_RUNTIME_BINARY` unset when
 proxy execution is forbidden. Use unittest discovery rather than executing
 every Python file directly: some test modules have no `unittest.main()` entry.
 
