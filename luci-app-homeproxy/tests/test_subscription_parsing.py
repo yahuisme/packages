@@ -103,6 +103,75 @@ class SubscriptionParsing(unittest.TestCase):
             with self.subTest(payload=payload):
                 self.assertIsNone(self.parse('parse_mihomo_yaml('+json.dumps(payload)+')'))
 
+    def test_mihomo_smux_maps_supported_fields_without_truthiness(self):
+        proxy = {
+            'type': 'trojan', 'name': 'smux', 'server': 'example.com',
+            'port': 443, 'password': 'secret',
+            'smux': {
+                'enabled': True, 'protocol': 'smux', 'max-connections': 4,
+                'min-streams': 2, 'max-streams': 0, 'padding': True,
+                'brutal-opts': {'enabled': True, 'up': '50 Mbps', 'down': '100 Mbps'},
+                'statistic': False, 'only-tcp': False,
+            },
+        }
+        node = self.parse('parse_uri({nodetype: "mihomo", ...' + json.dumps(proxy) + '})')
+        self.assertEqual(node['multiplex'], '1')
+        self.assertEqual(node['multiplex_protocol'], 'smux')
+        self.assertEqual(node['multiplex_max_connections'], '4')
+        self.assertEqual(node['multiplex_min_streams'], '2')
+        self.assertEqual(node['multiplex_max_streams'], '0')
+        self.assertEqual(node['multiplex_padding'], '1')
+        self.assertEqual(node['multiplex_brutal'], '1')
+        self.assertEqual(node['multiplex_brutal_up'], '50')
+        self.assertEqual(node['multiplex_brutal_down'], '100')
+
+    def test_mihomo_smux_false_and_invalid_values_fail_closed(self):
+        base = {'type': 'trojan', 'name': 'smux', 'server': 'example.com',
+                'port': 443, 'password': 'secret'}
+        disabled = dict(base, smux={'enabled': False, 'protocol': 'smux', 'padding': False})
+        node = self.parse('parse_uri({nodetype: "mihomo", ...' + json.dumps(disabled) + '})')
+        self.assertEqual(node['multiplex'], '0')
+        self.assertNotIn('multiplex_padding', node)
+        for smux in (
+            {'enabled': 'true', 'protocol': 'smux'},
+            {'enabled': True, 'protocol': 'unknown'},
+            {'enabled': True, 'protocol': 'smux', 'max-streams': '4'},
+            {'enabled': True, 'protocol': 'smux', 'brutal-opts': {'enabled': 1}},
+            {'enabled': True, 'protocol': 'smux', 'only-tcp': True},
+        ):
+            with self.subTest(smux=smux):
+                proxy = dict(base, smux=smux)
+                self.assertIsNone(self.parse('parse_uri({nodetype: "mihomo", ...' + json.dumps(proxy) + '})'))
+
+    def test_mihomo_smux_brutal_rates_use_mihomo_units(self):
+        base = {'type': 'trojan', 'name': 'smux', 'server': 'example.com',
+                'port': 443, 'password': 'secret',
+                'smux': {'enabled': True, 'protocol': 'smux',
+                         'brutal-opts': {'enabled': True}}}
+        for rate, expected in (('50 Mbps', '50'), ('1 Gbps', '1000'),
+                               ('125000000 Bps', '1000'), ('50', '50'), (50, '50')):
+            with self.subTest(rate=rate):
+                proxy = json.loads(json.dumps(base))
+                proxy['smux']['brutal-opts']['up'] = rate
+                proxy['smux']['brutal-opts']['down'] = rate
+                node = self.parse('parse_uri({nodetype: "mihomo", ...' + json.dumps(proxy) + '})')
+                self.assertEqual(node['multiplex_brutal_up'], expected)
+                self.assertEqual(node['multiplex_brutal_down'], expected)
+
+    def test_smux_overflow_rejected_and_disabled_ignored_for_other_protocols(self):
+        for expression in ('mihomo_bandwidth_mbps("999999999999999999999999")',
+                           'mihomo_bandwidth_mbps("9223372036854775807 Tbps")',
+                           'parse_mihomo_smux({enabled:true,"max-streams":1e30})'):
+            with self.subTest(expression=expression):
+                self.assertIsNone(self.parse(expression))
+        proxy = {'type': 'socks5', 'name': 'disabled', 'server': 'example.com',
+                 'port': 1080, 'smux': {'enabled': False}}
+        node = self.parse('parse_mihomo_proxy(' + json.dumps(proxy) + ')')
+        self.assertIsNotNone(node)
+        self.assertNotIn('multiplex', node)
+        proxy['smux'].update({'only-tcp': True, 'protocol': 'ignored'})
+        self.assertIsNotNone(self.parse('parse_mihomo_proxy(' + json.dumps(proxy) + ')'))
+
     def test_yaml_empty_flow_sequence_stays_empty(self):
         self.assertEqual(self.parse("yaml_scalar('[]')"), [])
 

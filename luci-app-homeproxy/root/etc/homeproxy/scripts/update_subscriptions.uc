@@ -345,11 +345,139 @@ function plugin_options(plugin, value) {
 	return join(';', options);
 }
 
+function parse_mihomo_smux(value) {
+	if (value === null)
+		return {};
+	if (type(value) !== 'object')
+		return null;
+
+	const result = {};
+	const bool_value = (key) => {
+		if (!(key in value))
+			return null;
+		const item = value[key];
+		if (item === true)
+			return '1';
+		if (item === false || item === 'false' || item === 'off')
+			return '0';
+		return null;
+	};
+	const number_value = (key) => {
+		if (!(key in value))
+			return null;
+		const item = value[key];
+		if (!(type(item) in ['int', 'double']) || !(item >= 0 && item <= 2147483647) || item != int(item))
+			return null;
+		return to_string(item);
+	};
+
+	if (!('enabled' in value))
+		return null;
+	const enabled = bool_value('enabled');
+	if (enabled === null)
+		return null;
+	result.multiplex = enabled;
+	if (enabled === '0')
+		return result;
+	if ('protocol' in value) {
+		if (type(value.protocol) !== 'string' || !(value.protocol in ['smux', 'yamux', 'h2mux']))
+			return null;
+		result.multiplex_protocol = value.protocol;
+	}
+	for (let source, target in {
+		'max-connections': 'multiplex_max_connections',
+		'min-streams': 'multiplex_min_streams',
+		'max-streams': 'multiplex_max_streams'
+	}) {
+		if (source in value) {
+			const item = number_value(source);
+			if (item === null)
+				return null;
+			result[target] = item;
+		}
+	}
+	if ('padding' in value) {
+		const item = bool_value('padding');
+		if (item === null)
+			return null;
+		result.multiplex_padding = item;
+	}
+	if ('brutal-opts' in value) {
+		const brutal = value['brutal-opts'];
+		if (type(brutal) !== 'object')
+			return null;
+		if (!('enabled' in brutal))
+			return null;
+		let item = brutal.enabled;
+		if (item === true)
+			result.multiplex_brutal = '1';
+		else if (item === false || item === 'false' || item === 'off')
+			result.multiplex_brutal = '0';
+		else
+			return null;
+		for (let source, target in { up: 'multiplex_brutal_up', down: 'multiplex_brutal_down' }) {
+			if (source in brutal) {
+				item = brutal[source];
+				if (!((type(item) === 'string' && match(item, /^([0-9]+|[0-9]+[ 	]*([KMGT]?)[Bb]ps)$/)) ||
+				      (type(item) === 'int' && item >= 0)))
+					return null;
+				result[target] = to_string(item);
+			}
+		}
+	}
+	if ('only-tcp' in value) {
+		const only_tcp = value['only-tcp'];
+		/* sing-box has no equivalent; reject enabled only-tcp rather than
+		 * silently broadening its UDP semantics. */
+		if (only_tcp === true || only_tcp === 'true' || only_tcp === 'on')
+			return null;
+		if (!(only_tcp === false || only_tcp === 'false' || only_tcp === 'off'))
+			return null;
+	}
+	return result;
+}
+
+/* Mihomo StringToBps accepts integer rates and returns bytes per second.
+ * HomeProxy's sing-box field is an integer number of megabits per second. */
+function mihomo_bandwidth_mbps(value) {
+	if (type(value) === 'int')
+		return (value >= 0 && value <= 2147483647) ? to_string(value) : null;
+	if (type(value) !== 'string')
+		return null;
+	if (match(value, /^[0-9]+$/)) {
+		const number = int(value);
+		return (number >= 0 && number <= 2147483647) ? to_string(number) : null;
+	}
+	const parts = match(value, /^([0-9]+)[ 	]*([KMGT]?)([Bb])ps$/);
+	if (!parts)
+		return null;
+	let multiplier = 1;
+	switch (parts[2]) {
+	case 'K': multiplier = 1000; break;
+	case 'M': multiplier = 1000000; break;
+	case 'G': multiplier = 1000000000; break;
+	case 'T': multiplier = 1000000000000; break;
+	}
+	if (parts[3] === 'B')
+		multiplier *= 8;
+	const number = int(parts[1]);
+	/* Bound the product before multiplying, including on 32-bit targets. */
+	if (!(number >= 0 && number <= 2147483647 * 1000000.0 / multiplier))
+		return null;
+	const bits = number * multiplier;
+	if (bits % 1000000)
+		return null;
+	return to_string(bits / 1000000);
+}
+
 function parse_mihomo_proxy(proxy) {
 	if (type(proxy) !== 'object')
 		return null;
 
 	let config;
+	const smux = ('smux' in proxy) ? parse_mihomo_smux(proxy.smux) : {};
+	if (smux === null)
+		return null;
 	const tls_sni = proxy.servername || proxy.sni;
 	const tls_fingerprint = proxy['client-fingerprint'] || proxy.fingerprint;
 	const tls_insecure = (proxy['skip-cert-verify'] === true || proxy.insecure === '1' || proxy.allowInsecure === true || proxy.allowInsecure === '1') ? '1'
@@ -614,6 +742,19 @@ function parse_mihomo_proxy(proxy) {
 		return null;
 	}
 
+	if (!isEmpty(config)) {
+		if (length(smux) && !(config.type in ['shadowsocks', 'trojan', 'vless', 'vmess']))
+			return smux.multiplex === '0' ? config : null;
+		for (let option, value in smux) {
+			if (option in ['multiplex_brutal_up', 'multiplex_brutal_down']) {
+				const bandwidth = mihomo_bandwidth_mbps(value);
+				if (bandwidth === null)
+					return null;
+				value = bandwidth;
+			}
+			config[option] = value;
+		}
+	}
 	return config;
 }
 

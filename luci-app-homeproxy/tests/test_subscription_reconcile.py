@@ -594,6 +594,90 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
         self.assertEqual(repeated['after'], state['after'])
         self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in repeated['calls']))
 
+    def test_mihomo_smux_native_refresh_maps_four_supported_protocols(self):
+        proxies = []
+        for kind, credentials in (
+            ('ss', ('cipher: aes-128-gcm\n    password: secret')),
+            ('trojan', ('password: secret')),
+            ('vless', ('uuid: 11111111-1111-4111-8111-111111111111')),
+            ('vmess', ('uuid: 11111111-1111-4111-8111-111111111111\n    cipher: auto')),
+        ):
+            proxies.append(f"""  - name: smux-{kind}
+    type: {kind}
+    server: {kind}.example
+    port: 443
+    {credentials}
+    smux:
+      enabled: true
+      protocol: smux
+      max-connections: 4
+      min-streams: 2
+      max-streams: 0
+      padding: true
+      only-tcp: false
+      brutal-opts:
+        enabled: true
+        up: 50 Mbps
+        down: 1 Gbps
+""")
+        payload = 'proxies:\n' + ''.join(proxies)
+        base = "config config 'config'\n option main_node 'nil'\n"
+        result = self.run_native(payload, original=base)
+        self.assertEqual(result['result'].returncode, 0, result['result'].stderr)
+        nodes = [section for section in result['sections'].values() if section.get('.type') == 'node']
+        self.assertEqual(len(nodes), 4)
+        for node in nodes:
+            with self.subTest(protocol=node['type']):
+                self.assertEqual(node['multiplex'], '1')
+                self.assertEqual(node['multiplex_protocol'], 'smux')
+                self.assertEqual(node['multiplex_max_connections'], '4')
+                self.assertEqual(node['multiplex_min_streams'], '2')
+                self.assertEqual(node['multiplex_max_streams'], '0')
+                self.assertEqual(node['multiplex_padding'], '1')
+                self.assertEqual(node['multiplex_brutal'], '1')
+                self.assertEqual(node['multiplex_brutal_up'], '50')
+                self.assertEqual(node['multiplex_brutal_down'], '1000')
+        for outbound in result['rendered']:
+            if outbound.get('tag', '').endswith('-out') and outbound.get('type') in ('shadowsocks', 'trojan', 'vless', 'vmess'):
+                self.assertEqual(outbound['multiplex']['protocol'], 'smux')
+                self.assertEqual(outbound['multiplex']['max_connections'], 4)
+                self.assertEqual(outbound['multiplex']['min_streams'], 2)
+                self.assertNotIn('max_streams', outbound['multiplex'])
+                self.assertTrue(outbound['multiplex']['padding'])
+                self.assertEqual(outbound['multiplex']['brutal']['up_mbps'], 50)
+                self.assertEqual(outbound['multiplex']['brutal']['down_mbps'], 1000)
+
+    def test_mihomo_smux_disabled_removes_stale_fields_and_repeated_refresh_is_noop(self):
+        extra = """ option multiplex '1'
+ option multiplex_protocol 'smux'
+ option multiplex_max_connections '4'
+ option multiplex_padding '1'
+"""
+        payload = """proxies:
+  - name: keep
+    type: trojan
+    server: proxy.example
+    port: 443
+    password: new
+    smux:
+      enabled: false
+      protocol: smux
+      padding: false
+"""
+        result = self.run_native(payload, extra=extra)
+        self.assertEqual(result['result'].returncode, 0, result['result'].stderr)
+        node = result['sections'][NODE]
+        self.assertEqual(node['multiplex'], '0')
+        self.assertNotIn('multiplex_padding', node)
+        self.assertNotIn('multiplex_protocol', node)
+        self.assertNotIn('multiplex_max_connections', node)
+        outbound = next(item for item in result['rendered'] if item.get('password') == 'new')
+        self.assertNotIn('multiplex', outbound)
+        repeated = self.run_native(payload, original=result['after'])
+        self.assertEqual(repeated['result'].returncode, 0, repeated['result'].stderr)
+        self.assertEqual(repeated['after'], result['after'])
+        self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in repeated['calls']))
+
     def test_all_invalid_native_preserves_committed_bytes(self):
         state = self.run_native('proxies:\n' + BAD)
         self.assertEqual(state['result'].returncode, 1, state['result'].stderr)

@@ -410,7 +410,7 @@ export function renderOutbound(node) {
 			min_version: node.tls_min_version,
 			max_version: node.tls_max_version,
 			cipher_suites: node.tls_cipher_suites,
-			certificate_path: node.tls_cert_path,
+			certificate_path: (node.tls_self_sign === '1') ? node.tls_cert_path : null,
 			ech: (node.tls_ech === '1') ? {
 				enabled: true,
 				config: node.tls_ech_config,

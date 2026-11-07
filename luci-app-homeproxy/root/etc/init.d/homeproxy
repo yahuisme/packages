@@ -23,11 +23,16 @@ CRON_TAG="#${CONF}_autosetup"
 
 # we don't know which is the default server, just take the first one
 DNSMASQ_UCI_CONFIG="$(uci -q show "dhcp.@dnsmasq[0]" | awk 'NR==1 {split($0, conf, /[.=]/); print conf[2]}')"
+DNSMASQ_DIR=""
 if [ -f "/tmp/etc/dnsmasq.conf.$DNSMASQ_UCI_CONFIG" ]; then
-	DNSMASQ_DIR="$(awk -F '=' '/^conf-dir=/ {print $2}' "/tmp/etc/dnsmasq.conf.$DNSMASQ_UCI_CONFIG")/dnsmasq-homeproxy.d"
-else
-	DNSMASQ_DIR="/tmp/dnsmasq.d/dnsmasq-homeproxy.d"
+	DNSMASQ_DIR="$(awk '/^conf-dir=/ {sub(/^conf-dir=/, ""); sub(/,.*/, ""); print; exit}' "/tmp/etc/dnsmasq.conf.$DNSMASQ_UCI_CONFIG")"
 fi
+if [ -z "$DNSMASQ_DIR" ]; then
+	DNSMASQ_DIR="$(uci -q get "dhcp.${DNSMASQ_UCI_CONFIG}.confdir")"
+	DNSMASQ_DIR="${DNSMASQ_DIR%%,*}"
+fi
+[ -n "$DNSMASQ_DIR" ] || DNSMASQ_DIR="/tmp/dnsmasq${DNSMASQ_UCI_CONFIG:+.$DNSMASQ_UCI_CONFIG}.d"
+DNSMASQ_DIR="${DNSMASQ_DIR%/}/dnsmasq-homeproxy.d"
 
 log() {
 	printf '%s [DAEMON] %s\n' "$(date "+%Y-%m-%d %H:%M:%S")" "$*" >> "$LOG_PATH"

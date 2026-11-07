@@ -94,7 +94,8 @@ lock() { :; }
             # otherwise sync_subscription_cron is overwritten and touches host cron.
             init += '\n' + stubs
             init = init.replace('RUN_DIR="/var/run/homeproxy"', f'RUN_DIR="{run}"')
-            init = init.replace('DNSMASQ_DIR="/tmp/dnsmasq.d/dnsmasq-homeproxy.d"', f'DNSMASQ_DIR="{dns}"')
+            discovery = init[init.index('DNSMASQ_UCI_CONFIG='):init.index('\nlog() {')]
+            init = init.replace(discovery, f'DNSMASQ_DIR="{dns}"\n')
             init = init.replace('HP_DIR="/etc/homeproxy"', f'HP_DIR="{root}/hp"')
             init = init.replace('DASHBOARD_DIR="$HP_DIR/dashboard"', f'DASHBOARD_DIR="{root}/dashboard"')
             init = init.replace('PROG="/usr/bin/sing-box"', 'PROG="check_stub"')
