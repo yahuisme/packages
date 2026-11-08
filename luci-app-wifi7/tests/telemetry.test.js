@@ -18,4 +18,16 @@ assert.equal(t.parse(survey).surveys.wlan0[0].frequency,5180);
 assert.equal(t.delta({active:1100,busy:220},{active:1000,busy:200}),20);
 assert.equal(t.delta({active:1100},{active:1000,busy:200}),null);
 assert.equal(t.delta({active:1,busy:0},{active:1000,busy:200}),null);
+// Interface names are arbitrary netdev identifiers, not Object property names.
+for (const name of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) {
+ const sample = t.parse(`@@ devices 0\nInterface ${name}\n channel 36 (5180 MHz), width: 80 MHz\n@@ stations ${name} 0\nStation aa:bb:cc:dd:ee:02 (on ${name})\n signal: -42 dBm\n@@ survey ${name} 0\n frequency: 5180 MHz [in use]\n channel active time: 1000 ms\n channel busy time: 200 ms\n`);
+ assert.ok(Object.hasOwn(sample.devices, name), `${name}: own device entry`);
+ assert.equal(sample.devices[name].frequency, 5180);
+ assert.equal(sample.stations[name][0].signal, -42);
+ assert.equal(sample.surveys[name][0].busy, 200);
+ const absent = t.parse('');
+ assert.equal(absent.devices[name], undefined, `${name}: absent must not inherit a device`);
+ assert.equal(absent.stations[name], undefined);
+ assert.equal(absent.surveys[name], undefined);
+}
 console.log('Telemetry assertions passed');

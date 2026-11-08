@@ -16,7 +16,9 @@ if (getenv('HOMEPROXY_SERVER_READY') === '1')
 		if (server.enabled !== '1' || server.firewall !== '1')
 			return;
 
-		const network = server.network || '{ tcp, udp }';
+		// Only these inbounds consume the selector; editor retention must not
+		// leave a TCP-only opening after switching to a QUIC-based protocol.
+		const network = (server.type in ['naive', 'shadowsocks'] && server.network) || '{ tcp, udp }';
 		const port = server.port;
 		const port_number = int(port);
 		if (!match(server['.name'] || '', /^[A-Za-z0-9_]+$/) ||

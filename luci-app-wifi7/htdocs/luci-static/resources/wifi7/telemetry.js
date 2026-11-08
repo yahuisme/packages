@@ -51,7 +51,7 @@ function dfs(states) {
 }
 
 function parse(raw) {
-	var out = { devices: {}, stations: {}, surveys: {}, hostapd: [], firmware: '', devicesOK: false };
+	var out = { devices: Object.create(null), stations: Object.create(null), surveys: Object.create(null), hostapd: [], firmware: '', devicesOK: false };
 	var section = '', name = '', ok = false, device = null, link = null, station = null, record = null, status = null;
 	function flush() {
 		if (record && record.inUse && record.active != null && record.busy != null)

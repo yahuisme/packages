@@ -33,6 +33,7 @@ node tests/style-scope.cjs
 node tests/summary-cards.cjs
 node tests/survey-dom.cjs
 node tests/telemetry.test.js
+node tests/special-interface-names.cjs
 node tests/radio-attribution.cjs
 for mode in radio mlo-runtime mlo-summary; do node tests/render-reuse.cjs "$mode"; done
 node tests/radio-refresh.cjs
@@ -80,5 +81,7 @@ python3 tests/collector-equivalence.py
 PERF_OUT=/private/evidence/dom node tests/performance-equivalence.cjs
 PERF_OUT=/private/evidence/collector python3 tests/collector-equivalence.py
 ```
+
+`special-interface-names.cjs` covers legal netdev names colliding with Object prototype properties through the production parser and native LuCI parent: render, stable client reuse, removal and recovery. `telemetry.test.js` and `mlo-runtime.cjs` separately verify own-key/absent-key behavior for interface, radio and runtime section dictionaries.
 
 `harness.js` and `mlo-luci-dom.cjs` are support modules, not test entrypoints. `integration.cjs` is both a harness and executable test. Typography-named DOM checks stay because they also assert real Map.reset, scoped modal ownership/reopen and teardown; `native-tabs.cjs` checks actual tab/poll behavior. All collector commands use temporary boundary fixtures.

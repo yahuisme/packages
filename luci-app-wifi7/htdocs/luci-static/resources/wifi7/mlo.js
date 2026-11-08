@@ -63,7 +63,7 @@ function radioLabel(radio, grouped) {
 }
 
 function radioMap(radios) {
-	let result = {};
+	let result = Object.create(null);
 
 	for (let radio of radios)
 		result[radio['.name']] = radio;
@@ -72,7 +72,7 @@ function radioMap(radios) {
 }
 
 function flattenRuntime(status) {
-	let runtime = { radios: [], sections: {}, activeMldIfnames: [] };
+	let runtime = { radios: [], sections: Object.create(null), activeMldIfnames: [] };
 
 	for (let radioName in status) {
 		let radio = status[radioName];
@@ -118,7 +118,7 @@ function fetchRuntime(readWireless) {
 			throw new Error('Invalid wireless status');
 		return flattenRuntime(status);
 	}).catch(function() {
-		return { unknown: true, radios: [], sections: {}, activeMldIfnames: [] };
+		return { unknown: true, radios: [], sections: Object.create(null), activeMldIfnames: [] };
 	});
 }
 

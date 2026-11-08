@@ -34,7 +34,8 @@ const watchdog = setTimeout(() => { console.error('FAIL protocol paths stalled')
     wireguard_private_key: Buffer.alloc(32, 1).toString('base64'),
     wireguard_peer_public_key: Buffer.alloc(32, 2).toString('base64'),
     tls_cert_path: '/etc/homeproxy/certs/server_publickey.pem', tls_key_path: '/etc/homeproxy/certs/server_privatekey.pem',
-    ws_host: 'retained.invalid', grpc_servicename: 'retained-grpc', ssh_priv_key_pp: 'retained-ssh'
+    ws_host: 'retained.invalid', grpc_servicename: 'retained-grpc', ssh_priv_key_pp: 'retained-ssh',
+    hysteria_obfs_password: 'retained-obfs-secret', network: 'tcp'
    };
    for (const [key, value] of Object.entries(seeds)) if (field(key)) {
     h.mods.uci.set('homeproxy', sid, key, value); persisted[sid][key] = value;
@@ -47,11 +48,20 @@ const watchdog = setTimeout(() => { console.error('FAIL protocol paths stalled')
     await modal.save(null, true);
     assert.equal(persisted[sid].type, protocol);
     if (field('ssh_priv_key_pp') && protocol !== 'ssh') assert.equal(persisted[sid].ssh_priv_key_pp, 'retained-ssh');
+    assert.equal(persisted[sid].hysteria_obfs_password, 'retained-obfs-secret');
+    if (name === 'server') assert.equal(persisted[sid].network, 'tcp', 'inactive network selector is retained');
     const special = { direct: 'address', anytls: 'anytls_idle_session_timeout', hysteria: 'hysteria_auth_type', hysteria2: 'hysteria_obfs_type', shadowsocks: 'shadowsocks_encrypt_method', shadowtls: 'shadowtls_version', socks: 'socks_version', ssh: 'ssh_priv_key_pp', tuic: 'tuic_congestion_control', vless: 'vless_flow', vmess: 'vmess_alterid', wireguard: 'wireguard_private_key' }[protocol];
     if (special && field(special)) assert.equal(field(special).isActive(sid), protocol !== 'direct', name + ' branch ' + protocol);
     assert.equal(field('ws_host').isActive(sid), false, 'inactive saved transport does not leak for ' + protocol);
     console.log('PASS ' + name + ' native protocol save ' + protocol);
    }
+   set('type', 'hysteria2');
+   set('hysteria_obfs_type', 'salamander');
+   await modal.save(null, true);
+   set('hysteria_obfs_type', '');
+   assert.equal(field('hysteria_obfs_password').isActive(sid), false);
+   await modal.save(null, true);
+   assert.equal(persisted[sid].hysteria_obfs_password, 'retained-obfs-secret');
    set('type', 'vmess');
    for (const [transport, active] of [['grpc', 'grpc_servicename'], ['http', 'http_host'], ['httpupgrade', 'httpupgrade_host'], ['ws', 'ws_host'], ['quic', 'tls']]) {
     set('transport', transport);

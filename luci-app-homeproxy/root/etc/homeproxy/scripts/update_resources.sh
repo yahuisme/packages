@@ -112,7 +112,7 @@ verify_blob() {
 
 # Resource task controls must survive init's recursive RUN_DIR service chown.
 JOB_DIR="${RUN_DIR}.resources"
-[ -d "$JOB_DIR" ] || mkdir -m 0700 "$JOB_DIR" || exit 1
+[ -d "$JOB_DIR" ] || mkdir -m 0700 "$JOB_DIR" || [ -d "$JOB_DIR" ] || exit 1
 ucode -l fs -e 'let s=fs.lstat(ARGV[0]), p=fs.stat(ARGV[1]); exit(s?.type != "directory" || s.uid != p?.uid);' "$JOB_DIR" "${JOB_DIR%/*}" || exit 1
 chmod 0700 "$JOB_DIR" || exit 1
 if [ "$3" = --job ]; then

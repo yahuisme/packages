@@ -4,7 +4,7 @@ String.prototype.format=function(...a){let i=0;return this.replace(/%[sd]/g,()=>
 const L={toArray:v=>v==null?[]:Array.isArray(v)?v:String(v).split(/\s+/),naturalCompare:(a,b)=>a.localeCompare(b)};
 const rpc={declare:()=>()=>Promise.resolve({})};
 const uci={sections:()=>[{'.name':'mlo0',mlo:'1',device:['radio0','radio1']}]};
-const f=Function('rpc','L','uci','_',source.slice(0,source.indexOf('return baseclass.extend'))+'return {flattenRuntime,uniqueValues};')(rpc,L,uci,x=>x);
+const f=Function('rpc','L','uci','_',source.slice(0,source.indexOf('return baseclass.extend'))+'return {flattenRuntime,uniqueValues,radioMap};')(rpc,L,uci,x=>x);
 let runtime=f.flattenRuntime({radio0:{up:true,interfaces:[{section:'mlo0',ifname:'ap-mld0',mld:true},{section:'mlo0',ifname:'ap-mld0',mld:true}]},radio1:{up:false,interfaces:[{section:'mlo0',ifname:'ap-mld1',mld:true}]}});
 assert.deepEqual(runtime.activeMldIfnames,['ap-mld0']);
 assert.equal(runtime.sections.mlo0.up,true);
@@ -12,4 +12,13 @@ assert.deepEqual(runtime.sections.mlo0.radios,['radio0','radio1']);
 runtime=f.flattenRuntime({radio0:{up:'true',interfaces:[{section:'mlo0',ifname:'ap-mld0',mld:true}]}});
 assert.equal(runtime.sections.mlo0.up,false);
 assert.deepEqual(f.uniqueValues(['constructor','toString','radio0','radio0']),['constructor','toString','radio0']);
+for (const section of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) {
+ const snapshot = f.flattenRuntime({radio0:{up:true,interfaces:[{section,ifname:'ap-mld0',mld:true}]}});
+ assert.ok(Object.hasOwn(snapshot.sections, section));
+ assert.equal(snapshot.sections[section].up, true);
+ assert.deepEqual(snapshot.sections[section].radios, ['radio0']);
+ const radio = {'.name':section, band:'5g'};
+ assert.equal(f.radioMap([radio])[section], radio);
+ assert.equal(f.radioMap([])[section], undefined);
+}
 console.log('PASS strict runtime state and deduplicated MLD interfaces');

@@ -89,8 +89,14 @@ get_monitor() (
 )
 
 get_overview() {
-    local now uptime
-    now=$(date +%s); read -r uptime _ < /proc/uptime
+    local now uptime whole fraction
+    now=$(date +%s)
+    read -r uptime _ < /proc/uptime 2>/dev/null || uptime=null
+    whole=${uptime%%.*}; fraction=${uptime#*.}
+    # Keep the rest of the snapshot usable when procfs is unavailable or invalid.
+    # The view treats null as a missing rate baseline, never as uptime zero.
+    fs_uint "$whole" || uptime=null
+    case "$fraction" in ''|*[!0-9]*) uptime=null;; esac
     printf '{"timestamp":%s,"uptime":%s,"monitor":' "$now" "$uptime"
     get_monitor; printf ',"jitter":'
     get_jitter; printf ',"interfaces":'; get_interfaces; printf '}'

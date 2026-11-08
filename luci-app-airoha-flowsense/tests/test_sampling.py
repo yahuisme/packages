@@ -21,7 +21,8 @@ class SamplingTest(unittest.TestCase):
 }
 '''
             script = script.replace('/tmp/flowsense-committed', td + '/flowsense-committed')
-            result = subprocess.run(['busybox', 'ash', '-c', guard + script, 'test', *args],
+            common = (ROOT / 'root/usr/libexec/flowsense-common.sh').read_text()
+            result = subprocess.run(['busybox', 'ash', '-c', guard + common + '\n' + script, 'test', *args],
                                     text=True, capture_output=True, env=env, check=True)
             self.assertEqual(result.stderr, '')
             self.assertEqual(list(pathlib.Path(td).iterdir()), [])

@@ -486,10 +486,10 @@ export function renderOutbound(node) {
 		outbound.connection_receive_window = !isEmpty(node.hysteria_connection_receive_window) ? `${node.hysteria_connection_receive_window} B` : null;
 		outbound.disable_path_mtu_discovery = strToBool(node.hysteria_disable_path_mtu_discovery);
 		outbound.disable_chrome_parrot = (node.type === 'hysteria2') ? strToBool(node.hysteria_disable_chrome_parrot) : null;
-		outbound.obfs = (node.type === 'hysteria2' && node.hysteria_obfs_type) ? {
+		outbound.obfs = (node.type === 'hysteria2') ? (node.hysteria_obfs_type ? {
 			type: node.hysteria_obfs_type,
 			password: node.hysteria_obfs_password
-		} : node.hysteria_obfs_password;
+		} : null) : node.hysteria_obfs_password;
 		if (node.type === 'hysteria') {
 			outbound.auth = (node.hysteria_auth_type === 'base64') ? node.hysteria_auth_payload : null;
 			outbound.auth_str = (node.hysteria_auth_type === 'string') ? node.hysteria_auth_payload : null;

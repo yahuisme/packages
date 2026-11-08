@@ -31,6 +31,7 @@ class ServerGeneration(unittest.TestCase):
                               'password': 'fixture-password',
                               'uuid': '11111111-1111-4111-8111-111111111111',
                               'hysteria_up_mbps': '20', 'hysteria_down_mbps': '30',
+                              'hysteria_obfs_password': 'retained-obfs-secret',
                               'shadowsocks_encrypt_method': 'aes-128-gcm', 'tls': '1',
                               'tls_cert_path': str(cert), 'tls_key_path': str(key),
                               'transport': transport, 'grpc_servicename': 'fixture',

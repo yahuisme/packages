@@ -71,6 +71,20 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('PASS real UCI + native LuCI', result.stdout)
 
+    def test_overview_missing_uptime_preserves_other_telemetry(self):
+        uptime = self.d / 'proc/uptime'
+        for value in (None, '', 'broken\n', '-1.0 0\n', '1e3 0\n'):
+            with self.subTest(value=value):
+                uptime.unlink(missing_ok=True)
+                if value is not None:
+                    uptime.write_text(value)
+                overview = self.call('getOverview')
+                self.assertIsNone(overview['uptime'])
+                self.assertEqual(overview['monitor'], dict(target='example.com', enabled=True))
+                self.assertIsInstance(overview['interfaces'], list)
+        uptime.write_text('105.25 0\n')
+        self.assertEqual(self.call('getOverview')['uptime'], 105.25)
+
     def test_overview_only_reads_monitor_configuration(self):
         wrapper = (self.d / 'bin/uci').read_text()
         log = self.d / 'uci-calls'

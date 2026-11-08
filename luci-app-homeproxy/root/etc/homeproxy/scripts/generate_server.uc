@@ -155,10 +155,10 @@ uci.foreach(uciconfig, uciserver, (cfg) => {
 		inbound.connection_receive_window = !isEmpty(cfg.hysteria_connection_receive_window) ? `${cfg.hysteria_connection_receive_window} B` : null;
 		inbound.max_concurrent_streams = strToInt(cfg.hysteria_max_concurrent_streams);
 		inbound.disable_path_mtu_discovery = strToBool(cfg.hysteria_disable_path_mtu_discovery);
-		inbound.obfs = (cfg.type === 'hysteria2' && cfg.hysteria_obfs_type) ? {
+		inbound.obfs = (cfg.type === 'hysteria2') ? (cfg.hysteria_obfs_type ? {
 			type: cfg.hysteria_obfs_type,
 			password: cfg.hysteria_obfs_password
-		} : cfg.hysteria_obfs_password;
+		} : null) : cfg.hysteria_obfs_password;
 		inbound.masquerade = cfg.hysteria_masquerade;
 		if (cfg.type === 'hysteria') {
 			user.auth = (cfg.hysteria_auth_type === 'base64') ? cfg.hysteria_auth_payload : null;

@@ -8,7 +8,7 @@ umask 077
 mkdir -p "$RUN_DIR" || exit 1
 # Never put root task controls below RUN_DIR: init chowns it recursively to
 # sing-box. This sibling is created under root-owned /var/run and stays private.
-[ -d "$JOB_DIR" ] || mkdir -m 0700 "$JOB_DIR" || exit 1
+[ -d "$JOB_DIR" ] || mkdir -m 0700 "$JOB_DIR" || [ -d "$JOB_DIR" ] || exit 1
 ucode -l fs -e 'let s=fs.lstat(ARGV[0]), p=fs.stat(ARGV[1]); exit(s?.type != "directory" || s.uid != p?.uid);' "$JOB_DIR" "${JOB_DIR%/*}" || exit 1
 chmod 0700 "$JOB_DIR" || exit 1
 exec 9>"$JOB_DIR/update.lock" || exit 1

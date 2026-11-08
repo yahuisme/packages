@@ -72,7 +72,7 @@ return view.extend({
 	},
 	render: function(data) {
 		var radios = uci.sections('wireless', 'wifi-device');
-		var cells = {}, controls = [], previous = {}, busy = false, channelLists = {}, clientNodes = {};
+		var cells = Object.create(null), controls = [], previous = Object.create(null), busy = false, channelLists = Object.create(null), clientNodes = {};
 		var wirelessSnapshot;
 		var activeTab = 0, clientCache = { rows: [], empty: _('Client data unavailable') };
 		var operation = {
@@ -321,7 +321,7 @@ return view.extend({
 				wirelessSnapshot = result[0];
 				var runtime = result[0], native = result[1], shell = result[2], radioInfo = result[3];
 				var parsed = telemetry.parse(shell.ok && shell.value.code === 0 ? shell.value.stdout : '');
-				var ssids = {}, ifaceRadio = {}, runtimeRadios = {}, nativeByName = {}, stats = {}, rows = [], nextPrevious = {};
+				var ssids = Object.create(null), ifaceRadio = Object.create(null), runtimeRadios = Object.create(null), nativeByName = Object.create(null), stats = Object.create(null), rows = [], nextPrevious = Object.create(null);
 				if (runtime.ok && runtime.value && typeof runtime.value === 'object' && !Array.isArray(runtime.value)) {
 					Object.keys(runtime.value).forEach(function(id) {
 						var radio = runtime.value[id];
@@ -414,7 +414,7 @@ return view.extend({
 				if (activeTab === 3) renderClients();
 			}).catch(function() {
 				if (!root || !root.isConnected) return;
-				previous = {};
+				previous = Object.create(null);
 				notice.textContent = _('Telemetry update failed');
 				Object.keys(cells).forEach(function(id) { Object.keys(cells[id]).forEach(function(k) { cells[id][k].textContent = '—'; }); });
 				dfs.textContent = _('Unknown');
