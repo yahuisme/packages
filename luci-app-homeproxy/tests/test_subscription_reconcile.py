@@ -573,6 +573,90 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
                 self.assertEqual(state['after'], original)
                 self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in state['calls']))
 
+    def test_complete_refresh_cannot_reuse_partially_renamed_selected_id(self):
+        def payload(rows, partial=False):
+            entries = [dict(nodetype='mihomo', type='ss', name=name,
+                            server=server, port=443,
+                            cipher='2022-blake3-aes-128-gcm',
+                            password='AAAAAAAAAAAAAAAAAAAAAA==')
+                       for name, server in rows]
+            if partial:
+                entries.append(dict(nodetype='mihomo', type='ss', name='invalid',
+                                    server='invalid.example', port=0))
+            return json.dumps(entries)
+
+        base = "config config 'config'\n option main_node 'nil'\n"
+        seed = self.run_native(payload([('old-label', 'original.example')]), original=base)
+        self.assertEqual(seed['result'].returncode, 0, seed['result'].stderr)
+        selected_id = hashlib.md5((GROUP + ':old-label').encode()).hexdigest()
+        original = seed['after'].replace("option main_node 'nil'",
+            f"option main_node '{selected_id}'\n list main_urltest_nodes '{selected_id}'")
+        renamed = self.run_native(payload([('renamed', 'original.example')], partial=True),
+                                  original=original)
+        self.assertEqual(renamed['result'].returncode, 3, renamed['result'].stderr)
+        self.assertEqual(renamed['sections']['config']['main_node'], selected_id)
+        self.assertEqual(renamed['sections'][selected_id]['subscription_source_label'], 'renamed')
+
+        for rows in ([('renamed', 'original.example'), ('old-label', 'different.example')],
+                     [('old-label', 'different.example'), ('renamed', 'original.example')]):
+            with self.subTest(order=rows):
+                refreshed = self.run_native(payload(rows), original=renamed['after'])
+                self.assertEqual(refreshed['result'].returncode, 0, refreshed['result'].stderr)
+                active_id = refreshed['sections']['config']['main_node']
+                self.assertEqual(active_id, selected_id)
+                self.assertEqual(refreshed['sections'][active_id]['address'], 'original.example')
+                out = next(node for node in refreshed['rendered']
+                           if node.get('tag') == f'cfg-{active_id}-out')
+                self.assertEqual(out['server'], 'original.example')
+                self.assertEqual(out['method'], '2022-blake3-aes-128-gcm')
+                self.assertEqual(refreshed['sections']['config']['main_urltest_nodes'], selected_id)
+                nodes = {key: node for key, node in refreshed['sections'].items()
+                         if node.get('.type') == 'node'}
+                self.assertEqual(len(nodes), 2)
+                returned_id = next(key for key, node in nodes.items()
+                                   if node['subscription_source_label'] == 'old-label')
+                self.assertNotEqual(returned_id, selected_id)
+                self.assertEqual(nodes[returned_id]['address'], 'different.example')
+                self.assertIn('1 added, 0 updated, 0 removed.', refreshed['result'].stderr)
+                for main in (selected_id, 'urltest'):
+                    original = refreshed['after'].replace(
+                        f"option main_node '{selected_id}'", f"option main_node '{main}'")
+                    # Both response orders must retain the allocation and perform
+                    # no UCI writes, not merely produce equivalent final bytes.
+                    repeated = self.run_native(payload(list(reversed(rows))), original=original)
+                    self.assertEqual(repeated['result'].returncode, 0, repeated['result'].stderr)
+                    self.assertEqual(repeated['sections']['config']['main_node'], main)
+                    self.assertEqual(repeated['sections']['config']['main_urltest_nodes'], selected_id)
+                    self.assertEqual(repeated['after'], original)
+                    self.assertFalse(any(call[0] in ('set', 'delete', 'commit')
+                                         for call in repeated['calls']))
+
+    def test_legacy_suffixed_label_keeps_selected_hash_identity(self):
+        payload = GOOD.replace('name: good', 'name: direct-out')
+        seed = self.run_native(payload, original="config config 'config'\n option main_node 'nil'\n")
+        self.assertEqual(seed['result'].returncode, 0, seed['result'].stderr)
+        selected_id = hashlib.md5((GROUP + ':direct-out').encode()).hexdigest()
+        self.assertNotEqual(seed['sections'][selected_id]['label'], 'direct-out')
+        original = '\n'.join(line for line in seed['after'].split('\n')
+                             if 'subscription_source_label' not in line)
+        original = original.replace("option main_node 'nil'",
+            f"option main_node '{selected_id}'\n list main_urltest_nodes '{selected_id}'")
+        # Credential changes cannot rely on connection-only matching.
+        refreshed = self.run_native(payload.replace('password: secret', 'password: changed'),
+                                    original=original)
+        self.assertEqual(refreshed['result'].returncode, 0, refreshed['result'].stderr)
+        self.assertEqual(refreshed['sections']['config']['main_node'], selected_id)
+        self.assertEqual(refreshed['sections']['config']['main_urltest_nodes'], selected_id)
+        self.assertEqual(refreshed['sections'][selected_id]['password'], 'changed')
+        self.assertEqual(refreshed['sections'][selected_id]['subscription_source_label'], 'direct-out')
+        self.assertEqual(sum(node.get('.type') == 'node'
+                             for node in refreshed['sections'].values()), 1)
+        repeated = self.run_native(payload.replace('password: secret', 'password: changed'),
+                                   original=refreshed['after'])
+        self.assertEqual(repeated['result'].returncode, 0, repeated['result'].stderr)
+        self.assertEqual(repeated['after'], refreshed['after'])
+        self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in repeated['calls']))
+
     def test_complete_rename_keeps_existing_removal_policy(self):
         seed = self.run_native(GOOD, original="config config 'config'\n option main_node 'nil'\n")
         self.assertEqual(seed['result'].returncode, 0, seed['result'].stderr)
@@ -691,7 +775,25 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
         state = self.run_native(WS, original=original, fault=('set', 'homeproxy', NODE, 'node'))
         self.assertEqual(state['result'].returncode, 1, state['result'].stderr)
         self.assertEqual(state['after'], original)
-        self.assertFalse(any(call[0] in ('delete', 'commit') for call in state['calls']))
+        self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in state['calls']))
+        self.assertIn('node ID belongs to another source', state['result'].stderr)
+
+    def test_complete_refresh_preserves_foreign_hash_ownership(self):
+        other_group = hashlib.md5(b'https://fixture.invalid/other').hexdigest()
+        for owner in (None, other_group):
+            with self.subTest(owner=owner):
+                original = f"config config 'config'\n option main_node '{NODE}'\n"
+                original += f"config node '{NODE}'\n option label 'owned'\n option address 'owned.example'\n"
+                if owner:
+                    original += f" option grouphash '{owner}'\n"
+                state = self.run_native(WS, original=original)
+                self.assertEqual(state['result'].returncode, 1, state['result'].stderr)
+                self.assertEqual(state['after'], original)
+                self.assertEqual(state['sections']['config']['main_node'], NODE)
+                self.assertEqual(state['sections'][NODE]['address'], 'owned.example')
+                self.assertFalse(any(call[0] in ('set', 'delete', 'commit')
+                                     for call in state['calls']))
+                self.assertNotIn('RELOAD', state['result'].stderr)
 
     def test_write_failures_abort_without_commit_or_success(self):
         cases = [

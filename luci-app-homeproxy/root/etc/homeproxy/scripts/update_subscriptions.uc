@@ -1472,52 +1472,73 @@ function main() {
 		return false;
 	}
 
-	/* Resolve partial-group identities before writes: a label hash can already
-	 * belong to a renamed connection. Complete-response removal is unchanged. */
+	/* Resolve current source-label identities before writes: a label hash may
+	 * already belong to a renamed connection, even in a complete response. */
 	const existing_ids = {}, existing_labels = {}, incoming_labels = {},
-	      existing_connections = {}, incoming_connections = {}, claimed = {};
+	      existing_connections = {}, incoming_connections = {}, claimed = {}, matched = {};
 	uci.foreach(uciconfig, ucinode, (cfg) => {
 		existing_ids[cfg['.name']] = cfg;
-		if (cfg.grouphash && node_cache[cfg.grouphash] &&
-		    reconcile_group[cfg.grouphash] !== true) {
-			const key = connection_key(cfg),
-			      label_key = cfg.grouphash + ':' + (cfg.subscription_source_label || cfg.label);
-			existing_connections[key] ||= [];
-			push(existing_connections[key], cfg['.name']);
+		if (cfg.grouphash && node_cache[cfg.grouphash]) {
+			const label_key = cfg.grouphash + ':' + (cfg.subscription_source_label || cfg.label);
 			existing_labels[label_key] ||= [];
 			push(existing_labels[label_key], cfg['.name']);
+			if (reconcile_group[cfg.grouphash] !== true) {
+				const key = connection_key(cfg);
+				existing_connections[key] ||= [];
+				push(existing_connections[key], cfg['.name']);
+			}
 		}
 	});
 	for (let node in node_result) {
 		if (reconcile_group[node.grouphash] === true) {
 			claimed[node.__section_id] = true;
+			const key = node.grouphash + ':' + node.label;
+			incoming_labels[key] = (incoming_labels[key] || 0) + 1;
 			continue;
 		}
-		/* Both keys include grouphash; complete groups cannot contribute to
-		 * the partial-group uniqueness checks below. Keep their ID claims. */
 		const key = connection_key(node), label_key = node.grouphash + ':' + node.label;
 		incoming_connections[key] = (incoming_connections[key] || 0) + 1;
 		incoming_labels[label_key] = (incoming_labels[label_key] || 0) + 1;
 		node_cache[node.grouphash] = {};
 	}
-	/* Current label identity takes priority over connection-only renames. */
+	/* Current label identity takes priority over hashes and connection renames. */
 	for (let node in node_result) {
-		if (reconcile_group[node.grouphash] === true)
-			continue;
 		const cfg = existing_ids[node.__section_id];
 		const key = node.grouphash + ':' + node.label, candidates = existing_labels[key];
 		let id = null;
+		/* Legacy nodes have only a display label, possibly globally suffixed.
+		 * Their original group-local hash remains authoritative until tagged. */
 		if (cfg && cfg.grouphash === node.grouphash &&
-		    (cfg.subscription_source_label || cfg.label) === node.label)
+		    (!cfg.subscription_source_label || cfg.subscription_source_label === node.label))
 			id = node.__section_id;
 		else if (incoming_labels[key] === 1 && length(candidates) === 1)
 			id = candidates[0];
-		if (!id || claimed[id])
+		if (!id || matched[id])
 			continue;
 		node.__section_id = id;
 		node.__identity_matched = true;
 		claimed[id] = true;
+		matched[id] = true;
 	}
+	/* Reserve complete-group IDs before partial connection matching. A foreign
+	 * section is never ours to replace, including a manually chosen hash ID. */
+	for (let node in node_result) {
+		if (reconcile_group[node.grouphash] !== true || node.__identity_matched)
+			continue;
+		let id = node.__section_id;
+		if (existing_ids[id] && existing_ids[id].grouphash !== node.grouphash) {
+			log('Failed to update subscriptions: node ID belongs to another source; keeping the existing configuration.');
+			apply_updated_resources();
+			return false;
+		} else if (matched[id] || existing_ids[id]) {
+			let suffix = 2;
+			while (claimed[id] || existing_ids[id])
+				id = node.__section_id + '_' + suffix++;
+			node.__section_id = id;
+		}
+		claimed[id] = true;
+	}
+	/* Partial groups may additionally match a unique unchanged connection. */
 	for (let node in node_result) {
 		if (reconcile_group[node.grouphash] === true || node.__identity_matched)
 			continue;
@@ -1542,8 +1563,9 @@ function main() {
 		}
 	}
 	for (let node in node_result)
-		if (reconcile_group[node.grouphash] !== true)
-			node_cache[node.grouphash][node.__section_id] = node;
+		node_cache[node.grouphash] = {};
+	for (let node in node_result)
+		node_cache[node.grouphash][node.__section_id] = node;
 
 	/* Abort before commit on any write failure, including shared helpers. */
 	const writer = {

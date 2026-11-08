@@ -1754,7 +1754,7 @@ return view.extend({
 				if (!v) {
 					button.disabled = true;
 					return true;
-				} else if (uci.get(uciconfig, v)) {
+				} else if (['nil', 'urltest'].includes(v) || uci.get(uciconfig, v)) {
 					button.disabled = true;
 					return _('Expecting: %s').format(_('unique UCI identifier'));
 				} else {
