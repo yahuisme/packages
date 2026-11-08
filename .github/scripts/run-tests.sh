@@ -10,7 +10,7 @@ work=$(mktemp -d "$TMPDIR/packages-tests.XXXXXX") || exit 1
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 # Driven by another suite with explicit arguments, not standalone.
-HELPERS='client_generator_fixture.py dns_runtime_fixture.py subscription_uci_fixture.py
+HELPERS='client_generator_fixture.py dns_runtime_fixture.py ntp-bootstrap-runtime.py subscription_uci_fixture.py
 harness.js mlo-luci-dom.cjs test_view.js l10n.js'
 # Full router/compiler fixtures are optional; runtime replays use pinned sources.
 ROUTER='test_portability.py'

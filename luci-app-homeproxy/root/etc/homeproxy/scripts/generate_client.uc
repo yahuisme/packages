@@ -98,6 +98,46 @@ const ipv6_support = uci.get(uciconfig, ucimain, 'ipv6_support') || '0';
 
 const main_node = uci.get(uciconfig, ucimain, 'main_node') || 'nil';
 
+/* Break the system clock -> proxy/HTTPS DNS -> system clock dependency.
+ * Match only configured NTP names, never their subdomains or unrelated DNS. */
+let system_ntp_domains = [];
+if (!isEmpty(main_node)) {
+	let seen = {};
+	function ntp_list(values) {
+		let result = [];
+		for (let value in normalizeList(values))
+			if (type(value) === 'string')
+				for (let item in split(trim(value), /[ 	\r\n]+/))
+					if (item) push(result, item);
+		return result;
+	}
+	function add_ntp_domains(servers) {
+		for (let server in ntp_list(servers)) {
+			const domain = lc(replace(trim(server), /\.+$/, ''));
+			if (!domain || (domain in seen) || validation('ip4addr', domain) ||
+			    validation('ip6addr', domain) || !validation('hostname', domain))
+				continue;
+			seen[domain] = true;
+			push(system_ntp_domains, domain);
+		}
+	}
+	uci.load('system');
+	uci.foreach('system', 'timeserver', (cfg) => {
+		if (cfg.enabled === '0')
+			return;
+		add_ntp_domains(cfg.server);
+		/* sysntpd defaults use_dhcp to enabled; an empty filter means all. */
+		if (cfg.use_dhcp !== '0') {
+			const dhcp_interfaces = ntp_list(cfg.dhcp_interface);
+			for (let iface in interfaces) {
+				if (length(dhcp_interfaces) && !(iface.interface in dhcp_interfaces))
+					continue;
+				add_ntp_domains(iface.data?.ntpserver);
+			}
+		}
+	});
+}
+
 const tailscale_tag = 'tailscale-out';
 const tailscale_enabled = uci.get(uciconfig, ucitalscale, 'enabled') === '1';
 const tailscale_auth_key = uci.get(uciconfig, ucitalscale, 'auth_key');
@@ -510,6 +550,13 @@ config.dns = {
 };
 
 if (!isEmpty(main_node)) {
+	if (length(system_ntp_domains))
+		push(config.dns.rules, {
+			domain: system_ntp_domains,
+			action: 'route',
+			server: 'default-dns'
+		});
+
 	/* Main DNS */
 	push(config.dns.servers, {
 		tag: 'main-dns',
@@ -762,6 +809,15 @@ config.route.default_http_client = 'direct-http';
 
 /* Routing rules */
 if (!isEmpty(main_node)) {
+	/* System NTP must escape forced proxy and auto-redirect pre-match rules.
+	 * A direct outbound also restores a WAN source for TUN-originated UDP. */
+	unshift(config.route.rules, {
+		network: 'udp',
+		port: [123],
+		action: 'route',
+		outbound: 'direct-out'
+	});
+
 	/* Avoid DNS loop */
 	config.route.default_domain_resolver = {
 		server: (routing_mode === 'bypass_mainland_china') ? 'china-dns' : 'default-dns',

@@ -90,6 +90,7 @@ class Portability(unittest.TestCase):
         command = ['run_script', '/etc/init.d/homeproxy', 'reload']
         self.assertEqual(triggers, [
             ['config.change', ['if', ['eq', 'package', 'homeproxy'], command], 1000],
+            ['config.change', ['if', ['eq', 'package', 'system'], command], 1000],
             ['interface.*', [command], 1000]])
 
     def test_interface_trigger_event_matching(self):

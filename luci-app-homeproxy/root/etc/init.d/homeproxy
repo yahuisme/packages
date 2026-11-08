@@ -654,6 +654,10 @@ service_triggers() {
 	# on interface events. The disabling reload still completes runtime cleanup.
 	procd_add_reload_trigger "$CONF"
 	if [ "$outbound_node" != "nil" ] || [ "$server_enabled" -eq 1 ]; then
+		# System time servers affect the client's bootstrap path; reload when edited.
+		if [ "$outbound_node" != "nil" ]; then
+			procd_add_config_trigger "config.change" "system" /etc/init.d/$CONF reload
+		fi
 		# The next uplink may not exist yet; observe all interfaces while enabled.
 		procd_add_raw_trigger "interface.*" 1000 /etc/init.d/$CONF reload
 	fi

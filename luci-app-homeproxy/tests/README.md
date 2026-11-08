@@ -187,6 +187,14 @@ private upstream servers and synthetic rule sets: normal/delayed responses,
 It does not test live proxy transport or TUN routing. Without `DNS_RUNTIME_BINARY`,
 only the runtime test is skipped; generator regressions still run.
 
+`test_ntp_bootstrap.py` covers official foreign, custom and DHCP NTP names,
+list/scalar storage and DNS/UDP123 precedence in both routing modes. Run with
+`NTP_RUNTIME_BINARY=/path/to/verified/sing-box` to exercise the unavailable-proxy
+case in a private loopback-only network namespace; `DNS_RUNTIME_VERSION` selects
+the expected core version. It checks actual DNS upstream selection and NTP-format
+UDP replies without changing the system clock. TUN interception and physical
+router time synchronization are separate acceptance boundaries.
+
 `test_server_generation.py` executes the complete server generator for all 12
 protocols and five VMess transports using private UCI/path fixtures and a local
 self-signed certificate. Set `SING_BOX_CHECK` to validate every output with the

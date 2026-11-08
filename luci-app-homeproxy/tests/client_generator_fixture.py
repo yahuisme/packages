@@ -56,10 +56,6 @@ except (ValueError, AssertionError):
         (self.root / 'luci').mkdir()
         (self.root / 'luci/http.uc').write_text(
             "export function urldecode_params(v) { die('Unexpected query decoder use'); };\n")
-        (self.root / 'ubus.uc').write_text('''export function connect() {
-    return { call: function() { return { interface: [] }; } };
-};
-''')
         self.sections: dict[str, dict[str, Any]] = {
             'config': {'.type': 'homeproxy', 'main_node': 'node1',
                        'routing_mode': 'bypass_mainland_china', 'ipv6_support': '0',
@@ -74,21 +70,33 @@ except (ValueError, AssertionError):
     def __exit__(self, *args):
         self.temp.cleanup()
 
-    def generate(self, sections=None, domains=None):
-        data = copy.deepcopy(self.sections if sections is None else sections)
-        for name, section in data.items():
-            section['.name'] = name
+    def generate(self, sections=None, domains=None, system_config=None, ubus_data=None):
+        configs = {'homeproxy': copy.deepcopy(self.sections if sections is None else sections),
+                   'system': copy.deepcopy(system_config or {})}
+        for data in configs.values():
+            for name, section in data.items():
+                section['.name'] = name
+        (self.root / 'ubus.uc').write_text('const data = ' + json.dumps(
+            ubus_data if ubus_data is not None else {'interface': []}) + ''';
+export function connect() {
+    return { call: function(object, method) {
+        if (object !== 'network.interface' || method !== 'dump')
+            die('Unexpected ubus call');
+        return data;
+    } };
+};
+''')
         for path in (self.hp / 'diversion').glob('*.txt'):
             path.unlink()
         for name, text in (domains or {}).items():
             (self.hp / 'diversion' / (name + '.txt')).write_text(text)
-        (self.root / 'uci.uc').write_text('const data = ' + json.dumps(data) + ''';
+        (self.root / 'uci.uc').write_text('const configs = ' + json.dumps(configs) + ''';
 export function cursor() { return {
-    load: function() { return true; },
-    get: function(c, s, o) { return o ? data[s]?.[o] : data[s]?.['.type']; },
-    get_all: function(c, s) { return data[s]; },
+    load: function(c) { return c in configs; },
+    get: function(c, s, o) { return o ? configs[c]?.[s]?.[o] : configs[c]?.[s]?.['.type']; },
+    get_all: function(c, s) { return configs[c]?.[s]; },
     foreach: function(c, t, cb) {
-        for (let name, value in data) if (value['.type'] === t) cb(value);
+        for (let name, value in (configs[c] || {})) if (value['.type'] === t) cb(value);
     }
 }; };
 ''')

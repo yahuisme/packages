@@ -187,6 +187,7 @@ procd_close_service() { _procd_call _procd_close_service "$@"; }
 _procd_open_trigger() { :; }
 _procd_close_trigger() { :; }
 procd_add_reload_trigger() { printf 'config-trigger\n' >> "$ROOT/events"; }
+procd_add_config_trigger() { printf 'system-trigger\n' >> "$ROOT/events"; }
 procd_add_raw_trigger() { printf 'interface-trigger\n' >> "$ROOT/events"; }
 json_set_namespace() { [ -z "$2" ] || eval "$2=old"; return 0; }
 json_close_object() { :; }
@@ -279,7 +280,7 @@ exit $?
                 self.assertEqual(events.count('interface-trigger'), 0 if mode == 'disabled' else 1)
                 if cycle:
                     self.assertEqual([e for e in events if e.endswith('-trigger')],
-                                     ['config-trigger', 'config-trigger', 'interface-trigger'])
+                                     ['config-trigger', 'config-trigger', 'system-trigger', 'interface-trigger'])
                     self.assertNotIn('sing-box-', submitted[0])
                 for suffix, enabled in [('c', mode in ('client', 'both')), ('s', mode in ('server', 'both'))]:
                     self.assertEqual((run / f'sing-box-{suffix}.json').exists(), enabled)

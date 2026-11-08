@@ -62,9 +62,12 @@ json_dump
         command = ['run_script', '/etc/init.d/homeproxy', 'reload']
         for main, server in [('node', '0'), ('urltest', '0'), ('nil', '1'), ('node', '1')]:
             with self.subTest(main=main, server=server):
-                self.assertEqual(self.triggers(main, server), [
-                    ['config.change', ['if', ['eq', 'package', 'homeproxy'], command], 1000],
-                    ['interface.*', [command], 1000]])
+                expected = [
+                    ['config.change', ['if', ['eq', 'package', 'homeproxy'], command], 1000]]
+                if main not in ('nil', ''):
+                    expected.append(['config.change', ['if', ['eq', 'package', 'system'], command], 1000])
+                expected.append(['interface.*', [command], 1000])
+                self.assertEqual(self.triggers(main, server), expected)
 
 
 if __name__ == '__main__':
