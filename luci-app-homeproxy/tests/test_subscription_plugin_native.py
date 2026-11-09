@@ -40,6 +40,8 @@ function log_error(...args){warn('update failure\\n');}
             source += parser_fixture.PREAMBLE[parser_fixture.PREAMBLE.index('function validation'):]
             source += helper[helper.index('export function decodeBase64Str'):helper.index('/* String parser end */')].replace('export function','function')
             source += updater[updater.index('const invalid_filter_patterns'):updater.index('/* String helper end */')]
+            from subscription_transaction_fixture import transaction_source
+            source += transaction_source(updater, config)
             source += updater[updater.index('function has_value'):]
             source += "\nuci.foreach('homeproxy','node',(n)=>printf('%J\\n',n));\n"
             script = root / 'case.uc'

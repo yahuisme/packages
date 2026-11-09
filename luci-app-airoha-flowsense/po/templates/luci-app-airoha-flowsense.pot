@@ -161,6 +161,9 @@ msgstr ""
 msgid "Another settings operation is in progress. Try again later."
 msgstr ""
 
+msgid "Settings were applied, but the pending record could not be updated. Check storage and retry."
+msgstr ""
+
 msgid "Unable to read or write saved settings. Check storage space and access permissions."
 msgstr ""
 

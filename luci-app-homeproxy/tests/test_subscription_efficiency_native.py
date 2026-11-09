@@ -30,7 +30,7 @@ def section_id(url, label):
 
 class NativeSubscriptionEfficiency(unittest.TestCase):
     def run_main(self, payloads, original=EMPTY, *, fault=(), reload_ok=True,
-                 native_settings=False):
+                 native_settings=False, fs_fault='', partial_commit=False, concurrent=False):
         helper = (BASE / 'homeproxy.uc').read_text()
         updater = (BASE / 'update_subscriptions.uc').read_text()
         with tempfile.TemporaryDirectory(prefix='native-sub-work-') as directory:
@@ -39,11 +39,14 @@ class NativeSubscriptionEfficiency(unittest.TestCase):
                 (root / name).mkdir()
             config = root / 'config/homeproxy'
             config.write_text(original)
+            config.chmod(0o640)
+            before_metadata = (config.stat().st_mode, config.stat().st_uid, config.stat().st_gid)
             source = "import {cursor} from 'uci';import {md5} from 'digest';import {writefile} from 'fs';\n"
             source += 'const native=cursor(%s,%s);native.load("homeproxy");\n' % (json.dumps(str(root/'config')), json.dumps(str(root/'saved')))
-            source += 'const payloads=' + json.dumps(payloads) + ',fault=' + json.dumps(fault) + ';\n'
+            source += 'const payloads=' + json.dumps(payloads) + ',fault=' + json.dumps(fault) + ',partial_commit=' + json.dumps(partial_commit) + ';\n'
             if not native_settings:
                 source += 'const subscription_urls=' + json.dumps(list(payloads)) + ';\n'
+            source += 'const config_path=' + json.dumps(str(config)) + ',concurrent=' + json.dumps(concurrent) + ';\n'
             source += '''let calls=[];
 function invoke(op,args){
  push(calls,[op,...args]);
@@ -55,7 +58,7 @@ function invoke(op,args){
  case 'set':return native.set(...args);
  case 'delete':return native.delete(...args);
  case 'changes':return native.changes(...args);
- case 'commit':return native.commit(...args);
+ case 'commit':if(partial_commit){native.commit(...args);return null;}return native.commit(...args);
  }
 }
 const uci={foreach:(...a)=>native.foreach(...a),get:(...a)=>invoke('get',a),
@@ -64,7 +67,7 @@ delete:(...a)=>invoke('delete',a),changes:(...a)=>invoke('changes',a),commit:(..
 const node_cache={},node_config_cache={},node_result=[],reconcile_group={};
 const update_proxy=null,resources_updated=false;
 const uciconfig='homeproxy',ucinode='node',ucimain='config',ucisubscription='subscription';
-function wGET(url){push(calls,['fetch',url]);return payloads[url];}
+function wGET(url){push(calls,['fetch',url]);if(concurrent)writefile(config_path,"config homeproxy 'config'\\n option main_node 'foreign'\\n");return payloads[url];}
 function apply_updated_resources(){warn('RESOURCES\\n');return true;}
 function log_error(...a){warn('ERROR '+sprintf('%J',a)+'\\n');}
 '''
@@ -77,6 +80,13 @@ function log_error(...a){warn('ERROR '+sprintf('%J',a)+'\\n');}
             source += parser_fixture.PREAMBLE[parser_fixture.PREAMBLE.index('function validation'):].replace('function log(...args) {}', "function log(...args){warn(join(' ',args)+'\\n');}")
             source += helper[helper.index('export function decodeBase64Str'):helper.index('/* String parser end */')].replace('export function', 'function')
             source += updater[updater.index('const invalid_filter_patterns'):updater.index('/* String helper end */')]
+            if 'function commit_subscription_changes' in updater:
+                from subscription_transaction_fixture import transaction_source
+                transaction = transaction_source(updater, config)
+                if fs_fault:
+                    operation = 'rename' if fs_fault == 'restore' else 'unlink'
+                    transaction = transaction.replace('subscription_fs.' + operation + '(', '(function(...a){return null;})(')
+                source += transaction
             source += updater[updater.index('function has_value'):updater.index('if (!isEmpty(subscription_urls))')]
             source += '''let code=0;
 try{let result=call(main);if(result===false)code=1;else if(result===3)code=3;}catch(e){log_error(e);apply_updated_resources();code=1;}
@@ -91,6 +101,10 @@ exit(code);'''
             data = json.loads(run.stdout)
             data.update(before=original, after=config.read_text(), stderr=run.stderr, returncode=run.returncode,
                         source_sha256=hashlib.sha256(source.encode()).hexdigest())
+            recovery = Path(str(config) + '.subscription-recovery')
+            data.update(recovery=recovery.read_text() if recovery.exists() else None,
+                        before_metadata=before_metadata,
+                        after_metadata=(config.stat().st_mode, config.stat().st_uid, config.stat().st_gid))
             return data
 
     def test_native_scalar_and_list_urls_import_and_noop_without_enabling(self):
@@ -180,6 +194,39 @@ exit(code);'''
                     self.assertIn('Failed to fully update subscriptions: 1 subscription(s) failed.', state['stderr'])
                     self.assertNotIn('Successfully updated subscriptions.', state['stderr'])
 
+    def test_concurrent_committed_update_before_commit_is_not_overwritten(self):
+        seed = self.run_main({URL: json.dumps([NODE])})
+        state = self.run_main({URL: json.dumps([dict(NODE, password='changed')])}, seed['after'], concurrent=True)
+        self.assertEqual(state['returncode'], 1)
+        self.assertIn("option main_node 'foreign'", state['after'])
+        self.assertNotIn('RELOAD', state['stderr'])
+        self.assertIsNone(state['recovery'])
+
+    def test_partial_commit_failure_restores_before_bytes_without_reload(self):
+        seed = self.run_main({URL: json.dumps([NODE])})
+        state = self.run_main({URL: json.dumps([dict(NODE, password='changed')])}, seed['after'], partial_commit=True)
+        self.assertEqual(state['returncode'], 1)
+        self.assertEqual(state['after'], seed['after'])
+        self.assertIsNone(state['recovery'])
+        self.assertNotIn('RELOAD', state['stderr'])
+
+    def test_reload_restoration_and_cleanup_failure_keep_recovery(self):
+        seed = self.run_main({URL: json.dumps([NODE])})
+        for fault in ('restore', 'cleanup'):
+            state = self.run_main({URL: json.dumps([dict(NODE, password='changed')])}, seed['after'], reload_ok=False, fs_fault=fault)
+            self.assertEqual(state['returncode'], 1)
+            self.assertEqual(state['recovery'], seed['after'])
+            self.assertNotIn('Successfully updated subscriptions.', state['stderr'])
+            if fault == 'cleanup': self.assertEqual(state['after'], seed['after'])
+            else: self.assertNotEqual(state['after'], seed['after'])
+
+    def test_native_reload_rollback_cleans_verified_backup_and_preserves_metadata(self):
+        seed = self.run_main({URL: json.dumps([NODE])})
+        state = self.run_main({URL: json.dumps([dict(NODE, password='changed')])}, seed['after'], reload_ok=False)
+        self.assertEqual(state['after'], seed['after'])
+        self.assertIsNone(state['recovery'])
+        self.assertEqual(state['after_metadata'], state['before_metadata'])
+
     def test_native_partial_exit_three_requires_committed_changes_and_reload_success(self):
         complete = json.dumps([NODE])
         seed = self.run_main({URL: complete, FAILED: complete})
@@ -237,11 +284,11 @@ exit(code);'''
             self.assertNotIn('RELOAD', state['stderr'])
             self.assertNotIn('Successfully updated subscriptions.', state['stderr'])
             results.append(state)
-        # The existing contract commits imported nodes, then reports reload
-        # failure (runtime rollback belongs to the unchanged init transaction).
+        # Reload failure must restore the exact committed bytes as well as the
+        # old runtime (the init transaction owns runtime recovery).
         state = self.run_main({URL: json.dumps([changed]), OTHER: complete}, original, reload_ok=False)
         self.assertEqual(state['returncode'], 1)
-        self.assertNotEqual(state['after'], original)
+        self.assertEqual(state['after'], original)
         self.assertIn('RELOAD', state['stderr'])
         self.assertNotIn('Successfully updated subscriptions.', state['stderr'])
         results.append(state)

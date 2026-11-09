@@ -86,24 +86,23 @@ async function domain() {
   h.mods.request.post=async(url,req)=>{
    const [,obj,method,p]=req.params;
    if(method==='domainlist_read')return response(h,req,{content:contents[p.id]||''});
-   if(method==='domainlist_write'){writes.push(JSON.parse(JSON.stringify(p.lists)));if(!fail)Object.assign(contents,p.lists);return response(h,req,{result:true},fail?6:0);}
+   if(method==='domainlist_write')throw Error('native Save must not call the legacy file setter');
    if(obj==='uci'&&method==='get')return response(h,req,{values:persisted});
-   if(obj==='uci'&&method==='set'){Object.assign(persisted[p.section],JSON.parse(JSON.stringify(p.values)));return response(h,req,{});}
+   if(obj==='uci'&&method==='set'){writes.push(JSON.parse(JSON.stringify(p.values)));if(fail)return response(h,req,{},6);Object.assign(persisted[p.section],JSON.parse(JSON.stringify(p.values)));return response(h,req,{});}
    if(obj==='uci'&&method==='delete'){for(const k of p.options||[])delete persisted[p.section][k];return response(h,req,{});}
    return post(url,req);
   };
   await h.map.load();await h.map.reset();
   const o=h.map.lookupOption('_direct_list','diversion')[0];o.getUIElement('diversion').setValue('new.example\n');
   await assert.rejects(h.map.save(null,true),/ubus|RPC|status|error/i,'nonzero write must reject native Map.save');
-  assert.equal(writes.length,1);assert.equal(contents.direct,'old.example\n');
-  assert.equal(persisted.diversion.direct_list_checksum,undefined,'failed bytes never get a persisted checksum');
-  assert.equal(h.mods.uci.get('homeproxy','diversion','direct_list_checksum'),undefined,'failed bytes never get a staged checksum');
+  assert(writes.length>0);assert.equal(contents.direct,'old.example\n');
+  assert.equal(persisted.diversion.direct_list,undefined,'failed UCI write never persists list text');
   assert.equal(o.formvalue('diversion'),'new.example\n','failed save keeps current draft');assert.equal(notes.length,1);
   fail=false;await h.map.save(null,true);await h.map.load();await h.map.reset();
-  assert.equal(writes.length,2);assert.deepEqual(writes[0],writes[1],'retry uses preserved staged bytes');
-  assert.equal(contents.direct,'new.example\n');assert.equal(persisted.diversion.direct_list_checksum,h.mods.homeproxy.calcStringMD5(contents.direct));
+  assert.equal(contents.direct,'old.example\n','native Save leaves legacy files untouched');
+  assert.equal(persisted.diversion.direct_list,'new.example\n');
   assert.equal(o.formvalue('diversion'),'new.example\n');
-  console.log('PASS domain save: nonzero status rejects; old bytes/checksum retained; draft retries and reloads successfully');
+  console.log('PASS domain native UCI Save: nonzero status rejects; legacy bytes untouched; draft retries and reloads successfully');
  } finally {h.w.close();}
 }
 async function log() {

@@ -150,14 +150,30 @@ return view.extend({
 				return applySettings(JSON.stringify(desired)).then(function(result) {
 					return Promise.all([getAcceleration(), getOverview(), getSettings()].map(function(request) { return request.catch(function() { return null; }); })).then(function(data) {
 						if (!root.isConnected) return;
-						if (!data[2] || data[2].success !== true) {
+						var checkpoint = result && result.error === 'storage' && (result.acceleration === 'applied' || result.monitor === 'applied');
+						if ((!data[2] || data[2].success !== true) && !checkpoint) {
 							paintAcceleration(data[0], true); paint(data[1]);
 							fail(data[2] && data[2].error ? settingsError(data[2].error) : _('Unable to verify saved settings.'));
 						}
-						baseline = data[2].pending;
+						baseline = data[2] && data[2].success === true ? data[2].pending : baseline;
+						// The backend confirms successful groups before checkpoint I/O.
+						// Do not turn that completion into a generic Apply failure or
+						// stage it again from an obsolete pending record on retry.
+						if (checkpoint && baseline) {
+							baseline = Object.assign({}, baseline);
+							if (result.acceleration === 'applied') accelerationKeys.forEach(function(key) { baseline[key] = -1; });
+							if (result.monitor === 'applied') { baseline.enabled = -1; baseline.target = ''; }
+						}
 						paintAcceleration(data[0], true); paint(data[1]);
 						var accOK = accelerationKeys.every(function(key) { return desired[key] === -1 || editable(key) && accelerationState[key].configured === !!desired[key] && accelerationState[key].enabled === !!desired[key]; });
 						var monOK = desired.enabled === -1 || monitorState && monitorState.target === desired.target && monitorState.enabled === !!desired.enabled;
+						if (checkpoint) {
+							ui.addNotification(null, E('p', {}, [
+								_('Settings were applied, but the pending record could not be updated. Check storage and retry.') + ' ' +
+								_('Acceleration') + ': ' + (result.acceleration === 'applied' ? _('Applied') : result.acceleration === 'unchanged' && accOK ? _('Unchanged') : _('Not verified; check current settings.')) + '; ' +
+								_('Probe Settings') + ': ' + (result.monitor === 'applied' ? _('Applied') : result.monitor === 'unchanged' && monOK ? _('Unchanged') : _('Not verified; check current settings.'))
+							]), 'warning'); return;
+						}
 						if (result && result.error) fail(settingsError(result.error));
 						if (!result || result.success !== true || !accOK || !monOK || baseline) {
 							ui.addNotification(null, E('p', {}, [

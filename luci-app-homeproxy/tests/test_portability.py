@@ -8,6 +8,8 @@ import subprocess
 import unittest
 from pathlib import Path
 
+from client_generator_fixture import ClientGenerator
+
 BASE = Path(__file__).resolve().parents[1]
 GEN = BASE / 'root/etc/homeproxy/scripts/generate_client.uc'
 
@@ -18,12 +20,13 @@ class Portability(unittest.TestCase):
         self.assertRegex(text, r'\+dnsmasq(?:\s|$)')
         self.assertNotIn('+dnsmasq-full', text)
 
-    def dns(self, interfaces, mode='global'):
-        src = GEN.read_text()
-        block = src[src.index('let wan_dns'):src.index('const dns_port')]
-        pre = 'const routing_mode = %s; const statuses = %s; const ubus = {call: function(o,m,a) { return m == "dump" ? {interface: statuses} : statuses[0]?.interface == "wan" ? statuses[0] : null; }};\n' % (json.dumps(mode), json.dumps(interfaces))
-        out = subprocess.run(['ucode', '-e', pre + block + ' print( wan_dns );'], capture_output=True, text=True, check=True)
-        return out.stdout
+    def dns(self, interfaces, mode='global', ipv6=True):
+        with ClientGenerator() as fixture:
+            fixture.sections['config'].update(routing_mode=mode,
+                                              ipv6_support='1' if ipv6 else '0')
+            config = fixture.generate(ubus_data={'interface': interfaces})
+            return next(server['server'] for server in config['dns']['servers']
+                        if server['tag'] == 'default-dns')
 
     def test_renamed_uplink_dns(self):
         self.assertEqual(self.dns([{'interface': 'uplink', 'up': True, 'route': [{'target': '0.0.0.0', 'mask': 0}], 'dns-server': ['192.0.2.53']}]), '192.0.2.53')

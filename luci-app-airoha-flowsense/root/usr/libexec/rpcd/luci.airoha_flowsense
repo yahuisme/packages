@@ -127,6 +127,11 @@ set_monitor_locked() {
         oldenabled=$(uci -q get npu-monitor.@jitter[0].enabled) || { printf '{"success":false,"error":"read"}'; return; }
         oldenabled_present=1
     fi
+    # A retained checkpoint may describe an already verified transaction. Read
+    # committed values under the same lock before deciding to restart again.
+    if [ "$oldtarget" = "$target" ] && [ "${oldenabled:-1}" = "$enabled" ]; then
+        printf '{"success":true}'; return
+    fi
     uci set "npu-monitor.@jitter[0].target=$target" && uci set "npu-monitor.@jitter[0].enabled=$enabled" && uci commit npu-monitor && /etc/init.d/npu-jitter restart >/dev/null 2>&1 || failed=1
     [ "$(uci -q get npu-monitor.@jitter[0].target)" = "$target" ] && [ "$(uci -q get npu-monitor.@jitter[0].enabled)" = "$enabled" ] || failed=1
     if [ "$failed" -eq 1 ]; then

@@ -9,6 +9,7 @@
 
 import { md5 } from 'digest';
 import { open } from 'fs';
+import * as subscription_fs from 'fs';
 import { connect } from 'ubus';
 import { cursor } from 'uci';
 
@@ -24,6 +25,7 @@ import {
 const uci = cursor();
 
 const uciconfig = 'homeproxy';
+const subscription_before = subscription_fs.readfile('/etc/config/homeproxy');
 uci.load(uciconfig);
 
 const uciinfra = 'infra',
@@ -118,6 +120,11 @@ function filter_check(name) {
 }
 /* String helper end */
 
+const subscription_transaction = {
+	applying: false,
+	before: subscription_before,
+	pending: !isEmpty(uci.changes(uciconfig))
+};
 function reload_service(message) {
 	if (!service_running)
 		return true;
@@ -132,7 +139,69 @@ function reload_service(message) {
 }
 
 function apply_updated_resources() {
-	return !resources_updated || reload_service('Reloading service to apply updated resources...');
+	return !resources_updated || subscription_transaction.applying || reload_service('Reloading service to apply updated resources...');
+}
+
+function commit_subscription_changes() {
+	/* The shell worker holds its single-flight lock across commit, reload and
+	 * recovery. Keep the backup beside UCI (flash, not service-owned tmpfs),
+	 * and never overwrite an unresolved recovery from an earlier attempt. */
+	const path = '/etc/config/homeproxy';
+	const backup = path + '.subscription-recovery';
+	const stage = backup + '.restore';
+	if (subscription_fs.lstat(backup) || subscription_fs.lstat(stage))
+		die('subscription recovery retained; resolve it before retrying');
+	const before = subscription_fs.readfile(path), metadata = subscription_fs.stat(path);
+	if (before === null || metadata?.type !== 'file')
+		die('failed to read subscription rollback configuration');
+	if (subscription_transaction.pending || before !== subscription_transaction.before)
+		die('subscription configuration has pending or concurrent changes; retry after resolving them');
+	const fd = subscription_fs.open(backup, 'wx', 0o600);
+	if (!fd)
+		die('failed to prepare subscription rollback configuration');
+	const written = fd.write(before);
+	const closed = fd.close();
+	if (written !== length(before) || closed !== true || subscription_fs.readfile(backup) !== before)
+		die('failed to verify subscription rollback configuration; recovery retained');
+	subscription_transaction.applying = true;
+	let committed_ok = false;
+	try { committed_ok = uci.commit(uciconfig) === true; }
+	catch (e) { log_error('Failed to commit subscription changes', e); }
+	const committed = subscription_fs.readfile(path);
+	if (committed === null)
+		die('failed to read committed subscription configuration; recovery retained');
+	let applied = false;
+	if (committed_ok)
+		try { applied = reload_service(); }
+		catch (e) { log_error('Failed to reload subscription changes', e); }
+	if (!applied) {
+		/* init already restored runtime. Do not reload again: it may destroy
+		 * runtime recovery or race another resource transaction. Refuse to
+		 * overwrite a foreign UCI commit made while reload was in progress. */
+		if (subscription_fs.readfile(path) !== committed)
+			die('subscription configuration changed concurrently; recovery retained');
+		const restore = subscription_fs.open(stage, 'wx', metadata.mode & 0o7777);
+		if (!restore)
+			die('failed to prepare subscription restoration; recovery retained');
+		const restored = restore.write(before);
+		const restore_closed = restore.close();
+		if (restored !== length(before) || restore_closed !== true ||
+		    !subscription_fs.chown(stage, metadata.uid, metadata.gid) ||
+		    !subscription_fs.chmod(stage, metadata.mode & 0o7777) ||
+		    subscription_fs.readfile(stage) !== before || !subscription_fs.rename(stage, path) ||
+		    subscription_fs.readfile(path) !== before)
+			die('failed to restore subscription configuration; recovery retained');
+		const recovered = subscription_fs.stat(path);
+		if (recovered?.uid !== metadata.uid || recovered.gid !== metadata.gid || recovered.mode !== metadata.mode)
+			die('failed to restore subscription permissions; recovery retained');
+		if (!subscription_fs.unlink(backup))
+			die('subscription configuration restored but recovery cleanup failed; recovery retained');
+		log('Subscription configuration restored and verified after commit or reload failure.');
+		return false;
+	}
+	if (!subscription_fs.unlink(backup))
+		die('subscription applied but recovery cleanup failed; recovery retained');
+	return true;
 }
 
 function has_value(value) {
@@ -1667,11 +1736,11 @@ function main() {
 	reconcileUrltestNodes(writer, uciconfig, (message) => log(message));
 
 	const config_changed = !isEmpty(uci.changes(uciconfig));
-	/* Reload reads committed UCI. Keep imported nodes on apply failure, but
-	 * return failure and let transactional reload preserve the old runtime. */
-	if (config_changed && uci.commit(uciconfig) !== true)
-		die('failed to commit subscription changes');
-	if ((config_changed || resources_updated) && !reload_service())
+	/* Reload reads committed UCI; a failed reload also restores persistence. */
+	if (config_changed) {
+		if (!commit_subscription_changes())
+			return false;
+	} else if (resources_updated && !reload_service())
 		return false;
 
 	log(sprintf('%s added, %s updated, %s removed.', added, updated, removed));

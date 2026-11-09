@@ -14,7 +14,7 @@ import { cursor } from 'uci';
 import {
 	addECHDNS, createNodeLabelRegistry, filterExistingNodes, findDomainGroupConflict,
 	isEmpty, normalizeDomainList, normalizeList, parseURL,
-	domainListPath, resolveLanPolicy, splitDomainList,
+	readDomainList, resolveLanPolicy, splitDomainList,
 	reserveUniqueLabel, strToBool, strToInt, strToTime,
 	removeBlankAttrs, renderEndpoint, renderOutbound, validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
@@ -66,6 +66,8 @@ function add_inline_domain_rule_set(rule_sets, group, type) {
 	});
 }
 
+const ipv6_support = uci.get(uciconfig, ucimain, 'ipv6_support') || '0';
+
 let wan_dns;
 // Match LuCI's WAN discovery: active default routes in the main table.
 // Prefer IPv4, then IPv6; ignore LAN DNS and policy-routing tables.
@@ -77,7 +79,12 @@ for (let target in ['0.0.0.0', '::']) {
 			continue;
 		for (let route in (iface.route || [])) {
 			if (route.target === target && route.mask === 0 && !route.table) {
-				wan_dns = iface['dns-server'][0];
+				for (let server in iface['dns-server']) {
+					if (ipv6_support === '1' || validation('ip4addr', server)) {
+						wan_dns = server;
+						break;
+					}
+				}
 				break;
 			}
 		}
@@ -93,8 +100,6 @@ if (!wan_dns)
 const dns_port = uci.get(uciconfig, uciinfra, 'dns_port') || '5333';
 
 const ntp_server = uci.get(uciconfig, uciinfra, 'ntp_server') || 'time.apple.com';
-
-const ipv6_support = uci.get(uciconfig, ucimain, 'ipv6_support') || '0';
 
 const main_node = uci.get(uciconfig, ucimain, 'main_node') || 'nil';
 
@@ -174,7 +179,7 @@ const dns_evaluate_timeout = '3s';
 let domain_groups = [];
 
 function add_domain_group(id, kind, node) {
-	const domains = normalizeDomainList(readfile(domainListPath(id)));
+	const domains = normalizeDomainList(readDomainList(uci, id));
 	if (!length(domains))
 		return;
 
@@ -193,7 +198,7 @@ uci.foreach(uciconfig, 'domain_route', (cfg) => {
 	if (!match(id, /^[A-Za-z0-9_]+$/) || (id in ['direct', 'proxy']))
 		die(`Invalid diversion group identifier ${id}.`);
 
-	const domains = normalizeDomainList(readfile(domainListPath(id)));
+	const domains = normalizeDomainList(readDomainList(uci, id));
 	if (!length(domains))
 		return;
 

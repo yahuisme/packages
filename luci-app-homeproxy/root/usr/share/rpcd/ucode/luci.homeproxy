@@ -93,6 +93,12 @@ function validDomainListId(id) {
 	return type(id) === 'string' && match(id, /^[A-Za-z0-9_]+$/);
 }
 
+function configuredDomainList(uci, id) {
+	const builtin = id in ['direct', 'proxy'];
+	return uci.get('homeproxy', builtin ? 'diversion' : id,
+		builtin ? `${id}_list` : 'domain_list');
+}
+
 function normalizeDomainContent(content) {
 	if (isBinary(content))
 		return null;
@@ -175,7 +181,9 @@ function validateDomainLists(changes, routingMode, groupStates, groupsComplete) 
 			return;
 		seen[id] = true;
 
-		const content = (id in changes) ? changes[id] : readfile(domainListPath(id));
+		const configured = configuredDomainList(uci, id);
+		const content = (id in changes) ? changes[id] :
+			(configured !== null ? configured : readfile(domainListPath(id)));
 		const domains = normalizeDomainList(content);
 		if (length(domains))
 			push(groups, { id, ...splitDomainList(domains) });
@@ -275,6 +283,11 @@ const methods = {
 			}
 
 			return withDomainListLock(() => {
+				const uci = cursor();
+				uci.load('homeproxy');
+				for (let id in keys(changes))
+					if (configuredDomainList(uci, id) !== null)
+						return { result: false, error: 'domain list is managed by UCI; use native Save/Apply' };
 				const conflict = validateDomainLists(changes, routingMode, groupStates, req.args?.groups_complete === true);
 				if (conflict)
 					return {
@@ -348,6 +361,10 @@ const methods = {
 				return { result: false, error: 'illegal domain list identifier' };
 
 			return withDomainListLock(() => {
+				const uci = cursor();
+				uci.load('homeproxy');
+				if (configuredDomainList(uci, id) !== null)
+					return { result: false, error: 'domain list is managed by UCI; use native Save/Apply' };
 				const file = domainListPath(id);
 				for (let path in [file, file + '.new']) {
 					if (readfile(path) === null)
@@ -648,7 +665,7 @@ const methods = {
 			const hpuci = cursor();
 			hpuci.load('homeproxy');
 			const dns_strategy = hpuci.get('homeproxy', 'config', 'ipv6_support') === '1' ?
-				'prefer_ipv6' : 'prefer_ipv4';
+				'prefer_ipv6' : 'ipv4_only';
 			const reserved_controller_port = int(hpuci.get('homeproxy', 'infra', 'clash_api_port')) || 0;
 
 			const formatResult = (node, state, latency_ms, err) => ({

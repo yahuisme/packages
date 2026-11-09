@@ -27,14 +27,6 @@ const callReadDomainList = rpc.declare({
 	expect: { '': {} }
 });
 
-const callWriteDomainLists = rpc.declare({
-	object: 'luci.homeproxy',
-	method: 'domainlist_write',
-	params: ['lists', 'routing_mode', 'group_states', 'groups_complete'],
-	reject: true,
-	expect: { '': {} }
-});
-
 function parseDomainList(value) {
 	let suffixes = [], keywords = [], normalized = [], seen = Object.create(null);
 	for (let item of (value || '').replace(/\r\n?/g, '\n').split('\n')) {
@@ -218,8 +210,13 @@ return view.extend({
 		    pendingDomainLists = Object.create(null);
 
 		function loadDomainList(id) {
-			if (Object.prototype.hasOwnProperty.call(pendingDomainLists, id))
-				return Promise.resolve(pendingDomainLists[id]);
+			const builtin = id === 'direct' || id === 'proxy';
+			const value = uci.get('homeproxy', builtin ? 'diversion' : id,
+				builtin ? id + '_list' : 'domain_list');
+			if (value != null) {
+				domainListCache[id] = value;
+				return Promise.resolve(value);
+			}
 
 			return callReadDomainList(id).then((res) => {
 				if (res.error)
@@ -277,7 +274,11 @@ return view.extend({
 		}
 
 		function configureDomainListSave(map) {
-			const saveMap = map.save;
+			const saveMap = map.save, resetMap = map.reset;
+			map.reset = function() {
+				pendingDomainLists = Object.create(null);
+				return resetMap.call(this);
+			};
 			map.save = function(cb, silent) {
 				return saveMap.call(this, () => Promise.resolve(
 					typeof cb === 'function' ? cb() : null
@@ -289,29 +290,23 @@ return view.extend({
 					});
 					return Promise.all(ids.map(loadDomainList));
 				}).then(() => {
-					const routingMode = validateDomainLists();
+					validateDomainLists();
 					const ids = Object.keys(pendingDomainLists);
 					if (!ids.length)
 						return null;
 
-					const lists = Object.assign({}, pendingDomainLists);
-					const groupStates = {};
-					uci.sections('homeproxy', 'domain_route', (section) => {
-						groupStates[section['.name']] = section.enabled === '0' ? '0' : '1';
-					});
-					return callWriteDomainLists(lists, routingMode, groupStates, true).then((result) => {
-						if (!result.result)
-							throw new Error(result.error || _('Failed to save domain lists.'));
-						for (let id of ids) {
-							const builtin = id === 'direct' || id === 'proxy';
-							const section = builtin ? 'diversion' : id;
-							const option = builtin ? id + '_list_checksum' : 'list_checksum';
-							const checksum = hp.calcStringMD5(lists[id]);
-							if (uci.get('homeproxy', section, option) !== checksum)
-								uci.set('homeproxy', section, option, checksum);
-						}
-						pendingDomainLists = Object.create(null);
-					});
+					/* Keep list text in the same native UCI session as its owner.
+					 * Save stages it; rpcd Apply/rollback/Revert owns persistence. */
+					for (let id of ids) {
+						const builtin = id === 'direct' || id === 'proxy';
+						const section = builtin ? 'diversion' : id;
+						const option = builtin ? id + '_list' : 'domain_list';
+						// LuCI treats '' as unset. A blank line preserves explicit emptiness
+						// and prevents the retained legacy file from becoming active again.
+						uci.set('homeproxy', section, option, pendingDomainLists[id] || '\n');
+					}
+					pendingDomainLists = Object.create(null);
+					return null;
 				}), silent).catch((error) => {
 					if (silent)
 						ui.addNotification(null, E('p', {}, error.message), 'error');

@@ -295,6 +295,50 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(self.call('getOverview')['monitor'], dict(target='b.example', enabled=True))
         self.assertIsNone(self.call('getSettings')['pending'])
 
+    def test_post_apply_checkpoint_failures_preserve_completion_and_retry_without_restart(self):
+        for operation in ('mktemp', 'mv', 'rm'):
+            with self.subTest(operation=operation):
+                payload = dict(hardware=0, vlan=-1, pppoe=-1, ap=-1, target=operation + '.example', enabled=0)
+                self.assertTrue(self.call('saveSettings', payload)['success'])
+                command = '#!/bin/sh\ncase "$*" in *"' + str(self.d / 'etc/flowsense') + '"*) exit 1;; esac\nexec ' + self.busybox + ' ' + operation + ' "$@"\n'
+                self.script(operation, command)
+                result = self.call('applySettings')
+                self.assertFalse(result['success'])
+                self.assertEqual(result.get('error'), 'storage')
+                self.assertEqual(result.get('acceleration'), 'applied')
+                if operation == 'rm':
+                    self.assertEqual(result.get('monitor'), 'applied')
+                else:
+                    self.assertEqual(result.get('monitor'), 'unchanged')
+                self.assertIsNotNone(self.call('getSettings')['pending'])
+                markers = {name: (self.d / name).read_bytes() if (self.d / name).exists() else b'' for name in ('restarts', 'monitor-restarts')}
+                (self.d / 'bin' / operation).unlink()
+                (self.d / 'bin' / operation).symlink_to(self.busybox)
+                self.assertTrue(self.call('applySettings')['success'])
+                self.assertEqual((self.d / 'restarts').read_bytes(), markers['restarts'])
+                if operation == 'rm':
+                    self.assertEqual((self.d / 'monitor-restarts').read_bytes(), markers['monitor-restarts'])
+                self.assertIsNone(self.call('getSettings')['pending'])
+                # Reset the next iteration's desired acceleration to the opposite.
+                self.assertTrue(self.call('setAcceleration', dict(hardware=1, vlan=-1, pppoe=-1, ap=-1))['success'])
+
+    def test_monitor_checkpoint_retry_does_not_restart_verified_values(self):
+        for operation in ('mktemp', 'mv', 'rm'):
+            with self.subTest(operation=operation):
+                payload = dict(hardware=-1, vlan=-1, pppoe=-1, ap=-1, target=operation + '-monitor.example', enabled=0)
+                self.assertTrue(self.call('saveSettings', payload)['success'])
+                self.script(operation, '#!/bin/sh\ncase "$*" in *"' + str(self.d / 'etc/flowsense') + '"*) exit 1;; esac\nexec ' + self.busybox + ' ' + operation + ' "$@"\n')
+                try:
+                    result = self.call('applySettings')
+                    self.assertEqual(result, dict(success=False, error='storage', acceleration='unchanged', monitor='applied'))
+                    before = (self.d / 'monitor-restarts').read_bytes()
+                finally:
+                    (self.d / 'bin' / operation).unlink()
+                    (self.d / 'bin' / operation).symlink_to(self.busybox)
+                self.assertTrue(self.call('applySettings')['success'])
+                self.assertEqual((self.d / 'monitor-restarts').read_bytes(), before)
+                self.assertIsNone(self.call('getSettings')['pending'])
+
     def test_pending_save_refresh_apply_partial_retry(self):
         self.assertIsNone(self.call('getSettings')['pending'])
         self.assertFalse((self.d / 'etc/flowsense').exists(), 'read-only load must not create storage')

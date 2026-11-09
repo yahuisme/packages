@@ -30,8 +30,18 @@ settings_write() {
     rm -f "$tmp"; return 1
 }
 settings_error() { printf '{"success":false,"error":"%s"}' "$1"; }
+settings_result() {
+    json_init
+    [ "$success" = true ] && json_add_boolean success 1 || json_add_boolean success 0
+    json_add_string acceleration "$acceleration"; json_add_string monitor "$monitor"
+    [ -z "$storage_error" ] || json_add_string error "$storage_error"
+    [ -z "$acceleration_error" ] || json_add_string acceleration_error "$acceleration_error"
+    [ -z "$monitor_error" ] || json_add_string monitor_error "$monitor_error"
+    json_dump
+}
+settings_checkpoint_error() { success=false; storage_error=storage; settings_result; }
 settings_rpc() (
-    local input result value expected expected_json expected_type acceleration=unchanged monitor=unchanged success=true acceleration_error= monitor_error=
+    local input result value expected expected_json expected_type acceleration=unchanged monitor=unchanged success=true acceleration_error= monitor_error= storage_error=
     umask 077
     # Fixed root-owned location; reject symlinks rather than following them.
     [ ! -L "$fs_settings_dir" ] || { settings_error storage; exit; }
@@ -76,7 +86,7 @@ settings_rpc() (
                 if [ "$value" = 1 ]; then
                     acceleration=applied
                     settings_hardware=-1; settings_vlan=-1; settings_pppoe=-1; settings_ap=-1
-                    settings_write || { settings_error storage; exit; }
+                    settings_write || { settings_checkpoint_error; exit; }
                 else acceleration=failed; success=false; json_get_var acceleration_error error; fi
             fi
             if [ "$settings_enabled" != -1 ]; then
@@ -84,15 +94,10 @@ settings_rpc() (
                 json_load "$result"; json_get_var value success
                 if [ "$value" = 1 ]; then
                     monitor=applied; settings_enabled=-1; settings_target=
-                    settings_write || { settings_error storage; exit; }
+                    settings_write || { settings_checkpoint_error; exit; }
                 else monitor=failed; success=false; json_get_var monitor_error error; fi
             fi
-            if [ "$success" = true ]; then rm -f "$fs_settings_dir/pending.json" || { settings_error storage; exit; }; fi
-            json_init
-            [ "$success" = true ] && json_add_boolean success 1 || json_add_boolean success 0
-            json_add_string acceleration "$acceleration"; json_add_string monitor "$monitor"
-            [ -z "$acceleration_error" ] || json_add_string acceleration_error "$acceleration_error"
-            [ -z "$monitor_error" ] || json_add_string monitor_error "$monitor_error"
-            json_dump;;
+            if [ "$success" = true ]; then rm -f "$fs_settings_dir/pending.json" || { settings_checkpoint_error; exit; }; fi
+            settings_result;;
     esac
 )

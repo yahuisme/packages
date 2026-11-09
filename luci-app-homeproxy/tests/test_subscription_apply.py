@@ -23,7 +23,7 @@ class SubscriptionApply(unittest.TestCase):
         """Reuse the real-parser/main fixture, replacing only its apply stub."""
         production = (BASE / 'update_subscriptions.uc').read_text()
         name = 'reload_service' if 'function reload_service' in production else 'restart_service'
-        helper = production[production.index('function ' + name):production.index('function has_value')]
+        helper = production[production.index('function ' + name):production.index('function commit_subscription_changes')]
         real_run = subprocess.run
         captured = []
 
@@ -35,7 +35,8 @@ class SubscriptionApply(unittest.TestCase):
             source = source.replace('function log(...args) {}', "function log(...args) { warn(join(' ', args) + '\\n'); }")
             source = source.replace('function restart_service(){return true;}\nfunction apply_updated_resources(){return true;}', '')
             source = source.replace('function reload_service(){return true;}\nfunction apply_updated_resources(){return true;}', '')
-            source = source.replace('function main()', helper + '\nfunction main()')
+            marker = 'const subscription_transaction={applying:false};'
+            source = source.replace(marker, marker + '\n' + helper)
             source = 'const service_running=' + json.dumps(running) + ';\n' + source
             source = source.replace('changes:()=>({changed:true})', 'changes:()=>(' + ('{changed:true}' if changed else '{}') + ')')
             source = source.replace('commits++;return true;', "commits++;warn('COMMIT\\n');return " + json.dumps(commit) + ';')

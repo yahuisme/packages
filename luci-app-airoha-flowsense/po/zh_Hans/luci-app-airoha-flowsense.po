@@ -161,6 +161,9 @@ msgstr "设置无效，请检查输入后重试"
 msgid "Another settings operation is in progress. Try again later."
 msgstr "另一项设置操作正在进行，请稍后重试"
 
+msgid "Settings were applied, but the pending record could not be updated. Check storage and retry."
+msgstr "设置已应用，待应用记录更新失败。请检查存储后重试。"
+
 msgid "Unable to read or write saved settings. Check storage space and access permissions."
 msgstr "无法读写已保存的设置，请检查存储空间和访问权限"
 

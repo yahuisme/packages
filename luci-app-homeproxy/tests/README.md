@@ -30,7 +30,12 @@ The native suite uses real ucode `uci.cursor(private_confdir, private_savedir)`
 with a tracing/fault wrapper, not the CLI adapter. It covers mixed complete,
 partial and failed groups with identical connections/names in both URL orders,
 selected references, repeated zero-write refreshes, atomic rejection, write/commit
-failure and the existing commit-then-reload-failure output contract. Downloads,
+failure and verified byte-for-byte persistent rollback after reload failure.
+Verified recovery is cleaned automatically; restore/cleanup faults retain the
+private recovery file and return failure. Native fault cases also cover a commit
+which writes bytes before reporting failure, permission/owner restoration and
+foreign committed writes during download. This is conflict detection, not a
+cross-process CAS against external UCI writers. Downloads,
 validation and service boundaries remain fixtures. The existing reconciliation
 suite independently covers broader identities/rollback using private native
 libuci CLI storage. Neither test touches host UCI or starts a core/service.
@@ -336,6 +341,64 @@ reversible. The generator reads only referenced sections; destructive orphan GC
 is not performed at a nontransactional UI boundary. The old static mkdtemp-name
 assertion now checks the production atomic helper, with native allocation tested
 separately.
+
+## Domain list native transactions
+
+The editor now saves normalized text as `diversion.direct_list`,
+`diversion.proxy_list` and `<domain_route>.domain_list` in the **same native UCI
+session** as routing/group options. No list-file RPC runs from Map.save. A blank
+line (`'\n'`) represents an explicitly cleared list because LuCI `uci.set('')`
+removes an option. The generator uses committed text when the option exists,
+including empty text, and otherwise reads the retained legacy `diversion/*.txt`.
+No migration commit, publish daemon, duplicate file transaction or orphan GC is
+needed. Legacy files remain untouched and are a compatibility fallback, not an
+additional active copy after a list is edited.
+
+Save stages deltas only. Apply/confirmation, automatic rollback and Revert are
+owned by rpcd UCI. A late Map.load/render error can leave a **reversible saved
+session delta**, just like other native options; it cannot change committed
+list text or legacy files. An HTTP Apply failure does not itself promise rollback:
+native checked Apply needs confirmation and rolls back on timeout, while native
+unchecked Apply deliberately has no such protection. Native RPC may acknowledge
+an Apply without diagnosing an application/service reload failure; this change
+does not add a second service-success protocol or change that platform contract.
+
+The old ACL-exposed `domainlist_write` / `domainlist_remove` remain lock-backed
+for file-only legacy callers. They reject UCI-owned targets instead of returning
+success for ineffective file writes; their conflict validation reads committed
+UCI text of other groups. That backend-only rejection is not a new LuCI message:
+the page no longer invokes either setter. External callers wanting native
+transactions must use the existing UCI ACL, not the legacy immediate file API.
+As with all native UCI edits, independent sessions do not provide a merged
+application-level cross-session conflict transaction; the generator revalidates
+all committed lists before publishing runtime configuration.
+
+```sh
+. /opt/test-tools/env.sh
+. /opt/test-tools/openwrt/packages-ci/env.sh
+# Run within the caller's private TMPDIR and verified memory cgroup.
+sh .github/scripts/run-tests.sh tests/domain-transaction-ui.cjs \
+  tests/domain-remove-ui.cjs tests/frontend-rpc-errors-ui.cjs \
+  luci-app-homeproxy/tests/test_domain_session_generation.py \
+  luci-app-homeproxy/tests/test_domain_legacy_ownership.py \
+  luci-app-homeproxy/tests/test_domain_lists.py
+# Privileged CI step (private chroot, mount/net/PID namespaces, no init/core):
+OPENWRT_ROOTFS="$OPENWRT_TOOLS/rootfs.tar.gz" \
+  python3 luci-app-homeproxy/tests/test_domain_session_rpc.py -v
+```
+
+`domain-transaction-ui.cjs` executes actual LuCI Map.save and native libuci private
+confdir/savedir plus actual list files: failed UCI Save, successful Save without
+Apply, late load failure, retry, Reset after validation failure, pending-draft
+conflicts, explicit clear, Revert and committed reload. Production generator
+cases cover builtin/custom groups, native/adapter missing values, explicit empty,
+invalid nontext and disabled-value retention. `test_domain_session_rpc.py` runs
+actual prebuilt OpenWrt rpcd/ubusd: isolated/concurrent session deltas, denied
+Apply, pending-Apply exclusion, timeout rollback restoring old config and the
+initiator's draft, Revert, confirmed Apply, single/multiline readback and UCI
+export/import. Other rpcd plugins and the init/core are not started. The ordinary
+runner discovers these tests; the root-only RPC fixture is also an explicit CI
+step so non-root discovery skips cannot be mistaken for acceptance.
 
 Subscription UI calls the existing ACL-allowed wrapper with `--status`/`--start`.
 Only start detaches; the worker inherits the existing flock descriptor and writes

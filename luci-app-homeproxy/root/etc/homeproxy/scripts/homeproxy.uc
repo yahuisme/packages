@@ -111,6 +111,17 @@ export function domainListPath(id) {
 	return `${HP_DIR}/diversion/${id}.txt`;
 };
 
+// Text, including an explicit empty string, belongs to native UCI transactions.
+// Read retained legacy files only until this particular list has been edited.
+export function readDomainList(uci, id) {
+	const builtin = id in ['direct', 'proxy'];
+	const content = uci.get('homeproxy', builtin ? 'diversion' : id,
+		builtin ? `${id}_list` : 'domain_list');
+	if (content !== null && type(content) !== 'string')
+		die(`Invalid domain list text for ${id}.`);
+	return content !== null ? content : readfile(domainListPath(id));
+};
+
 export function splitDomainList(domains) {
 	let suffixes = [], keywords = [];
 	for (let domain in domains)

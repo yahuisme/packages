@@ -131,6 +131,11 @@ jobs:
           sudo env "OPENWRT_ROOTFS=$OPENWRT_TOOLS/rootfs.tar.gz" \
             "TMPDIR=$TMPDIR" PYTHONDONTWRITEBYTECODE=1 \
             python3 tests/subscription-rpc-native.py
+      - name: Verify native domain UCI transactions
+        run: |
+          sudo env "OPENWRT_ROOTFS=$OPENWRT_TOOLS/rootfs.tar.gz" \
+            "TMPDIR=$TMPDIR" PYTHONDONTWRITEBYTECODE=1 \
+            python3 luci-app-homeproxy/tests/test_domain_session_rpc.py
       - name: Verify native resource RPC background jobs
         run: |
           sudo env "OPENWRT_ROOTFS=$OPENWRT_TOOLS/rootfs.tar.gz" \

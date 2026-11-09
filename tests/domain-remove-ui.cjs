@@ -13,7 +13,8 @@ const {walk}=require('./homeproxy-editor-parity.cjs');
    const reply=data=>({ok:true,status:200,json:()=>h.w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result:[0,data]}))});
    if(method==='domainlist_read')return reply({content:p.id+'.example.org\n'});
    if(obj==='uci'&&method==='get')return reply({values:persisted});
-   if(obj==='uci'&&method==='delete'){events.push('session-delete');delete persisted[p.section];return reply({});}
+   if(obj==='uci'&&method==='delete'){events.push('session-delete');if(p.options)for(const k of p.options)delete persisted[p.section][k];else delete persisted[p.section];return reply({});}
+   if(obj==='uci'&&method==='set'){Object.assign(persisted[p.section],p.values);events.push('session-set');return reply({});}
    if(method==='domainlist_remove'){events.push('permanent-remove');return reply({result:true});}
    if(method==='domainlist_write'){
     assert.equal(p.groups_complete,true,'RPC receives the complete current session group set');
@@ -29,7 +30,8 @@ const {walk}=require('./homeproxy-editor-parity.cjs');
   const direct=h.map.lookupOption('_direct_list','diversion')[0];
   direct.getUIElement('diversion').setValue('moved.example');
   await h.map.save(null,true);
-  assert(events.includes('write-lists'),'native Save writes the moved domain with the session group set');
+  assert(!events.includes('write-lists'),'native Save never uses the legacy file setter');
+  assert.equal(persisted.diversion.direct_list,'moved.example\n','moved domain is saved in the same session as group deletion');
   console.log('PASS: native domain-route deletion saves only UCI session; permanent bytes survive pending/revert');
  }finally{h.w.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

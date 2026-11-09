@@ -40,7 +40,8 @@ function apply_updated_resources(){return true;}
 function log_error(...args){warn(sprintf('%J',args));}
 '''
         pre = 'const payload=' + json.dumps(payload) + ',blacklist=' + json.dumps(blacklist) + ',subscription_urls=' + json.dumps(urls or [URL]) + ';\n' + pre
-        source = pre + parser + s[s.index('function main()'):s.index('if (!isEmpty(subscription_urls))')]
+        from subscription_transaction_fixture import transaction_source
+        source = pre + parser + transaction_source(s) + s[s.index('function main()'):s.index('if (!isEmpty(subscription_urls))')]
         source += "main(); print(sprintf('%J',{deleted,writes,commits,fetches,reconcile_group,nodes:node_result}));"
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / 'main.uc'
@@ -169,6 +170,8 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
             if production_ech:
                 source += h[h.index('export function parseECHConfig'):h.index('export function addECHDNS')].replace('export function', 'function')
             source += s[s.index('const invalid_filter_patterns'):s.index('/* String helper end */')]
+            from subscription_transaction_fixture import transaction_source
+            source += transaction_source(s, root / 'config/homeproxy')
             source += s[s.index('function has_value'):]
             script = root / 'main.uc'
             script.write_text(source)
@@ -766,7 +769,7 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
         state = self.run_native('proxies:\n' + BAD)
         self.assertEqual(state['result'].returncode, 1, state['result'].stderr)
         self.assertEqual(state['after'], state['before'])
-        self.assertEqual(state['calls'], [])
+        self.assertEqual(state['calls'], [['changes', 'homeproxy']])
 
     def test_failed_creation_never_deletes_existing_section(self):
         # The hash may already name a user node; a failed create must not clean
