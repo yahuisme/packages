@@ -1,0 +1,21 @@
+Subject: [PATCH] wifi: mt76: mt7996: finish cleanup after truncated txfree
+
+Based on OpenWRT-fanboy/OpenW1700k commit
+23df1d78c6476d4a301ecd56aab65f4c6be86542 (0005 txfree overrun).
+
+Keep the existing WARN_ON_ONCE diagnostic. Leave the descriptor loop on a
+truncated event so the already completed prefix still reaches the existing
+TX wake, worker scheduling and free_list consumption. Do not change token
+ownership or reclaim tokens whose completion was never reported.
+
+--- a/mt7996/mac.c
++++ b/mt7996/mac.c
+@@ -1402,7 +1402,7 @@
+ 		u8 i;
+ 
+ 		if (WARN_ON_ONCE((void *)cur_info >= end))
+-			return;
++			break;
+ 		/* 1'b1: new wcid pair.
+ 		 * 1'b0: msdu_id with the same 'wcid pair' as above.
+ 		 */

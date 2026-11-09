@@ -29,6 +29,10 @@ COMMON = (
     "tree/target/linux/airoha/patches-6.18/940-pmdomain-airoha-cpu-pll-fallback.patch",
 )
 POWER = "610-w1700k-power-30.patch"
+ADDED = {
+    "tree/package/kernel/mt76/patches/912-mt76-mt7996-use-mcu-station-statistics.patch",
+    "tree/package/kernel/mt76/patches/913-mt76-mt7996-clean-up-truncated-txfree.patch",
+}
 REMOVED_920_HUNK = (
     b"@@ -95,7 +95,7 @@\n"
     b" \t\trxantenna: config.rxantenna\n"
@@ -44,8 +48,9 @@ REMOVED_920_HUNK = (
 
 class MigrationIntegrity(unittest.TestCase):
     def test_exact_inventory_and_snapshot_bytes(self):
-        expected = set(COMMON) | {f"patches/{POWER}"}
-        actual = {str(p.relative_to(ROOT)) for p in ROOT.rglob("*.patch")}
+        expected = set(COMMON) | {f"patches/{POWER}"} | ADDED
+        actual = {str(p.relative_to(ROOT)) for folder in ('patches', 'tree')
+                  for p in (ROOT / folder).rglob("*.patch")}
         self.assertEqual(actual, expected, "central payload inventory differs")
         power_bytes = {}
         for distro, (repo, revision) in REPOS.items():

@@ -10,6 +10,8 @@
 | `tree/target/linux/airoha/patches-6.18/745-*` | E2 PCS RX 校准 | [A]/[B]，作者 Gilly |
 | `tree/target/linux/airoha/patches-6.18/746-*` | MDIO 扫描前解除 PHY 复位 | [A]/[B]，作者 Gilly |
 | `tree/package/kernel/mt76/patches/911-*` | 功率变更时刷新固件功率限制 | 作者 Yanghan Ye；适配 OpenW1700k 的 `0011-refresh-power-limits-on-txpower-changes`，SKU 启用沿用官方 |
+| `tree/package/kernel/mt76/patches/912-*` | 通过 MCU 获取客户端 airtime 与信号统计 | 作者 Joshua Klinesmith；适配当前消息分派并完善响应边界校验 |
+| `tree/package/kernel/mt76/patches/913-*` | TX-free 消息截断后仍完成已有回收与队列唤醒 | 基于 [C]；保留原异常告警，不增加超时 token 回收 |
 | `patches/610-*` | CN/US 功率与频段定制 | 包含 [A] 的 US 高频段及 6 GHz 设置，两版最终 regdb 内容一致 |
 | `tree/package/network/utils/iwinfo/patches/999-*` | 按当前频率展示功率列表 | [A]/[B]，作者 Yanghan Ye |
 | `patches/920-*` | 非 MLO AP 按 BSS 设置功率 | 本项目实现，适用范围见下文 |
@@ -19,6 +21,7 @@
 
 - [A] [OpenWRT-fanboy/OpenW1700k · `bce05fa86b22`](https://github.com/OpenWRT-fanboy/OpenW1700k/commit/bce05fa86b222741d8afcef2e5468a9481679041)
 - [B] [OpenWRT-fanboy/OpenW1700k · `972634e64d19`](https://github.com/OpenWRT-fanboy/OpenW1700k/commit/972634e64d19cba0095b662a0bfd9561ebef635c)
+- [C] [OpenWRT-fanboy/OpenW1700k · `23df1d78c647`](https://github.com/OpenWRT-fanboy/OpenW1700k/commit/23df1d78c6476d4a301ecd56aab65f4c6be86542)
 
 原作者信息保留在补丁头部。
 

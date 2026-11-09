@@ -110,6 +110,11 @@ jobs:
         env:
           LUCI_CHANNEL_SOURCE: ${{ github.workspace }}/.luci/modules/luci-mod-status
         run: python3 -m unittest discover -s w1700k-patches/tests -p test_channel_analysis.py -v
+      - name: Verify shared mt76 fixes
+        run: |
+          # Source-bound patch replay; no kernel or firmware compilation.
+          python3 -m unittest discover -s w1700k-patches/tests -p test_mcu_statistics.py -v
+          python3 -m unittest discover -s w1700k-patches/tests -p test_txfree_cleanup.py -v
       - name: Verify private key ownership
         run: |
           # This isolated fixture needs uid switching; no service is started.

@@ -15,6 +15,17 @@ PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_migration.py
 
 本测试只验证迁移完整性，不应用补丁、不编译、不修改固件仓库。后续补丁维护需另行验证源码适用性及功能，不能以迁移校验代替。
 
+## mt76 专项校验
+
+`912` MCU 统计与 `913` TX-free 收尾是迁移后新增补丁，不纳入旧快照字节等价比较，分别由固定源码夹具验证：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s w1700k-patches/tests -p test_mcu_statistics.py -v
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s w1700k-patches/tests -p test_txfree_cleanup.py -v
+```
+
+测试应用实际补丁并检查源码契约，不编译或执行内核 C，不代替固件构建和实机验收。
+
 ## 通用 regdb 验证
 
 `test_regdb.py` 使用校验和验证的源码归档，分别执行旧补丁链与新补丁链，要求完整 `db.txt` 逐字节一致。设置 `REGDB_ARCHIVE`、`REGDB_SOURCE_OPENWRT`、`REGDB_SOURCE_IMMORTALWRT` 后运行：

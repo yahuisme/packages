@@ -1,0 +1,36 @@
+{
+  "repository": "https://github.com/openwrt/mt76",
+  "commit": "0936617dc529ff9da0385221d3fa6de732231177",
+  "files": {
+    "mt76_connac_mcu.h": {
+      "sha256": "50f2b07d3388f7371f504f9469dc34c1bac950e6a8554a16e0cf7ea0dc493106",
+      "git_blob": "6769b7fde23418818a89581c1eef7cb4e5006ace"
+    },
+    "mt7996/mac.c": {
+      "sha256": "afbb328d9711a5eb335c3f36230b25cbe26fb66154fe9738b157ccff23e9899f",
+      "git_blob": "8388014d19fe72d7b5c8dfd0f569ecf7d0caeec3"
+    },
+    "mt7996/mcu.c": {
+      "sha256": "b0c778327c5eb06fa1cb45728050ad318c2b9b3cf912a0d3cbd06a0f07e21484",
+      "git_blob": "5de535f842c255fa540867c828135343fcae8b41"
+    },
+    "mt7996/mcu.h": {
+      "sha256": "48ef4edeba61557b4a7ea0cf5ff643bec71dd69f283ae773f31508af7779b50c",
+      "git_blob": "172c9372ded03d9ccd37135b521ad739a94da0c3"
+    },
+    "mt7996/mt7996.h": {
+      "sha256": "b56117f31138f5dee807e23e2b1f9343c8fa331b95238ca2ddca217c74223570",
+      "git_blob": "0d367888d4afb94301e158807ac9fe7edef919d3"
+    },
+    "mt7996/main.c": {
+      "sha256": "a64de28a1da58c1c203e574882d69ba8004e2bdcebf8cf4748449935cc24c416",
+      "git_blob": "a5e75ed25516623f525008ddea9205bed1199641"
+    }
+  },
+  "archive_sha256": "6f414c038f7a2897acbe0f1acda6b3541ca07f6a34b95c85d1f353042666e4ee",
+  "references": {
+    "donor-0003.fixture": "05ecd02087f7e4e67f36535d2edf53dad1c039d5ea8dbf79ba7a1db37471f68b",
+    "vendor-0065.fixture": "54003ef94df9e071fdcf9469f739fbd4b261bfdb24f672b66320bd927c1beec3"
+  },
+  "vendor_url": "https://raw.githubusercontent.com/mediatek/mtk-openwrt-feeds/00a8c1e85ec32003d9260ea34bc9ecbc15e8d4a8/autobuild/autobuild_5.4_mac80211_release/mt7988_wifi7_mac80211_mlo/package/kernel/mt76/patches/0065-mtk-mt76-mt7996-get-airtime-and-RSSI-via-MCU-command.patch"
+}
