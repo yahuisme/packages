@@ -12,10 +12,11 @@
 | `tree/package/kernel/mt76/patches/911-*` | 功率变更时刷新固件功率限制 | 作者 Yanghan Ye；适配 OpenW1700k 的 `0011-refresh-power-limits-on-txpower-changes`，SKU 启用沿用官方 |
 | `tree/package/kernel/mt76/patches/912-*` | 通过 MCU 获取客户端 airtime 与信号统计 | 作者 Joshua Klinesmith；适配当前消息分派并完善响应边界校验 |
 | `tree/package/kernel/mt76/patches/913-*` | TX-free 消息边界与分片校验，截断后完成已有回收与队列唤醒 | 基于 [C]/[D]；保留异常告警，不增加超时 token 回收 |
+| `tree/package/kernel/mt76/patches/914-*` | RRO 丢弃数据及 skb 分配失败时归还接收缓冲区 | 本项目修复；保留成功路径的 skb 所有权转移 |
 | `patches/610-*` | CN/US 功率与频段定制 | 包含 [A] 的 US 高频段及 6 GHz 设置，两版最终 regdb 内容一致 |
 | `tree/package/network/utils/iwinfo/patches/998-*` | 按目标 radio 选择接口与创建临时扫描接口 | 本项目扩展官方 multi-radio 实现，使用 UCI radio 索引及原生接口 radio mask |
 | `tree/package/network/utils/iwinfo/patches/999-*` | 按当前频率展示功率列表 | [A]/[B]，作者 Yanghan Ye |
-| `tree/package/system/procd/patches/001-*` | watchdog 默认超时不超过硬件上限 | 基于 [E]，作者 Vitaliy Sochnev；保留显式请求及官方失败读回 |
+| `tree/package/system/procd/patches/001-*` | watchdog 默认超时与喂狗周期适配 | 基于 [E]，作者 Vitaliy Sochnev；保留显式请求，按实际超时约束喂狗周期 |
 | `tree/package/network/services/hostapd/patches/mtk-0015-*` | 6 GHz DFS 辅助判断提前返回 | 作者 Peter Chiu；沿用 [F] 的单行频率判断，不改变 5 GHz DFS |
 | `patches/920-*` | 非 MLO AP 按 BSS 设置功率 | 本项目实现，适用范围见下文 |
 | `patches/998-*` | single-wiphy 多射频信道分析适配 | 作者 Gilly1970；本项目选择活动网卡并校验本机实际频段，保留停用 AP 时的邻居扫描 |

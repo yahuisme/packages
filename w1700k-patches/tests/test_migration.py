@@ -33,6 +33,7 @@ POWER = "610-w1700k-power-30.patch"
 ADDED = {
     "tree/package/kernel/mt76/patches/912-mt76-mt7996-use-mcu-station-statistics.patch",
     "tree/package/kernel/mt76/patches/913-mt76-mt7996-clean-up-truncated-txfree.patch",
+    "tree/package/kernel/mt76/patches/914-mt76-mt7996-free-rro-drop-buffers.patch",
     "tree/package/network/utils/iwinfo/patches/998-fix-multi-radio-scan.patch",
     "tree/package/network/services/hostapd/patches/mtk-0015-hostapd-mtk-6G-band-does-not-require-DFS.patch",
     "tree/package/system/procd/patches/001-watchdog-clamp-default-to-device-limit.patch",

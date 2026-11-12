@@ -22,9 +22,10 @@ PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_migration.py
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s w1700k-patches/tests -p test_mcu_statistics.py -v
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s w1700k-patches/tests -p test_txfree_cleanup.py -v
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s w1700k-patches/tests -p test_rro_cleanup.py -v
 ```
 
-测试应用实际补丁并检查源码契约，不编译或执行内核 C，不代替固件构建和实机验收。
+`914` 另检查 RRO 拒绝数据与 skb 分配失败的缓冲区回收。测试应用实际补丁并检查源码契约，不编译或执行内核 C，不代替固件构建和实机验收。
 
 ## 多射频扫描校验
 
