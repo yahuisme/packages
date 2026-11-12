@@ -35,7 +35,7 @@ DRIVER_SETTER = '''static int watchdog_set_drv_timeout(void)
 TIMEOUT_CALLBACK = '''static void watchdog_timeout_cb(struct uloop_timeout *t)
 {
 	watchdog_ping();
-	uloop_timeout_set(t, wdt_drv_timeout == 1 ? 500 : wdt_frequency * 1000);
+	uloop_timeout_set(t, wdt_frequency * 1000);
 }'''
 
 
@@ -55,14 +55,13 @@ class ProtocolOracle:
         self.last_timeout = timeout if confirmed else 0
         self.pending = pending
         self.online = True
-        self.explicit = False
         self.delay_ms = frequency * 1000 if pending else None
         self.pings = 0
         self.calls = []
 
     def ping_and_arm(self):
         self.pings += 1
-        self.delay_ms = 500 if self.timeout == 1 else self.frequency * 1000
+        self.delay_ms = self.frequency * 1000
         self.pending = True
 
     def driver_set(self, accepted, readback=None):
@@ -92,7 +91,6 @@ class ProtocolOracle:
     def set_timeout(self, timeout, accepted, readback=None):
         if timeout:
             self.timeout = timeout
-            self.explicit = True
             if self.online:
                 self.driver_set(accepted, readback)
 

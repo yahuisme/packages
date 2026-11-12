@@ -115,7 +115,6 @@ jobs:
       - name: Verify shared mt76 fixes
         run: |
           # Source-bound patch replay; no kernel or firmware compilation.
-          python3 -m unittest discover -s w1700k-patches/tests -p test_mcu_statistics.py -v
           python3 -m unittest discover -s w1700k-patches/tests -p test_txfree_cleanup.py -v
           python3 -m unittest discover -s w1700k-patches/tests -p test_rro_cleanup.py -v
       - name: Verify watchdog and 6 GHz DFS fixes

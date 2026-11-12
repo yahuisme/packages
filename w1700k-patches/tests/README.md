@@ -17,15 +17,16 @@ PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_migration.py
 
 ## mt76 专项校验
 
-`912` MCU 统计与 `913` TX-free 收尾是迁移后新增补丁，不纳入旧快照字节等价比较，分别由固定源码夹具验证：
+`913` TX-free 与 `914` RRO 修复是迁移后新增补丁，不纳入旧快照字节等价比较，由固定源码函数夹具验证。原 `912` MCU 统计改造及其专用测试、供体/协议夹具和归档已移除；保留官方统计路径：
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s w1700k-patches/tests -p test_mcu_statistics.py -v
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s w1700k-patches/tests -p test_txfree_cleanup.py -v
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s w1700k-patches/tests -p test_rro_cleanup.py -v
 ```
 
 `914` 另检查 RRO 拒绝数据与 skb 分配失败的缓冲区回收。测试应用实际补丁并检查源码契约，不编译或执行内核 C，不代替固件构建和实机验收。
+
+两系统完整 mt76 源码应用顺序为各自官方前置补丁、`911`、`913`、`914`。在 mt76 `0936617dc529ff9da0385221d3fa6de732231177` 上逐个实际应用，要求 `--fuzz=0 --no-backup-if-mismatch`、无 reject/backup；合法行偏移不是依赖。删掉 `912` 后 `913` 原有 `next:` 上下文仍匹配，无需刷新。
 
 ## 多射频扫描校验
 
@@ -43,7 +44,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_watchdog_timeout.py 
 PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_hostapd_dfs.py -v
 ```
 
-watchdog 检查固定 procd 源码及私有文件上的 libc 解析，不执行 procd 或真实 watchdog。hostapd 检查官方补丁前后源码，使用 JS 求值实际 C 布尔条件，不代表编译后的 hostapd 或射频测试。固件脚本同时启用原生 `CONFIG_WATCHDOG_SYSFS`。
+watchdog 使用 `001-watchdog-reconcile-timeout.patch`，检查固定 procd 源码、调用顺序及 pending timer 源码契约；Python 数值 oracle 覆盖接受/拒绝 timeout、离线请求、停止/恢复和 last-confirmed 回退，不执行 C/ioctl 或真实 watchdog。默认 sysfs cap、解析测试和 500ms 扩展已移除；保留官方秒级 API，一秒 timeout 的次秒喂狗不在支持范围。hostapd 检查官方补丁前后源码，使用 JS 求值实际 C 布尔条件，不代表编译后的 hostapd 或射频测试。
 
 ## 通用 regdb 验证
 

@@ -10,7 +10,6 @@ No compilation, allocation-fault injection, DMA, pagepool or device execution.
 import hashlib
 from pathlib import Path
 import subprocess
-import tarfile
 import tempfile
 import unittest
 
@@ -83,22 +82,6 @@ class RroCleanupSourceContracts(unittest.TestCase):
         self.assertEqual([line for line in payload.splitlines()
                           if line.startswith(('--- ', '+++ '))],
                          ['--- a/mt7996/mac.c', '+++ b/mt7996/mac.c'])
-
-    def test_immutable_function_matches_same_revision_original_archive(self):
-        # Existing in-repository fixture, not a network or private scratch input.
-        archive = Path(__file__).parent / 'fixtures/mcu_statistics/mt76-pristine.tar.gz'
-        self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest(),
-                         '6f414c038f7a2897acbe0f1acda6b3541ca07f6a34b95c85d1f353042666e4ee')
-        with tarfile.open(archive) as source:
-            member = source.extractfile('mt7996/mac.c')
-            self.assertIsNotNone(member)
-            assert member is not None
-            mac = member.read()
-        self.assertEqual(hashlib.sha256(mac).hexdigest(),
-                         'afbb328d9711a5eb335c3f36230b25cbe26fb66154fe9738b157ccff23e9899f')
-        start = mac.index(b'void mt7996_rro_rx_process(')
-        end = mac.index(b'\n}', start) + 2
-        self.assertEqual((mac[start:end] + b'\n').decode(), self.original())
 
     def test_normalization_rejects_missing_or_duplicate_allowed_deltas(self):
         source = self.patched()

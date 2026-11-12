@@ -7,12 +7,10 @@ The same procd revision is used by both firmware recipes. The timer fixture
 is libubox a396f38a8568a1d670c240465cd8d24fdfdf6463/uloop.c, also shared
 by the two pinned firmware recipes. Tests apply the
 production patch with native GNU patch, then inspect the actual C source.
-Native libc primitives are additionally exercised on private files through
-ctypes. The source-bound Python protocol oracle never executes the patched
-C, timers, ioctls or kernel C; neither layer covers target musl/ILP32.
+The source-bound Python protocol oracle never executes the patched C,
+timers, ioctls or kernel C and does not cover target musl/ILP32.
 Run: python3 w1700k-patches/tests/test_watchdog_timeout.py -v
 """
-import ctypes
 import importlib.util
 import hashlib
 from pathlib import Path
@@ -21,7 +19,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-PATCH = ROOT / "tree/package/system/procd/patches/001-watchdog-clamp-default-to-device-limit.patch"
+PATCH = ROOT / "tree/package/system/procd/patches/001-watchdog-reconcile-timeout.patch"
 FIXTURE = Path(__file__).parent / "fixtures/watchdog/watchdog.c.fixture"
 SHA256 = "d58e6783c988dc5217cedbf2056ee647a8a5d8e25a69c79c9cbed25019a88f88"
 GIT_BLOB = "6d40d68b8aac03d494d291d1dcb40bc5af9838d8"
@@ -36,48 +34,6 @@ def function(source, name):
         raise AssertionError(f"missing source function: {name}")
     end = source.index("\n}", match.end()) + 2
     return source[match.start():end]
-
-
-class NativeLimitOracle:
-    """Real host-libc I/O/conversion; Python glue, not compiled watchdog C."""
-    def __init__(self):
-        self.libc = ctypes.CDLL(None, use_errno=True)
-        signatures = {
-            "fopen": ([ctypes.c_char_p, ctypes.c_char_p], ctypes.c_void_p),
-            "fgets": ([ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p], ctypes.c_void_p),
-            "fgetc": ([ctypes.c_void_p], ctypes.c_int),
-            "ferror": ([ctypes.c_void_p], ctypes.c_int),
-            "fclose": ([ctypes.c_void_p], ctypes.c_int),
-            "strtoul": ([ctypes.c_void_p, ctypes.POINTER(ctypes.c_char_p), ctypes.c_int],
-                        ctypes.c_ulong),
-        }
-        for name, (args, result) in signatures.items():
-            func = getattr(self.libc, name)
-            func.argtypes, func.restype = args, result
-
-    def limit(self, path, current=30):
-        fp = self.libc.fopen(bytes(path), b"r")
-        if not fp:
-            return current
-        try:
-            buf = ctypes.create_string_buffer(32)
-            if (not self.libc.fgets(buf, len(buf), fp) or
-                    self.libc.fgetc(fp) != -1 or self.libc.ferror(fp)):
-                return current
-            end = ctypes.c_char_p()
-            ctypes.set_errno(0)
-            value = self.libc.strtoul(buf, ctypes.byref(end), 10)
-            error = ctypes.get_errno()
-            end_address = ctypes.cast(end, ctypes.c_void_p).value
-            if end_address is None:
-                raise AssertionError("strtoul did not return an end pointer")
-            offset = end_address - ctypes.addressof(buf)
-            if (not error and b"0" <= buf.raw[:1] <= b"9" and
-                    buf.raw[offset:offset + 2] == b"\n\0" and 0 < value < current):
-                return value
-            return current
-        finally:
-            self.libc.fclose(fp)
 
 
 class WatchdogTimeout(unittest.TestCase):
@@ -135,10 +91,19 @@ class WatchdogTimeout(unittest.TestCase):
         self.assertEqual((oracle.pings, oracle.delay_ms), (1, 14000))
         self.assertLess(oracle.delay_ms, oracle.actual * 1000)
 
-    def test_one_second_driver_limit_uses_a_subsecond_ping(self):
-        callback = function(self.source, "watchdog_timeout_cb")
-        self.assertIn("wdt_drv_timeout == 1 ? 500 : wdt_frequency * 1000", callback,
-                      "one second is the smallest frequency API value, not a safe 1s heartbeat")
+    def test_default_and_seconds_callback_remain_official(self):
+        self.assertEqual(function(self.source, "watchdog_timeout_cb"),
+                         function(self.original, "watchdog_timeout_cb"))
+        self.assertEqual(function(self.source, "watchdog_init"),
+                         function(self.original, "watchdog_init"))
+        self.assertNotIn("max_timeout", self.source)
+        self.assertNotIn("wdt_timeout_set", self.source)
+        oracle = self.oracle(timeout=30, pending=False, confirmed=False)
+        oracle.driver_set(accepted=None, readback=28)
+        self.assertEqual(oracle.calls, [("SETTIMEOUT", 30), ("GETTIMEOUT",)])
+        self.assertEqual((oracle.timeout, oracle.frequency, oracle.pings), (28, 5, 0))
+        oracle.ping_and_arm()  # official init callback follows negotiation
+        self.assertEqual(oracle.delay_ms, 5000)
 
     def test_timeout_only_acceptance_and_rejection_use_driver_value(self):
         for accepted, readback, expected_timeout, expected_frequency in [
@@ -172,11 +137,9 @@ class WatchdogTimeout(unittest.TestCase):
                 oracle = self.oracle()
                 oracle.online, oracle.pending, oracle.delay_ms = False, False, None
                 oracle.ubus(timeout=60, frequency=30)
-                self.assertTrue(oracle.explicit)
                 self.assertEqual(oracle.calls, [])
                 self.assertEqual((oracle.timeout, oracle.frequency), (60, 30))
-                # watchdog_limit_default_timeout's pinned explicit guard skips
-                # the sysfs cap; both init and restart call the same setter.
+                # Both init and restart call the unchanged official setter path.
                 oracle.online = True
                 oracle.driver_set(accepted, readback)
                 self.assertEqual(oracle.pings, 0, "do not activate a stopped timer in the setter")
@@ -185,10 +148,10 @@ class WatchdogTimeout(unittest.TestCase):
                 self.assertEqual(oracle.pings, 1)
                 self.assertLess(oracle.delay_ms, oracle.actual * 1000)
 
-    def test_default_28_5_and_small_device_limits_have_safe_intervals(self):
+    def test_default_28_5_and_seconds_based_limits_have_safe_intervals(self):
         for timeout, frequency, delay in [(28, 5, 5000), (5, 2, 2000),
                                           (4, 2, 2000), (3, 1, 1000),
-                                          (2, 1, 1000), (1, 1, 500)]:
+                                          (2, 1, 1000)]:
             with self.subTest(timeout=timeout):
                 oracle = self.oracle(timeout=timeout, pending=False)
                 oracle.driver_set(accepted=timeout)
@@ -245,7 +208,6 @@ class WatchdogTimeout(unittest.TestCase):
         oracle.ping_and_arm()  # original resume callback, after setter
         self.assertEqual((oracle.timeout, oracle.frequency, oracle.delay_ms),
                          (28, 14, 14000))
-        self.assertTrue(oracle.explicit)
         self.assertEqual(oracle.calls,
                          [("SETTIMEOUT", 60), ("SETTIMEOUT", 60), ("GETTIMEOUT",)])
 
@@ -280,8 +242,6 @@ class WatchdogTimeout(unittest.TestCase):
             "omit-pending-rearm": ("\tif (wdt_timeout.pending)\n\t\twatchdog_timeout_cb(&wdt_timeout);\n", ""),
             "restart-stopped-timer": ("\tif (wdt_timeout.pending)\n\t\twatchdog_timeout_cb(&wdt_timeout);",
                                       "\twatchdog_timeout_cb(&wdt_timeout);"),
-            "one-second-ping-is-too-late": ("wdt_drv_timeout == 1 ? 500 : wdt_frequency * 1000",
-                                             "wdt_frequency * 1000"),
         }
         for name, (old, new) in mutants.items():
             with self.subTest(mutant=name):
@@ -292,112 +252,17 @@ class WatchdogTimeout(unittest.TestCase):
                                      self.contract.TIMEOUT_CALLBACK)
                     self.contract.ProtocolOracle(changed, function)
 
-    def test_default_is_limited_before_initial_settimeout(self):
-        init = function(self.source, "watchdog_init")
-        self.assertIn("watchdog_limit_default_timeout();", init,
-                      "default must be limited before requesting 30s from the driver")
-        self.assertLess(init.index("if (watchdog_open(!preinit) < 0)"),
-                        init.index("watchdog_limit_default_timeout();"))
-        self.assertLess(init.index("watchdog_limit_default_timeout();"),
-                        init.index("watchdog_set_drv_timeout();"))
-        limit = function(self.source, "watchdog_limit_default_timeout")
-        self.assertIn('fopen("/sys/class/watchdog/watchdog0/max_timeout", "r")', limit)
-        self.assertIn("wdt_drv_timeout = max_timeout;", limit)
-
-    def test_explicit_request_survives_later_init_and_stop_start(self):
-        self.assertIn("static bool wdt_timeout_set = false;", self.source,
-                      "a deferred explicit request needs state separate from the cached timeout")
-        requested = function(self.source, "watchdog_timeout")
-        original = function(self.original, "watchdog_timeout")
-        self.assertEqual(requested, original.replace(
-            "\t\twdt_drv_timeout = timeout;",
-            "\t\twdt_drv_timeout = timeout;\n\t\twdt_timeout_set = true;", 1))
-        limit = function(self.source, "watchdog_limit_default_timeout")
-        self.assertIn("if (wdt_timeout_set)\n\t\treturn;", limit)
-        self.assertLess(limit.index("if (wdt_timeout_set)"), limit.index("fopen("))
-        # Both deferred requests (fd < 0) and live requests take the official
-        # setter path; restart must neither clear the flag nor re-clamp them.
-        for name in ["watchdog_open", "watchdog_set_stopped"]:
-            self.assertEqual(function(self.source, name), function(self.original, name))
-        self.assertEqual(function(self.source, "watchdog_set_drv_timeout"),
-                         self.contract.DRIVER_SETTER)
-        self.assertEqual(self.source.count("wdt_timeout_set = true;"), 1)
-        self.assertEqual(self.source.count("wdt_timeout_set = false;"), 1)
-
-    def test_malformed_limit_cannot_wrap_or_partially_parse_into_a_short_timeout(self):
-        limit = function(self.source, "watchdog_limit_default_timeout")
-        self.assertNotIn("fscanf", limit,
-                         "%u accepts signs and cannot report numeric overflow reliably")
-        self.assertIn("char buf[32], *end;", limit)
-        self.assertIn("unsigned long max_timeout;", limit)
-        self.assertIn("fgets(buf, sizeof(buf), fp)", limit)
-        self.assertIn("fgetc(fp) == EOF", limit)
-        self.assertIn("!ferror(fp)", limit)
-        self.assertIn("errno = 0;", limit)
-        self.assertIn("max_timeout = strtoul(buf, &end, 10);", limit)
-        self.assertIn("!errno && buf[0] >= '0' && buf[0] <= '9'", limit)
-        self.assertIn("*end == '\\n' && !end[1]", limit)
-        self.assertIn("max_timeout && max_timeout < wdt_drv_timeout", limit)
-        self.assertLess(limit.index("errno = 0;"), limit.index("strtoul("))
-        self.assertLess(limit.index("ferror(fp)"), limit.index("wdt_drv_timeout = max_timeout;"))
-        self.assertIn(
-            "\t\tif (fgets(buf, sizeof(buf), fp) && fgetc(fp) == EOF && !ferror(fp)) {\n"
-            "\t\t\terrno = 0;\n"
-            "\t\t\tmax_timeout = strtoul(buf, &end, 10);\n"
-            "\t\t\tif (!errno && buf[0] >= '0' && buf[0] <= '9' &&\n"
-            "\t\t\t    *end == '\\n' && !end[1] &&\n"
-            "\t\t\t    max_timeout && max_timeout < wdt_drv_timeout)\n"
-            "\t\t\t\twdt_drv_timeout = max_timeout;\n"
-            "\t\t}\n\t\tfclose(fp);", limit)
-        self.assertIn("#include <errno.h>", self.source)
-        self.assertIn("#include <stdlib.h>", self.source)
-
     def test_all_other_source_bytes_remain_official(self):
         source = self.source
-        helper = function(source, "watchdog_limit_default_timeout")
-        self.assertEqual(source.count(helper), 1)
-        source = source.replace(helper + "\n\n", "", 1)
-        for added in ["#include <errno.h>\n", "#include <stdio.h>\n",
-                      "#include <stdlib.h>\n", "static bool wdt_timeout_set = false;\n",
-                      "static int wdt_last_timeout = 0;\n",
-                      "\t\twdt_timeout_set = true;\n", "\twatchdog_limit_default_timeout();\n"]:
-            self.assertEqual(source.count(added), 1, added)
-            source = source.replace(added, "", 1)
-        # Only these two complete, separately asserted functions may differ
-        # in addition to the pre-existing default-limit/explicit-request delta.
-        for name, expected in [("watchdog_set_drv_timeout", self.contract.DRIVER_SETTER),
-                               ("watchdog_timeout_cb", self.contract.TIMEOUT_CALLBACK)]:
-            actual = function(source, name)
-            self.assertEqual(actual, expected)
-            self.assertEqual(source.count(actual), 1)
-            source = source.replace(actual, function(self.original, name), 1)
-        # WDTFD adoption, stop/start and every other unlisted byte are immutable.
+        added = "static int wdt_last_timeout;\n"
+        self.assertEqual(source.count(added), 1)
+        source = source.replace(added, "", 1)
+        setter = function(source, "watchdog_set_drv_timeout")
+        self.assertEqual(setter, self.contract.DRIVER_SETTER)
+        source = source.replace(setter, function(self.original, "watchdog_set_drv_timeout"), 1)
+        # Default negotiation, seconds callback, WDTFD, offline requests and
+        # stop/start retain every official byte outside this one setter/state.
         self.assertEqual(source, self.original)
-
-
-class NativeLibcLimits(unittest.TestCase):
-    def test_native_file_conversion_valid_invalid_and_overflow_limits(self):
-        oracle = NativeLimitOracle()
-        ulong_max = ctypes.c_ulong(-1).value
-        cases = [(b"28\n", 28), (b"1\n", 1), (b"29\n", 29),
-                 (b"30\n", 30), (b"60\n", 30), (b"0\n", 30),
-                 (b"", 30), (b"\n", 30), (b"28", 30),
-                 (b"-1\n", 30), (b"-4294967268\n", 30), (b"+28\n", 30),
-                 (b" 28\n", 30), (b"28 \n", 30), (b"28junk\n", 30),
-                 (b"28\nextra", 30), (b"28\n\n", 30), (b"28\r\n", 30),
-                 (b"4294967324\n", 30), (str(ulong_max).encode() + b"\n", 30),
-                 (str(ulong_max + 1).encode() + b"\n", 30), (b"9" * 128 + b"\n", 30)]
-        with tempfile.TemporaryDirectory(prefix="watchdog-native-libc-") as tmp:
-            path = Path(tmp) / "max_timeout"
-            for data, expected in cases:
-                with self.subTest(data=data):
-                    path.write_bytes(data)
-                    self.assertEqual(oracle.limit(path), expected)
-            self.assertEqual(oracle.limit(Path(tmp) / "missing"), 30)
-            # fopen may succeed on a directory; the subsequent read fails.
-            self.assertEqual(oracle.limit(Path(tmp)), 30)
-            path.write_bytes(b"28\n")
-            self.assertEqual(oracle.limit(path, current=24), 24)
 
 
 if __name__ == "__main__":
