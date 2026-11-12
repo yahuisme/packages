@@ -52,7 +52,8 @@ function render_server_tls(cfg) {
 		return null;
 
 	const use_acme = cfg.tls_acme === '1';
-	const use_reality = !use_acme && cfg.tls_reality === '1';
+	/* Retained hidden REALITY options belong only to AnyTLS/VLESS. */
+	const use_reality = !use_acme && cfg.type in ['anytls', 'vless'] && cfg.tls_reality === '1';
 	return {
 		enabled: true,
 		server_name: cfg.tls_sni,

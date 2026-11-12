@@ -101,14 +101,39 @@ def resources(home, binary, temp):
     check(binary, home, temp)
 
 
+def remove_completed(path):
+    if path.is_symlink():
+        raise RuntimeError(f'Invalid completed backup: {path}')
+    if path.is_dir():
+        shutil.rmtree(path)
+    elif path.is_file():
+        path.unlink()
+    elif path.exists():
+        raise RuntimeError(f'Invalid completed backup: {path}')
+
+
+def prepare_publication(targets):
+    # Check every recovery target before cleaning anything or installing new bytes.
+    targets = list(targets)
+    for target in targets:
+        backup = target.with_name(target.name + '.update-backup')
+        if backup.exists() or backup.is_symlink():
+            raise RuntimeError(f'Recovery backup exists: {backup}')
+    for target in targets:
+        complete = target.with_name(target.name + '.update-complete')
+        if complete.exists() and (not target.exists() or target.is_symlink()):
+            raise RuntimeError(f'Published target is unavailable: {target}')
+        remove_completed(complete)
+
+
 def publish(pairs):
-    """Rollback all installed targets on a rename failure; retain failed backups."""
+    """Retain recovery backups; only completed publications may be cleaned on retry."""
+    pairs = list(pairs)
+    prepare_publication(target for _, target in pairs)
     installed = []
     try:
         for staged, target in pairs:
             backup = target.with_name(target.name + '.update-backup')
-            if backup.exists():
-                raise RuntimeError(f'Recovery backup exists: {backup}')
             target.rename(backup)
             installed.append((target, backup))
             staged.rename(target)
@@ -123,11 +148,15 @@ def publish(pairs):
             except OSError as recovery_error:
                 error.add_note(f'Recovery failed for {target}; retain {backup}: {recovery_error}')
         raise
-    for _, backup in installed:
-        if backup.is_dir():
-            shutil.rmtree(backup)
-        else:
-            backup.unlink()
+    # A distinct name is the durable completion state. Partial delete failures
+    # can be retried without ever treating an unresolved rollback as disposable.
+    completed = []
+    for target, backup in installed:
+        complete = target.with_name(target.name + '.update-complete')
+        backup.rename(complete)
+        completed.append(complete)
+    for complete in completed:
+        remove_completed(complete)
 
 
 def main():
@@ -136,6 +165,10 @@ def main():
     args = parser.parse_args()
     root = args.root.resolve()
     makefile = root/'sing-box/Makefile'
+    target = root/'luci-app-homeproxy/root/etc/homeproxy'
+    # A prior core update can have completed even if its version is unchanged
+    # now; recover both targets before deciding which ones need publication.
+    prepare_publication([target/'resources', makefile])
     original = makefile.read_text()
     current = re.search(r'^PKG_UPSTREAM_VERSION:=(.+)$', original, re.M).group(1)
     latest = api('sing-box/releases/latest')
@@ -152,7 +185,6 @@ def main():
             raise ValueError('Current sing-box source hash mismatch')
         print(f'sing-box source SHA256: {digest}', flush=True)
         home = temp/'homeproxy'
-        target = root/'luci-app-homeproxy/root/etc/homeproxy'
         shutil.copytree(target, home)
         resources(home, binary, temp)
         pairs = [(home/'resources', target/'resources')]

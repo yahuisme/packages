@@ -9,7 +9,7 @@ assert.equal(target.maxLength,253);target.value='saved.example';target.dispatchE
 await mods.app.handleSave();noStatus();assert.equal(staged.target,'saved.example');assert.equal(notification.textContent,w._('Settings saved; not yet applied.'));
 failure='monitor';await mods.app.handleSaveApply();noStatus();assert(staged);assert.equal(staged.enabled,1);assert.equal(staged.hardware,-1);assert(notification.textContent.includes(w._('Not verified; check current settings.')));
 failure='';await mods.app.handleSaveApply();noStatus();assert.equal(staged,null);assert.equal(notification.textContent,w._('Settings saved and applied.'));
-const unknown=await mods.app.render([sample,accelerationSample,null]);noStatus(unknown);assert.equal(unknown.querySelector('[data-name="target"] input[type="text"]').disabled,true);
+const unknown=await mods.app.render([null,accelerationSample]);noStatus(unknown);assert.equal(unknown.querySelector('[data-name="target"] input[type="text"]').disabled,true);
 console.log('PASS no persistent saved-status paragraph; Save notification, partial failure/retry, unknown readonly and target length preserved');w.close();
 })().catch(e=>{console.error(e);w.close();process.exitCode=1});`;
 const m=new Module(file,module);m.filename=file;m.paths=Module._nodeModulePaths(__dirname);m._compile(src,file);

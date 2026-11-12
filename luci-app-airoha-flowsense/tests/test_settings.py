@@ -26,6 +26,60 @@ class SettingsTest(unittest.TestCase):
         (self.d / 'proc/uptime').write_text('100.0 0\n')
         (self.d / 'rpc').write_text(rpc)
 
+    def test_settings_returns_committed_monitor_without_telemetry(self):
+        rpc = (self.d / 'rpc').read_text()
+        marker = self.d / 'telemetry-called'
+        boundary = '\ncase "$1:$2" in'
+        self.assertEqual(rpc.count(boundary), 1)
+        rpc = rpc.replace(boundary, '\n' + '\n'.join(
+            name + '() { printf called >> "' + str(marker) + '"; printf null; }'
+            for name in ('get_overview', 'get_jitter', 'get_interfaces')) + boundary)
+        (self.d / 'rpc').write_text(rpc)
+        before = self.snapshot()
+        result = self.call('getSettings')
+        self.assertEqual(result, dict(success=True, pending=None,
+                                     monitor=dict(target='example.com', enabled=True)))
+        self.assertEqual(self.snapshot(), before)
+        self.assertFalse(marker.exists(), 'settings must not collect overview telemetry')
+        payload = dict(hardware=-1, vlan=-1, pppoe=-1, ap=-1, target='pending.example', enabled=0)
+        self.assertTrue(self.call('saveSettings', payload)['success'])
+        result = self.call('getSettings')
+        self.assertEqual(result['pending'], payload)
+        self.assertEqual(result['monitor'], dict(target='example.com', enabled=True))
+        self.assertTrue(self.call('setMonitor', dict(target='fresh.example', enabled=0))['success'])
+        self.assertEqual(self.call('getSettings')['monitor'], dict(target='fresh.example', enabled=False))
+        self.assertFalse(marker.exists())
+
+    def test_settings_pending_errors_retain_independent_monitor_and_read_lock_behavior(self):
+        directory = self.d / 'etc/flowsense'
+        directory.mkdir()
+        pending = directory / 'pending.json'
+        before = (self.d / 'etc/config/npu-monitor').read_bytes()
+        lock = self.d / 'var/run/flowsense-settings.lock'
+        lock.mkdir()
+        try:
+            self.assertEqual(self.call('getSettings'), dict(success=True, pending=None,
+                monitor=dict(target='example.com', enabled=True)))
+            pending.write_text('{broken')
+            self.assertEqual(self.call('getSettings'), dict(success=False, error='invalid',
+                monitor=dict(target='example.com', enabled=True)))
+            pending.unlink()
+            pending.symlink_to(self.d / 'etc/config/npu-monitor')
+            self.assertEqual(self.call('getSettings'), dict(success=False, error='storage',
+                monitor=dict(target='example.com', enabled=True)))
+            self.assertTrue(pending.is_symlink())
+            pending.unlink()
+            directory.rmdir()
+            directory.symlink_to(self.d / 'etc/config', target_is_directory=True)
+            self.assertEqual(self.call('getSettings'), dict(success=False, error='storage',
+                monitor=dict(target='example.com', enabled=True)))
+            self.assertTrue(directory.is_symlink())
+        finally:
+            lock.rmdir()
+        self.assertEqual((self.d / 'etc/config/npu-monitor').read_bytes(), before)
+        self.assertFalse((self.d / 'monitor-restarts').exists())
+        self.assertEqual(list((self.d / 'tmp').iterdir()), [])
+
     def test_direct_monitor_shares_settings_lock(self):
         lock = self.d / 'var/run/flowsense-settings.lock'
         lock.mkdir()
@@ -118,8 +172,10 @@ class SettingsTest(unittest.TestCase):
                            env=self.env, check=True)
         delta = (self.d / 'delta/npu-monitor').read_bytes()
         self.assertEqual(self.call('getOverview')['monitor'], dict(target='example.com', enabled=True))
+        self.assertEqual(self.call('getSettings')['monitor'], dict(target='example.com', enabled=True))
         (self.d / 'override/npu-monitor').write_text("config jitter\n option target 'override.example'\n option enabled '0'\n")
         self.assertEqual(self.call('getOverview')['monitor'], dict(target='example.com', enabled=True))
+        self.assertEqual(self.call('getSettings')['monitor'], dict(target='example.com', enabled=True))
         self.assertEqual((config.read_bytes(), config.stat().st_mtime_ns), before)
         self.assertEqual((self.d / 'delta/npu-monitor').read_bytes(), delta)
         self.assertFalse((self.d / 'monitor-restarts').exists())
@@ -162,6 +218,7 @@ class SettingsTest(unittest.TestCase):
                 with self.subTest(option=option, failure=command):
                     self.script('uci', wrapper.replace('#!/bin/sh\n', '#!/bin/sh\ncase "$*" in *"' + command + '") exit 1;; esac\n', 1))
                     monitor = self.call('getOverview')['monitor']
+                    self.assertEqual(self.call('getSettings')['monitor'], monitor)
                     if not option and command.endswith('.enabled'):
                         self.assertEqual(monitor, dict(target='223.5.5.5', enabled=True))
                     else:
@@ -243,6 +300,7 @@ class SettingsTest(unittest.TestCase):
         delta = (self.d / 'delta/npu-monitor').read_bytes()
         (self.d / 'override/npu-monitor').write_text("config jitter\n option target 'override.example'\n option enabled '0'\n")
         self.assertEqual(self.call('getOverview')['monitor'], dict(target='223.5.5.5', enabled=True))
+        self.assertEqual(self.call('getSettings')['monitor'], dict(target='223.5.5.5', enabled=True))
         self.assertEqual((config.read_bytes(), config.stat().st_mtime_ns), before)
         self.assertEqual((self.d / 'delta/npu-monitor').read_bytes(), delta)
         self.assertEqual(list((self.d / 'tmp').iterdir()), [])
@@ -267,8 +325,10 @@ class SettingsTest(unittest.TestCase):
             with self.subTest(contents=contents):
                 config.write_text(contents)
                 self.assertIsNone(self.call('getOverview')['monitor'])
+                self.assertIsNone(self.call('getSettings')['monitor'])
         config.unlink()
         self.assertIsNone(self.call('getOverview')['monitor'])
+        self.assertIsNone(self.call('getSettings')['monitor'])
         self.assertEqual(list((self.d / 'tmp').iterdir()), [])
         self.assertFalse((self.d / 'monitor-restarts').exists())
 
@@ -397,7 +457,8 @@ class SettingsTest(unittest.TestCase):
         for method in ('saveSettings', 'getSettings', 'applySettings'):
             with self.subTest(method=method):
                 result = self.call('saveSettings', dict(hardware=0, vlan=-1, pppoe=-1, ap=-1, target='saved.example', enabled=0)) if method == 'saveSettings' else self.call(method)
-                self.assertEqual(result, dict(success=False, error='storage'))
+                self.assertEqual(result, dict(success=False, error='storage',
+                    **({'monitor': dict(target='example.com', enabled=True)} if method == 'getSettings' else {})))
         self.assertEqual(list(pending.iterdir()), [])
         self.assertEqual(self.snapshot(), before)
         self.assertEqual({path: (self.d / path).stat().st_mtime_ns for path in before}, mtimes)

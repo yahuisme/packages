@@ -10,8 +10,13 @@ work=$(mktemp -d "$TMPDIR/packages-tests.XXXXXX") || exit 1
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 # Driven by another suite with explicit arguments, not standalone.
-HELPERS='client_generator_fixture.py dns_runtime_fixture.py ntp-bootstrap-runtime.py subscription_uci_fixture.py subscription_transaction_fixture.py
-harness.js mlo-luci-dom.cjs test_view.js l10n.js'
+HELPERS='luci-app-homeproxy/tests/client_generator_fixture.py
+luci-app-homeproxy/tests/dns_runtime_fixture.py
+luci-app-homeproxy/tests/ntp-bootstrap-runtime.py
+luci-app-homeproxy/tests/subscription_uci_fixture.py
+luci-app-homeproxy/tests/subscription_transaction_fixture.py
+luci-app-wifi7/tests/harness.js luci-app-wifi7/tests/mlo-luci-dom.cjs
+luci-app-airoha-npu/tests/l10n.js'
 # Full router/compiler fixtures are optional; runtime replays use pinned sources.
 ROUTER='test_portability.py'
 BROWSER='test_curve_browser.js test_chart_mount.js'
@@ -29,9 +34,33 @@ listed() {
 }
 pass=0 skip=0 fail=0
 skipping() { printf 'UNVERIFIED %s (%s)\n' "$1" "$2"; skip=$((skip + 1)); }
+run_node() (
+	# Each documented branch starts with clean fixture selectors.
+	unset ERROR_MESSAGES_TEST NATIVE_TEST MLO_TEST DENIED_TEST READONLY_TEST MISSING_MODE_TEST
+	case "$1" in
+	luci-app-airoha-flowsense/tests/test_view.js) modes='default ERROR_MESSAGES_TEST=1' ;;
+	luci-app-wifi7/tests/permissions-reentry.cjs) modes='revoked reentry pending' ;;
+	luci-app-wifi7/tests/wireless-runtime.cjs) modes='availability cost' ;;
+	luci-app-wifi7/tests/known-defects.cjs) modes='text lifecycle rpc' ;;
+	luci-app-wifi7/tests/render-reuse.cjs) modes='radio mlo-runtime mlo-summary' ;;
+	luci-app-wifi7/tests/view.test.js) modes='default NATIVE_TEST=1 MLO_TEST=1 DENIED_TEST=1' ;;
+	luci-app-wifi7/tests/regression.test.js) modes='default NATIVE_TEST=1 MLO_TEST=1 READONLY_TEST=1 MISSING_MODE_TEST=1' ;;
+	*) modes=default ;;
+	esac
+	node_status=0
+	for mode in $modes; do
+		printf 'MODE %s %s\n' "$1" "$mode"
+		case "$mode" in
+		default) timeout "${PACKAGE_TEST_TIMEOUT:-300}" node "$1" >> "$work/output" 2>&1 ;;
+		*=*) timeout "${PACKAGE_TEST_TIMEOUT:-300}" env "$mode" node "$1" >> "$work/output" 2>&1 ;;
+		*) timeout "${PACKAGE_TEST_TIMEOUT:-300}" node "$1" "$mode" >> "$work/output" 2>&1 ;;
+		esac || node_status=1
+	done
+	return "$node_status"
+)
 run() {
 	name=${1##*/}
-	listed "$name" "$HELPERS" && return 0
+	listed "$1" "$HELPERS" && return 0
 	listed "$1" "$HOST" && { skipping "$1" 'needs isolated host/platform fixture'; return 0; }
 	if listed "$name" "$ROUTER" || listed "$name" "$BROWSER"; then
 		skipping "$1" 'needs router/source/theme/browser fixture'; return 0
@@ -56,15 +85,7 @@ suite = unittest.defaultTestLoader.loadTestsFromModule(module)
 result = unittest.TextTestRunner().run(suite)
 sys.exit(0 if result.wasSuccessful() and result.testsRun else 1)
 ' "$1" > "$work/output" 2>&1 ;;
-	*) if [ "$1" = luci-app-wifi7/tests/render-reuse.cjs ]; then
-		status=0
-		for mode in radio mlo-runtime mlo-summary; do
-			timeout "${PACKAGE_TEST_TIMEOUT:-300}" node "$1" "$mode" >> "$work/output" 2>&1 || status=1
-		done
-		[ "$status" -eq 0 ]
-	else
-		timeout "${PACKAGE_TEST_TIMEOUT:-300}" node "$1" > "$work/output" 2>&1
-	fi ;;
+	*) run_node "$1" ;;
 	esac
 	status=$?
 	if [ "$status" -eq 0 ]; then

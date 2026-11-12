@@ -43,16 +43,22 @@ settings_checkpoint_error() { success=false; storage_error=storage; settings_res
 settings_rpc() (
     local input result value expected expected_json expected_type acceleration=unchanged monitor=unchanged success=true acceleration_error= monitor_error= storage_error=
     umask 077
-    # Fixed root-owned location; reject symlinks rather than following them.
-    [ ! -L "$fs_settings_dir" ] || { settings_error storage; exit; }
     if [ "$1" = getSettings ]; then
-        if [ -f "$fs_settings_dir/pending.json" ] && [ ! -L "$fs_settings_dir/pending.json" ]; then
-            settings_parse "$(cat "$fs_settings_dir/pending.json")" || { settings_error invalid; exit; }
-            printf '{"success":true,"pending":'; settings_json; printf '}'
-        elif [ -e "$fs_settings_dir/pending.json" ] || [ -L "$fs_settings_dir/pending.json" ]; then settings_error storage
-        else printf '{"success":true,"pending":null}'; fi
+        local pending=null error=
+        if [ -L "$fs_settings_dir" ]; then error=storage
+        elif [ -f "$fs_settings_dir/pending.json" ] && [ ! -L "$fs_settings_dir/pending.json" ]; then
+            if settings_parse "$(cat "$fs_settings_dir/pending.json")"; then pending=$(settings_json)
+            else error=invalid; fi
+        elif [ -e "$fs_settings_dir/pending.json" ] || [ -L "$fs_settings_dir/pending.json" ]; then error=storage; fi
+        # Read committed monitor independently, including on pending read errors.
+        # Settings does not need uptime, jitter or physical-interface telemetry.
+        printf '{"monitor":'; get_monitor
+        if [ -n "$error" ]; then printf ',"success":false,"error":"%s"}' "$error"
+        else printf ',"success":true,"pending":%s}' "$pending"; fi
         exit
     fi
+    # Fixed root-owned location; reject symlinks rather than following them.
+    [ ! -L "$fs_settings_dir" ] || { settings_error storage; exit; }
     mkdir -p "$fs_settings_dir" && chmod 700 "$fs_settings_dir" || { settings_error storage; exit; }
     [ ! -e "$fs_settings_dir/pending.json" ] || [ -f "$fs_settings_dir/pending.json" ] || { settings_error storage; exit; }
     [ ! -L "$fs_settings_dir/pending.json" ] || { settings_error storage; exit; }

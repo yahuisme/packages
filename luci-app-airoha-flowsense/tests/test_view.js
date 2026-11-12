@@ -43,7 +43,7 @@ mods.request.post=async(url,req)=>{
  }
  else if(method==='getOverview')result=overviewError?[6]:[0,sample];
  else if(method==='getAcceleration')result=accelerationError?[6]:[0,accelerationSample];
- else if(method==='getSettings')result=[0,{success:true,pending:staged}];
+ else if(method==='getSettings')result=[0,{success:true,pending:staged,monitor:overviewError?null:sample.monitor}];
  else if(method==='saveSettings'){if(failure==='save')result=[6];else {staged={...v};result=[0,{success:true}]}}
  else if(method==='applySettings'){
   assert.deepEqual(JSON.parse(v.expected),{hardware:staged.hardware,vlan:staged.vlan,pppoe:staged.pppoe,ap:staged.ap,target:staged.target,enabled:staged.enabled},'native RPC binds Apply to its saved fields');
@@ -83,7 +83,7 @@ function count(name){return calls.filter(n=>n===name).length;}
   assert.equal(control('hardware').disabled,false);
   if(expected===null) {
    assert.equal(control('target').value,'');
-   await mods.app.handleSave();assert.equal((await mods.app.load())[2].pending.enabled,-1);
+   await mods.app.handleSave();assert.equal((await mods.app.load())[0].pending.enabled,-1);
    assert.deepEqual(snapshot(),before);assert(!fs.existsSync(path.join(base,'monitor-restarts')));
   } else {
    assert.equal(control('target').value,expected.target);assert.equal(control('enabled').checked,expected.enabled);
@@ -100,7 +100,7 @@ function count(name){return calls.filter(n=>n===name).length;}
    assert(notification.textContent.includes('saved and applied'));
    const readback=await mods.app.load();
    assert.equal(readback[0].monitor.target,'saved.example');assert.equal(readback[0].monitor.enabled,!expected.enabled);
-   assert.equal(readback[2].pending,null);
+   assert.equal(readback[0].pending,null);
    edit('target','discard-after-apply.example');await mods.app.handleReset();assert.equal(control('target').value,'saved.example');
    assert(fs.existsSync(path.join(base,'monitor-restarts')));
   }
@@ -150,8 +150,8 @@ function count(name){return calls.filter(n=>n===name).length;}
     assert(!notification.querySelector('img,svg'));assert(notification.closest('.alert-message').classList.contains('error'));cases++;
    }
   }
-  for(const method of ['saveSettings','getSettings','applySettings','getOverview','getAcceleration']) {
-   injected={method,transport:true};await mods.app.handleSaveApply();
+  for(const method of ['saveSettings','getSettings','applySettings','getSettingsAfterApply','getAcceleration']) {
+   injected={method:method==='getSettingsAfterApply'?'getSettings':method,skip:method==='getSettingsAfterApply'?2:0,transport:true};await mods.app.handleSaveApply();
    assert(!/pending_changes|RPC|<img|Error/.test(notification.textContent),notification.textContent);
    assert(/[\u4e00-\u9fff]/.test(notification.textContent));cases++;
   }

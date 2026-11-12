@@ -432,7 +432,7 @@ export function renderOutbound(node) {
 				enabled: true,
 				fingerprint: tls_utls_value
 			} : null,
-			reality: (node.tls_reality === '1') ? {
+			reality: (node.type in ['anytls', 'vless'] && node.tls_reality === '1') ? {
 				enabled: true,
 				public_key: node.tls_reality_public_key,
 				short_id: node.tls_reality_short_id

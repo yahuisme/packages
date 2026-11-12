@@ -70,6 +70,164 @@ class Transactions(unittest.TestCase):
             self.assertEqual((root/'first/data').read_text(), 'old first')
             self.assertEqual((root/'second.update-backup/data').read_text(), 'old second')
 
+    def test_completed_directory_cleanup_can_be_retried(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target, stage = root/'resources', root/'resources.stage'
+            target.mkdir(); stage.mkdir()
+            (target/'data').write_text('old')
+            (stage/'data').write_text('new')
+            remove = shutil.rmtree
+            def fail_cleanup(path, *args, **kwargs):
+                if '.update-' in Path(path).name:
+                    raise OSError('injected cleanup failure')
+                return remove(path, *args, **kwargs)
+            with patch.object(updater.shutil, 'rmtree', fail_cleanup), self.assertRaises(OSError):
+                updater.publish([(stage, target)])
+            self.assertEqual((target/'data').read_text(), 'new')
+            stage.mkdir(); (stage/'data').write_text('newer')
+            updater.publish([(stage, target)])
+            self.assertEqual((target/'data').read_text(), 'newer')
+            self.assertEqual(sorted(p.name for p in root.iterdir()), ['resources'])
+
+    def test_completed_file_cleanup_can_be_retried(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target, stage = root/'Makefile', root/'Makefile.stage'
+            target.write_text('old'); stage.write_text('new')
+            unlink = Path.unlink
+            def fail_cleanup(path, *args, **kwargs):
+                if '.update-' in path.name:
+                    raise OSError('injected unlink failure')
+                return unlink(path, *args, **kwargs)
+            with patch.object(Path, 'unlink', fail_cleanup), self.assertRaises(OSError):
+                updater.publish([(stage, target)])
+            self.assertEqual(target.read_text(), 'new')
+            stage.write_text('newer')
+            updater.publish([(stage, target)])
+            self.assertEqual(target.read_text(), 'newer')
+            self.assertEqual(sorted(p.name for p in root.iterdir()), ['Makefile'])
+
+    def test_completed_cleanup_is_fail_closed_before_new_publication(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target, stage = root/'resources', root/'resources.stage'
+            target.mkdir(); stage.mkdir()
+            (target/'data').write_text('current')
+            (stage/'data').write_text('next')
+            complete = root/'resources.update-complete'
+            complete.mkdir(); (complete/'data').write_text('old')
+            with patch.object(updater.shutil, 'rmtree', side_effect=OSError('still busy')), self.assertRaises(OSError):
+                updater.publish([(stage, target)])
+            self.assertEqual((target/'data').read_text(), 'current')
+            self.assertEqual((stage/'data').read_text(), 'next')
+            self.assertEqual((complete/'data').read_text(), 'old')
+
+    def test_partial_cleanup_does_not_turn_recovery_into_disposable_data(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target, stage = root/'resources', root/'resources.stage'
+            target.mkdir(); stage.mkdir()
+            (target/'data').write_text('current')
+            (stage/'data').write_text('next')
+            backup = root/'resources.update-backup'
+            backup.mkdir(); (backup/'data').write_text('recovery')
+            complete = root/'resources.update-complete'
+            complete.mkdir(); (complete/'data').write_text('completed')
+            before = snapshot(root)
+            with self.assertRaises(RuntimeError):
+                updater.publish([(stage, target)])
+            self.assertEqual(snapshot(root), before)
+
+    def test_dangling_backup_and_completed_symlinks_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target, stage = root/'resources', root/'resources.stage'
+            target.mkdir(); stage.mkdir()
+            (target/'data').write_text('current')
+            (stage/'data').write_text('next')
+            for suffix in ('update-backup', 'update-complete'):
+                with self.subTest(suffix=suffix):
+                    link = root/('resources.' + suffix)
+                    link.symlink_to(root/'absent')
+                    with self.assertRaises(RuntimeError):
+                        updater.publish([(stage, target)])
+                    self.assertTrue(link.is_symlink())
+                    self.assertEqual((target/'data').read_text(), 'current')
+                    self.assertEqual((stage/'data').read_text(), 'next')
+                    link.unlink()
+
+    def test_all_completed_backups_are_retryable_after_partial_delete(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pairs = []
+            for name in ('resources', 'Makefile'):
+                target, stage = root/name, root/(name + '.stage')
+                target.mkdir(); stage.mkdir()
+                (target/'data').write_text('old ' + name)
+                (target/'extra').write_text('old extra')
+                (stage/'data').write_text('new ' + name)
+                pairs.append((stage, target))
+            remove = shutil.rmtree
+            def partial_delete(path, *args, **kwargs):
+                if path.name == 'resources.update-complete':
+                    (path/'extra').unlink()
+                    raise OSError('injected partial deletion')
+                return remove(path, *args, **kwargs)
+            with patch.object(updater.shutil, 'rmtree', partial_delete), self.assertRaises(OSError):
+                updater.publish(pairs)
+            self.assertTrue((root/'resources.update-complete').is_dir())
+            self.assertTrue((root/'Makefile.update-complete').is_dir())
+            for stage, target in pairs:
+                self.assertEqual((target/'data').read_text(), 'new ' + target.name)
+                stage.mkdir(); (stage/'data').write_text('next ' + target.name)
+            updater.publish(pairs)
+            for _, target in pairs:
+                self.assertEqual((target/'data').read_text(), 'next ' + target.name)
+            self.assertEqual(sorted(p.name for p in root.iterdir()), ['Makefile', 'resources'])
+
+    def test_completion_transition_failure_retains_unresolved_backup(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target, stage = root/'resources', root/'resources.stage'
+            target.mkdir(); stage.mkdir()
+            (target/'data').write_text('old')
+            (stage/'data').write_text('new')
+            rename = Path.rename
+            def fail_completion(path, destination):
+                if str(destination).endswith('.update-complete'):
+                    raise OSError('injected completion transition failure')
+                return rename(path, destination)
+            with patch.object(Path, 'rename', fail_completion), self.assertRaises(OSError):
+                updater.publish([(stage, target)])
+            backup = root/'resources.update-backup'
+            self.assertEqual((backup/'data').read_text(), 'old')
+            self.assertEqual((target/'data').read_text(), 'new')
+            stage.mkdir(); (stage/'data').write_text('next')
+            with self.assertRaises(RuntimeError):
+                updater.publish([(stage, target)])
+            self.assertEqual((backup/'data').read_text(), 'old')
+
+    def test_main_cleans_unchanged_core_backup_before_network(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target = root/'luci-app-homeproxy/root/etc/homeproxy/resources'
+            target.mkdir(parents=True)
+            makefile = root/'sing-box/Makefile'
+            makefile.parent.mkdir()
+            makefile.write_text('PKG_UPSTREAM_VERSION:=1.14.4\n')
+            completed = makefile.with_name('Makefile.update-complete')
+            completed.write_text('old core recipe')
+            class StopBeforeDownload(Exception):
+                pass
+            def lookup(_):
+                self.assertFalse(completed.exists())
+                self.assertEqual(makefile.read_text(), 'PKG_UPSTREAM_VERSION:=1.14.4\n')
+                raise StopBeforeDownload
+            with patch('sys.argv', ['update-homeproxy.py', '--root', str(root)]), \
+                 patch.object(updater, 'api', lookup), self.assertRaises(StopBeforeDownload):
+                updater.main()
+
     def test_refuse_existing_recovery_backup(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

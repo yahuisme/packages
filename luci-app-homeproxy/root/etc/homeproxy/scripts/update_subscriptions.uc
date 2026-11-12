@@ -304,26 +304,6 @@ function normalize_mihomo_ports(ports) {
 	return normalize_hysteria_hopping_port(to_string(ports));
 }
 
-function parse_mihomo_speed(value) {
-	if (!has_value(value))
-		return null;
-
-	const str = to_string(value);
-	const match_val = match(str, /[0-9]+(\.[0-9]+)?/);
-	if (!match_val)
-		return null;
-
-	const num_str = type(match_val) === 'array' ? match_val[0] : match_val;
-	if (!num_str)
-		return null;
-
-	const num = int(num_str);
-	if (num === null || num != num)
-		return null;
-
-	return to_string(num);
-}
-
 function get_header_host(headers) {
 	if (type(headers) !== 'object')
 		return null;
@@ -506,18 +486,20 @@ function parse_mihomo_smux(value) {
 	return result;
 }
 
-/* Mihomo StringToBps accepts integer rates and returns bytes per second.
- * HomeProxy's sing-box field is an integer number of megabits per second. */
+/* Mihomo StringToBps uses integer coefficients and decimal K/M/G/T prefixes;
+ * b/B distinguish bits/bytes. HomeProxy stores integral Mbps (signed 32-bit).
+ * Reject fractional Mbps and overflow instead of changing the requested rate.
+ * Source: MetaCubeX/mihomo common/utils/mbps.go. */
 function mihomo_bandwidth_mbps(value) {
 	if (type(value) === 'int')
 		return (value >= 0 && value <= 2147483647) ? to_string(value) : null;
 	if (type(value) !== 'string')
 		return null;
-	if (match(value, /^[0-9]+$/)) {
+	if (match(value, /^\+?[0-9]+$/)) {
 		const number = int(value);
 		return (number >= 0 && number <= 2147483647) ? to_string(number) : null;
 	}
-	const parts = match(value, /^([0-9]+)[ 	]*([KMGT]?)([Bb])ps$/);
+	const parts = match(value, /^([0-9]+)[ 	\r\n\f]*([KMGT]?)([Bb])ps$/);
 	if (!parts)
 		return null;
 	let multiplier = 1;
@@ -539,11 +521,28 @@ function mihomo_bandwidth_mbps(value) {
 	return to_string(bits / 1000000);
 }
 
+function parse_mihomo_speed(value) {
+	return (value === null || value === '') ? null : mihomo_bandwidth_mbps(value);
+}
+
 function parse_mihomo_proxy(proxy) {
 	if (type(proxy) !== 'object')
 		return null;
 
 	let config;
+	let hysteria_up_mbps, hysteria_down_mbps;
+	if (proxy.type in ['hysteria', 'hysteria2']) {
+		hysteria_up_mbps = parse_mihomo_speed(proxy.up);
+		hysteria_down_mbps = parse_mihomo_speed(proxy.down);
+		/* HY2 omitted/zero rates select automatic congestion control. Explicit
+		 * malformed or nonintegral rates must not silently select that mode.
+		 * HY1 requires both rates to be strictly positive. */
+		if ((proxy.up !== null && proxy.up !== '' && hysteria_up_mbps === null) ||
+		    (proxy.down !== null && proxy.down !== '' && hysteria_down_mbps === null) ||
+		    (proxy.type === 'hysteria' &&
+		     (!(int(hysteria_up_mbps) > 0) || !(int(hysteria_down_mbps) > 0))))
+			return null;
+	}
 	const smux = ('smux' in proxy) ? parse_mihomo_smux(proxy.smux) : {};
 	if (smux === null)
 		return null;
@@ -612,8 +611,8 @@ function parse_mihomo_proxy(proxy) {
 			port: to_string(proxy.port),
 			password: proxy.password,
 			hysteria_hopping_port: normalize_mihomo_ports(proxy.ports),
-			hysteria_down_mbps: parse_mihomo_speed(proxy.down),
-			hysteria_up_mbps: parse_mihomo_speed(proxy.up),
+			hysteria_down_mbps,
+			hysteria_up_mbps,
 			hysteria_obfs_type: proxy.obfs,
 			hysteria_obfs_password: proxy['obfs-password'],
 			tls: '1',
@@ -637,8 +636,8 @@ function parse_mihomo_proxy(proxy) {
 			hysteria_auth_type: proxy['auth-str'] ? 'string' : (proxy.auth ? 'base64' : null),
 			hysteria_auth_payload: proxy['auth-str'] || proxy.auth,
 			hysteria_obfs_password: proxy.obfs,
-			hysteria_down_mbps: parse_mihomo_speed(proxy.down),
-			hysteria_up_mbps: parse_mihomo_speed(proxy.up),
+			hysteria_down_mbps,
+			hysteria_up_mbps,
 			tls: '1',
 			tls_sni,
 			tls_alpn: normalize_alpn(proxy.alpn),

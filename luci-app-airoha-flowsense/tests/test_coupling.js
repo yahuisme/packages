@@ -23,7 +23,7 @@ src+=`(async()=>{
  const before=snapshot();await mods.app.handleSaveApply();assert.deepEqual(snapshot(),before);
  // Joint disable, Save/reload/Reset, then Apply must keep both intentions.
  edit('vlan',false);edit('ap',false);await mods.app.handleSave();
- assert.deepEqual(snapshot(),before);let pending=(await mods.app.load())[2].pending;
+ assert.deepEqual(snapshot(),before);let pending=(await mods.app.load())[0].pending;
  assert.equal(pending.vlan,0);assert.equal(pending.ap,0);
  await remount();edit('ap',true);await mods.app.handleReset();assert.equal(control('ap').checked,false);
  await mods.app.handleSaveApply();await assertState(false,false);
@@ -31,17 +31,17 @@ src+=`(async()=>{
  // VLAN-off/AP-on conflicts must not silently switch off the unchanged AP.
  const both=snapshot();edit('vlan',false);await mods.app.handleSaveApply();
  assert(notification.closest('.alert-message').classList.contains('error'));
- assert.deepEqual(snapshot(),both);assert.equal((await mods.app.load())[2].pending.ap,1);
+ assert.deepEqual(snapshot(),both);assert.equal((await mods.app.load())[0].pending.ap,1);
  edit('ap',false);await mods.app.handleSaveApply();await assertState(false,false);
  // AP-on with VLAN-off is likewise rejected and retryable.
  edit('ap',true);await mods.app.handleSaveApply();assert(notification.closest('.alert-message').classList.contains('error'));
- assert.equal((await mods.app.load())[2].pending.vlan,0);
+ assert.equal((await mods.app.load())[0].pending.vlan,0);
  edit('vlan',true);await mods.app.handleSaveApply();await assertState(true,true);
  // Failed transaction keeps both saved values across reload and retry.
  edit('vlan',false);edit('ap',false);
  const lock=path.join(base,'var/run/flowsense-acceleration.lock');fs.mkdirSync(lock);
  await mods.app.handleSaveApply();assert(notification.closest('.alert-message').classList.contains('error'));
- pending=(await mods.app.load())[2].pending;assert.equal(pending.vlan,0);assert.equal(pending.ap,0);
+ pending=(await mods.app.load())[0].pending;assert.equal(pending.vlan,0);assert.equal(pending.ap,0);
  fs.rmdirSync(lock);await remount();await mods.app.handleSaveApply();await assertState(false,false);
  // Pending AP intent may not be overwritten when AP telemetry becomes unknown.
  edit('vlan',true);await mods.app.handleSave();

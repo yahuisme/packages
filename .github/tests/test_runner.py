@@ -66,17 +66,71 @@ class RunnerTest(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertIn('init sentinel', result.stdout)
 
-    def test_all_render_reuse_modes_execute_and_failure_propagates(self):
-        name = 'luci-app-wifi7/tests/render-reuse.cjs'
-        target = self.root / name
-        target.parent.mkdir(parents=True)
-        target.write_text("const fs = require('fs');\n"
-                          "fs.appendFileSync(process.env.TRACE, (process.argv[2] || 'radio') + '\\n');\n"
-                          "if (process.argv[2] === 'mlo-runtime') process.exit(7);\n")
-        result = self.run_runner(name)
-        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(self.trace.read_text().splitlines(),
-                         ['radio', 'mlo-runtime', 'mlo-summary'])
+    def test_documented_modes_are_discovered_deduplicated_and_aggregate_each_failure(self):
+        suites = {
+            'luci-app-airoha-flowsense/tests/test_view.js': ['default', 'ERROR_MESSAGES_TEST'],
+            'luci-app-wifi7/tests/permissions-reentry.cjs': ['revoked', 'reentry', 'pending'],
+            'luci-app-wifi7/tests/wireless-runtime.cjs': ['availability', 'cost'],
+            'luci-app-wifi7/tests/known-defects.cjs': ['text', 'lifecycle', 'rpc'],
+            'luci-app-wifi7/tests/render-reuse.cjs': ['radio', 'mlo-runtime', 'mlo-summary'],
+            'luci-app-wifi7/tests/view.test.js': ['default', 'NATIVE_TEST', 'MLO_TEST', 'DENIED_TEST'],
+            'luci-app-wifi7/tests/regression.test.js': ['default', 'NATIVE_TEST', 'MLO_TEST', 'READONLY_TEST', 'MISSING_MODE_TEST'],
+        }
+        for name, modes in suites.items():
+            with self.subTest(suite=name):
+                target = self.root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("const fs=require('fs');\n"
+                                  "const keys=['ERROR_MESSAGES_TEST','NATIVE_TEST','MLO_TEST','DENIED_TEST','READONLY_TEST','MISSING_MODE_TEST'];\n"
+                                  "const mode=keys.find(k=>process.env[k]==='1') || process.argv[2] || 'default';\n"
+                                  "fs.appendFileSync(process.env.TRACE, mode+'\\n');\n"
+                                  "if(mode===process.env.FAIL_MODE)process.exit(7);\n")
+                try:
+                    for selection in [(), (name, name)]:
+                        for failure in [None, *modes]:
+                            with self.subTest(selection=selection, failure=failure):
+                                self.trace.unlink(missing_ok=True)
+                                self.env.pop('FAIL_MODE', None)
+                                if failure is not None:
+                                    self.env['FAIL_MODE'] = failure
+                                result = self.run_runner(*selection)
+                                self.assertEqual(result.returncode == 0, failure is None,
+                                                 result.stdout + result.stderr)
+                                self.assertEqual(self.trace.read_text().splitlines(), modes,
+                                                 result.stdout + result.stderr)
+                                self.assertIn(('1 passed, 0 unverified, 0 failed' if failure is None else
+                                               '0 passed, 0 unverified, 1 failed'), result.stdout)
+                    # Ambient mode flags must not collapse the normal/other branches.
+                    polluted = {key: '1' for key in ('ERROR_MESSAGES_TEST', 'NATIVE_TEST', 'MLO_TEST',
+                                                     'DENIED_TEST', 'READONLY_TEST', 'MISSING_MODE_TEST')}
+                    self.trace.unlink(missing_ok=True)
+                    self.env.pop('FAIL_MODE', None)
+                    self.env.update(polluted)
+                    result = self.run_runner(name)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertEqual(self.trace.read_text().splitlines(), modes)
+                finally:
+                    target.unlink()
+                    for key in ('FAIL_MODE', 'ERROR_MESSAGES_TEST', 'NATIVE_TEST', 'MLO_TEST',
+                                'DENIED_TEST', 'READONLY_TEST', 'MISSING_MODE_TEST'):
+                        self.env.pop(key, None)
+
+    def test_only_exact_support_modules_are_excluded(self):
+        helpers = [self.fixture(name, fail=True) for name in (
+            'luci-app-wifi7/tests/harness.js',
+            'luci-app-wifi7/tests/mlo-luci-dom.cjs',
+            'luci-app-airoha-npu/tests/l10n.js',
+            'luci-app-homeproxy/tests/client_generator_fixture.py',
+            'luci-app-homeproxy/tests/dns_runtime_fixture.py',
+            'luci-app-homeproxy/tests/ntp-bootstrap-runtime.py',
+            'luci-app-homeproxy/tests/subscription_uci_fixture.py',
+            'luci-app-homeproxy/tests/subscription_transaction_fixture.py')]
+        target = self.fixture('luci-app-airoha-fancontrol/tests/harness.js')
+        for selection in [(), (*helpers, target, target)]:
+            self.trace.unlink(missing_ok=True)
+            result = self.run_runner(*selection)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(self.trace.read_text().splitlines(), [target])
 
     def test_empty_inventory_is_rejected(self):
         result = self.run_runner()

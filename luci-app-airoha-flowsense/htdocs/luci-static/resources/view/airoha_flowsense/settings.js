@@ -4,7 +4,6 @@
 'require ui';
 'require form';
 
-var getOverview = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getOverview', reject: true });
 var getSettings = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getSettings', reject: true });
 var saveSettings = rpc.declare({ object: 'luci.airoha_flowsense', method: 'saveSettings', params: ['hardware', 'vlan', 'pppoe', 'ap', 'target', 'enabled'], reject: true });
 var applySettings = rpc.declare({ object: 'luci.airoha_flowsense', method: 'applySettings', params: ['expected'], reject: true });
@@ -46,10 +45,10 @@ return view.extend({
 	handleSave: function() { return this.saveSettings(false); },
 	handleSaveApply: function() { return this.saveSettings(true); },
 	handleReset: function() { return this.resetSettings(); },
-	load: function() { return Promise.all([getOverview().catch(function() { return null; }), getAcceleration().catch(function() { return null; }), getSettings().catch(function() { return null; })]); },
+	load: function() { return Promise.all([getSettings().catch(function() { return null; }), getAcceleration().catch(function() { return null; })]); },
 
 	render: function(initial) {
-		var self = this, saved = Array.isArray(initial) ? initial[2] : null;
+		var self = this, saved = Array.isArray(initial) ? initial[0] : null;
 		var baseline = saved && saved.success === true ? saved.pending : null;
 		var settingsReady = !!(saved && saved.success === true), monitorState = null;
 		var initialAcceleration = Array.isArray(initial) ? initial[1] : null;
@@ -148,14 +147,14 @@ return view.extend({
 				if (!apply) { ui.addNotification(null, E('p', {}, _('Settings saved; not yet applied.')), 'info'); return; }
 				if (!root.isConnected || !L.hasViewPermission()) fail(_('Unable to save settings.'));
 				return applySettings(JSON.stringify(desired)).then(function(result) {
-					return Promise.all([getAcceleration(), getOverview(), getSettings()].map(function(request) { return request.catch(function() { return null; }); })).then(function(data) {
+					return Promise.all([getAcceleration(), getSettings()].map(function(request) { return request.catch(function() { return null; }); })).then(function(data) {
 						if (!root.isConnected) return;
 						var checkpoint = result && result.error === 'storage' && (result.acceleration === 'applied' || result.monitor === 'applied');
-						if ((!data[2] || data[2].success !== true) && !checkpoint) {
+						if ((!data[1] || data[1].success !== true) && !checkpoint) {
 							paintAcceleration(data[0], true); paint(data[1]);
-							fail(data[2] && data[2].error ? settingsError(data[2].error) : _('Unable to verify saved settings.'));
+							fail(data[1] && data[1].error ? settingsError(data[1].error) : _('Unable to verify saved settings.'));
 						}
-						baseline = data[2] && data[2].success === true ? data[2].pending : baseline;
+						baseline = data[1] && data[1].success === true ? data[1].pending : baseline;
 						// The backend confirms successful groups before checkpoint I/O.
 						// Do not turn that completion into a generic Apply failure or
 						// stage it again from an obsolete pending record on retry.

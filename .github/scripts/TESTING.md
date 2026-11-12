@@ -31,9 +31,29 @@ filenames and files without a `__main__` block.
 Zero discovered tests fail, including an empty or entirely unverified selection.
 All `.github/tests/test_*.py` updater/runner suites and `sing-box/tests/*.py`
 service-init suites are included in default discovery and support focused selection.
-Shared CJS suites and standalone lifecycle helper entrypoints run once. The WiFi7
-render-reuse suite runs all three modes: radio, MLO runtime and MLO summary.
-Logs use a unique directory under the caller's TMPDIR.
+Shared CJS suites and standalone lifecycle helper entrypoints run once. Helper
+exclusions use exact repository-relative paths, never shared basenames. Both default
+discovery and focused selection execute these complete mode sets (one suite result
+per unique path; any mode failure fails that suite without stopping later modes):
+
+| Suite | Modes |
+| --- | --- |
+| FlowSense `test_view.js` | normal, `ERROR_MESSAGES_TEST=1` |
+| WiFi7 `permissions-reentry.cjs` | revoked, reentry, pending |
+| WiFi7 `wireless-runtime.cjs` | availability, cost |
+| WiFi7 `known-defects.cjs` | text, lifecycle, rpc |
+| WiFi7 `render-reuse.cjs` | radio, mlo-runtime, mlo-summary |
+| WiFi7 `view.test.js` | normal, `NATIVE_TEST=1`, `MLO_TEST=1`, `DENIED_TEST=1` |
+| WiFi7 `regression.test.js` | normal, `NATIVE_TEST=1`, `MLO_TEST=1`, `READONLY_TEST=1`, `MISSING_MODE_TEST=1` |
+
+These fixture-mode environment variables are cleared before each Node suite so
+ambient selectors cannot collapse the normal/other branches. Other documented
+argument selectors already run all their branches by default, including WiFi7
+`cross-actions.cjs`, `radio-refresh.cjs`, `error-text.cjs` and
+`performance-equivalence.cjs`; they need no duplicate runner invocations.
+`.github/tests/test_runner.py` uses disposable failing sentinels for every listed
+mode, discovery/focused selection, deduplication, helper exclusion and failure
+aggregation. Logs use a unique directory under the caller's TMPDIR.
 `UNVERIFIED` is separate from PASS and includes suites containing unittest skips.
 Missing required tools otherwise cause failure rather than successful skips.
 
