@@ -2,6 +2,7 @@
 """Verify the payload against both immutable pre-migration Git snapshots."""
 
 import os
+import tempfile
 from pathlib import Path
 import subprocess
 import unittest
@@ -32,6 +33,7 @@ POWER = "610-w1700k-power-30.patch"
 ADDED = {
     "tree/package/kernel/mt76/patches/912-mt76-mt7996-use-mcu-station-statistics.patch",
     "tree/package/kernel/mt76/patches/913-mt76-mt7996-clean-up-truncated-txfree.patch",
+    "tree/package/network/utils/iwinfo/patches/998-fix-multi-radio-scan.patch",
 }
 REMOVED_920_HUNK = (
     b"@@ -95,7 +95,7 @@\n"
@@ -54,18 +56,32 @@ class MigrationIntegrity(unittest.TestCase):
         self.assertEqual(actual, expected, "central payload inventory differs")
         power_bytes = {}
         for distro, (repo, revision) in REPOS.items():
+            # Retired distro repositories need not exist after the approved merge.
+            # The initial centralization commit retains its verified migration bytes.
+            migrated = not repo.is_dir()
+            if migrated:
+                repo = ROOT.parent
+                revision = '14cc379984cc45cf10c6ce228fb44944bfa4f6af'
+                prefix = 'w1700k-patches/'
+            else:
+                prefix = 'user/default/'
             source_paths = subprocess.check_output(
                 ["git", "-C", str(repo), "ls-tree", "-r", "--name-only", revision,
-                 "user/default/patches", "user/default/tree"],
+                 prefix + "patches", prefix + "tree"],
                 text=True,
             ).splitlines()
-            patches = {p.removeprefix("user/default/") for p in source_paths
+            patches = {p.removeprefix(prefix) for p in source_paths
                        if p.endswith(".patch")}
+            if migrated:
+                patches.add(f"patches/{POWER}")
             self.assertEqual(patches, set(COMMON) | {f"patches/{POWER}"})
             for source in sorted(patches):
                 with self.subTest(distro=distro, source=source):
+                    original_path = prefix + source
+                    if migrated and source == f"patches/{POWER}":
+                        original_path = f"w1700k-patches/{distro}/{POWER}"
                     original = subprocess.check_output(
-                        ["git", "-C", str(repo), "show", f"{revision}:user/default/{source}"]
+                        ["git", "-C", str(repo), "show", f"{revision}:{original_path}"]
                     )
                     destination = source
                     if source == f"patches/{POWER}":
@@ -74,8 +90,9 @@ class MigrationIntegrity(unittest.TestCase):
                         if distro == "immortalwrt":
                             original = power_bytes["openwrt"]
                     if source == "patches/920-wifi-non-mlo-ap-txpower.patch":
-                        self.assertEqual(original.count(REMOVED_920_HUNK), 1)
-                        original = original.replace(REMOVED_920_HUNK, b"", 1)
+                        if not migrated:
+                            self.assertEqual(original.count(REMOVED_920_HUNK), 1)
+                            original = original.replace(REMOVED_920_HUNK, b"", 1)
                         old_context = b"@@ -745,7 +745,8 @@\n {\n"
                         self.assertEqual(original.count(old_context), 1)
                         original = original.replace(old_context, b"@@ -745,5 +745,6 @@\n", 1)
@@ -87,6 +104,17 @@ class MigrationIntegrity(unittest.TestCase):
                         new = b"if (n.isUp() && ifname && ifname != n.getID()) {"
                         self.assertEqual(original.count(old), 1)
                         original = original.replace(old, new, 1)
+                        # Only the reviewed local-frequency/cache delta is permitted.
+                        with tempfile.TemporaryDirectory() as tmp:
+                            target = Path(tmp) / 'w1700k-patches' / source
+                            target.parent.mkdir(parents=True)
+                            target.write_bytes(original)
+                            delta = ROOT / 'tests/fixtures/channel-local-info.diff.fixture'
+                            result = subprocess.run(['patch', '-p1', '--batch', '--fuzz=0',
+                                                     '-i', str(delta)], cwd=tmp,
+                                                    capture_output=True, text=True)
+                            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                            original = target.read_bytes()
                     self.assertEqual((ROOT / destination).read_bytes(), original,
                                      f"changed bytes: {distro}/{source}")
         self.assertNotEqual(power_bytes["openwrt"], power_bytes["immortalwrt"],

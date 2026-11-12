@@ -11,9 +11,9 @@
 PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_migration.py
 ```
 
-默认读取相邻的两个 W1700K Git 仓库；其他位置设置 `W1700K_OPENWRT_REPO`、`W1700K_IMMORTALWRT_REPO`，仓库须含对应快照。
+存在原固件仓库时读取其不可变快照；已退役仓库改用 packages 初始集中提交中保留的迁移字节。其他位置可设置 `W1700K_OPENWRT_REPO`、`W1700K_IMMORTALWRT_REPO`。
 
-本测试只验证迁移完整性，不应用补丁、不编译、不修改固件仓库。后续补丁维护需另行验证源码适用性及功能，不能以迁移校验代替。
+本测试只验证迁移完整性及明确允许的维护差异；`998` 本机频率校验差异保存在独立夹具中，不替换历史基线。测试不编译、不修改固件仓库，不能代替源码适用性和功能验收。
 
 ## mt76 专项校验
 
@@ -25,6 +25,15 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s w1700k-patches/tests -
 ```
 
 测试应用实际补丁并检查源码契约，不编译或执行内核 C，不代替固件构建和实机验收。
+
+## 多射频扫描校验
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_iwinfo_scan.py -v
+LUCI_CHANNEL_SOURCE=/path/to/luci/modules/luci-mod-status PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_channel_analysis.py -v
+```
+
+后端夹具固定 iwinfo `66bdd1a` 与两系统相同的官方 `100-multi_radio.patch`，验证完整补丁链和源码契约，不编译或执行 C。前端执行实际 LuCI 视图的加载、绘图及刷新，RPC 使用夹具数据。实际无线扫描仍需固件与设备验收。
 
 ## 通用 regdb 验证
 

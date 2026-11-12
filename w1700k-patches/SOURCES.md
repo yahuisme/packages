@@ -1,6 +1,6 @@
 # W1700K 补丁说明与来源
 
-供 [w1700k-openwrt](https://github.com/yahuisme/w1700k-openwrt) 与 [w1700k-immortalwrt](https://github.com/yahuisme/w1700k-immortalwrt) 共用，分别跟随官方 OpenWrt main 与 ImmortalWrt master。补丁与应用取自同一次 packages 克隆。
+供 [w1700k-openwrt](https://github.com/yahuisme/w1700k-openwrt) 的 OpenWrt main 与 ImmortalWrt master 双系统构建使用。补丁与应用取自同一次 packages 克隆。
 
 ## 补丁清单
 
@@ -13,9 +13,10 @@
 | `tree/package/kernel/mt76/patches/912-*` | 通过 MCU 获取客户端 airtime 与信号统计 | 作者 Joshua Klinesmith；适配当前消息分派并完善响应边界校验 |
 | `tree/package/kernel/mt76/patches/913-*` | TX-free 消息截断后仍完成已有回收与队列唤醒 | 基于 [C]；保留原异常告警，不增加超时 token 回收 |
 | `patches/610-*` | CN/US 功率与频段定制 | 包含 [A] 的 US 高频段及 6 GHz 设置，两版最终 regdb 内容一致 |
+| `tree/package/network/utils/iwinfo/patches/998-*` | 按目标 radio 选择接口与创建临时扫描接口 | 本项目扩展官方 multi-radio 实现，使用 UCI radio 索引及原生接口 radio mask |
 | `tree/package/network/utils/iwinfo/patches/999-*` | 按当前频率展示功率列表 | [A]/[B]，作者 Yanghan Ye |
 | `patches/920-*` | 非 MLO AP 按 BSS 设置功率 | 本项目实现，适用范围见下文 |
-| `patches/998-*` | single-wiphy 多射频信道分析适配 | 作者 Gilly1970；本项目改为选择活动网卡，跳过禁用接口与 LuCI 逻辑标识 |
+| `patches/998-*` | single-wiphy 多射频信道分析适配 | 作者 Gilly1970；本项目选择活动网卡并校验本机实际频段，保留停用 AP 时的邻居扫描 |
 
 ### 来源
 
@@ -31,6 +32,10 @@
 - `610`：复制到 wireless-regdb 补丁目录，在官方 `500` 后应用；ImmortalWrt 仅移除被覆盖的 `600-custom-change-txpower-and-dfs.patch`。
 - `998`：复制到 LuCI 的 luci-mod-status 补丁目录，由 LuCI 构建流程应用。
 - `tree/`：按源码目录结构复制，由内核与软件包构建流程应用。
+
+## 多射频扫描
+
+后端 `iwinfo/998` 接续[官方 multi-radio 补丁](https://github.com/openwrt/openwrt/blob/dab12e766366dceb149e70aa1155005b6a571299/package/network/utils/iwinfo/patches/100-multi_radio.patch)，按 UCI `radio` 索引匹配接口，停用 AP 时沿用临时 STA 扫描并绑定目标 radio。LuCI `998` 按信道与实际 MHz 核对本机数据，避免跨频段的假本机标记；不关闭停用 AP 的邻居扫描。
 
 ## 非 MLO AP 功率
 
