@@ -37,14 +37,13 @@ LUCI_CHANNEL_SOURCE=/path/to/luci/modules/luci-mod-status PYTHONDONTWRITEBYTECOD
 
 后端夹具固定 iwinfo `66bdd1a` 与两系统相同的官方 `100-multi_radio.patch`，验证完整补丁链和源码契约，不编译或执行 C。前端执行实际 LuCI 视图的加载、绘图及刷新，RPC 使用夹具数据。实际无线扫描仍需固件与设备验收。
 
-## watchdog 与 6 GHz DFS 校验
+## watchdog 校验
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_watchdog_timeout.py -v
-PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_hostapd_dfs.py -v
 ```
 
-watchdog 使用 `001-watchdog-reconcile-timeout.patch`，检查固定 procd 源码、调用顺序及 pending timer 源码契约；Python 数值 oracle 覆盖接受/拒绝 timeout、离线请求、停止/恢复和 last-confirmed 回退，不执行 C/ioctl 或真实 watchdog。默认 sysfs cap、解析测试和 500ms 扩展已移除；保留官方秒级 API，一秒 timeout 的次秒喂狗不在支持范围。hostapd 检查官方补丁前后源码，使用 JS 求值实际 C 布尔条件，不代表编译后的 hostapd 或射频测试。
+watchdog 使用 `001-watchdog-reconcile-timeout.patch`，检查固定 procd 源码、调用顺序及 pending timer 源码契约；Python 数值 oracle 覆盖接受/拒绝 timeout、离线请求、停止/恢复和 last-confirmed 回退，不执行 C/ioctl 或真实 watchdog。默认 sysfs cap、解析测试和 500ms 扩展已移除；保留官方秒级 API，一秒 timeout 的次秒喂狗不在支持范围。
 
 ## 通用 regdb 验证
 

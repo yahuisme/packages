@@ -16,7 +16,6 @@
 | `tree/package/network/utils/iwinfo/patches/998-*` | 按目标 radio 选择接口与创建临时扫描接口 | 本项目扩展官方 multi-radio 实现，使用 UCI radio 索引及原生接口 radio mask |
 | `tree/package/network/utils/iwinfo/patches/999-*` | 按当前频率展示功率列表 | [A]/[B]，作者 Yanghan Ye |
 | `tree/package/system/procd/patches/001-*` | watchdog 超时协商后约束喂狗周期 | 本项目修复；沿用官方 ioctl 路径，仅修改 setter 及 last-confirmed 状态 |
-| `tree/package/network/services/hostapd/patches/mtk-0015-*` | 6 GHz DFS 辅助判断提前返回 | 作者 Peter Chiu；沿用 [F] 的单行频率判断，不改变 5 GHz DFS |
 | `patches/920-*` | 非 MLO AP 按 BSS 设置功率 | 本项目实现，适用范围见下文 |
 | `patches/998-*` | single-wiphy 多射频信道分析适配 | 作者 Gilly1970；本项目选择活动网卡并校验本机实际频段，保留停用 AP 时的邻居扫描 |
 
@@ -26,7 +25,6 @@
 - [B] [OpenWRT-fanboy/OpenW1700k · `972634e64d19`](https://github.com/OpenWRT-fanboy/OpenW1700k/commit/972634e64d19cba0095b662a0bfd9561ebef635c)
 - [C] [OpenWRT-fanboy/OpenW1700k · `23df1d78c647`](https://github.com/OpenWRT-fanboy/OpenW1700k/commit/23df1d78c6476d4a301ecd56aab65f4c6be86542)
 - [D] [OpenWRT-fanboy/OpenW1700k · `12650fa28dfe`](https://github.com/OpenWRT-fanboy/OpenW1700k/commit/12650fa28dfedccb20d726780c06c8fa45074b18)
-- [F] [OpenWRT-fanboy/OpenW1700k · `d1efb9dcae6e`](https://github.com/OpenWRT-fanboy/OpenW1700k/commit/d1efb9dcae6e6a588d743db8e2dee390ce3f7fe9)
 
 原作者信息保留在补丁头部。
 
