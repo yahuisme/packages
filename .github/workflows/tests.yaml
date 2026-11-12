@@ -117,6 +117,10 @@ jobs:
           # Source-bound patch replay; no kernel or firmware compilation.
           python3 -m unittest discover -s w1700k-patches/tests -p test_mcu_statistics.py -v
           python3 -m unittest discover -s w1700k-patches/tests -p test_txfree_cleanup.py -v
+      - name: Verify watchdog and 6 GHz DFS fixes
+        run: |
+          python3 -m unittest discover -s w1700k-patches/tests -p test_watchdog_timeout.py -v
+          python3 -m unittest discover -s w1700k-patches/tests -p test_hostapd_dfs.py -v
       - name: Verify private key ownership
         run: |
           # This isolated fixture needs uid switching; no service is started.

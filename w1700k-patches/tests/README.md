@@ -35,6 +35,15 @@ LUCI_CHANNEL_SOURCE=/path/to/luci/modules/luci-mod-status PYTHONDONTWRITEBYTECOD
 
 后端夹具固定 iwinfo `66bdd1a` 与两系统相同的官方 `100-multi_radio.patch`，验证完整补丁链和源码契约，不编译或执行 C。前端执行实际 LuCI 视图的加载、绘图及刷新，RPC 使用夹具数据。实际无线扫描仍需固件与设备验收。
 
+## watchdog 与 6 GHz DFS 校验
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_watchdog_timeout.py -v
+PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_hostapd_dfs.py -v
+```
+
+watchdog 检查固定 procd 源码及私有文件上的 libc 解析，不执行 procd 或真实 watchdog。hostapd 检查官方补丁前后源码，使用 JS 求值实际 C 布尔条件，不代表编译后的 hostapd 或射频测试。固件脚本同时启用原生 `CONFIG_WATCHDOG_SYSFS`。
+
 ## 通用 regdb 验证
 
 `test_regdb.py` 使用校验和验证的源码归档，分别执行旧补丁链与新补丁链，要求完整 `db.txt` 逐字节一致。设置 `REGDB_ARCHIVE`、`REGDB_SOURCE_OPENWRT`、`REGDB_SOURCE_IMMORTALWRT` 后运行：

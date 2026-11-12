@@ -9,3 +9,5 @@ w1700k-patches/tree/package/network/utils/iwinfo/patches/998-*.patch whitespace=
 w1700k-patches/patches/998-single-wiphy.patch whitespace=-blank-at-eol,-space-before-tab
 w1700k-patches/tests/fixtures/iwinfo-scan/*.fixture -whitespace
 w1700k-patches/tests/fixtures/channel-local-info.diff.fixture -whitespace
+w1700k-patches/tree/package/system/procd/patches/001-*.patch whitespace=-blank-at-eol,-space-before-tab
+w1700k-patches/tree/package/network/services/hostapd/patches/mtk-0015-*.patch whitespace=-blank-at-eol,-space-before-tab
