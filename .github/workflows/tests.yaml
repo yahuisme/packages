@@ -126,12 +126,20 @@ jobs:
           # This isolated fixture needs uid switching; no service is started.
           sudo env "PATH=$PATH" "UCODE_LIB_DIR=$UCODE_LIB_DIR" "TMPDIR=$TMPDIR" \
             PYTHONDONTWRITEBYTECODE=1 python3 luci-app-homeproxy/tests/test_certificate_cleanup.py
+          sudo env "PATH=$PATH" "UCODE_LIB_DIR=$UCODE_LIB_DIR" "TMPDIR=$TMPDIR" \
+            PYTHONDONTWRITEBYTECODE=1 python3 luci-app-homeproxy/tests/test_generated_config_permissions.py
       - name: Verify subscription task permission boundary
         run: |
           # Private files and a dropped numeric UID; no service or proxy starts.
           sudo env "PATH=$PATH" "TMPDIR=$TMPDIR" \
             "PYTHONDONTWRITEBYTECODE=1" \
             python3 luci-app-homeproxy/tests/test_subscription_jobs.py
+      - name: Verify native runtime initialization isolation
+        run: |
+          # Real default /tmp/.uci and /var/run/uci live only in a private rootfs.
+          sudo env "OPENWRT_ROOTFS=$OPENWRT_TOOLS/rootfs.tar.gz" \
+            "TMPDIR=$TMPDIR" PYTHONDONTWRITEBYTECODE=1 \
+            python3 luci-app-homeproxy/tests/test_runtime_init_native.py -v
       - name: Verify native subscription RPC worker
         run: |
           sudo env "OPENWRT_ROOTFS=$OPENWRT_TOOLS/rootfs.tar.gz" \

@@ -142,31 +142,31 @@ function domainSuffixOverlap(left, right) {
 export function findDomainGroupConflict(groups) {
 	let entries = [];
 	for (let group in groups) {
+		const previous = filter(entries, (entry) => entry.group !== group.id);
+		let current = [];
 		for (let suffix in group.suffixes)
-			push(entries, { group: group.id, type: 'suffix', value: suffix });
+			push(current, { group: group.id, type: 'suffix', value: suffix });
 		for (let keyword in group.keywords)
-			push(entries, { group: group.id, type: 'keyword', value: keyword });
-	}
+			push(current, { group: group.id, type: 'keyword', value: keyword });
 
-	for (let i = 0; i < length(entries); i++) {
-		for (let j = 0; j < i; j++) {
-			const left = entries[i], right = entries[j];
-			if (left.group === right.group)
-				continue;
+		for (let left in current) {
+			for (let right in previous) {
+				let overlap;
+				if (left.type === 'keyword' || right.type === 'keyword') {
+					const keyword = left.type === 'keyword' ? left.value : right.value;
+					const other = left.type === 'keyword' ? right.value : left.value;
+					overlap = index(other, keyword) >= 0 ||
+						(right.type === 'keyword' && index(keyword, other) >= 0);
+				} else {
+					overlap = domainSuffixOverlap(left.value, right.value);
+				}
 
-			let overlap;
-			if (left.type === 'keyword' || right.type === 'keyword') {
-				const keyword = left.type === 'keyword' ? left.value : right.value;
-				const other = left.type === 'keyword' ? right.value : left.value;
-				overlap = index(other, keyword) >= 0 ||
-					(right.type === 'keyword' && index(keyword, other) >= 0);
-			} else {
-				overlap = domainSuffixOverlap(left.value, right.value);
+				if (overlap)
+					return { left, right };
 			}
-
-			if (overlap)
-				return { left, right };
 		}
+		for (let entry in current)
+			push(entries, entry);
 	}
 
 	return null;

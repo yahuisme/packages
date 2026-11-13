@@ -708,6 +708,11 @@ function parse_mihomo_proxy(proxy) {
 	case 'socks':
 	case 'socks4':
 	case 'socks4a':
+		/* sing-box SOCKS has no TLS transport; never downgrade credentials. */
+		if (proxy.tls === true) {
+			log(sprintf('Skipping unsupported SOCKS TLS node: %s.', proxy.name || proxy.server));
+			return null;
+		}
 		config = {
 			label: proxy.name,
 			type: 'socks',

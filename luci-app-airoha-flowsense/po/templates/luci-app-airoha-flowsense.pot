@@ -110,6 +110,15 @@ msgstr ""
 msgid "Settings saved and applied."
 msgstr ""
 
+msgid "Settings were applied, but the current state could not be refreshed. Retry the read without applying again."
+msgstr ""
+
+msgid "Refresh current state"
+msgstr ""
+
+msgid "Current state refreshed."
+msgstr ""
+
 msgid "Settings saved; not yet applied."
 msgstr ""
 

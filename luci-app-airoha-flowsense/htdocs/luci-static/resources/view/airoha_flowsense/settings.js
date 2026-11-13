@@ -54,7 +54,16 @@ return view.extend({
 		var initialAcceleration = Array.isArray(initial) ? initial[1] : null;
 		initial = Array.isArray(initial) ? initial[0] : initial;
 		var root, target, enabled, accelerationInputs = {}, accelerationState = initialAcceleration || {};
-		var accelerationSaving = false, dirty = false, accelerationDirty = {};
+		var accelerationSaving = false, dirty = false, accelerationDirty = {}, completed = null;
+		function remaining(pending) {
+			if (!pending || !completed) return pending;
+			pending = Object.assign({}, pending);
+			// Only discard a completed group from this exact saved request.
+			if (completed.acceleration && accelerationKeys.every(function(key) { return pending[key] === completed.desired[key]; }))
+				accelerationKeys.forEach(function(key) { pending[key] = -1; });
+			if (completed.monitor && pending.enabled === completed.desired.enabled && pending.target === completed.desired.target) { pending.enabled = -1; pending.target = ''; }
+			return accelerationKeys.every(function(key) { return pending[key] === -1; }) && pending.enabled === -1 ? null : pending;
+		}
 		var m = new form.JSONMap({ acceleration: {}, monitor: {} }, _('Airoha FlowSense'), _('Configure acceleration and periodic probes.'));
 		m.readonly = !settingsReady || !L.hasViewPermission();
 		var section = m.section(form.NamedSection, 'acceleration', 'acceleration', _('Acceleration'));
@@ -103,12 +112,35 @@ return view.extend({
 			paintMonitor();
 		};
 		function paintMonitor() {
-			if (!dirty && monitorState) {
-				target.value = baseline && baseline.enabled !== -1 ? baseline.target : monitorState.target;
-				enabled.checked = baseline && baseline.enabled !== -1 ? baseline.enabled === 1 : monitorState.enabled;
+			if (!dirty) {
+				target.value = monitorState ? baseline && baseline.enabled !== -1 ? baseline.target : monitorState.target : '';
+				enabled.checked = !!(monitorState && (baseline && baseline.enabled !== -1 ? baseline.enabled === 1 : monitorState.enabled));
+				enabled.indeterminate = !monitorState;
 			}
 			lockAcceleration();
 		}
+		function refreshAction() {
+			return E('button', { 'class': 'cbi-button cbi-button-neutral', 'type': 'button', 'click': function() { return self.refreshSettings(); } }, _('Refresh current state'));
+		}
+		function refreshWarning(code) {
+			return E('p', {}, [
+				_('Settings were applied, but the current state could not be refreshed. Retry the read without applying again.'), ' ',
+				code ? settingsError(code) + ' ' : '', refreshAction()
+			]);
+		}
+		self.refreshSettings = function() {
+			if (!root.isConnected || settingsBusy()) return Promise.resolve();
+			accelerationSaving = true; lockAcceleration();
+			return self.load().then(function(data) {
+				if (!root.isConnected) return;
+				var ready = !!(data[0] && data[0].success === true);
+				if (ready) { settingsReady = true; baseline = remaining(data[0].pending); }
+				dirty = false; accelerationDirty = {};
+				paint(data[0]); paintAcceleration(data[1], true);
+				if (!ready || !monitorState || !data[1]) ui.addNotification(null, refreshWarning(data[0] && data[0].error), 'warning');
+				else ui.addNotification(null, E('p', {}, _('Current state refreshed.')), 'info');
+			}).finally(function() { accelerationSaving = false; if (root.isConnected) lockAcceleration(); });
+		};
 		self.saveSettings = function(apply) {
 			if (!settingsReady || !root.isConnected || !L.hasViewPermission() || settingsBusy()) return Promise.resolve();
 			if (baseline && (accelerationKeys.some(function(key) { return baseline[key] !== -1 && !editable(key); }) || baseline.enabled !== -1 && !monitorState)) {
@@ -143,26 +175,20 @@ return view.extend({
 			}).then(function(result) {
 				if (!result || result.success !== true || !result.pending || !Object.keys(desired).every(function(key) { return result.pending[key] === desired[key]; }))
 					fail(result && result.error ? settingsError(result.error) : _('Unable to verify saved settings.'));
+				completed = null;
 				baseline = result.pending; dirty = false; accelerationDirty = {};
 				if (!apply) { ui.addNotification(null, E('p', {}, _('Settings saved; not yet applied.')), 'info'); return; }
 				if (!root.isConnected || !L.hasViewPermission()) fail(_('Unable to save settings.'));
 				return applySettings(JSON.stringify(desired)).then(function(result) {
+					// applySettings already verified live writes. Independent reads
+					// cannot undo that commit boundary, including partial completion.
+					completed = { desired: desired, acceleration: result && result.acceleration === 'applied', monitor: result && result.monitor === 'applied' };
+					baseline = remaining(baseline);
 					return Promise.all([getAcceleration(), getSettings()].map(function(request) { return request.catch(function() { return null; }); })).then(function(data) {
 						if (!root.isConnected) return;
-						var checkpoint = result && result.error === 'storage' && (result.acceleration === 'applied' || result.monitor === 'applied');
-						if ((!data[1] || data[1].success !== true) && !checkpoint) {
-							paintAcceleration(data[0], true); paint(data[1]);
-							fail(data[1] && data[1].error ? settingsError(data[1].error) : _('Unable to verify saved settings.'));
-						}
-						baseline = data[1] && data[1].success === true ? data[1].pending : baseline;
-						// The backend confirms successful groups before checkpoint I/O.
-						// Do not turn that completion into a generic Apply failure or
-						// stage it again from an obsolete pending record on retry.
-						if (checkpoint && baseline) {
-							baseline = Object.assign({}, baseline);
-							if (result.acceleration === 'applied') accelerationKeys.forEach(function(key) { baseline[key] = -1; });
-							if (result.monitor === 'applied') { baseline.enabled = -1; baseline.target = ''; }
-						}
+						var checkpoint = result && result.error === 'storage' && (completed.acceleration || completed.monitor);
+						var refreshed = !!(data[1] && data[1].success === true && data[0]);
+						if (data[1] && data[1].success === true) baseline = remaining(data[1].pending);
 						paintAcceleration(data[0], true); paint(data[1]);
 						var accOK = accelerationKeys.every(function(key) { return desired[key] === -1 || editable(key) && accelerationState[key].configured === !!desired[key] && accelerationState[key].enabled === !!desired[key]; });
 						var monOK = desired.enabled === -1 || monitorState && monitorState.target === desired.target && monitorState.enabled === !!desired.enabled;
@@ -170,14 +196,17 @@ return view.extend({
 							ui.addNotification(null, E('p', {}, [
 								_('Settings were applied, but the pending record could not be updated. Check storage and retry.') + ' ' +
 								_('Acceleration') + ': ' + (result.acceleration === 'applied' ? _('Applied') : result.acceleration === 'unchanged' && accOK ? _('Unchanged') : _('Not verified; check current settings.')) + '; ' +
-								_('Probe Settings') + ': ' + (result.monitor === 'applied' ? _('Applied') : result.monitor === 'unchanged' && monOK ? _('Unchanged') : _('Not verified; check current settings.'))
+								_('Probe Settings') + ': ' + (result.monitor === 'applied' ? _('Applied') : result.monitor === 'unchanged' && monOK ? _('Unchanged') : _('Not verified; check current settings.')), ' ', !refreshed ? refreshAction() : ''
 							]), 'warning'); return;
 						}
 						if (result && result.error) fail(settingsError(result.error));
-						if (!result || result.success !== true || !accOK || !monOK || baseline) {
+						if (result && result.success === true && (!refreshed || !accOK || !monOK || baseline)) {
+							ui.addNotification(null, refreshWarning(data[1] && data[1].error), 'warning'); return;
+						}
+						if (!result || result.success !== true) {
 							ui.addNotification(null, E('p', {}, [
-								_('Acceleration') + ': ' + (result && result.acceleration === 'unchanged' && accOK ? _('Unchanged') : result && result.acceleration === 'applied' && accOK ? _('Applied') : _('Not verified; check current settings.')) + (result && result.acceleration_error ? ' (' + settingsError(result.acceleration_error) + ')' : '') + '; ' +
-								_('Probe Settings') + ': ' + (result && result.monitor === 'unchanged' && monOK ? _('Unchanged') : result && result.monitor === 'applied' && monOK ? _('Applied') : _('Not verified; check current settings.')) + (result && result.monitor_error ? ' (' + settingsError(result.monitor_error) + ')' : '')
+								_('Acceleration') + ': ' + (result && result.acceleration === 'unchanged' && accOK ? _('Unchanged') : result && result.acceleration === 'applied' ? _('Applied') : _('Not verified; check current settings.')) + (result && result.acceleration_error ? ' (' + settingsError(result.acceleration_error) + ')' : '') + '; ' +
+								_('Probe Settings') + ': ' + (result && result.monitor === 'unchanged' && monOK ? _('Unchanged') : result && result.monitor === 'applied' ? _('Applied') : _('Not verified; check current settings.')) + (result && result.monitor_error ? ' (' + settingsError(result.monitor_error) + ')' : ''), ' ', !refreshed ? refreshAction() : ''
 							]), 'error'); return;
 						}
 						ui.addNotification(null, E('p', {}, _('Settings saved and applied.')), 'info');

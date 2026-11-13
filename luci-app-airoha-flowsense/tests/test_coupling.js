@@ -49,10 +49,11 @@ src+=`(async()=>{
  fs.writeFileSync(knob,'unknown\\n');await remount();assert(control('ap').disabled);assert(control('ap').indeterminate);
  let writes=count('saveSettings');await mods.app.handleSaveApply();assert.equal(count('saveSettings'),writes);
  fs.writeFileSync(knob,old);await remount();await mods.app.handleSaveApply();await assertState(true,false);
- // An AP readback mismatch must not receive success, even if AP was unchecked and unchanged.
+ // An independent AP readback mismatch warns after a confirmed transaction;
+ // it must not claim fresh-state success or misreport the completed Apply.
  const actual=(await mods.app.load())[1];edit('vlan',false);
  injected={method:'getAcceleration',result:{...actual,vlan:{supported:true,enabled:false,configured:false},ap:{supported:true,enabled:true,configured:true}}};
- await mods.app.handleSaveApply();assert(notification.closest('.alert-message').classList.contains('error'));assert(notification.textContent.includes('Not verified'));
+ await mods.app.handleSaveApply();assert(notification.closest('.alert-message').classList.contains('warning'));assert(notification.textContent.includes('current state could not be refreshed'));
  injected=null;await remount();await assertState(false,false);
  // Read-only native controls/footer plus forced handlers cannot write.
  writable=false;await remount();for(const k of ['hardware','vlan','pppoe','ap'])assert(control(k).disabled);

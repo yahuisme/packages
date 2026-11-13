@@ -1,26 +1,24 @@
 #!/bin/sh
 
-dashboard_port="$(uci -q get homeproxy.config.dashboard_port)"
-dashboard_port_initialized="$(uci -q get homeproxy.config.dashboard_port_initialized)"
-clash_api_port="$(uci -q get homeproxy.infra.clash_api_port)"
-clash_api_port_initialized="$(uci -q get homeproxy.infra.clash_api_port_initialized)"
-main_node="$(uci -q get homeproxy.config.main_node)"
-dashboard_enabled="$(uci -q get homeproxy.config.dashboard_enabled)"
-tailscale_enabled="$(uci -q get homeproxy.tailscale.enabled)"
-changed=0
-changed_options=''
-
-cleanup_uci_delta() {
-	[ "$changed" -eq 0 ] && return
-	for option in $changed_options; do
-		uci -q revert "$option"
-	done
+# Absolute-path libuci loads are non-delta packages: neither the default
+# /tmp/.uci drafts nor /var/run/uci overrides are read or committed.
+umask 077
+uci_get() {
+	ucode -l uci -e '
+		const c = uci.cursor();
+		if (!c || c.load("/etc/config/homeproxy") !== true) exit(1);
+		const value = c.get("homeproxy", ARGV[0], ARGV[1]);
+		if (type(value) == "string") print(value);
+	' "$@"
 }
 
-fail() {
-	cleanup_uci_delta
-	exit 1
-}
+dashboard_port="$(uci_get config dashboard_port)" || exit 1
+dashboard_port_initialized="$(uci_get config dashboard_port_initialized)" || exit 1
+clash_api_port="$(uci_get infra clash_api_port)" || exit 1
+clash_api_port_initialized="$(uci_get infra clash_api_port_initialized)" || exit 1
+main_node="$(uci_get config main_node)" || exit 1
+dashboard_enabled="$(uci_get config dashboard_enabled)" || exit 1
+tailscale_enabled="$(uci_get tailscale enabled)" || exit 1
 
 mkdir -p /var/run/homeproxy
 
@@ -74,26 +72,33 @@ if [ "$main_node" = 'urltest' ] && { [ "$dashboard_enabled" = '1' ] || [ "$tails
 	valid_port "$dashboard_port" || exit 1
 fi
 
-if [ "$(uci -q get homeproxy.infra.clash_api_port)" != "$clash_api_port" ]; then
-	changed=1
-	changed_options="$changed_options homeproxy.infra.clash_api_port"
-	uci -q set homeproxy.infra.clash_api_port="$clash_api_port" || fail
-fi
-if [ "$(uci -q get homeproxy.config.dashboard_port)" != "$dashboard_port" ]; then
-	changed=1
-	changed_options="$changed_options homeproxy.config.dashboard_port"
-	uci -q set homeproxy.config.dashboard_port="$dashboard_port" || fail
-fi
-if [ "$clash_api_port_initialized" != '1' ]; then
-	changed=1
-	changed_options="$changed_options homeproxy.infra.clash_api_port_initialized"
-	uci -q set homeproxy.infra.clash_api_port_initialized='1' || fail
-fi
-if [ "$dashboard_port_initialized" != '1' ]; then
-	changed=1
-	changed_options="$changed_options homeproxy.config.dashboard_port_initialized"
-	uci -q set homeproxy.config.dashboard_port_initialized='1' || fail
-fi
-
-[ "$changed" -eq 0 ] || uci -q commit homeproxy || fail
+# The caller's existing procd lock serializes service initialization. Reload
+# persistent state after port selection, then change only these four fields in
+# one in-memory transaction; no set/save can leave a partial shared delta.
+ucode -l uci -e '
+	function persistent() {
+		const c = uci.cursor();
+		if (!c || c.load("/etc/config/homeproxy") !== true) exit(1);
+		return c;
+	}
+	const c = persistent();
+	const fields = [
+		["infra", "clash_api_port", ARGV[0]],
+		["config", "dashboard_port", ARGV[1]],
+		["infra", "clash_api_port_initialized", "1"],
+		["config", "dashboard_port_initialized", "1"]
+	];
+	let changed = false;
+	for (let field in fields) {
+		if (c.get("homeproxy", field[0], field[1]) === field[2]) continue;
+		if (c.set("homeproxy", field[0], field[1], field[2]) !== true) exit(1);
+		changed = true;
+	}
+	if (changed) {
+		if (c.commit("homeproxy") !== true) exit(1);
+		const actual = persistent();
+		for (let field in fields)
+			if (actual.get("homeproxy", field[0], field[1]) !== field[2]) exit(1);
+	}
+' "$clash_api_port" "$dashboard_port" || exit 1
 exit 0

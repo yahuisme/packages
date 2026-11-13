@@ -21,9 +21,19 @@ let accelerationError=false, accelerationSaveError=false, waitAcceleration=null,
 let staged=null, failure='', hold=null, injected=null;
 const errorTest = process.env.ERROR_MESSAGES_TEST === '1';
 if (errorTest) {
- const po=fs.readFileSync(path.join(__dirname,'../po/zh_Hans/luci-app-airoha-flowsense.po'),'utf8');
+ const {execFileSync}=require('child_process'),os=require('os');
+ const temp=fs.mkdtempSync(path.join(os.tmpdir(),'flowsense-lmo-'));
  w.TR={};
- for(const m of po.matchAll(/^msgid (".+")\nmsgstr (".*")$/gm))w.TR[w.sfh(JSON.parse(m[1]))]=JSON.parse(m[2]);
+ try {
+  const lmo=path.join(temp,'catalog.lmo');
+  execFileSync(process.env.PO2LMO||path.resolve(resources,'../../../src/po2lmo'),[path.join(__dirname,'../po/zh_Hans/luci-app-airoha-flowsense.po'),lmo]);
+  const bytes=fs.readFileSync(lmo);
+  for(let i=bytes.readUInt32BE(bytes.length-4);i<bytes.length-4;i+=16)
+   w.TR[bytes.readUInt32BE(i).toString(16).padStart(8,'0')]=bytes.subarray(bytes.readUInt32BE(i+8),bytes.readUInt32BE(i+8)+bytes.readUInt32BE(i+12)).toString();
+  assert.equal(w._('Refresh current state'),'刷新当前状态');
+  assert.equal(w._('Current state refreshed.'),'当前状态已刷新。');
+  assert.equal(w._('Settings were applied, but the current state could not be refreshed. Retry the read without applying again.'),'设置已应用，但当前状态刷新失败。请重试读取，无需再次应用。');
+ } finally {fs.rmSync(temp,{recursive:true,force:true});}
 }
 mods.request.post=async(url,req)=>{
  if(Array.isArray(req))return {ok:true,status:200,json:()=>w.JSON.parse(JSON.stringify(req.map(r=>({jsonrpc:'2.0',id:r.id,result:[0,{values:{}}]}))))};
@@ -147,13 +157,18 @@ function count(name){return calls.filter(n=>n===name).length;}
     if(method==='saveSettings')await mods.app.handleSave();else await mods.app.handleSaveApply();
     assert(notification.textContent.includes(message),`${method}/${field}/${code}: ${notification.textContent}`);
     assert(!notification.textContent.includes(code),`internal code leaked: ${code}`);
-    assert(!notification.querySelector('img,svg'));assert(notification.closest('.alert-message').classList.contains('error'));cases++;
+    assert(!notification.querySelector('img,svg'));
+    assert(notification.closest('.alert-message').classList.contains(method==='getSettingsAfterApply'?'warning':'error'));
+    if(method==='getSettingsAfterApply')assert(notification.textContent.includes(w._('Settings were applied, but the current state could not be refreshed. Retry the read without applying again.')));
+    injected=null;await mods.app.refreshSettings();cases++;
    }
   }
   for(const method of ['saveSettings','getSettings','applySettings','getSettingsAfterApply','getAcceleration']) {
    injected={method:method==='getSettingsAfterApply'?'getSettings':method,skip:method==='getSettingsAfterApply'?2:0,transport:true};await mods.app.handleSaveApply();
    assert(!/pending_changes|RPC|<img|Error/.test(notification.textContent),notification.textContent);
-   assert(/[\u4e00-\u9fff]/.test(notification.textContent));cases++;
+   assert(/[\u4e00-\u9fff]/.test(notification.textContent));
+   assert(notification.closest('.alert-message').classList.contains(['getSettingsAfterApply','getAcceleration'].includes(method)?'warning':'error'));
+   injected=null;await mods.app.refreshSettings();cases++;
   }
   injected=null;await mods.app.handleSaveApply();assert.equal(staged,null);assert.equal(notification.textContent,'设置已保存并应用');
   assert.equal(count('apply'),0);console.log(`PASS ${cases} Chinese failure notification cases through real LuCI RPC/form/UI; retry passed`);w.close();return;

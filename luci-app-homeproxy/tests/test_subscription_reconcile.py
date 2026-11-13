@@ -206,6 +206,26 @@ function log_error(...args){warn(sprintf('%J',args)+'\\n');}
             return {'result': result, 'before': original, 'after': after, 'calls': calls,
                     'sections': sections, 'rendered': json.loads(rendered.stdout)}
 
+    def test_tls_socks_response_preserves_committed_nodes_and_selection(self):
+        original = f"""config config 'config'
+ option main_node '{NODE}'
+config node '{NODE}'
+ option label 'keep'
+ option grouphash '{GROUP}'
+ option type 'trojan'
+ option address 'proxy.example'
+ option port '443'
+ option password 'retained-secret'
+ option tls '1'
+"""
+        payload = ('proxies:\n  - {name: keep, type: socks5, server: proxy.example, '
+                   'port: 1080, tls: true, username: user, password: secret}\n')
+        result = self.run_native(payload, original=original)
+        self.assertEqual(result['result'].returncode, 1, result['result'].stderr)
+        self.assertEqual(result['after'], original)
+        self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in result['calls']))
+        self.assertIn('unsupported SOCKS TLS', result['result'].stderr)
+
     def test_ech_binary_and_nested_query_survive_commit_and_render(self):
         import base64
         from urllib.parse import quote

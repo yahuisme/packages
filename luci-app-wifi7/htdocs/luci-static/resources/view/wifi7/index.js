@@ -186,7 +186,8 @@ return view.extend({
 							if (!root.isConnected) return null;
 							return mloView.render(data, operation);
 						}).then(function(node) {
-							if (!root.isConnected || !node) { mloView.pause(); return; }
+							// An abandoned parent must not change the singleton's new owner.
+							if (!root.isConnected || !node) return;
 							mloLoaded = true;
 							node.classList.add('wifi7-mlo-content');
 							mlo.replaceChildren(node);
@@ -330,7 +331,10 @@ return view.extend({
 						(Array.isArray(radio.interfaces) ? radio.interfaces : []).forEach(function(iface) {
 							var ifname = iface && (iface.ifname || (iface.iwinfo || {}).ifname);
 							if (!ifname) return;
-							ifaceRadio[ifname] = id;
+							// Only ordinary, uniquely mapped interfaces may disambiguate a band.
+							var mld = iface.mld === true || (iface.mld_links || []).length > 1 || (iface.links || []).length > 1 ||
+								(iface.config || {}).mlo === '1' || uci.get('wireless', iface.section, 'mlo') === '1';
+							ifaceRadio[ifname] = mld || (ifname in ifaceRadio && ifaceRadio[ifname] !== id) ? null : id;
 							ssids[ifname] = (iface.config || {}).ssid || uci.get('wireless', iface.section, 'ssid') || '';
 						});
 					});
@@ -339,7 +343,10 @@ return view.extend({
 				radios.forEach(function(r) { stats[r['.name']] = { util: null, current: null }; });
 				function radioFor(iface, frequency) {
 					var b = telemetry.band(frequency), matches = radios.filter(function(r) { return b && r.band === b; });
-					return matches.length === 1 ? matches[0]['.name'] : !b ? ifaceRadio[iface] : null;
+					// A shared wiphy may report another band's link under this parent.
+					if (matches.length === 1) return matches[0]['.name'];
+					var mapped = ifaceRadio[iface], radio = radios.find(function(r) { return r['.name'] === mapped; });
+					return radio && b && radio.band === b && !Object.keys((parsed.devices[iface] || {}).links || {}).length ? mapped : null;
 				}
 				var ifaces = Array.from(new Set(Object.keys(parsed.devices).concat(Object.keys(parsed.surveys), Object.keys(nativeByName), Object.keys(ifaceRadio))));
 				var anyKnown = false, anyFailed = false;
@@ -390,7 +397,7 @@ return view.extend({
 						stats[id].current = Object.assign({}, value, { width: value.htmode ? String(value.htmode).replace(/^(?:HT|VHT|HE|EHT)/, '') + ' MHz' : null });
 				});
 				previous = nextPrevious;
-				parsed.hostapd.forEach(function(h) { var r = radioFor('', h.freq), u = telemetry.utilization(h.chan_util_avg); if (r && u != null) stats[r].util = u; });
+				parsed.hostapd.forEach(function(h) { var r = radioFor(h.socket, h.freq), u = telemetry.utilization(h.chan_util_avg); if (r && u != null) stats[r].util = u; });
 				radios.forEach(function(r) {
 					var id = r['.name'], s = stats[id], c = cells[id], d = runtimeRadios[id];
 					var isUp = d && d.up;

@@ -483,6 +483,58 @@ else:
         self.assertEqual(self.snapshot(), before)
         self.assertTrue(self.call()['hardware']['enabled'])
 
+    def test_every_preparation_write_fails_before_live_mutation(self):
+        import re
+        source = (self.d / 'acc.sh').read_text()
+        pattern = r'(?m)^(\s*)printf (.+?)( >>? )(\"\$tmp/(?:want|new|old)/[^\"]+\")([^\n]*)$'
+        # Thirteen desired/persistent writes and six runtime snapshots, including
+        # each iteration of the AP and old-value loops (19 actual writes).
+        sites = list(re.finditer(pattern, source))
+        self.assertEqual(len(sites), 10)
+        def fault(match):
+            indent, args, redir, target, suffix = match.groups()
+            return (indent + 'prepare_index=$((prepare_index + 1)); prepare_target=' + target + '\n' +
+                    indent + 'if [ "$prepare_index" = "$FAIL_AT" ] && [ "$FAIL_KIND" = open ]; then touch "$FAULT_MARKER"; rm -f "$prepare_target"; mkdir "$prepare_target"; fi\n' +
+                    indent + 'prepare_printf ' + args + redir + target + suffix)
+        instrumented = re.sub(pattern, fault, source)
+        instrumented = '''prepare_printf() {
+    if [ "$prepare_index" = "$FAIL_AT" ]; then
+        touch "$FAULT_MARKER"
+        case "$FAIL_KIND" in
+            printf) command printf '%s' x > /dev/full; return $?;;
+            short) command printf x; command printf '%s' remainder > /dev/full; return $?;;
+        esac
+    fi
+    command printf "$@"
+}
+''' + instrumented
+        instrumented = instrumented.replace('acc_apply() {', 'acc_apply() { touch "' + str(self.d / 'live-mutation') + '";')
+        (self.d / 'acc.sh').write_text(instrumented)
+        before, stamps = self.snapshot(), self.write_stamps()
+        for kind in ('open', 'printf', 'short'):
+            for index in range(1, 20):
+                with self.subTest(kind=kind, index=index):
+                    # Keep cases independent even on an unsafe baseline: a
+                    # previous mutation must not normalize later writes away.
+                    for rel, data in before.items():
+                        path = self.d / rel
+                        path.write_bytes(data)
+                        os.utime(path, ns=(stamps[rel], stamps[rel]))
+                    self.hw.write_text('1')
+                    for name in ('restarts', 'live-mutation'):
+                        (self.d / name).unlink(missing_ok=True)
+                    marker = self.d / 'fault-observed'
+                    marker.unlink(missing_ok=True)
+                    result = self.call('setAcceleration', dict(hardware=0, vlan=0, pppoe=0, ap=0),
+                                       FAIL_AT=str(index), FAIL_KIND=kind, FAULT_MARKER=str(marker))
+                    self.assertEqual(result, dict(success=False, error='prepare'))
+                    self.assertTrue(marker.exists(), 'fault must execute')
+                    self.assertEqual(self.snapshot(), before)
+                    self.assertEqual(self.write_stamps(), stamps)
+                    self.assertFalse((self.d / 'restarts').exists())
+                    self.assertFalse((self.d / 'live-mutation').exists(), 'incomplete preparation must never enter acc_apply')
+                    self.assertEqual(list((self.d / 'tmp').iterdir()), [])
+
     def test_persistence_write_failure(self):
         before = self.snapshot()
         cp = shutil.which('cp')

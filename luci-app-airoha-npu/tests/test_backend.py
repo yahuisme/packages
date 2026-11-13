@@ -421,6 +421,68 @@ class Backend(unittest.TestCase):
         for method in ['getSettings', 'saveSettings', 'applySettings']:
             self.assertEqual(self.call(method, payload)['error'], 'storage')
 
+    def test_cpufreq_bounded_forward_and_rollback_convergence(self):
+        # CPUFreq QoS sysfs stores queue work; regular files model the backing
+        # request, and only read_value models the independently visible policy.
+        payload = dict(governor='performance', freq='1400000')
+        self.assertEqual(self.call('saveSettings', payload), dict(result='ok'))
+        source = BACKEND.read_text()
+        needle = 'read_value() { cat "$1" 2>/dev/null; }'
+        self.assertEqual(source.count(needle), 1)
+        replacement = '''read_value() {
+    case "$1" in */scaling_max_freq)
+        current=$(cat "$1")
+        n=$(cat "$ROOT/read-count" 2>/dev/null); n=$((${n:-0} + 1))
+        printf '%s\\n' "$n" > "$ROOT/read-count"
+        printf '%s\\n' "$current" >> "$ROOT/read-trace"
+        if [ "$current" = 1400000 ]; then
+            touch "$ROOT/forward-seen"
+            f=$(cat "$ROOT/forward-count" 2>/dev/null); f=$((${f:-0} + 1))
+            printf '%s\\n' "$f" > "$ROOT/forward-count"
+            if [ "$MODE" != delayed ] || [ "$f" -le 2 ]; then printf '1200000\\n'; return; fi
+        elif [ "$MODE" = rollback-delayed ] && [ -e "$ROOT/forward-seen" ]; then
+            r=$(cat "$ROOT/rollback-count" 2>/dev/null); r=$((${r:-0} + 1))
+            printf '%s\\n' "$r" > "$ROOT/rollback-count"
+            if [ "$r" -le 2 ]; then printf '1400000\\n'; return; fi
+        fi;;
+    esac
+    cat "$1" 2>/dev/null
+}'''
+        rpc = self.root / 'async-rpc'
+        import time
+        for mode, expected in [('delayed', dict(result='ok')), ('never', dict(error='write_failed')),
+                               ('rollback-delayed', dict(error='write_failed')), ('write-failed', dict(error='write_failed'))]:
+            with self.subTest(mode=mode):
+                for name in ('read-count', 'read-trace', 'forward-count', 'rollback-count', 'forward-seen'):
+                    (self.root / name).unlink(missing_ok=True)
+                (self.policy / 'scaling_max_freq').write_text('1200000\n')
+                (self.policy / 'scaling_governor').write_text('schedutil\n')
+                current_source = source.replace(needle, replacement)
+                if mode == 'write-failed':
+                    write = 'printf \'%s\\n\' "$freq" > "$POLICY/scaling_max_freq"'
+                    self.assertEqual(current_source.count(write), 1)
+                    # Real BusyBox printf/ENOSPC; keep rollback's private file writable.
+                    current_source = current_source.replace(write, 'printf \'%s\\n\' "$freq" > /dev/full')
+                rpc.write_text(current_source)
+                start = time.monotonic()
+                result = subprocess.run(['busybox', 'ash', str(rpc), 'call', 'applySettings'], input='{}',
+                                        text=True, capture_output=True, env=dict(self.env, MODE=mode), timeout=5)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout), expected)
+                self.assertLess(time.monotonic() - start, 3, 'bounded request, no persistent worker')
+                count = int((self.root / 'read-count').read_text())
+                self.assertLessEqual(count, 13, 'one snapshot + at most six reads per direction')
+                if mode == 'delayed': self.assertEqual(int((self.root / 'forward-count').read_text()), 3)
+                if mode in ('never', 'rollback-delayed'):
+                    self.assertEqual(int((self.root / 'forward-count').read_text()), 6, 'timeout exhausts exactly the bounded forward reads')
+                    self.assertGreaterEqual(time.monotonic() - start, .25, 'failed convergence must actually wait')
+                if mode == 'rollback-delayed': self.assertEqual(int((self.root / 'rollback-count').read_text()), 3)
+                if mode == 'write-failed': self.assertFalse((self.root / 'forward-seen').exists(), 'failed write is not retried or treated as convergence')
+                self.assertEqual((self.policy / 'scaling_max_freq').read_text().strip(), '1400000' if mode == 'delayed' else '1200000')
+                self.assertEqual((self.policy / 'scaling_governor').read_text().strip(), 'performance' if mode == 'delayed' else 'schedutil')
+                self.assertEqual(self.call('getSettings')['pending'], payload)
+                self.assertFalse((self.root / 'var/lock/luci-airoha-npu').exists())
+
     def test_settings_rollback(self):
         payload = {'governor': 'performance', 'freq': '1400000'}
         self.assertEqual(self.call('saveSettings', payload), {'result': 'ok'})

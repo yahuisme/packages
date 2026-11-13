@@ -103,6 +103,16 @@ class SubscriptionParsing(unittest.TestCase):
             with self.subTest(payload=payload):
                 self.assertIsNone(self.parse('parse_mihomo_yaml('+json.dumps(payload)+')'))
 
+    def test_mihomo_tls_socks_is_rejected_without_downgrade(self):
+        for kind in ('socks', 'socks5', 'socks4', 'socks4a'):
+            proxy = {'nodetype': 'mihomo', 'type': kind, 'name': 'secure',
+                     'server': 'proxy.example', 'port': 1080, 'tls': True,
+                     'username': 'user', 'password': 'secret'}
+            with self.subTest(kind=kind):
+                self.assertIsNone(self.parse('parse_uri(' + json.dumps(proxy) + ')'))
+                proxy['tls'] = False
+                self.assertEqual(self.parse('parse_uri(' + json.dumps(proxy) + ')')['type'], 'socks')
+
     def test_mihomo_smux_maps_supported_fields_without_truthiness(self):
         proxy = {
             'type': 'trojan', 'name': 'smux', 'server': 'example.com',

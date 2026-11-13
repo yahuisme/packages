@@ -110,6 +110,15 @@ msgstr "设置"
 msgid "Settings saved and applied."
 msgstr "设置已保存并应用"
 
+msgid "Settings were applied, but the current state could not be refreshed. Retry the read without applying again."
+msgstr "设置已应用，但当前状态刷新失败。请重试读取，无需再次应用。"
+
+msgid "Refresh current state"
+msgstr "刷新当前状态"
+
+msgid "Current state refreshed."
+msgstr "当前状态已刷新。"
+
 msgid "Settings saved; not yet applied."
 msgstr "设置已保存，尚未应用"
 

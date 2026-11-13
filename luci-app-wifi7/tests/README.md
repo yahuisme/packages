@@ -15,6 +15,7 @@ node tests/error-text.cjs
 node tests/integration.cjs
 node tests/mlo-actions.cjs
 node tests/mlo-abandoned-render.cjs
+node tests/mlo-delayed-reentry.cjs
 node tests/mlo-background.cjs
 node tests/cross-actions.cjs
 for mode in revoked pending reentry; do node tests/permissions-reentry.cjs "$mode"; done
@@ -35,6 +36,7 @@ node tests/survey-dom.cjs
 node tests/telemetry.test.js
 node tests/special-interface-names.cjs
 node tests/radio-attribution.cjs
+node tests/same-band-radio-attribution.cjs
 for mode in radio mlo-runtime mlo-summary; do node tests/render-reuse.cjs "$mode"; done
 node tests/radio-refresh.cjs
 node tests/reset-radio.cjs
@@ -56,6 +58,10 @@ Requires BusyBox and gettext `msgfmt`; localization additionally requires LuCI `
 Error reasons follow LuCI `rpc.getStatusText()` and `uci.apply()`: numeric ubus status and the native `RPCError` ubus envelope are recognized; JSON-RPC/HTTP error numbers and arbitrary exception text are not ubus codes. Unknown failures use a translated fallback, without raw transport details. `wifi7/telemetry.js` owns the small shared reason helper; both configuration action surfaces use it.
 
 `radio-attribution.cjs` runs the production summary collector under BusyBox with temporary `iw`/`hostapd_cli` fixtures, then feeds its unmodified output through real LuCI RPC and DOM. It covers single-wiphy MLO/ordinary-interface frequency attribution, fallback, zero power, failed/empty enumeration and overview recovery, while asserting one `iw dev` enumeration and no station scans.
+
+`same-band-radio-attribution.cjs` runs the production parent and telemetry through native LuCI RPC/DOM/UCI with two independent 5 GHz radios. It covers ordinary `ifname`/`iwinfo.ifname` readings and survey deltas, exact verified hostapd socket mapping, band checks, shared/MLO ambiguity, unique-band precedence, and failure/empty cleanup with fresh-delta recovery. Unknown sockets and guessed MLO link suffixes stay unknown; no wireless writes or hardware are involved.
+
+`mlo-delayed-reentry.cjs` holds only the first wireless HTTP response, mounts a new parent/MLO before releasing the detached old load, then requires fresh MLD names without another tab click. A second case delays native Map rendering instead. Both cases retain normal tab pause/resume, shared poll single-flight, abandoned-render poll ownership and detach cleanup; the default entrypoint runs both and is discovered by the repository runner.
 
 `reset-radio.cjs` covers failed radio Apply → explicit MLO Reset → unrelated radio Apply without resurrecting reverted settings. Reset explicitly discards radio drafts; ordinary Apply preserves open editor drafts. `legacy-power.cjs` retains unchanged integer-shaped legacy power while enforcing 0–30 dBm for every new value; `narrow-settings.cjs` checks scoped container CSS only, not browser geometry.
 

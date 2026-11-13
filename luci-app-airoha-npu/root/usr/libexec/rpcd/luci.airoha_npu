@@ -5,6 +5,17 @@ JSONFILTER=${NPU_JSONFILTER:-jsonfilter}
 POLICY="$ROOT/sys/devices/system/cpu/cpufreq/policy0"
 
 read_value() { cat "$1" 2>/dev/null; }
+# CPUFreq's QoS store queues policy work. Allow up to 250 ms for readback,
+# with no retry of writes and no background worker (six reads, five sleeps).
+wait_max_freq() {
+	local remaining=5
+	while :; do
+		[ "$(read_value "$POLICY/scaling_max_freq")" = "$1" ] && return 0
+		[ "$remaining" -gt 0 ] || return 1
+		sleep 0.05 || return 1
+		remaining=$((remaining - 1))
+	done
+}
 positive() {
 	case "$1" in ''|0*|*[!0-9]*) return 1;; esac
 	[ "${#1}" -le 10 ]
@@ -88,13 +99,13 @@ settings_rpc() (
 			if { { [ "$oldgov" = "$gov" ] || printf '%s\n' "$gov" > "$POLICY/scaling_governor"; } &&
 				{ [ "$oldfreq" = "$freq" ] || printf '%s\n' "$freq" > "$POLICY/scaling_max_freq"; } &&
 				[ "$(read_value "$POLICY/scaling_governor")" = "$gov" ] &&
-				[ "$(read_value "$POLICY/scaling_max_freq")" = "$freq" ]; } 2>/dev/null; then
+				wait_max_freq "$freq"; } 2>/dev/null; then
 				printf '{"result":"ok"}\n'
 			else
 				{ printf '%s\n' "$oldfreq" > "$POLICY/scaling_max_freq"; } 2>/dev/null || ok=0
 				{ printf '%s\n' "$oldgov" > "$POLICY/scaling_governor"; } 2>/dev/null || ok=0
 				[ "$(read_value "$POLICY/scaling_governor")" = "$oldgov" ] &&
-				[ "$(read_value "$POLICY/scaling_max_freq")" = "$oldfreq" ] || ok=0
+				wait_max_freq "$oldfreq" || ok=0
 				if [ "$ok" = 1 ]; then error write_failed; else error rollback_failed; fi
 			fi;;
 	esac

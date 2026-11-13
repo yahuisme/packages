@@ -7,7 +7,7 @@
 
 'use strict';
 
-import { writefile } from 'fs';
+import { open, readfile, unlink } from 'fs';
 import { cursor } from 'uci';
 
 import {
@@ -209,6 +209,20 @@ uci.foreach(uciconfig, uciserver, (cfg) => {
 if (length(config.inbounds) === 0)
 	exit(1);
 
-system('mkdir -p ' + RUN_DIR);
-if (!writefile(RUN_DIR + '/sing-box-s.json.new', sprintf('%.J\n', removeBlankAttrs(config))))
+if (system('mkdir -p ' + RUN_DIR) !== 0)
 	exit(1);
+const output = RUN_DIR + '/sing-box-s.json.new';
+const content = sprintf('%.J\n', removeBlankAttrs(config));
+unlink(output);
+const fd = open(output, 'wx', 0600);
+if (!fd)
+	exit(1);
+const written = fd.write(content);
+// Older fs bindings invert flush()'s status and ignore fclose() errors.
+// Always flush/close, then check the actual bytes, not their wrapper status.
+fd.flush();
+const closed = fd.close();
+if (written !== length(content) || closed !== true || readfile(output) !== content) {
+	unlink(output);
+	exit(1);
+}

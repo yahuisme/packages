@@ -563,9 +563,19 @@ homeproxy_transaction() {
 	local service_open="${1:-0}" HP_TRANSACTION=1 HP_CLIENT_STOPPED=0 HP_SERVER_STOPPED=0
 	local backup="$RUN_DIR/.reload.pending" file status=0 HP_CONFIG_CHANGED=0 HP_NETWORK_CHANGED=0
 	mkdir -p "$RUN_DIR" || return 1
+	# Configuration contains credentials; also tighten files from older installs.
+	for file in sing-box-c.json sing-box-s.json; do
+		if [ -e "$RUN_DIR/$file" ] || [ -L "$RUN_DIR/$file" ]; then
+			[ -f "$RUN_DIR/$file" ] && [ ! -L "$RUN_DIR/$file" ] &&
+				chmod 600 "$RUN_DIR/$file" || return 1
+		fi
+	done
+	if [ -d "$backup" ] && [ ! -L "$backup" ]; then
+		chmod 700 "$backup" || return 1
+	fi
 	homeproxy_reload_cleanup || return 1
-	(set -C; printf preparing > "$RUN_DIR/reload.state") || return 1
-	mkdir "$backup" || return 1
+	(umask 077; set -C; printf preparing > "$RUN_DIR/reload.state") || return 1
+	mkdir -m 700 "$backup" || return 1
 	for file in sing-box-c.json sing-box-s.json fw4_input.nft; do
 		if [ -e "$RUN_DIR/$file" ]; then
 			cp -p "$RUN_DIR/$file" "$backup/$file" || status=1

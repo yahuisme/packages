@@ -46,6 +46,17 @@ The status view and its real CPU telemetry remain independent.
 
 Python RPC tests use real BusyBox ash and private sysfs/config/locks. Flow offloading is read-only here; tests verify status and rejection of the removed setter without modifying firewall configuration. Optional `UCI_BIN` and `JSONFILTER_BIN` select real tools; without them the suite uses adapters, not real-UCI verification. `/dev/null` and `/dev/full` model read/write failures. `l10n.js` is a support module, not an entrypoint.
 
+CPUFreq maximum-frequency readback accounts for asynchronous QoS policy updates:
+forward and rollback each use at most six reads with five 50 ms sleeps (250 ms
+nominal wait per direction), with no background worker and no retry of writes.
+Timeout retains the existing rollback/error semantics. The backend regression
+uses the real ash/jsonfilter transaction and private policy files, modeling only
+the delayed policy read boundary: two stale reads then convergence, permanent
+non-convergence, delayed rollback and a real `/dev/full` write error. It asserts
+bounded read counts, actual waiting, saved-pair preservation, final values and
+lock cleanup. This is not execution of a kernel CPUFreq/QoS driver; on-device
+policy0 acceptance remains separate.
+
 The status DOM test also verifies retained SVG grid/tick/path/sample identity during
 expiry, resize and new samples, alongside cadence, outages and teardown. Backend
 status tests compare complete short-file output with the cat-based reader (missing,

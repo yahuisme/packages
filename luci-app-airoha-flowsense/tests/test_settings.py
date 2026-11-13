@@ -113,6 +113,17 @@ class SettingsTest(unittest.TestCase):
         self.assertTrue(self.call('setMonitor', dict(target='b.example', enabled=1))['success'])
         self.assertEqual(self.call('getOverview')['monitor'], dict(target='b.example', enabled=True))
 
+    def test_confirmed_apply_refresh_recovery_native_real_uci(self):
+        import os
+        result = subprocess.run(['node', str(ROOT / 'tests/test_refresh_recovery.js')],
+                                env=dict(os.environ, MONITOR_RPC=str(self.d / 'rpc'),
+                                         MONITOR_BUSYBOX=self.busybox, MONITOR_PATH=self.env['PATH']),
+                                capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('PASS 4 confirmed Apply refresh warning/read-only recovery cases with real BusyBox/jshn/UCI', result.stdout)
+        self.assertIn('PASS newly verified Save survives old completion mask and read-only refresh\n', result.stdout)
+        self.assertIn('PASS newly verified Save survives old completion mask and read-only refresh Chinese\n', result.stdout)
+
     def test_vlan_ap_native_form_preserves_intent(self):
         import os
         self.knob('filter-vlan-tagged').write_text('0\n')

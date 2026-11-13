@@ -256,35 +256,35 @@ set_acceleration() (
         [ ! -L /etc/config/firewall ] && cp -p /etc/config/firewall "$tmp/firewall" && cp -p "$tmp/firewall" "$tmp/config/firewall" || { acc_error read; exit; }
     fi
     if [ "$vlan" != -1 ]; then
-        printf '%s\n' "$vlan" > "$tmp/want/filter-vlan-tagged"
-        printf 'net.bridge.bridge-nf-filter-vlan-tagged=%s\n' "$vlan" > "$tmp/new/14-vlan-offload.conf"
+        printf '%s\n' "$vlan" > "$tmp/want/filter-vlan-tagged" || { acc_error prepare; exit; }
+        printf 'net.bridge.bridge-nf-filter-vlan-tagged=%s\n' "$vlan" > "$tmp/new/14-vlan-offload.conf" || { acc_error prepare; exit; }
     fi
     if [ "$pppoe" != -1 ]; then
-        printf '%s\n' "$pppoe" > "$tmp/want/filter-pppoe-tagged"
-        printf 'net.bridge.bridge-nf-filter-pppoe-tagged=%s\n' "$pppoe" > "$tmp/new/15-pppoe-offload.conf"
+        printf '%s\n' "$pppoe" > "$tmp/want/filter-pppoe-tagged" || { acc_error prepare; exit; }
+        printf 'net.bridge.bridge-nf-filter-pppoe-tagged=%s\n' "$pppoe" > "$tmp/new/15-pppoe-offload.conf" || { acc_error prepare; exit; }
     fi
     if [ "$ap" != -1 ]; then
         for key in call-iptables call-ip6tables call-arptables; do
-            printf '%s\n' "$ap" > "$tmp/want/$key"
-            printf 'net.bridge.bridge-nf-%s=%s\n' "$key" "$ap" >> "$tmp/new/12-apmode-offload.conf"
+            printf '%s\n' "$ap" > "$tmp/want/$key" || { acc_error prepare; exit; }
+            printf 'net.bridge.bridge-nf-%s=%s\n' "$key" "$ap" >> "$tmp/new/12-apmode-offload.conf" || { acc_error prepare; exit; }
         done
         # Preserve the independent VLAN setting; AP off does not turn VLAN off.
         value=$(acc_config pass-vlan-input-dev)
         [ "$ap:$filtering" != 1:1 ] || value=1
         [ "$value" != null ] || { acc_error read; exit; }
-        printf '%s\n' "$value" > "$tmp/want/pass-vlan-input-dev"
-        printf 'net.bridge.bridge-nf-pass-vlan-input-dev=%s\n' "$value" >> "$tmp/new/12-apmode-offload.conf"
+        printf '%s\n' "$value" > "$tmp/want/pass-vlan-input-dev" || { acc_error prepare; exit; }
+        printf 'net.bridge.bridge-nf-pass-vlan-input-dev=%s\n' "$value" >> "$tmp/new/12-apmode-offload.conf" || { acc_error prepare; exit; }
         # Preserve legacy AP-file VLAN assignment when no separate file exists.
         value=$(acc_config filter-vlan-tagged)
         [ "$vlan" = -1 ] || value=$vlan
         [ "$value" != null ] || { acc_error read; exit; }
-        printf 'net.bridge.bridge-nf-filter-vlan-tagged=%s\n' "$value" >> "$tmp/new/12-apmode-offload.conf"
+        printf 'net.bridge.bridge-nf-filter-vlan-tagged=%s\n' "$value" >> "$tmp/new/12-apmode-offload.conf" || { acc_error prepare; exit; }
     fi
     for key in $acc_keys; do
         [ -f "$tmp/want/$key" ] || continue
         value=$(acc_read "$key")
         [ "$value" != null ] && [ -w "/proc/sys/net/bridge/bridge-nf-$key" ] || { acc_error unsupported; exit; }
-        printf '%s\n' "$value" > "$tmp/old/$key"
+        printf '%s\n' "$value" > "$tmp/old/$key" || { acc_error prepare; exit; }
     done
     armed=1
     if acc_apply; then armed=0; printf '{"success":true}'
