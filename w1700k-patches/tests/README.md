@@ -13,7 +13,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_migration.py
 
 存在原固件仓库时读取其不可变快照；已退役仓库改用 packages 初始集中提交中保留的迁移字节。其他位置可设置 `W1700K_OPENWRT_REPO`、`W1700K_IMMORTALWRT_REPO`。
 
-本测试只验证迁移完整性及明确允许的维护差异；`998` 本机频率校验差异保存在独立夹具中，不替换历史基线。测试不编译、不修改固件仓库，不能代替源码适用性和功能验收。
+本测试只验证迁移完整性及明确允许的维护差异；LuCI `998` 的原生 radio 路径、本机频率/缓存与 tab 差异保存在独立精确夹具中，要求历史 preimage 唯一，不替换历史基线。测试不编译、不修改固件仓库，不能代替源码适用性和功能验收。
 
 ## mt76 专项校验
 
@@ -35,7 +35,11 @@ PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_iwinfo_scan.py -v
 LUCI_CHANNEL_SOURCE=/path/to/luci/modules/luci-mod-status PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_channel_analysis.py -v
 ```
 
-后端夹具固定 iwinfo `66bdd1a` 与两系统相同的官方 `100-multi_radio.patch`，验证完整补丁链和源码契约，不编译或执行 C。前端执行实际 LuCI 视图的加载、绘图及刷新，RPC 使用夹具数据。实际无线扫描仍需固件与设备验收。
+后端夹具固定 iwinfo `66bdd1a` 与两系统相同的官方 `100-multi_radio.patch`，验证完整补丁链和源码契约，不编译或执行 C。
+
+前端默认使用 `fixtures/scan-rpc` 的校验和固定完整 LuCI 视图；`LUCI_CHANNEL_SOURCE` 可指定两系统或 pinned CI 的同一精确视图。真实 `network.js` 的 `WifiDevice.getScanList()`、完整 `rpc.js` 及 `luci.js` 内 Class/Headers/Response/Request（包括 batching/flush）直接执行，仅注入 UCI/设备枚举、最小 DOM、XHR transport 与帧边界。固定版本及 Git blob/SHA256 见 `manifest.json`；两系统与 pinned CI 的 network/rpc/视图相同，Request 执行片段也相同。
+
+扫描保持 pending 时，同帧 info 已通过独立 HTTP batch 返回，整次 refresh 仍等待 scan；这是传输分组与 Promise 语义回归，不是设备扫描耗时或吞吐基准。保留本机频率/信道核验、旧本机图清理、邻居缓存与各 band tab 测试；不再测试已删除的前端 netdev 选择器。停用 radio、无活动接口及 MLO 不在前端借用其他网卡，由 iwinfo 的 radio mask/临时 STA 路径负责；多链路本机信息可能缺失，不能把此测试称为 MLO/per-link 验收。info 的 ubus 错误/非对象归一为空并保留邻居，HTTP 错误仍按原生语义拒绝刷新。实际无线扫描仍需固件与设备验收。
 
 ## watchdog 校验
 

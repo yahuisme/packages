@@ -8,4 +8,11 @@ w1700k-patches/tree/package/network/utils/iwinfo/patches/998-*.patch whitespace=
 w1700k-patches/patches/998-single-wiphy.patch whitespace=-blank-at-eol,-space-before-tab
 w1700k-patches/tests/fixtures/iwinfo-scan/*.fixture -whitespace
 w1700k-patches/tests/fixtures/channel-local-info.diff.fixture -whitespace
+w1700k-patches/tests/fixtures/mt76-txpower/911-before.patch.fixture -whitespace
+w1700k-patches/tests/fixtures/mt76-txpower/911-desired-cache.diff.fixture -whitespace
+w1700k-patches/tests/fixtures/mt76-txpower/backports-net-mac80211-cfg.c.fixture -whitespace
+w1700k-patches/tests/fixtures/mt76-txpower/backports-net-mac80211-driver-ops.c.fixture -whitespace
+w1700k-patches/tests/fixtures/mt76-txpower/backports-net-mac80211-iface.c.fixture -whitespace
+w1700k-patches/tests/fixtures/mt76-txpower/backports-net-mac80211-main.c.fixture -whitespace
+w1700k-patches/tests/fixtures/mt76-txpower/mt76-mt7996-mcu.c.fixture -whitespace
 w1700k-patches/tree/package/system/procd/patches/001-*.patch whitespace=-blank-at-eol,-space-before-tab

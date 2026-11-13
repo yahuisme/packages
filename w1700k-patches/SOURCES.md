@@ -9,7 +9,7 @@
 | `patches/002-*`、`tree/target/linux/airoha/patches-6.18/940-*` | CPUFreq 设备树资源与 CPU PLL 兼容回退 | [B]；保留官方频率与调频策略，不含超频 |
 | `tree/target/linux/airoha/patches-6.18/745-*` | E2 PCS RX 校准 | [A]/[B]，作者 Gilly |
 | `tree/target/linux/airoha/patches-6.18/746-*` | MDIO 扫描前解除 PHY 复位 | [A]/[B]，作者 Gilly |
-| `tree/package/kernel/mt76/patches/911-*` | 功率变更时刷新固件功率限制 | 作者 Yanghan Ye；适配 OpenW1700k 的 `0011-refresh-power-limits-on-txpower-changes`，SKU 启用沿用官方 |
+| `tree/package/kernel/mt76/patches/911-*` | 功率变更时刷新固件功率限制 | 作者 Yanghan Ye；适配 OpenW1700k 的 `0011-refresh-power-limits-on-txpower-changes`，SKU 启用沿用官方；本项目移除有效 BSS 功率通知的缓存去重，保留错误日志，不增加自动重试 |
 | `tree/package/kernel/mt76/patches/913-*` | TX-free 消息边界与分片校验，截断后完成已有回收与队列唤醒 | 基于 [C]/[D]；保留异常告警，不增加超时 token 回收 |
 | `tree/package/kernel/mt76/patches/914-*` | RRO 丢弃数据及 skb 分配失败时归还接收缓冲区 | 本项目修复；保留成功路径的 skb 所有权转移 |
 | `patches/610-*` | CN/US 功率与频段定制 | 包含 [A] 的 US 高频段及 6 GHz 设置，两版最终 regdb 内容一致 |
@@ -17,7 +17,7 @@
 | `tree/package/network/utils/iwinfo/patches/999-*` | 按当前频率展示功率列表 | [A]/[B]，作者 Yanghan Ye |
 | `tree/package/system/procd/patches/001-*` | watchdog 超时协商后约束喂狗周期 | 本项目修复；沿用官方 ioctl 路径，仅修改 setter 及 last-confirmed 状态 |
 | `patches/920-*` | 非 MLO AP 按 BSS 设置功率 | 本项目实现，适用范围见下文 |
-| `patches/998-*` | single-wiphy 多射频信道分析适配 | 作者 Gilly1970；本项目选择活动网卡并校验本机实际频段，保留停用 AP 时的邻居扫描 |
+| `patches/998-*` | single-wiphy 多射频信道分析适配 | 作者 Gilly1970；恢复原生 radio scan/info（扫描沿用 `nobatch`），校验本机频率、清理失效缓存并限定 tab 频段，保留停用 AP 扫描 |
 
 ### 来源
 

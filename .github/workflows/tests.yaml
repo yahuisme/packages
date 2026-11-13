@@ -112,9 +112,11 @@ jobs:
         run: python3 -m unittest discover -s w1700k-patches/tests -p test_channel_analysis.py -v
       - name: Verify shared radio scan patch chain
         run: python3 -m unittest discover -s w1700k-patches/tests -p test_iwinfo_scan.py -v
-      - name: Verify shared mt76 fixes
+      - name: Verify shared firmware patches
         run: |
           # Source-bound patch replay; no kernel or firmware compilation.
+          python3 -m unittest discover -s w1700k-patches/tests -p test_migration.py -v
+          python3 -m unittest discover -s w1700k-patches/tests -p test_txpower_retry.py -v
           python3 -m unittest discover -s w1700k-patches/tests -p test_txfree_cleanup.py -v
           python3 -m unittest discover -s w1700k-patches/tests -p test_rro_cleanup.py -v
       - name: Verify watchdog cadence

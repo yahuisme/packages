@@ -1,9 +1,9 @@
-"""Execute shipped selector and, with LUCI_CHANNEL_SOURCE, the complete patched view."""
+"""Replay the patched view and immutable LuCI RPC/request/network scan path."""
+import gzip
+import hashlib
 import json
 import os
 from pathlib import Path
-import re
-import shutil
 import subprocess
 import tempfile
 import unittest
@@ -12,50 +12,19 @@ ROOT = Path(__file__).resolve().parents[1]
 PATCH = ROOT / 'patches/998-single-wiphy.patch'
 
 
-class ChannelAnalysisTests(unittest.TestCase):
-    def select(self, networks):
-        # Execute the shipped addition, not a separate reimplementation.
-        added = '\n'.join(line[1:] for line in PATCH.read_text().splitlines()
-                          if line.startswith('+') and not line.startswith('+++'))
-        start = added.index('tasks.push(d.getWifiNetworks()')
-        end = added.index('}, this, d)));', start) + len('}, this, d)));')
-        code = '''const networks = JSON.parse(process.argv[1]);
-const nets = networks.map(n => ({getIfname: () => n.ifname,
- getID: () => n.id || 'radio1.network1', isUp: () => n.up}));
-const d = {getName: () => 'radio1', getWifiNetworks: () => Promise.resolve(nets)};
-const ret = {radio1: {ifname: 'radio1'}}, tasks = [];
-const L = {bind: (fn, ctx, ...args) => fn.bind(ctx, ...args)};
-''' + added[start:end] + '''
-Promise.all(tasks).then(() => console.log(JSON.stringify(ret.radio1.ifname)))
- .catch(e => {console.error(e); process.exitCode = 1;});
-'''
-        result = subprocess.run(['node', '-e', code, json.dumps(networks)],
-                                capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        return json.loads(result.stdout)
+FIXTURES = ROOT / 'tests/fixtures/scan-rpc'
 
-    def test_disabled_logical_interface_does_not_hide_active_netdev(self):
-        self.assertEqual(self.select([
-            dict(ifname='radio1.network1', up=False),
-            dict(ifname='phy0.1-ap0', id='radio1.network2', up=True)]), 'phy0.1-ap0')
 
-    def test_logical_fallback_is_not_a_netdev_even_when_reported_up(self):
-        self.assertEqual(self.select([dict(ifname='radio1.network1', up=True)]), 'radio1')
+class ScanRPCFixtureTests(unittest.TestCase):
+    def test_immutable_modules_match_tree_blobs(self):
+        manifest = json.loads((FIXTURES / 'manifest.json').read_text())
+        for name, identity in manifest['files'].items():
+            with self.subTest(name=name):
+                raw = gzip.decompress((FIXTURES / (name + '.gz')).read_bytes())
+                self.assertEqual(hashlib.sha256(raw).hexdigest(), identity['sha256'])
+                self.assertEqual(hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest(),
+                                 identity['blob'])
 
-    def test_down_netdev_is_skipped(self):
-        self.assertEqual(self.select([
-            dict(ifname='phy0.1-ap0', up=False),
-            dict(ifname='phy0.1-ap1', up=True)]), 'phy0.1-ap1')
-
-    def test_no_active_interface_keeps_radio_fallback(self):
-        for nets in ([], [dict(ifname=None, up=False)], [dict(ifname='', up=True)]):
-            with self.subTest(nets=nets):
-                self.assertEqual(self.select(nets), 'radio1')
-
-    def test_active_interface_order_is_preserved(self):
-        self.assertEqual(self.select([
-            dict(ifname='phy0.1-ap0', up=True),
-            dict(ifname='phy0.1-ap1', up=True)]), 'phy0.1-ap0')
 
 
 # Minimal DOM boundaries, while render(), graph generation and refresh all execute
@@ -99,12 +68,7 @@ global.document = {
 global.requestAnimationFrame = fn => fn();
 global.cbi_update_table = (table, rows) => { table.rows = rows; };
 const radioName = fixture.radio || 'radio2', configuredBand = fixture.band || '6g';
-const nets = (fixture.nets || []).map((n, i) => ({
- getID: () => n.id || `${radioName}.network${i + 1}`,
- getIfname: () => n.ifname, isUp: () => n.up
-}));
-const dev = {getName: () => radioName, get: key => key == 'band' ? configuredBand : null,
- getWifiNetworks: () => Promise.resolve(nets)};
+fixture.radios ||= [{radio:radioName,band:configuredBand}];
 // Shared wiphy freqlist: overlapping channels 1 and 5 must not imply 2/6GHz identity.
 const freqs = fixture.freqs || [
  ...Array.from({length:14}, (_,i) => ({band:2,channel:i+1,mhz:i==13?2484:2412+i*5})),
@@ -112,28 +76,41 @@ const freqs = fixture.freqs || [
  {band:6,channel:2,mhz:5935},
  ...Array.from({length:59}, (_,i) => ({band:6,channel:1+4*i,mhz:5955+20*i}))
 ];
+fixture.freqs = freqs;
 let frame;
+const runtime = require(process.argv[3]).createRuntime(fixture,calls,()=>frame);
 const view = new Function('view','poll','request','network','ui','rpc','random','L',
  fs.readFileSync(process.argv[1], 'utf8'))(
  {extend: value => value}, {stop() {}, add() {}}, {},
- {getWifiDevices: () => Promise.resolve([dev])},
+ {getWifiDevices: () => Promise.resolve(runtime.devices)},
  {createHandlerFn: () => () => {}, tabs: {initTabGroup() {}}},
- {declare: opts => name => {
-  calls.push({method:opts.method, name});
-  const value = opts.method == 'freqlist' ? freqs : opts.method == 'scan' ? frame.scan || [] : frame.info || {};
-  return Promise.resolve(structuredClone(value));
- }}, {derive_color: () => '#888888'},
- {bind: (fn, ctx, ...args) => fn.bind(ctx, ...args), resource: s => s});
+ runtime.rpc, {derive_color: () => '#888888'}, runtime.L);
 view.loadSVG = () => Promise.resolve(new Node('svg', {}, [new Node('g')]));
 const flatten = value => value instanceof Node ? value.textContent :
  Array.isArray(value) ? value.map(flatten).join('') : String(value);
 (async () => {
- const loaded = await view.load();
+ const loaded = await runtime.run(view.load());
  view.render(loaded);
  view.active_tab = radioName + configuredBand.replace('g', '');
  const radio = view.radios[view.active_tab], snapshots = [];
+ if (fixture.holdScan) {
+  frame = {};
+  let completed = false, infoDone = false;
+  const callInfo = view.callInfo;
+  view.callInfo = function(...args) {
+   return callInfo.apply(this,args).then(value=>{infoDone=true;return value;});
+  };
+  const refresh = view.handleScanRefresh().then(()=>{completed=true;});
+  await runtime.pump();
+  runtime.respond({holdScan:true});
+  await runtime.pump();
+  const before = {settled:[...runtime.settled],infoDone,completed,wire:runtime.wire()};
+  await runtime.run(refresh);
+  console.log(JSON.stringify({before,completed}));
+  return;
+ }
  for (frame of fixture.frames) {
-  await view.handleScanRefresh();
+  await runtime.run(view.handleScanRefresh());
   snapshots.push({
    rows: radio.table.rows.map(row => row.map(flatten)),
    cache: Object.fromEntries(Object.entries(radio.scanCache).map(([key, value]) =>
@@ -143,46 +120,75 @@ const flatten = value => value instanceof Node ? value.textContent :
     .flatMap(n => n.childNodes.filter(c => c.tag == 'polyline').map(c => c.attrs.points))
   });
  }
- console.log(JSON.stringify({calls, selected:loaded[1][radioName].ifname,
+ console.log(JSON.stringify({calls, enumerations:runtime.enumerations(),
   tabs:Object.keys(view.radios), snapshots}));
 })().catch(error => {console.error(error);process.exitCode = 1;});
 """
 
 
-@unittest.skipUnless(os.environ.get('LUCI_CHANNEL_SOURCE'), 'set immutable LuCI status source')
 class RealChannelAnalysisTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        source = Path(os.environ['LUCI_CHANNEL_SOURCE'])
+        # Validate every evaluated upstream module before starting Node.
+        manifest = json.loads((FIXTURES / 'manifest.json').read_text())
+        for name, identity in manifest['files'].items():
+            data = gzip.decompress((FIXTURES / (name + '.gz')).read_bytes())
+            if hashlib.sha256(data).hexdigest() != identity['sha256']:
+                raise AssertionError('immutable LuCI module changed: ' + name)
+        source = os.environ.get('LUCI_CHANNEL_SOURCE')
         relative = Path('htdocs/luci-static/resources/view/status/channel_analysis.js')
         directory = tempfile.TemporaryDirectory(prefix='channel-analysis-')
         cls.addClassCleanup(directory.cleanup)
         root = Path(directory.name)
         cls.target = root / relative
         cls.target.parent.mkdir(parents=True)
-        shutil.copyfile(source / relative, cls.target)
+        raw = (Path(source) / relative).read_bytes() if source else gzip.decompress(
+            (FIXTURES / 'channel_analysis.js.gz').read_bytes())
+        identity = json.loads((FIXTURES / 'manifest.json').read_text())['files']['channel_analysis.js']
+        if hashlib.sha256(raw).hexdigest() != identity['sha256']:
+            raise AssertionError('LuCI view does not match the verified immutable source')
+        cls.target.write_bytes(raw)
         result = subprocess.run(['patch', '-p1', '--forward', '--batch', '--fuzz=0',
                                  '--no-backup-if-mismatch', '-i', str(PATCH)],
                                 cwd=root, capture_output=True, text=True)
         if result.returncode:
             raise AssertionError(result.stdout + result.stderr)
+        if list(root.rglob('*.rej')) or list(root.rglob('*.orig')):
+            raise AssertionError('LuCI patch left reject/backup files')
 
     def replay(self, **fixture):
-        result = subprocess.run(['node', '-e', VIEW_RUNNER, str(self.target), json.dumps(fixture)],
+        result = subprocess.run(['node', '-e', VIEW_RUNNER, str(self.target), json.dumps(fixture),
+                                 str(FIXTURES / 'runtime.cjs.fixture')],
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
+
+    def test_scan_transport_does_not_hold_same_frame_info_reply(self):
+        result = self.replay(holdScan=True)
+        before = result['before']
+        self.assertIn('info', before['settled'])
+        self.assertTrue(before['infoDone'], 'the actual info promise must resolve before scan')
+        self.assertNotIn('scan', before['settled'])
+        self.assertFalse(before['completed'], 'refresh must still await scan')
+        self.assertTrue(result['completed'])
+        # Inspect actual XHR payloads, not mocked rpc.declare option metadata.
+        wire = before['wire'][1:]
+        self.assertEqual(len(wire), 2)
+        scan = next(payload for payload in wire if isinstance(payload, dict))
+        self.assertEqual(scan['params'][2:], ['scan', {'device': 'radio2'}])
+        info = next(payload for payload in wire if isinstance(payload, list))
+        self.assertEqual([msg['params'][2] for msg in info], ['info'])
 
     def test_disabled_6g_cross_band_info_keeps_scan_and_valid_neighbors(self):
         neighbor = dict(bssid='02:00:00:00:06:01', ssid='Neighbor 6GHz', band=6,
                         channel=5, frequency=5975, signal=-67, mode='Master')
         wrong_band = dict(bssid='02:00:00:00:02:01', ssid='Neighbor 2GHz', band=2,
                           channel=1, frequency=2412, signal=-44, mode='Master')
-        result = self.replay(nets=[dict(ifname='radio2.network1', up=False)], frames=[{
+        result = self.replay(radios=[dict(radio='radio2',band='6g',disabled=True)], frames=[{
             'scan': [neighbor, wrong_band],
             'info': dict(bssid='00:58:28:0E:47:BA', channel=1, frequency=2412,
                          center_chan1=1, htmode='EHT20', mode='Master')}])
-        self.assertEqual(result['selected'], 'radio2')
+        self.assertEqual(result['enumerations'], 0)
         self.assertEqual(result['tabs'], ['radio26'])
         self.assertEqual(result['calls'], [dict(method='freqlist', name='radio2'),
                          dict(method='scan', name='radio2'), dict(method='info', name='radio2')])
@@ -191,6 +197,20 @@ class RealChannelAnalysisTests(unittest.TestCase):
         self.assertEqual(snapshot['groups'], ['Neighbor 6GHz'])
         self.assertNotIn('00:58:28:0E:47:BA', snapshot['cache'])
         self.assertNotIn('undefined', snapshot['cache'])
+
+    def test_malformed_info_and_ubus_errors_remove_local_but_keep_neighbors(self):
+        local = dict(bssid='02:00:00:00:06:00', channel=1, frequency=5955,
+                     center_chan1=1, htmode='HE20', mode='Master')
+        neighbor = dict(bssid='02:00:00:00:06:01', ssid='Neighbor', band=6,
+                        channel=5, frequency=5975, signal=-67, mode='Master')
+        for bad in ({'info': None}, {'info': []}, {'info': 'invalid'},
+                    {'infoStatus': 4}, {'infoStatus': 6}):
+            with self.subTest(bad=bad):
+                result = self.replay(frames=[{'info': local, 'scan': [neighbor]}, bad])
+                snapshot = result['snapshots'][1]
+                self.assertEqual(snapshot['groups'], ['Neighbor'])
+                self.assertEqual(list(snapshot['cache']), [neighbor['bssid']])
+                self.assertEqual([row[1] for row in snapshot['rows']], ['⬤ Neighbor'])
 
     def test_info_without_bssid_is_not_a_local_interface(self):
         for bssid in (None, ''):
@@ -228,14 +248,32 @@ class RealChannelAnalysisTests(unittest.TestCase):
             self.assertEqual(snapshot['groups'], [])
             self.assertEqual(snapshot['cache'], {})
 
-    def test_real_view_selects_active_netdev_after_disabled_logical_interface(self):
-        result = self.replay(radio='radio1', band='5g', nets=[
-            dict(ifname='radio1.network1', up=False),
-            dict(ifname='phy0.1-ap0', id='radio1.network2', up=True)], frames=[{}])
-        self.assertEqual(result['selected'], 'phy0.1-ap0')
-        self.assertEqual(result['tabs'], ['radio15'])
-        self.assertEqual(result['calls'], [dict(method='freqlist', name='radio1'),
-                         dict(method='scan', name='phy0.1-ap0'), dict(method='info', name='phy0.1-ap0')])
+    def test_native_radio_queries_do_not_require_interface_enumeration(self):
+        for radio, band in (('radio0', '2g'), ('radio1', '5g'), ('radio2', '6g')):
+            for disabled in (False, True):
+                with self.subTest(radio=radio, disabled=disabled):
+                    result = self.replay(radio=radio, band=band,
+                        radios=[dict(radio=radio, band=band, disabled=disabled)], frames=[{}])
+                    self.assertEqual(result['enumerations'], 0)
+                    self.assertEqual(result['tabs'], [radio + band[0]])
+                    self.assertEqual(result['calls'], [dict(method='freqlist', name=radio),
+                        dict(method='scan', name=radio), dict(method='info', name=radio)])
+
+    def test_http_info_failure_still_rejects_refresh(self):
+        fixture = dict(frames=[dict(infoHttpError=True)])
+        result = subprocess.run(['node', '-e', VIEW_RUNNER, str(self.target), json.dumps(fixture),
+                                 str(FIXTURES / 'runtime.cjs.fixture')], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('RPCError', result.stderr)
+
+    def test_shared_wiphy_radios_only_build_their_own_band_tabs(self):
+        result = self.replay(radios=[dict(radio='radio0', band='2g'),
+                                    dict(radio='radio1', band='5g'),
+                                    dict(radio='radio2', band='6g', disabled=True)], frames=[{}])
+        self.assertEqual(result['tabs'], ['radio02', 'radio15', 'radio26'])
+        self.assertEqual(result['enumerations'], 0)
+        self.assertEqual(result['calls'][-2:], [dict(method='scan', name='radio2'),
+                                              dict(method='info', name='radio2')])
 
     def test_normal_local_interfaces_keep_native_signal_width_and_graph(self):
         cases = [
@@ -249,7 +287,7 @@ class RealChannelAnalysisTests(unittest.TestCase):
             with self.subTest(band=band, channel=channel, htmode=htmode):
                 bssid = '02:00:00:00:00:01'
                 result = self.replay(radio=radio, band=band,
-                    nets=[dict(ifname='phy0-ap0', up=True)], frames=[{'info': dict(
+                    frames=[{'info': dict(
                         bssid=bssid, channel=channel, frequency=frequency,
                         center_chan1=center, htmode=htmode, mode='Master')}])
                 snapshot = result['snapshots'][0]

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify the payload against both immutable pre-migration Git snapshots."""
 
+import hashlib
 import os
 import tempfile
 from pathlib import Path
@@ -100,17 +101,44 @@ class MigrationIntegrity(unittest.TestCase):
                         old_tail = b" \tswitch (radio_reload_class(old_config.radio, config.radio)) {\n"
                         self.assertEqual(original.count(old_tail), 1)
                         original = original.replace(old_tail, b"", 1)
-                    if source == "patches/998-single-wiphy.patch":
-                        old = b"if (ifname) {"
-                        new = b"if (n.isUp() && ifname && ifname != n.getID()) {"
-                        self.assertEqual(original.count(old), 1)
-                        original = original.replace(old, new, 1)
-                        # Only the reviewed local-frequency/cache delta is permitted.
+                    if source == "tree/package/kernel/mt76/patches/911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch":
+                        # Keep the immutable historical comparison; permit only
+                        # the reviewed desired-cache gate and explanatory delta.
                         with tempfile.TemporaryDirectory() as tmp:
                             target = Path(tmp) / 'w1700k-patches' / source
                             target.parent.mkdir(parents=True)
                             target.write_bytes(original)
-                            delta = ROOT / 'tests/fixtures/channel-local-info.diff.fixture'
+                            delta = ROOT / 'tests/fixtures/mt76-txpower/911-desired-cache.diff.fixture'
+                            self.assertEqual(hashlib.sha256(delta.read_bytes()).hexdigest(),
+                                             '51188e8a7e6169bcf2048126987daf743947f657c15ac705da32f7f75c08dece')
+                            # Every admitted old hunk must match exactly once;
+                            # never normalize an ambiguous or already-updated input.
+                            hunks = delta.read_bytes().split(b'\n@@ ')[1:]
+                            self.assertEqual(len(hunks), 2)
+                            for hunk in hunks:
+                                lines = hunk.splitlines(keepends=True)[1:]
+                                preimage = b''.join(line[1:] for line in lines
+                                                    if line[:1] in (b' ', b'-'))
+                                self.assertEqual(original.count(preimage), 1)
+                            result = subprocess.run(['patch', '-p1', '--batch', '--fuzz=0',
+                                                     '--no-backup-if-mismatch', '-i', str(delta)],
+                                                    cwd=tmp, capture_output=True, text=True)
+                            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                            original = target.read_bytes()
+                    if source == "patches/998-single-wiphy.patch":
+                        # Exact historical -> native-radio/info/cache/tab delta only.
+                        # Keep historical Git bytes; the fixture preimage must be unique.
+                        delta = ROOT / 'tests/fixtures/channel-local-info.diff.fixture'
+                        lines = delta.read_bytes().splitlines(keepends=True)
+                        self.assertEqual(sum(line.startswith(b'@@ ') for line in lines), 1)
+                        hunk = next(i for i, line in enumerate(lines) if line.startswith(b'@@ '))
+                        preimage = b''.join(line[1:] for line in lines[hunk + 1:]
+                                            if line[:1] in (b' ', b'-'))
+                        self.assertEqual(original.count(preimage), 1)
+                        with tempfile.TemporaryDirectory() as tmp:
+                            target = Path(tmp) / 'w1700k-patches' / source
+                            target.parent.mkdir(parents=True)
+                            target.write_bytes(original)
                             result = subprocess.run(['patch', '-p1', '--batch', '--fuzz=0',
                                                      '-i', str(delta)], cwd=tmp,
                                                     capture_output=True, text=True)
