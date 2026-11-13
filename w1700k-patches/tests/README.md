@@ -57,4 +57,4 @@ watchdog 使用 `001-watchdog-reconcile-timeout.patch`，检查固定 procd 源�
 PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_regdb.py
 ```
 
-两个 source 变量指向未定制的官方源码，包含真实 regdb 配方和补丁。ImmortalWrt 新链只移除 `600-custom-change-txpower-and-dfs.patch`，不移除其他官方补丁。
+两个 source 变量指向未定制的官方源码，包含真实 regdb 配方和补丁。历史补丁与迁移校验一样：原仓库已退役时，读取 packages 不可变集中提交保留的原始字节。ImmortalWrt 新链只移除 `600-custom-change-txpower-and-dfs.patch`，不移除其他官方补丁。

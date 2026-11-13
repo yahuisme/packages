@@ -31,8 +31,15 @@ class UniversalRegdb(unittest.TestCase):
             expected = match[1]
             self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest(), expected)
             repo = Path(os.environ.get('W1700K_' + distro.upper() + '_REPO', ROOT.parents[1] / ('w1700k-' + distro)))
+            if repo.is_dir():
+                revision, path = old_sha, 'user/default/patches/' + NAME
+            else:
+                # The retired checkout's exact bytes survive centralization.
+                repo = ROOT.parent
+                revision = '14cc379984cc45cf10c6ce228fb44944bfa4f6af'
+                path = f'w1700k-patches/{distro}/{NAME}'
             old_patch = subprocess.check_output(['git', '-C', str(repo), 'show',
-                old_sha + ':user/default/patches/' + NAME])
+                                                 revision + ':' + path])
             with tempfile.TemporaryDirectory() as directory:
                 base = Path(directory)
                 old = base / 'old'; new = base / 'new'
