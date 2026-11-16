@@ -15,6 +15,14 @@ PYTHONDONTWRITEBYTECODE=1 python3 w1700k-patches/tests/test_migration.py
 
 本测试只验证迁移完整性及明确允许的维护差异；LuCI `998` 的原生 radio 路径、本机频率/缓存与 tab 差异保存在独立精确夹具中，要求历史 preimage 唯一，不替换历史基线。测试不编译、不修改固件仓库，不能代替源码适用性和功能验收。
 
+## hostapd 上下文校验
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s w1700k-patches/tests -p test_hostapd_context.py -v
+```
+
+`fixtures/hostapd-context/manifest.json` 固定完整源码及 SHA256：OpenWrt `8d316065`、`7424e2ca` 与 ImmortalWrt `a4ba8240`。前者与 ImmortalWrt 的三个输入文件相同。测试要求 `920` 在旧、新源码上零 fuzz 应用；补丁新增/删除的代码不变、旧源码输出逐字节不变，新版关闭流程保持原样。历史补丁从固定 Git 提交读取，不刷新历史基线。该校验不执行无线操作，也不代替固件或实机验收。
+
 ## mt76 专项校验
 
 `913` TX-free 与 `914` RRO 修复是迁移后新增补丁，不纳入旧快照字节等价比较，由固定源码函数夹具验证。原 `912` MCU 统计改造及其专用测试、供体/协议夹具和归档已移除；保留官方统计路径：

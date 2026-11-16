@@ -66,8 +66,7 @@ void callbacks cannot propagate a synchronous error to netifd config_set.
  			continue;
  		}
  
-@@ -1806,6 +1812,31 @@
- 	ubus.call("service", "event", { type: `hostapd.${name}.${type}`, data: {} });
+@@ -1807,4 +1813,29 @@
  }
  
 +// Apply only to a BSS owned by the current non-MLO configuration.
@@ -97,7 +96,6 @@ void callbacks cannot propagate a synchronous error to netifd config_set.
 +
  return {
  	shutdown: function() {
- 		for (let phy in hostapd.data.config)
 @@ -1822,6 +1853,7 @@
  			wdev_set_radio_mask(name, 1 << phy.radio_idx);
  	},

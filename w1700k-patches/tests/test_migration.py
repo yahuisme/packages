@@ -101,6 +101,16 @@ class MigrationIntegrity(unittest.TestCase):
                         old_tail = b" \tswitch (radio_reload_class(old_config.radio, config.radio)) {\n"
                         self.assertEqual(original.count(old_tail), 1)
                         original = original.replace(old_tail, b"", 1)
+                        # Context-only refresh: preserve upstream's new shutdown
+                        # body without changing any added/removed power logic.
+                        for before, after in (
+                            (b"@@ -1806,6 +1812,31 @@\n", b"@@ -1807,4 +1813,29 @@\n"),
+                            (b' \tubus.call("service", "event", { type: `hostapd.${name}.${type}`, data: {} });\n', b''),
+                            (b" \tshutdown: function() {\n \t\tfor (let phy in hostapd.data.config)\n",
+                             b" \tshutdown: function() {\n"),
+                        ):
+                            self.assertEqual(original.count(before), 1)
+                            original = original.replace(before, after, 1)
                     if source == "tree/package/kernel/mt76/patches/911-mt76-mt7996-refresh-power-limits-on-txpower-changes.patch":
                         # Keep the immutable historical comparison; permit only
                         # the reviewed desired-cache gate and explanatory delta.

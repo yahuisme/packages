@@ -116,6 +116,7 @@ jobs:
         run: |
           # Source-bound patch replay; no kernel or firmware compilation.
           python3 -m unittest discover -s w1700k-patches/tests -p test_migration.py -v
+          python3 -m unittest discover -s w1700k-patches/tests -p test_hostapd_context.py -v
           python3 -m unittest discover -s w1700k-patches/tests -p test_txpower_retry.py -v
           python3 -m unittest discover -s w1700k-patches/tests -p test_txfree_cleanup.py -v
           python3 -m unittest discover -s w1700k-patches/tests -p test_rro_cleanup.py -v
