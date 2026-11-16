@@ -198,16 +198,21 @@ export function reserveUniqueLabel(used, label, fallback) {
 	return candidate;
 };
 
-export function createNodeLabelRegistry() {
-	return {
+export function createNodeLabelRegistry(uci, config) {
+	const used = {
 		'direct-out': true,
 		'main-out': true,
 		'tailscale-out': true
 	};
+	if (uci)
+		uci.foreach(config, 'domain_route', (section) => {
+			used[`domain-${section['.name']}-urltest`] = true;
+		});
+	return used;
 };
 
 export function createNodeOutboundTags(uci, config) {
-	const used = createNodeLabelRegistry(), tags = {};
+	const used = createNodeLabelRegistry(uci, config), tags = {};
 	uci.foreach(config, 'node', (section) => {
 		const id = section['.name'];
 		tags[id] = reserveUniqueLabel(used, section.label, `cfg-${id}-out`);
@@ -282,6 +287,9 @@ export function reconcileUrltestNodes(uci, config, logger) {
 	}
 
 	const mainNodes = reconcileList('config', 'main_urltest_nodes');
+	uci.foreach(config, 'domain_route', (section) => {
+		reconcileList(section['.name'], 'urltest_nodes');
+	});
 	const mainNode = uci.get(config, 'config', 'main_node');
 	if (mainNode === 'urltest' && !length(mainNodes)) {
 		const fallback = uci.get_first(config, 'node') || 'nil';
@@ -413,6 +421,9 @@ export function renderOutbound(node) {
 		// Defaults belong to capability-aware importers. Empty/manual Disable
 		// must stay disabled, including builds without uTLS.
 		const tls_utls_value = node.tls_utls;
+		const use_reality = node.type in ['anytls', 'vless'] && node.tls_reality === '1';
+		if (use_reality && (isEmpty(tls_utls_value) || tls_utls_value in ['none', 'disable', 'disabled']))
+			die('REALITY requires a uTLS fingerprint.');
 		return {
 			enabled: true,
 			server_name: node.tls_sni,
@@ -432,7 +443,7 @@ export function renderOutbound(node) {
 				enabled: true,
 				fingerprint: tls_utls_value
 			} : null,
-			reality: (node.type in ['anytls', 'vless'] && node.tls_reality === '1') ? {
+			reality: use_reality ? {
 				enabled: true,
 				public_key: node.tls_reality_public_key,
 				short_id: node.tls_reality_short_id
@@ -706,6 +717,16 @@ export function parseURL(url) {
 	objurl.origin = `${objurl.protocol}://${objurl.host}`;
 
 	return objurl;
+};
+
+export function realityFingerprint(node, with_utls) {
+	if (node.tls !== '1' || !(node.type in ['anytls', 'vless']) || node.tls_reality !== '1')
+		return node.tls_utls;
+	if (with_utls === false)
+		die('REALITY requires sing-box uTLS support.');
+	if (node.tls_utls in ['none', 'disable', 'disabled'])
+		die('REALITY requires a uTLS fingerprint.');
+	return isEmpty(node.tls_utls) ? 'chrome' : node.tls_utls;
 };
 /* String parser end */
 

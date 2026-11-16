@@ -44,6 +44,12 @@ class Answer(socketserver.BaseRequestHandler):
         packet, sock = self.request
         name, end = question_end(packet)
         server.calls.append(name)
+        rcode = next((value for prefix, value in [('servfail.', 2), ('refused.', 5), ('nxdomain.', 3)]
+                      if name.startswith(prefix)), 0) if server.tag == 'main' else 0
+        if rcode:
+            response = packet[:2] + struct.pack('!HHHHH', 0x8180 | rcode, 1, 0, 0, 0) + packet[12:end]
+            sock.sendto(response, self.client_address)
+            return
         address = {'main': '203.0.113.20', 'china': '192.0.2.20', 'default': '192.0.2.30'}[server.tag]
         if server.tag == 'main':
             if name.startswith('timeout.'):
@@ -59,7 +65,7 @@ class Answer(socketserver.BaseRequestHandler):
         sock.sendto(response, self.client_address)
 
 
-def query(name, core, servers):
+def query(name, core, servers, expected_rcode=0):
     before = {s.tag: len(s.calls) for s in servers}
     wire = b''.join(bytes([len(p)]) + p.encode() for p in name.split('.')) + b'\0'
     packet = struct.pack('!HHHHHH', 31415, 0x100, 1, 0, 0, 0) + wire + struct.pack('!HH', 1, 1)
@@ -71,9 +77,10 @@ def query(name, core, servers):
     elapsed = time.monotonic() - start
     assert core.poll() is None, 'core exited'
     assert response[:2] == packet[:2]
-    assert struct.unpack('!H', response[2:4])[0] & 15 == 0, response.hex()
-    assert struct.unpack('!H', response[6:8])[0] == 1, response.hex()
-    return {'name': name, 'address': socket.inet_ntoa(response[-4:]),
+    rcode = struct.unpack('!H', response[2:4])[0] & 15
+    assert rcode == expected_rcode, response.hex()
+    assert struct.unpack('!H', response[6:8])[0] == (0 if rcode else 1), response.hex()
+    return {'name': name, 'address': None if rcode else socket.inet_ntoa(response[-4:]), 'rcode': rcode,
             'elapsed': round(elapsed, 3),
             'upstreams': [s.tag for s in servers if len(s.calls) > before[s.tag]]}
 
@@ -150,10 +157,16 @@ def run(binary, parent_namespace):
                              ['main', 'china'] if mode != 'global' else ['main'],
                              2.7 if mode != 'global' else 3.5, 4.5),
                         ]
+                        for name, rcode in [('servfail.test', 2), ('refused.test', 5), ('nxdomain.test', 3), ('servfail.proxy.test', 2)]:
+                            fallback = mode != 'global' and name in ('servfail.test', 'refused.test')
+                            cases.append((name, '192.0.2.20' if fallback else None,
+                                          ['main', 'china'] if fallback else ['main'], 0, 1.5,
+                                          0 if fallback else rcode))
                         if mode != 'global':
                             cases.append(('timeout.test', '192.0.2.20', ['main', 'china'], 2.7, 4.5))
-                        for name, address, upstreams, minimum, maximum in cases:
-                            row = query(name, core, servers)
+                        for case in cases:
+                            name, address, upstreams, minimum, maximum = case[:5]
+                            row = query(name, core, servers, case[5] if len(case) == 6 else 0)
                             row['mode'] = mode
                             assert row['address'] == address, row
                             assert row['upstreams'] == upstreams, row

@@ -43,7 +43,7 @@ class NativeReality:
             section['.name'] = name
         data['node1'].update(RETAINED, type='vless', tls='1', password='fixture',
                              uuid='11111111-1111-4111-8111-111111111111',
-                             tls_self_sign='1', tls_cert_path=str(self.cert))
+                             tls_utls='firefox', tls_self_sign='1', tls_cert_path=str(self.cert))
         data['server'] = {'.type': 'homeproxy', 'log_level': 'warn'}
         data['listener'] = dict(data['node1'], **{'.type': 'server', '.name': 'listener',
                                                 'enabled': '1', 'port': '15443',

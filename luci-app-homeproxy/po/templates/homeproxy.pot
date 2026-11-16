@@ -2643,3 +2643,12 @@ msgstr ""
 
 msgid "A subscription update is already running in the background. Check the subscription log before retrying."
 msgstr ""
+
+msgid "Select at least one available URLTest node."
+msgstr ""
+
+msgid "REALITY requires a uTLS fingerprint."
+msgstr ""
+
+msgid "REALITY requires sing-box uTLS support."
+msgstr ""

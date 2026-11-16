@@ -9,7 +9,10 @@ const po = fs.readFileSync(path.join(root, 'luci-app-homeproxy/po/zh_Hans/homepr
 const fullMessage = 'Supports AnyTLS, HTTP(S), Hysteria, Hysteria2, Shadowsocks, SOCKS4/4A/5, Trojan, TUIC, VLESS and VMess share links.';
 const basicMessage = 'Supports AnyTLS, HTTP(S), Shadowsocks, SOCKS4/4A/5, Trojan, VLESS and VMess share links.';
 const source = node.slice(node.indexOf('function normalizeHysteriaHoppingPort'), node.indexOf('const NODE_LATENCY_ROW_STATES'));
-const api = new Function('hp', '_', source + ';return { parseShareLink, getShareLinkDescription };')({}, s => s);
+const helper = fs.readFileSync(path.join(root, 'luci-app-homeproxy/htdocs/luci-static/resources/homeproxy.js'), 'utf8');
+// Compile only tracked repository helpers, never share-link input.
+const hp = new Function('_', 'return ({' + helper.slice(helper.indexOf('\tdecodeBase64Str(str)'), helper.indexOf('\tgetBuiltinFeatures()')) + '});')(s => s);
+const api = new Function('hp', '_', source + ';return { parseShareLink, getShareLinkDescription };')(hp, s => s);
 
 assert.equal(api.getShareLinkDescription({ with_quic: true }), fullMessage);
 assert.equal(api.getShareLinkDescription({ with_quic: false }), basicMessage);

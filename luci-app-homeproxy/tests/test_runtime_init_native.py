@@ -107,6 +107,23 @@ class RuntimeInitNative(unittest.TestCase):
                 self.assertEqual((self.config.read_bytes(), self.config.stat().st_mtime_ns), first)
                 self.assert_external_unchanged(external)
 
+    def test_diversion_urltest_reserves_controller_port_without_a_main_urltest(self):
+        for enabled, node, expected in [('1', 'urltest', '23000'), ('0', 'urltest', '22000'), ('1', 'node1', '22000')]:
+            with self.subTest(enabled=enabled, node=node):
+                original = (APP / 'root/etc/config/homeproxy').read_text()
+                self.config.write_text(original + "\nconfig domain_route 'route_test'\n option enabled '" + enabled + "'\n option node '" + node + "'\n")
+                for assignment in ['homeproxy.config.main_node=node1', 'homeproxy.config.dashboard_enabled=1',
+                                   'homeproxy.config.dashboard_port=22000', 'homeproxy.infra.clash_api_port=22000',
+                                   'homeproxy.config.dashboard_port_initialized=1', 'homeproxy.infra.clash_api_port_initialized=1']:
+                    result = self.run_native('/sbin/uci', 'set', assignment)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(self.run_native('/sbin/uci', 'commit', 'homeproxy').returncode, 0)
+                result = self.run_native('/usr/libexec/homeproxy-runtime-init')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                actual = self.run_native('/sbin/uci', '-q', 'get', 'homeproxy.config.dashboard_port')
+                self.assertEqual(actual.returncode, 0, actual.stderr)
+                self.assertEqual(actual.stdout.strip(), expected)
+
     def test_missing_section_set_failure_keeps_persistent_and_external_bytes(self):
         self.config.write_text("config homeproxy 'config'\n option dashboard_port '9095'\n")
         external = self.seed_external(True)

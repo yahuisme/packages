@@ -5,7 +5,7 @@ const src=fs.readFileSync(path.join(__dirname,'../luci-app-homeproxy/htdocs/luci
 String.prototype.format=function(...a){let i=0;return this.replace(/%s/g,()=>a[i++]);};
 const start=src.indexOf("\t\tdro = domainRoutes.option(form.ListValue, 'node'");
 assert(start>=0,'production diversion option exists');
-const end=src.indexOf("\n\t\tdro = domainRoutes.option(form.TextValue",start);
+const end=src.indexOf("\n\t\tdro = domainRoutes.option(hp.CBIStaticList",start);
 assert(end>start,'production diversion option boundary exists');
 let option,selected='gone';
 const choices=new Map();
@@ -24,6 +24,8 @@ try {
  assert.equal(choices.get('good').textContent,label.textContent);
  selected='tailscale';
  assert.equal(option.textvalue('route'),'[Tailscale] Tailscale');
+ selected='urltest';
+ assert.equal(option.textvalue('route'),'URLTest');
  assert.equal(option.validate, undefined);
  assert.equal((src.match(/domainMatchDescription/g)||[]).length,4);
  console.log('PASS: diversion unknown/known/Tailscale labels, literal DOM choices and shared domain help');

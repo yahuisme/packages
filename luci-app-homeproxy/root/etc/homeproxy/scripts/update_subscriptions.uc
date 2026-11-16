@@ -16,7 +16,7 @@ import { cursor } from 'uci';
 import { urldecode, urlencode } from 'luci.http';
 
 import {
-	wGET, decodeBase64Str, getTime, isEmpty, parseECHConfig, parseURL,
+	wGET, decodeBase64Str, getTime, isEmpty, parseECHConfig, parseURL, realityFingerprint,
 	reconcileUrltestNodes, reserveUniqueLabel, synchronizeNodeLabels,
 	validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
@@ -1225,6 +1225,12 @@ function parse_uri(uri) {
 	}
 
 	if (!isEmpty(config)) {
+		try {
+			config.tls_utls = realityFingerprint(config, !!sing_features.with_utls);
+		} catch (e) {
+			log(sprintf('Skipping invalid REALITY node %s: %s', config.label || config.address, e.message));
+			return null;
+		}
 		if (config.type in ['vless', 'vmess', 'trojan'] && !isEmpty(config.transport) &&
 		    !(config.transport in ['tcp', 'http', 'ws', 'grpc', 'httpupgrade', 'quic'])) {
 			log(sprintf('Skipping unsupported %s transport: %s (%s).', config.type, config.transport, config.label || config.address));

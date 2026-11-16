@@ -226,6 +226,7 @@ const values = { 'config.main_node': 'removed', good: 'node' };
 const uci = {
   get: (config, section, option) => values[option ? section + '.' + option : section] || null,
   get_first: (config, section) => section === 'node' ? 'good' : null,
+  foreach: () => null,
   set: (config, section, option, value) => values[section + '.' + option] = value,
   delete: (config, section, option) => delete values[section + '.' + option]
 };

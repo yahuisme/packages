@@ -213,6 +213,9 @@ return baseclass.extend({
 		}
 
 		const mainNodes = reconcileList('config', 'main_urltest_nodes');
+		uci.sections(uciconfig, 'domain_route', (section) => {
+			reconcileList(section['.name'], 'urltest_nodes');
+		});
 		const mainNode = uci.get(uciconfig, 'config', 'main_node');
 		if (mainNode === 'urltest' && !mainNodes.length) {
 			uci.set(uciconfig, 'config', 'main_node', firstNode || 'nil');
@@ -321,6 +324,16 @@ return baseclass.extend({
 		return decodeURIComponent(Array.prototype.map.call(atob(str), (c) =>
 			'%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
 		).join(''));
+	},
+
+	realityFingerprint(node, with_utls) {
+		if (node.tls !== '1' || !['anytls', 'vless'].includes(node.type) || node.tls_reality !== '1')
+			return node.tls_utls;
+		if (with_utls === false)
+			throw new TypeError(_('REALITY requires sing-box uTLS support.'));
+		if (['none', 'disable', 'disabled'].includes(node.tls_utls))
+			throw new TypeError(_('REALITY requires a uTLS fingerprint.'));
+		return node.tls_utls || 'chrome';
 	},
 
 	getBuiltinFeatures() {

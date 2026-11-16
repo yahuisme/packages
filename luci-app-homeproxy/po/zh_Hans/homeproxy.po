@@ -1712,3 +1712,12 @@ msgstr "无法获取订阅任务状态。任务可能仍在运行，请先查看
 
 msgid "A subscription update is already running in the background. Check the subscription log before retrying."
 msgstr "已有订阅更新正在后台运行，请先查看订阅日志再重试。"
+
+msgid "Select at least one available URLTest node."
+msgstr "请至少选择一个可用的 URLTest 节点。"
+
+msgid "REALITY requires a uTLS fingerprint."
+msgstr "REALITY 必须启用 uTLS 指纹。"
+
+msgid "REALITY requires sing-box uTLS support."
+msgstr "REALITY 需要 sing-box 提供 uTLS 支持。"

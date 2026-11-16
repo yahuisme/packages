@@ -387,7 +387,7 @@ return view.extend({
 
 		o = s.taboption('routing', form.Value, 'main_urltest_interval', _('Test interval'),
 			_('The test interval in seconds.'));
-		o.datatype = 'uinteger';
+		o.datatype = 'and(uinteger,min(1))';
 		o.placeholder = '120';
 		o.depends({ routing_mode: 'bypass_mainland_china', main_node: 'urltest' });
 		o.depends({ routing_mode: 'global', main_node: 'urltest' });
@@ -677,6 +677,15 @@ return view.extend({
 		domainRoutes.addremove = true;
 		domainRoutes.addbtntitle = _('Add diversion group');
 		domainRoutes.nodescriptions = true;
+		domainRoutes.renderMoreOptionsModal = function() {
+			return form.GridSection.prototype.renderMoreOptionsModal.apply(this, arguments).then(() => {
+				const modal = this.getActiveModalMap()?.closest('.modal');
+				if (modal) {
+					modal.classList.add('hp-diversion-modal');
+					modal.appendChild(E('style', {}, [ '#modal_overlay > .hp-diversion-modal { max-width: 100%; }' ]));
+				}
+			});
+		};
 		domainRoutes.addModalOptions = function(section) {
 			configureDomainListSave(section.map);
 		};
@@ -709,21 +718,48 @@ return view.extend({
 		dro.rmempty = false;
 
 		dro = domainRoutes.option(form.ListValue, 'node', _('Node'));
+		dro.value('urltest', _('URLTest'));
 		for (let i in proxy_nodes)
 			dro.value(i, E('span', {}, [proxy_nodes[i]]));
 		dro.value('tailscale', _('[Tailscale] Tailscale'));
 		uci.sections('homeproxy', 'domain_route', (section) => {
-			if (section.node && section.node !== 'tailscale' && !proxy_nodes[section.node])
+			if (section.node && !['tailscale', 'urltest'].includes(section.node) && !proxy_nodes[section.node])
 				dro.value(section.node, _('Unavailable node: %s').format(section.node));
 		});
 		dro.rmempty = false;
 		dro.textvalue = function(section_id) {
 			const value = this.cfgvalue(section_id);
+			if (value === 'urltest')
+				return _('URLTest');
 			if (value === 'tailscale' && uci.get('homeproxy', 'tailscale', 'enabled') === '1')
 				return _('[Tailscale] Tailscale');
 			return value !== 'tailscale' && proxy_nodes[value] ? E('span', {}, [proxy_nodes[value]]) :
 				_('Node unavailable; using the main node.');
 		};
+
+		dro = domainRoutes.option(hp.CBIStaticList, 'urltest_nodes', _('URLTest nodes'),
+			_('List of nodes to test.'));
+		for (const id in proxy_nodes)
+			dro.value(id, E('span', {}, [proxy_nodes[id]]));
+		dro.depends('node', 'urltest');
+		dro.rmempty = false;
+		dro.retain = true;
+		dro.modalonly = true;
+		dro.validate = function(section_id) {
+			// DynamicList also validates its empty add-item control; validate the list.
+			const value = this.formvalue(section_id);
+			const nodes = Array.isArray(value) ? value : (value ? [value] : []);
+			return nodes.length > 0 && nodes.every((id) => Object.prototype.hasOwnProperty.call(proxy_nodes, id)) ||
+				_('Select at least one available URLTest node.');
+		};
+
+		dro = domainRoutes.option(form.Flag, 'urltest_interrupt_exist_connections', _('Interrupt existing connections'),
+			_('Interrupt existing connections when the selected outbound has changed.'));
+		dro.default = dro.disabled;
+		dro.depends('node', 'urltest');
+		dro.rmempty = false;
+		dro.retain = true;
+		dro.modalonly = true;
 
 		dro = domainRoutes.option(form.TextValue, '_domain_list', _('Domain List'), domainMatchDescription);
 		dro.modalonly = true;

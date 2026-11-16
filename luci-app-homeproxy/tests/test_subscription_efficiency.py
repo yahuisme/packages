@@ -208,7 +208,7 @@ if(current_main_node!=='nil' && current_main_node!=='urltest' && uci.get(uciconf
  const uciconfig='homeproxy',ucimain='config',ucinode='node';
  const uci={get:function(c,s,o){tailReads++;return o?state[o]:(s in input.nodes?'node':null);},
  get_first:()=>input.nodes[0],set:function(c,s,o,v){push(calls,['set',s,o,v]);state[o]=v;return true;},
- delete:function(c,s,o){push(calls,['delete',s,o]);delete state[o];return true;}};
+ delete:function(c,s,o){push(calls,['delete',s,o]);delete state[o];return true;},foreach:()=>null};
  const writer={...uci,get:function(...a){return uci.get(...a);}};
  function log(s){push(logs,s);}
  function countedHelper(...a){const result=reconcileUrltestNodes(...a);tailReads=0;return result;}

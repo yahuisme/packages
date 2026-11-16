@@ -3,22 +3,27 @@
 # Absolute-path libuci loads are non-delta packages: neither the default
 # /tmp/.uci drafts nor /var/run/uci overrides are read or committed.
 umask 077
-uci_get() {
-	ucode -l uci -e '
-		const c = uci.cursor();
-		if (!c || c.load("/etc/config/homeproxy") !== true) exit(1);
-		const value = c.get("homeproxy", ARGV[0], ARGV[1]);
-		if (type(value) == "string") print(value);
-	' "$@"
-}
-
-dashboard_port="$(uci_get config dashboard_port)" || exit 1
-dashboard_port_initialized="$(uci_get config dashboard_port_initialized)" || exit 1
-clash_api_port="$(uci_get infra clash_api_port)" || exit 1
-clash_api_port_initialized="$(uci_get infra clash_api_port_initialized)" || exit 1
-main_node="$(uci_get config main_node)" || exit 1
-dashboard_enabled="$(uci_get config dashboard_enabled)" || exit 1
-tailscale_enabled="$(uci_get tailscale enabled)" || exit 1
+settings="$(ucode -l uci -e '
+	const c = uci.cursor();
+	if (!c || c.load("/etc/config/homeproxy") !== true) exit(1);
+	let urltest = c.get("homeproxy", "config", "main_node") === "urltest";
+	c.foreach("homeproxy", "domain_route", (section) => {
+		if (section.enabled !== "0" && section.node === "urltest") urltest = true;
+	});
+	// Emit data-only tokens; invalid ports still go through initialize_port().
+	for (let field in [["config", "dashboard_port"], ["config", "dashboard_port_initialized"],
+	                  ["infra", "clash_api_port"], ["infra", "clash_api_port_initialized"]]) {
+		const value = c.get("homeproxy", field[0], field[1]);
+		print(type(value) === "string" && match(value, /^[0-9]+$/) ? value : "-", " ");
+	}
+	print(c.get("homeproxy", "config", "dashboard_enabled") === "1" ? "1 " : "0 ",
+	      c.get("homeproxy", "tailscale", "enabled") === "1" ? "1 " : "0 ",
+	      urltest ? "1" : "0");
+')" || exit 1
+read -r dashboard_port dashboard_port_initialized clash_api_port clash_api_port_initialized \
+	dashboard_enabled tailscale_enabled urltest_enabled <<EOF
+$settings
+EOF
 
 mkdir -p /var/run/homeproxy
 
@@ -66,7 +71,7 @@ fi
 clash_api_port="$(initialize_port "$clash_api_port" 9090 "$clash_api_port_initialized" "$dashboard_port")" || exit 1
 dashboard_port="$(initialize_port "$dashboard_port" 9095 "$dashboard_port_initialized" "$clash_api_port")" || exit 1
 
-if [ "$main_node" = 'urltest' ] && { [ "$dashboard_enabled" = '1' ] || [ "$tailscale_enabled" = '1' ]; } && \
+if [ "$urltest_enabled" = '1' ] && { [ "$dashboard_enabled" = '1' ] || [ "$tailscale_enabled" = '1' ]; } && \
    [ "$clash_api_port" = "$dashboard_port" ]; then
 	dashboard_port="$(random_port "$clash_api_port")" || exit 1
 	valid_port "$dashboard_port" || exit 1

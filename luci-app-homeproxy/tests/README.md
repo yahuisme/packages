@@ -90,6 +90,34 @@ out-of-range tolerance before writing a config, preserves explicit zero and
 transport and generator platform modules are private fixtures; no browser,
 proxy, compilation or host configuration is used.
 
+# Independent diversion URLTest and REALITY imports
+
+```sh
+. /opt/test-tools/env.sh
+. /opt/test-tools/openwrt/packages-ci/env.sh
+export PACKAGES_ROOT="$PWD"
+sh .github/scripts/run-tests.sh \
+  luci-app-homeproxy/tests/test_diversion_urltest.py \
+  luci-app-homeproxy/tests/test_reality_import.py \
+  luci-app-homeproxy/tests/test_reality_import.cjs \
+  tests/diversion-urltest-ui.cjs
+```
+
+These are ordinary discovered gates. The complete native-ucode generator covers
+independent groups with ordinary/URLTest main nodes, DNS detours, deduplication,
+missing-node fallback and shared tag reservations. Private native subscription
+refresh prunes unavailable members; the real LuCI modal covers rejected empty
+selection, save/reset/reopen, inactive-value retention and local modal styling.
+REALITY tests cover capability-aware manual/subscription imports, active-protocol
+ownership and manual Disable preservation. `SING_BOX_CHECK` optionally validates
+generated JSON with an already verified binary; run it in a private namespace.
+
+Runtime initialization reads its settings in one native process, then keeps the
+existing separate commit and readback transaction. `test_runtime_init.py` checks
+the two-process bound; the privileged `test_runtime_init_native.py` gate verifies
+real default UCI draft/override isolation and diversion controller-port conflicts.
+These fixtures are not real-router, transport-handshake or performance evidence.
+
 # Client/status UI simplification
 
 ```sh
@@ -188,7 +216,8 @@ python3 luci-app-homeproxy/tests/test_dns_fallback.py -v
 The runtime test verifies a separate loopback-only network namespace before
 starting the official prebuilt core. Production-generated DNS rules run against
 private upstream servers and synthetic rule sets: normal/delayed responses,
-3-second timeout fallback, explicit domain precedence, caching and global mode.
+3-second timeout fallback, SERVFAIL/REFUSED retry, NXDOMAIN preservation,
+explicit domain precedence, caching and global mode.
 It does not test live proxy transport or TUN routing. Without `DNS_RUNTIME_BINARY`,
 only the runtime test is skipped; generator regressions still run.
 

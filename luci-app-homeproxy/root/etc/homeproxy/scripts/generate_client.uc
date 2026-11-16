@@ -41,7 +41,7 @@ if (!(routing_mode in ['bypass_mainland_china', 'global']))
 
 const lan_policy = resolveLanPolicy(uci, uciconfig);
 
-const outbound_tags = createNodeLabelRegistry();
+const outbound_tags = createNodeLabelRegistry(uci, uciconfig);
 const node_outbound_tags = {};
 uci.foreach(uciconfig, ucinode, (cfg) => {
 	node_outbound_tags[cfg['.name']] = reserveUniqueLabel(outbound_tags, cfg.label, `cfg-${cfg['.name']}-out`);
@@ -203,6 +203,16 @@ uci.foreach(uciconfig, 'domain_route', (cfg) => {
 		return;
 
 	const split_domains = splitDomainList(domains);
+	if (cfg.node === 'urltest') {
+		const nodes = filterExistingNodes(uci, uciconfig, cfg.urltest_nodes);
+		if (!length(nodes)) {
+			warn(`Diversion URLTest group ${id} has no available nodes; using the main node.\n`);
+			push(domain_groups, { id, kind: 'main', ...split_domains });
+			return;
+		}
+		push(domain_groups, { id, kind: 'urltest', nodes, cfg, ...split_domains });
+		return;
+	}
 	if (cfg.node === 'tailscale') {
 		if (!tailscale_enabled) {
 			warn(`Diversion group ${id} selects disabled Tailscale; using the main node.\n`);
@@ -231,6 +241,8 @@ function domain_group_outbound_tag(group) {
 		return 'main-out';
 	if (group.kind === 'tailscale')
 		return tailscale_tag;
+	if (group.kind === 'urltest')
+		return `domain-${group.id}-urltest`;
 	if (group.node === main_node && main_node !== 'urltest')
 		return 'main-out';
 	return get_node_outbound_tag(group.node);
@@ -652,6 +664,16 @@ if (!isEmpty(main_node)) {
 			server: 'main-dns',
 			timeout: dns_evaluate_timeout
 		});
+		/* Retry temporary failure replies; NXDOMAIN remains an authoritative answer. */
+		push(config.dns.rules, {
+			type: 'logical',
+			mode: 'or',
+			rules: map(['SERVFAIL', 'REFUSED'], (rcode) => ({
+				match_response: true, response_rcode: rcode
+			})),
+			action: 'route',
+			server: 'china-dns'
+		});
 		push(config.dns.rules, {
 			rule_set: 'geoip-cn',
 			match_response: true,
@@ -734,13 +756,13 @@ if (!isEmpty(main_node)) {
 	let emitted_nodes = {}, urltest_nodes = [];
 	function append_required_node(section_id, tag) {
 		if (section_id in emitted_nodes)
-			return;
+			return emitted_nodes[section_id];
 
 		const node = uci.get_all(uciconfig, section_id) || {};
 		if (isEmpty(node))
 			die(`Node ${section_id} is unavailable.`);
 
-		emitted_nodes[section_id] = true;
+		emitted_nodes[section_id] = tag || get_node_outbound_tag(section_id);
 		if (node.type === 'wireguard') {
 			const endpoint = generate_endpoint(node);
 			if (endpoint) {
@@ -755,6 +777,22 @@ if (!isEmpty(main_node)) {
 				push(config.outbounds, outbound);
 			}
 		}
+		return emitted_nodes[section_id];
+	}
+	function append_urltest(tag, nodes, cfg, prefix, default_interval) {
+		const interval = cfg[prefix + 'urltest_interval'] || default_interval;
+		const tolerance = cfg[prefix + 'urltest_tolerance'] || '60';
+		if (!match(interval, /^[0-9]+$/) || int(interval) < 1)
+			die(`URLTest group ${tag}: interval must be a positive integer in seconds.`);
+		if (!match(tolerance, /^[0-9]{1,5}$/) || int(tolerance) > 65535)
+			die(`URLTest group ${tag}: tolerance must be an integer from 0 to 65535 milliseconds.`);
+		push(config.outbounds, {
+			type: 'urltest', tag,
+			outbounds: map(nodes, (id) => append_required_node(id)),
+			interval: strToTime(interval), tolerance: int(tolerance),
+			idle_timeout: int(interval) > 1800 ? `${int(interval) * 2}s` : null,
+			interrupt_exist_connections: strToBool(cfg[prefix + 'urltest_interrupt_exist_connections'])
+		});
 	}
 
 	if (main_node === 'urltest') {
@@ -763,22 +801,7 @@ if (!isEmpty(main_node)) {
 		);
 		if (!length(urltest_nodes))
 			die('Main URLTest group has no available nodes.');
-		const main_urltest_interval = uci.get(uciconfig, ucimain, 'main_urltest_interval') || '120';
-		const tolerance_value = uci.get(uciconfig, ucimain, 'main_urltest_tolerance') || '60';
-		if (!match(tolerance_value, /^[0-9]{1,5}$/) || int(tolerance_value) > 65535)
-			die('Main URLTest tolerance must be an integer from 0 to 65535 milliseconds.');
-		const main_urltest_tolerance = int(tolerance_value);
-		const main_urltest_interrupt = uci.get(uciconfig, ucimain, 'main_urltest_interrupt_exist_connections') || '0';
-
-		push(config.outbounds, {
-			type: 'urltest',
-			tag: 'main-out',
-			outbounds: map(urltest_nodes, (k) => get_node_outbound_tag(k)),
-			interval: strToTime(main_urltest_interval),
-			tolerance: main_urltest_tolerance,
-			idle_timeout: (strToInt(main_urltest_interval) > 1800) ? `${main_urltest_interval * 2}s` : null,
-			interrupt_exist_connections: strToBool(main_urltest_interrupt)
-		});
+		append_urltest('main-out', urltest_nodes, uci.get_all(uciconfig, ucimain), 'main_', '120');
 	} else {
 		append_required_node(main_node, 'main-out');
 	}
@@ -790,6 +813,10 @@ if (!isEmpty(main_node)) {
 	for (let group in domain_groups)
 		if (group.kind === 'node' && !(group.node === main_node && main_node !== 'urltest'))
 			append_required_node(group.node);
+		else if (group.kind === 'urltest')
+			append_urltest(domain_group_outbound_tag(group), group.nodes, {
+				urltest_interrupt_exist_connections: group.cfg.urltest_interrupt_exist_connections
+			}, '', '60');
 }
 
 if (isEmpty(config.endpoints))
@@ -911,7 +938,8 @@ if (!isEmpty(main_node)) {
 /* Routing rules end */
 
 /* Experimental start */
-const enable_clash_api = main_node === 'urltest';
+const enable_clash_api = main_node === 'urltest' ||
+	length(filter(domain_groups, (group) => group.kind === 'urltest')) > 0;
 const enable_cache_file = routing_mode === 'bypass_mainland_china';
 if (enable_clash_api || enable_cache_file) {
 	config.experimental = {

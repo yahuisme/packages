@@ -37,6 +37,17 @@ class DNSFallbackGeneration(unittest.TestCase):
         self.assertEqual(dns['rules'][-2], {'rule_set': 'geoip-cn', 'match_response': True,
                                          'action': 'route', 'server': 'china-dns'})
 
+    def test_temporary_response_failures_retry_china_dns(self):
+        dns = dns_config()
+        evaluate = next(i for i, rule in enumerate(dns['rules']) if rule['action'] == 'evaluate')
+        self.assertEqual(dns['rules'][evaluate + 1], {
+            'type': 'logical', 'mode': 'or',
+            'rules': [{'match_response': True, 'response_rcode': code} for code in ('SERVFAIL', 'REFUSED')],
+            'action': 'route', 'server': 'china-dns',
+        })
+        self.assertFalse(any('NXDOMAIN' in str(rule) for rule in dns['rules']),
+                         'Authoritative negative answers must not be retried as temporary failures')
+
     def test_explicit_domain_routes_precede_mainland_evaluation(self):
         dns = dns_config()
         self.assertEqual(dns['rules'][:3], [
@@ -96,7 +107,7 @@ class DNSFallbackRuntime(unittest.TestCase):
         evidence = json.loads(result.stdout)
         self.assertNotEqual(evidence['namespace'], parent)
         self.assertEqual(evidence['interfaces'], ['lo'])
-        self.assertEqual(len(evidence['cases']), 17)
+        self.assertEqual(len(evidence['cases']), 25)
         print('\nIsolated sing-box DNS evidence: ' + json.dumps(evidence, sort_keys=True))
 
 

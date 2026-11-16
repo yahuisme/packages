@@ -41,7 +41,7 @@ function cursor() { return {
  load: () => stats.load++,
  get: function(c, s, o) { stats.get++; return o === 'main_node' ? (input.mode || 'urltest') : (input.port ?? '9090'); },
  get_all: function(c, s) { stats.get_all++; return nodes[s]; },
- foreach: function(c, t, cb) { for (let n in input.nodes) { stats.node_visits++; push(stats.order, n['.name']); cb(n); } }
+ foreach: function(c, t, cb) { if (t === 'domain_route') { for (let group in (input.groups || [])) cb(group); return; } for (let n in input.nodes) { stats.node_visits++; push(stats.order, n['.name']); cb(n); } }
 }; }
 function popen(command) {
  stats.curl++;
@@ -92,6 +92,23 @@ print(sprintf('%J', results));
 
 
 class CurrentNode(unittest.TestCase):
+    def test_generated_diversion_tag_reservations_match_current_node_rpc(self):
+        nodes = [node('node1', 'domain-route_test-urltest'), node('node2', 'Ordinary')]
+        groups = [{'.name': 'route_test', '.type': 'domain_route', 'enabled': '1',
+                   'node': 'urltest', 'urltest_nodes': ['node1', 'node2'], 'domain_list': 'route.example\n'}]
+        with ClientGenerator() as fixture:
+            fixture.sections['config'].update(main_node='urltest', main_urltest_nodes=['node1', 'node2'])
+            for n in nodes + groups:
+                fixture.sections[n['.name']] = n
+            generated = fixture.generate()
+            tags = next(o['outbounds'] for o in generated['outbounds'] if o['tag'] == 'main-out')
+        self.assertEqual(tags, ['domain-route_test-urltest (2)', 'Ordinary'])
+        results = exercise([{'name': 'diversion-tag-' + str(i), 'nodes': nodes, 'groups': groups, 'tag': tag}
+                            for i, tag in enumerate(tags)])
+        self.assertEqual([r['actual']['active']['id'] for r in results], ['node1', 'node2'])
+        for result in results:
+            self.assert_equivalent(result)
+
     def assert_equivalent(self, result):
         self.assertEqual(result['actual'], result['original'], 'instrumented and untouched production method')
         self.assertEqual(result['actual'], result['expected'], 'legacy filter result')

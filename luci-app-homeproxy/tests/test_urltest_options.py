@@ -35,6 +35,15 @@ class URLTestOptions(unittest.TestCase):
             self.assertEqual(outbound['idle_timeout'], '7200s')
             self.assertEqual(outbound['tolerance'], 12)
 
+    def test_interval_rejects_nonpositive_and_noninteger_values(self):
+        with ClientGenerator() as fixture:
+            self.configure(fixture)
+            for value in ['0', '-1', '1.5', 'NaN', '60s']:
+                with self.subTest(value=value):
+                    fixture.sections['config']['main_urltest_interval'] = value
+                    with self.assertRaisesRegex(AssertionError, 'interval must be a positive integer'):
+                        fixture.generate()
+
 
 if __name__ == '__main__':
     unittest.main()
