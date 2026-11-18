@@ -1,5 +1,4 @@
 'use strict';
-'require dom';
 'require poll';
 'require rpc';
 'require view';
@@ -55,7 +54,8 @@ function presetInfo(preset) {
 function summaryData(status) {
 	var actual = status.fan_mode === 1 ? 'manual' : status.fan_mode === 2 ? 'auto' : 'unknown';
 	var mode = modeInfo(actual);
-	if (actual !== 'unknown' && actual !== status.uci_mode) mode.sub = _('Configured mode differs from hardware');
+	if (actual !== 'unknown' && (status.uci_mode === 'manual' || status.uci_mode === 'auto') && actual !== status.uci_mode)
+		mode.sub = _('Configured mode differs from hardware');
 	var preset = presetInfo(status.uci_preset);
 	return [
 		{ id: 'fan-summary-rpm', title: _('Fan Speed'), value: validNumber(status.fan_rpm, 0, 1350000) ? status.fan_rpm + ' RPM' : '—', sub: validNumber(status.fan_percentage, 0, 100) ? status.fan_percentage + '% ' + _('PWM output') : '—' },

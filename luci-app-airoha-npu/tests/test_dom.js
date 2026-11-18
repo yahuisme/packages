@@ -27,8 +27,8 @@ const ppe = () => ({ bound_entries: boundEntries });
 const status = () => ({ cpu_cur_freq: value, cpu_max_freq: 1200000, cpu_count: 2, cpu_governor: 'schedutil', npu_bound: true });
 mods.request.post = async (url, req, options) => {
  const method = req.params[2];
- if (method === 'getStatus') { assert.equal(options.nobatch, true, 'CPU request bypasses unrelated RPC batches'); if (statusHeld) await new Promise(r => { releaseStatus = r; }); }
  calls++; methodCalls.push({ method, time: now });
+ if (method === 'getStatus') { assert.equal(options.nobatch, true, 'CPU request bypasses unrelated RPC batches'); if (statusHeld) await new Promise(r => { releaseStatus = r; }); }
  if (held && method === 'getFlowOffload') await new Promise(r => { release = r; });
  if (ppeHeld && method === 'getPpeStatus') await new Promise(r => { releasePpe = r; });
  const failure = (method === 'getStatus' && fail) || (method === 'getFlowOffload' && flowFail) || (method === 'getPpeStatus' && ppeFail);
@@ -86,8 +86,18 @@ async function tick(ms = 3000) {
   held = false; release(); await flush();
   const beforeSlow = points().length;
   statusHeld = true; now += 3000; mods.poll.step(); await flush();
+  const statusCalls = methodCalls.filter(c => c.method === 'getStatus').length;
+  const flowCalls = methodCalls.filter(c => c.method === 'getFlowOffload').length;
+  const boundCalls = methodCalls.filter(c => c.method === 'getPpeStatus').length;
+  boundEntries = 24; flowFail = true;
   for (let i=0;i<8;i++) { now+=1000; mods.poll.step(); await flush(); }
   assert.equal(points().length,beforeSlow,'slow CPU creates no replacement samples');
+  assert.equal(methodCalls.filter(c => c.method === 'getStatus').length, statusCalls, 'held CPU remains single flight');
+  assert(methodCalls.filter(c => c.method === 'getFlowOffload').length > flowCalls, 'held CPU must not starve firewall refresh');
+  assert(methodCalls.filter(c => c.method === 'getPpeStatus').length > boundCalls, 'held CPU must not starve PPE refresh');
+  assert.equal(node.querySelector('#npu-offload').textContent, w._('Unknown'));
+  assert.equal(node.querySelector('#npu-summary-flow .npu-card-sub').textContent, w._('Bound flows:') + ' 24');
+  boundEntries = 23; flowFail = false;
   statusHeld=false; releaseStatus(); await flush();
   assert.equal(points().length,beforeSlow+1,'slow CPU publishes only its actual reply');
   assert(segments()>1,'slow CPU still breaks a genuine long gap');
@@ -163,13 +173,13 @@ async function tick(ms = 3000) {
   await tick(); await flush(); unchangedObserver.disconnect();
   console.log('NPU unchanged status text mutations:', unchangedWrites.length);
   assert.equal(unchangedWrites.length, 0, 'unchanged status text must not be replaced');
-  held = true; fail = true; now += 6000; const pending = app.pollFn(); await flush(); const inFlight = calls;
+  held = true; fail = true; now += 6000; app.pollFn(); await flush(); const inFlight = calls;
   await tick(); assert.equal(calls, inFlight + 1, 'status retries independently while flow stays pending');
   now += 121000; for (const fn of [...timers.values()]) fn(); assert.equal(points().length, 0, 'stalled RPC still expires history');
   assert.equal(node.querySelector('.npu-chart-area').getAttribute('d'), '', 'outage expires filled history');
   assert.equal(node.querySelector('#npu-summary-freq .npu-card-value').textContent, w._('Unknown'));
   const beforeDetach = calls; node.remove(); await flush(); assert.equal(mods.poll.queue.length, 0); assert.equal(timers.size, 0);
-  const old = node.innerHTML; release(); await pending; assert.equal(node.innerHTML, old, 'detached reply ignored');
+  const old = node.innerHTML; release(); await flush(); assert.equal(node.innerHTML, old, 'detached reply ignored');
   await app.pollFn(); assert.equal(calls, beforeDetach);
   held = false; fail = false;
   const again = app.render(await app.load()); w.document.body.append(again); await flush();

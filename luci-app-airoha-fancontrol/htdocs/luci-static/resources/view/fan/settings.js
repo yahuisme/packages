@@ -176,6 +176,7 @@ return view.extend({
 		option.value('auto', _('Automatic (Follow Curve)'));
 		option.value('manual', _('Manual (Fixed Speed)'));
 		option.default = 'auto';
+		option.rmempty = false;
 
 		option = settings.option(form.Value, 'manual_pwm', _('Manual Fan Speed (PWM)'),
 			_('Set a fixed PWM value from 0 to 255.') + ' ' + _('Low PWM values, including 0, may stop the fan. Monitor temperatures when using manual mode.'));
@@ -197,6 +198,7 @@ return view.extend({
 		option.default = 'balanced';
 		option.depends('mode', 'auto');
 		option.retain = true;
+		option.rmempty = false;
 
 		var curve = map.section(form.NamedSection, 'custom', 'curve', _('Custom Curve'));
 		curve.anonymous = true;
@@ -238,7 +240,7 @@ return view.extend({
 			option.retain = true;
 			option.rmempty = false;
 			if (i === 5) {
-				option.readonly = (i === 5);
+				option.readonly = true;
 				option.forcewrite = true;
 				option.cfgvalue = function() { return '255'; };
 				option.write = function(sectionId) { uci.set('fan', sectionId, 'point5_pwm', '255'); };

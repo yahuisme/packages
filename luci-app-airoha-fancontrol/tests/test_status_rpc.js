@@ -21,6 +21,9 @@ const app=vm.runInContext('(function(){'+fs.readFileSync(path.join(__dirname,'..
   assert(!n.textContent.includes('Active fan curve profile'));
   if(mode===1&&configured==='auto')assert(n.textContent.includes('Configured mode differs from hardware'));
  }
+ response={...good,uci_mode:'unknown'};await polls[0]();
+ assert.equal(n.querySelector('#fan-summary-mode .fan-card-sub').textContent,'Following fan curve',
+  'a missing configured mode is not a confirmed difference from hardware');
  for(const failure of ['ubus','network']){
   response=good;networkFailure=false;await polls[0]();assert(n.textContent.includes('1500 RPM'));
   response=6;networkFailure=failure==='network';await polls[0]();

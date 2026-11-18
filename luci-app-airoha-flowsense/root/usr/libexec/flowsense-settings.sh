@@ -47,7 +47,8 @@ settings_rpc() (
         local pending=null error=
         if [ -L "$fs_settings_dir" ]; then error=storage
         elif [ -f "$fs_settings_dir/pending.json" ] && [ ! -L "$fs_settings_dir/pending.json" ]; then
-            if settings_parse "$(cat "$fs_settings_dir/pending.json")"; then pending=$(settings_json)
+            if ! input=$(cat "$fs_settings_dir/pending.json"); then error=storage
+            elif settings_parse "$input"; then pending=$(settings_json)
             else error=invalid; fi
         elif [ -e "$fs_settings_dir/pending.json" ] || [ -L "$fs_settings_dir/pending.json" ]; then error=storage; fi
         # Read committed monitor independently, including on pending read errors.
@@ -83,7 +84,8 @@ settings_rpc() (
                 [ -f "$fs_settings_dir/pending.json" ] || { settings_error busy; exit; }
             fi
             [ -f "$fs_settings_dir/pending.json" ] || { printf '{"success":true,"acceleration":"unchanged","monitor":"unchanged"}'; exit; }
-            settings_parse "$(cat "$fs_settings_dir/pending.json")" || { settings_error invalid; exit; }
+            input=$(cat "$fs_settings_dir/pending.json") || { settings_error storage; exit; }
+            settings_parse "$input" || { settings_error invalid; exit; }
             # Match the browser's verified save under this same operation lock.
             [ -z "$expected_type" ] || [ "$(settings_json)" = "$expected_json" ] || { settings_error busy; exit; }
             if [ "$settings_hardware:$settings_vlan:$settings_pppoe:$settings_ap" != '-1:-1:-1:-1' ]; then

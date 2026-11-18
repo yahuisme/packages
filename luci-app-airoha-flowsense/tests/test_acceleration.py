@@ -131,6 +131,29 @@ else:
             self.assertIsNone(result[key]['configured'])
         self.assertEqual(trace.read_text(), 'x')
 
+    def test_sysctl_scan_preserves_filenames_and_ignores_nonfiles(self):
+        self.assertIs(self.call()['vlan']['configured'], True)
+        directory = self.conf('98-not-a-file.conf')
+        directory.mkdir()
+        with self.subTest('boot ignores directories'):
+            self.assertIs(self.call()['vlan']['configured'], True)
+        directory.rmdir()
+
+        override = self.conf('99 local policy.conf')
+        override.write_text('net.bridge.bridge-nf-filter-vlan-tagged=0\n')
+        before = self.snapshot()
+        with self.subTest('boot honors filenames with spaces'):
+            result = self.call()
+            self.assertIs(result['vlan']['configured'], False)
+            self.assertIs(result['ap']['configured'], False)
+            self.assertIs(result['pppoe']['configured'], True)
+        with self.subTest('Apply uses the same precedence'):
+            self.assertEqual(self.save(vlan=1), dict(success=False, error='apply'))
+            self.assertEqual(self.snapshot(), before)
+
+        (self.d / 'etc/sysctl.conf').write_text('net.bridge.bridge-nf-filter-vlan-tagged=1\n')
+        self.assertIs(self.call()['vlan']['configured'], True)
+
     def test_runtime_snapshot_reads_each_file_once_without_cat(self):
         log = self.d / 'runtime-reads'
         self.script('cat', '#!/bin/sh\nprintf "cat\\n" >> "' + str(log) + '"\nexec "' + self.busybox + '" cat "$@"\n')

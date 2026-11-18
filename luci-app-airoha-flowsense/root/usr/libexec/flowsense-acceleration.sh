@@ -22,8 +22,13 @@ acc_read() {
     acc_bit_file "/proc/sys/net/bridge/bridge-nf-$1"
 }
 acc_config_load() {
+    local f
     # sysctl init applies these in this order; a missing optional file is not
     # missing support. Kernel defaults: call-*=1, filter/pass=0 (Linux 6.18).
+    set -- /dev/null
+    for f in /etc/sysctl.d/*.conf /etc/sysctl.conf; do
+        [ ! -f "$f" ] || set -- "$@" "$f"
+    done
     awk -v keys="$acc_keys" '
         BEGIN { count=split(keys,k," "); for(i=1;i<=count;i++) values[k[i]]=(k[i]~/^call-/)?1:0 }
         { sub(/[;#].*$/, ""); gsub(/^[ \t]+|[ \t]+$/, ""); n=split($0,a,"=");
@@ -31,7 +36,7 @@ acc_config_load() {
           if(sub(/^net\.bridge\.bridge-nf-/, "", a[1]) && a[1] in values) {
               gsub(/[ \t]/,"",a[2]); values[a[1]]=(n==2 && a[2]~/^[01]$/)?a[2]:"null"
           } }
-        END { for(i=1;i<=count;i++) print k[i] "=" values[k[i]] }' /dev/null $(for f in /etc/sysctl.d/*.conf /etc/sysctl.conf; do [ ! -e "$f" ] || printf '%s\n' "$f"; done) 2>/dev/null
+        END { for(i=1;i<=count;i++) print k[i] "=" values[k[i]] }' "$@" 2>/dev/null
 }
 acc_config() {
     local values entry

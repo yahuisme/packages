@@ -21,6 +21,36 @@ async function zero() {
 }
 const tick = () => new Promise(r => setTimeout(r, 10));
 async function until(fn) { for (let i=0; i<500 && !fn(); i++) await tick(); assert(fn()); }
+async function retainedChoices() {
+ const h = await boot();
+ try {
+  const post = h.mods.request.post;
+  h.mods.request.post = async (url, req) => {
+   // Simulate a different LuCI session changing the radio before our readback.
+   if (req.params[1] === 'uci' && req.params[2] === 'confirm') {
+    for (const config of Object.values(h.db())) {
+     Object.assign(config.radio1, {channel:'149', htmode:'VENDOR_NEW'});
+     delete config.radio2.htmode;
+    }
+   }
+   return post(url, req);
+  };
+  h.field('radio0','power').value = '23';
+  await h.clickSave();
+  h.mods.request.post = post;
+  assert.equal(h.db().committed.radio0.txpower, '23');
+  assert.equal(h.field('radio1','channel').value, '149', 'show read-back channel even if absent from the original choices');
+  assert.equal(h.field('radio1','width').value, 'VENDOR_NEW', 'show an unlisted read-back mode');
+  assert.equal(h.field('radio2','width').selectedOptions[0].textContent, 'Auto', 'show an unset mode as Auto');
+  h.field('radio0','power').value = '24';
+  await h.clickSave();
+  assert.equal(h.db().committed.radio0.txpower, '24');
+  assert.equal(h.db().committed.radio1.channel, '149');
+  assert.equal(h.db().committed.radio1.htmode, 'VENDOR_NEW');
+  assert.equal(h.db().committed.radio2.htmode, undefined);
+  console.log('PASS readback preserves unlisted channel/mode on an unrelated Apply');
+ } finally { h.w.close(); }
+}
 async function mlo() {
  const h = await boot();
  try {
@@ -80,4 +110,4 @@ async function mlo() {
   console.log('PASS MLO applied snapshot, editor choices, unsaved input and shared lock');
  } finally { h.w.close(); }
 }
-(async()=>{ if(process.argv[2]!=='mlo') await zero(); if(process.argv[2]!=='zero') await mlo(); })().catch(e => { console.error(e); process.exitCode=1; });
+(async()=>{ if(process.argv[2]!=='mlo') { await zero(); await retainedChoices(); } if(process.argv[2]!=='zero') await mlo(); })().catch(e => { console.error(e); process.exitCode=1; });

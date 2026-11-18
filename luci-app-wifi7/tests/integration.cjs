@@ -7,7 +7,8 @@ const OUT=process.env.AUDIT_OUT;
 const SOURCE=fs.readFileSync(APP,'utf8'), TELEMETRY=fs.readFileSync(path.join(path.dirname(APP),'../../wifi7/telemetry.js'),'utf8'), MLO=fs.readFileSync(path.join(path.dirname(APP),'../../wifi7/mlo.js'),'utf8');
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
 const tick=()=>new Promise(r=>setImmediate(r));
-async function boot({readonly=false,missing=false,frequencyFailure=false,zeroPower=false,hidden=false,setup,freqlist}={}) {
+async function boot({readonly=false,missing=false,frequencyFailure=false,zeroPower=false,hidden=false,setup,freqlist,
+ firmware={code:0,stdout:'firmware version fixture'}}={}) {
  const j=new JSDOM('<!doctype html><html><head><meta charset="utf-8"></head><body><div id="maincontent"><div id="view"></div></div></body></html>',{url:'http://localhost/cgi-bin/luci/admin/network/wifi7',runScripts:'outside-only',pretendToBeVisual:true}),w=j.window;
  if(setup)setup(w);
  const translations=process.env.WIFI7_TRANSLATIONS?JSON.parse(fs.readFileSync(process.env.WIFI7_TRANSLATIONS,'utf8')):{};
@@ -49,7 +50,7 @@ async function boot({readonly=false,missing=false,frequencyFailure=false,zeroPow
    else if(method==='devices')result=[0,{devices:['ap-mld']}];
    else if(method==='assoclist')result=[0,{results:[{mac:'aa:bb:cc:dd:ee:01',signal:-42,tx:{rate:1200000,eht:true,mhz:80}}]}];
    else if(method==='info')result=[0,{frequency:5180,channel:36,txpower:25,htmode:'HE80',htmodes:['HE20','HE40','HE80']}];
-  } else if(object==='file'&&method==='exec')result=[0,{code:0,stdout:p.command==='/usr/libexec/wifi7-firmware'?'firmware version fixture':stdout()}];
+  } else if(object==='file'&&method==='exec')result=[0,p.command==='/usr/libexec/wifi7-firmware'?firmware:{code:0,stdout:stdout()}];
   else if(object==='session')result=[0,{access:!readonly}];
   if(!result)throw Error('Unhandled RPC '+object+'/'+method);
   const body=clone({jsonrpc:'2.0',id:req.id,result});return {ok:true,status:200,json:()=>body};
@@ -73,6 +74,12 @@ async function main(){if(OUT)fs.mkdirSync(OUT,{recursive:true});const results=[]
  async function test(name,fn,opts){let h;try{h=await boot(opts);await fn(h);results.push({name,pass:true});}catch(e){results.push({name,pass:false,error:e.stack});}finally{if(h){if(OUT)fs.writeFileSync(path.join(OUT,name+'.rpc.json'),JSON.stringify(h.calls,null,2));h.j.window.close();}}console.log((results.at(-1).pass?'PASS ':'FAIL ')+name);}
  await test('post-apply refresh failure does not report failed commit',async h=>{h.field('radio0','power').value='24';const load=h.mods.uci.load;let failReload=false;const apply=h.mods.uci.apply;h.mods.uci.apply=function(){return apply.call(this).then(value=>{failReload=true;return value;});};h.mods.uci.load=function(...args){return failReload?Promise.reject(new Error('fixture refresh failure')):load.apply(this,args);};await h.clickSave();assert(h.calls.some(c=>c.object==='uci'&&c.method==='apply'));assert.equal(h.notifications.at(-1).text,'Configuration applied, but runtime status refresh failed. Operation failed. Please retry.');});
  await test('hidden initial render skips telemetry',async h=>{assert.equal(h.calls.filter(c=>c.object==='file'&&c.method==='exec'&&c.params.command==='/usr/libexec/wifi7-status-summary').length,0);await h.poll();assert.equal(h.calls.filter(c=>c.object==='file'&&c.method==='exec'&&c.params.command==='/usr/libexec/wifi7-status-summary').length,0);},{hidden:true});
+ await test('firmware log is rendered literally',async h=>{
+  assert.equal(h.q('.wifi7-info-value').textContent,'firmware version &amp; revision');
+ },{firmware:{code:0,stdout:'  firmware version &amp; revision  \n'}});
+ await test('firmware probe with no stdout leaves the page usable',async h=>{
+  assert.equal(h.q('.wifi7-info-value').textContent,'Unavailable');
+ },{firmware:{code:0}});
  await test('no-op-and-unsupported-mode',async h=>{assert.equal(h.field('radio1','width').value,'VENDOR_UNKNOWN');await h.clickSave();assert.equal(h.writes().length,0);});
  await test('missing-mode-no-op',async h=>{await h.clickSave();assert.equal(h.writes().length,0);},{missing:true});
  await test('failed-freqlist-preserves-config',async h=>{assert.equal(h.field('radio1','channel').value,'104');await h.clickSave();assert.equal(h.writes().length,0);},{frequencyFailure:true});

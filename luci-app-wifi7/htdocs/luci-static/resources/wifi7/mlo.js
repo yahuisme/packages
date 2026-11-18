@@ -218,7 +218,7 @@ return baseclass.extend({
 		let refresh;
 		let map = new form.Map('wireless', null, _('Configure Wi-Fi 7 Multi-Link Operation interfaces.'));
 		map.chain('network');
-		let actionPending = false, actionRoot;
+		let actionRoot;
 		operation ||= {
 			pending: false,
 			acquire: function() { if (this.pending) return false; this.pending = true; lockActions(); return true; },
@@ -248,9 +248,7 @@ return baseclass.extend({
 				? _('Discard all staged wireless changes and radio drafts?')
 				: _('Apply all staged configuration changes? Wireless connections may be interrupted.'))) return;
 			if (!operation.acquire()) return;
-			actionPending = true;
 			let applied = false;
-			lockActions();
 			return Promise.resolve().then(function() {
 				return reset ? revertWireless('wireless') : map.save().then(function() { return uci.apply(); }).then(function(result) { applied = true; return result; });
 			}).then(function() {
@@ -265,7 +263,7 @@ return baseclass.extend({
 					ui.addNotification(null, E('p', {}, [_('Configuration applied, but runtime status refresh failed. %s').format(telemetry.errorText(error))]), 'warning');
 				else
 					ui.addNotification(null, E('p', {}, [ (reset ? _('Failed to update configuration: %s') : _('Failed to apply configuration: %s')).format(telemetry.errorText(error)) ]), 'error');
-			}).finally(function() { actionPending = false; operation.release(); });
+			}).finally(function() { operation.release(); });
 		}
 
 		let section = map.section(form.GridSection, 'wifi-iface', _('MLO Interfaces'));
@@ -450,8 +448,8 @@ return baseclass.extend({
 				actionRoot = nodes;
 				nodes.appendChild(E('style', {}, '.mlo-map .mlo-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 16px}.mlo-map .mlo-summary-item{min-width:0;min-height:96px;padding:8px 16px;gap:4px;line-height:1.5;overflow-wrap:anywhere;box-sizing:border-box;border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:6px;background:var(--cbi-section-bg,transparent);display:flex;flex-direction:column;justify-content:center}.mlo-map .mlo-summary-item strong{font-size:1.125em;font-weight:600}.mlo-map .mlo-summary-item small{font-size:inherit;color:var(--cbi-muted-color,var(--text-muted,inherit));overflow-wrap:anywhere}.mlo-map .mlo-active{color:inherit}.mlo-map .mlo-muted{color:var(--cbi-muted-color,var(--text-muted,inherit))}.mlo-map{container-type:inline-size}.mlo-map .wifi7-save-bar{gap:8px;flex-wrap:wrap}@container(max-width:600px){.mlo-map .cbi-section-table-titles .th:first-child,.mlo-map .cbi-section-table-row > .td:first-child{min-width:104px;width:30%}.mlo-map .cbi-section-actions > div{display:flex;flex-direction:column;gap:8px}.mlo-map .cbi-section-actions .cbi-button{margin:0}.mlo-map .mlo-overview [data-mlo-runtime-section]{white-space:nowrap}}.mlo-map .mlo-overview{display:grid;gap:8px;min-width:0;overflow-wrap:break-word;word-break:keep-all}.mlo-map .mlo-overview-radios{display:grid;gap:4px}.mlo-map .mlo-overview-radios > span{display:flex;flex-wrap:wrap;column-gap:4px}.mlo-map .mlo-overview-radios > span > span{white-space:nowrap}.mlo-map .mlo-overview-primary{overflow-wrap:anywhere}@media(max-width:760px){.mlo-map .mlo-summary{grid-template-columns:1fr}}'));
 				nodes.appendChild(E('div', { class: 'wifi7-save-bar' }, [
-					E('button', { class: 'cbi-button cbi-button-apply', 'data-mlo-action': 'apply', disabled: actionPending || map.readonly || !L.hasViewPermission() ? true : null, click: function() { return runAction(false); } }, _('Apply staged changes')),
-					E('button', { class: 'cbi-button cbi-button-reset', 'data-mlo-action': 'reset', disabled: actionPending || map.readonly || !L.hasViewPermission() ? true : null, click: function() { return runAction(true); } }, _('Reset wireless changes'))
+					E('button', { class: 'cbi-button cbi-button-apply', 'data-mlo-action': 'apply', click: function() { return runAction(false); } }, _('Apply staged changes')),
+					E('button', { class: 'cbi-button cbi-button-reset', 'data-mlo-action': 'reset', click: function() { return runAction(true); } }, _('Reset wireless changes'))
 				]));
 				let description = nodes.querySelector('.cbi-map-descr');
 				let status = summary(runtime, radios);

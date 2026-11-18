@@ -8,6 +8,9 @@ import unittest
 
 
 class SettingsTest(unittest.TestCase):
+    # Populated by the shared acceleration fixture's setUp().
+    d: Path
+    busybox: str
     script = fixture.AccelerationTest.script
     knob = fixture.AccelerationTest.knob
     conf = fixture.AccelerationTest.conf
@@ -89,6 +92,37 @@ class SettingsTest(unittest.TestCase):
         lock.rmdir()
         self.assertTrue(self.call('setMonitor', dict(target='direct.example', enabled=0))['success'])
         self.assertFalse(lock.exists())
+
+    def test_pending_io_failure_does_not_verify_or_apply_read_bytes(self):
+        payload = dict(hardware=-1, vlan=-1, pppoe=-1, ap=-1, target='pending.example', enabled=0)
+        monitor = dict(target='example.com', enabled=True)
+        self.assertEqual(self.call('saveSettings', payload), dict(success=True))
+        self.assertEqual(self.call('getSettings'), dict(success=True, pending=payload, monitor=monitor))
+        before = self.snapshot()
+        marker = self.d / 'pending-read-failure'
+        # Even if the read returns complete-looking JSON before an I/O failure,
+        # neither readback nor Apply may trust the bytes.
+        self.script('cat', f'''#!/bin/sh
+"{self.busybox}" cat "$@" || exit "$?"
+case "$1" in
+ "{self.d}/etc/flowsense/pending.json") printf x >> "{marker}"; exit 1;;
+esac
+''')
+        with self.subTest(method='getSettings'):
+            self.assertEqual(self.call('getSettings'), dict(success=False, error='storage', monitor=monitor))
+        with self.subTest(method='applySettings'):
+            self.assertEqual(self.call('applySettings', dict(expected=json.dumps(payload))),
+                             dict(success=False, error='storage'))
+        self.assertEqual(marker.read_text(), 'xx')
+        self.assertEqual(self.snapshot(), before)
+        self.assertFalse((self.d / 'monitor-restarts').exists())
+        self.assertFalse((self.d / 'var/run/flowsense-settings.lock').exists())
+
+        (self.d / 'bin/cat').unlink()
+        (self.d / 'bin/cat').symlink_to(self.busybox)
+        self.assertTrue(self.call('applySettings', dict(expected=json.dumps(payload)))['success'])
+        self.assertEqual(self.call('getSettings'), dict(success=True, pending=None,
+                                                        monitor=dict(target='pending.example', enabled=False)))
 
     def test_monitor_failed_restart_cannot_overwrite_concurrent_writer(self):
         import time

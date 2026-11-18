@@ -35,10 +35,18 @@ function select(id, values, current, labels) {
 	values = values.slice();
 	if (current && values.indexOf(String(current)) < 0) values.push(String(current));
 	var el = E('select', { id: id, name: id, 'class': 'cbi-input-select' }, values.map(function(v) {
-		return E('option', { value: v }, labels && labels[v] || (v === 'auto' || v === '' ? _('Auto') : v));
+		return E('option', { value: v }, [labels && labels[v] || (v === 'auto' || v === '' ? _('Auto') : v)]);
 	}));
 	el.value = current || values[0];
 	return el;
+}
+function restoreSelectValue(input, value) {
+	input.value = value;
+	if (input.selectedIndex === -1) {
+		// Match initial render: preserve a stored value the driver did not list.
+		input.appendChild(E('option', { value: value }, [value || _('Auto')]));
+		input.value = value;
+	}
 }
 function channelChoices(result, radio) {
 	return result && result.ok ? result.value.filter(function(f) {
@@ -151,7 +159,9 @@ return view.extend({
 			settings.appendChild(box);
 		});
 		var firmware = data[1];
-		var fw = E('span', {}, firmware.ok && firmware.value.code === 0 && firmware.value.stdout.trim() ? firmware.value.stdout.trim() : _('Unavailable')), dfs = E('span', {}, _('Unknown'));
+		// rpcd omits stdout when the probe emits nothing.
+		var version = firmware.ok && firmware.value.code === 0 && typeof firmware.value.stdout === 'string' ? firmware.value.stdout.trim() : '';
+		var fw = E('span', {}, [version || _('Unavailable')]), dfs = E('span', {}, _('Unknown'));
 		var overview = E('div', {}, [notice, grid, E('div', { 'class': 'cbi-section-node wifi7-system-info' }, [
 			E('div', { 'class': 'wifi7-info-row' }, [ E('span', { 'class': 'wifi7-info-label' }, _('MT76 Firmware')), E('span', { 'class': 'wifi7-info-value' }, fw) ]),
 			E('div', { 'class': 'wifi7-info-row' }, [ E('span', { 'class': 'wifi7-info-label' }, _('5GHz DFS Status')), E('span', { 'class': 'wifi7-info-value' }, dfs) ]) ]) ]);
@@ -280,8 +290,8 @@ return view.extend({
 				c.original = Object.assign({}, original);
 				c.pending = null;
 				c.enabled.checked = original.disabled !== '1';
-				c.channel.value = original.channel || 'auto';
-				c.width.value = original.htmode || '';
+				if (!changedCountry) restoreSelectValue(c.channel, original.channel || 'auto');
+				restoreSelectValue(c.width, original.htmode || '');
 				c.power.value = original.txpower || '';
 				c.country.value = original.country || '';
 				if (c.radar) c.radar.checked = original.background_radar === '1';

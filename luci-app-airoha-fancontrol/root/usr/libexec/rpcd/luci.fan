@@ -1,15 +1,19 @@
 #!/bin/sh
 
+valid_uint() {
+    case "$1" in
+        ''|*[!0-9]*|0[0-9]*|??????????*) return 1 ;;
+    esac
+    return 0
+}
+
 # Return short-file values through the caller-local read_result, without subshells.
 read_integer() {
     local file="$1" value
     read_result=null
     [ -r "$file" ] || return 1
     read -r value < "$file" 2>/dev/null || return 1
-    local digits="${value#-}"
-    case "$digits" in
-        ''|*[!0-9]*|0[0-9]*|??????????*) return 1 ;;
-    esac
+    valid_uint "${value#-}" || return 1
     read_result=$value
 }
 
@@ -22,20 +26,8 @@ read_temp() {
     fi
 }
 
-valid_uint() {
-    case "$1" in
-        ''|*[!0-9]*|0[0-9]*|??????????*) return 1 ;;
-    esac
-    return 0
-}
-
 valid_range() {
     valid_uint "$1" && [ "$1" -ge "$2" ] && [ "$1" -le "$3" ]
-}
-
-preset_valid() {
-    case "$1" in quiet|balanced|performance|custom) return 0;; esac
-    return 1
 }
 
 get_status() {
@@ -70,9 +62,12 @@ get_status() {
         read_integer "$hwmon/pwm1"; fan_pwm=$read_result
         read_integer "$hwmon/pwm1_enable"; fan_mode=$read_result
         valid_range "$fan_rpm" 0 1350000 || fan_rpm=null
-        valid_range "$fan_pwm" 0 255 || fan_pwm=null
+        if valid_range "$fan_pwm" 0 255; then
+            fan_percentage=$((fan_pwm * 100 / 255))
+        else
+            fan_pwm=null
+        fi
         valid_range "$fan_mode" 1 2 || fan_mode=null
-        valid_range "$fan_pwm" 0 255 && fan_percentage=$((fan_pwm * 100 / 255))
     fi
     for zone in /sys/class/thermal/thermal_zone*; do
         [ -r "$zone/type" ] || continue
@@ -97,7 +92,7 @@ get_status() {
     uci_mode=$(uci -q get fan.settings.mode 2>/dev/null) || uci_mode=unknown
     case "$uci_mode" in manual|auto) ;; *) uci_mode=unknown ;; esac
     uci_preset=$(uci -q get fan.settings.curve_preset 2>/dev/null) || uci_preset=unknown
-    preset_valid "$uci_preset" || uci_preset=unknown
+    case "$uci_preset" in quiet|balanced|performance|custom) ;; *) uci_preset=unknown ;; esac
     uci_manual_pwm=$(uci -q get fan.settings.manual_pwm 2>/dev/null) || uci_manual_pwm=null
     valid_range "$uci_manual_pwm" 0 255 || uci_manual_pwm=null
 

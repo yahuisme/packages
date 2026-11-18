@@ -98,14 +98,17 @@ return view.extend({
 		function drawChart() {
 			if (document.visibilityState === 'hidden') return;
 			var now = Date.now();
+			var cutoff = now - 120000, peak = Math.max(ceiling, 100);
 			samples = samples.filter(function(p) {
-				if (p.time >= now - 120000) return true;
+				if (p.time >= cutoff) {
+					if (p.value > peak) peak = p.value;
+					return true;
+				}
 				if (p.node) chart.removeChild(p.node);
 				return false;
 			});
 			var width = chart.clientWidth || 600, left = 48, right = width - 16;
 			var top = 24, bottom = 168;
-			var peak = Math.max(ceiling, 100, ...samples.map(function(p) { return p.value || 0; }));
 			var step = Math.ceil(peak / 6 / 100) * 100, max = Math.ceil(peak / step) * step;
 			setAttribute(chart, 'viewBox', '0 0 ' + width + ' 200');
 			var key = width + ':' + max + ':' + step;
@@ -122,7 +125,7 @@ return view.extend({
 					}
 					Object.keys(lineAttrs).forEach(function(k) { setAttribute(pair[0], k, lineAttrs[k]); });
 					Object.keys(textAttrs).forEach(function(k) { setAttribute(pair[1], k, textAttrs[k]); });
-					pair[1].textContent = label;
+					setText(pair[1], String(label));
 				}
 				for (var value = 0; value <= max; value += step) {
 					var y = bottom - value / max * (bottom - top);
@@ -143,7 +146,7 @@ return view.extend({
 			}
 			samples.forEach(function(p, i) {
 				if (p.value == null) { closeArea(); previous = null; return; }
-				var x = left + (p.time - (now - 120000)) / 120000 * (right - left);
+				var x = left + (p.time - cutoff) / 120000 * (right - left);
 				var y = bottom - p.value / max * (bottom - top);
 				var connected = previous && p.time - previous.time < 4500;
 				var next = samples[i + 1];
@@ -173,7 +176,7 @@ return view.extend({
 			if (s && typeof s.cpu_max_freq === 'number' && isFinite(s.cpu_max_freq) && s.cpu_max_freq > 0)
 				ceiling = s.cpu_max_freq / 1000;
 			samples.push({ time: Date.now(), value: value });
-			chartValue.textContent = value == null ? _('Unknown') : value + ' MHz';
+			setText(chartValue, value == null ? _('Unknown') : value + ' MHz');
 			drawChart();
 		}
 
@@ -190,18 +193,14 @@ return view.extend({
 			offload: E('span', { id: 'npu-offload', 'class': 'npu-detail-value' }, '—')
 		};
 
-		function update(s, f) {
-			if (!self.active) return;
+		function updateStatus(s) {
 			s = s || {};
-			f = f || {};
 
 			var curFreqStr = frequency(s.cpu_cur_freq);
 			var maxFreqStr = frequency(s.cpu_max_freq);
 			var govStr = governor(s.cpu_governor);
 			var npuClockStr = typeof s.npu_clock === 'number' && s.npu_clock > 0 ? (s.npu_clock / 1000000) + ' MHz' : _('Unknown');
 			var npuBoundStr = s.npu_bound === true ? _('Bound') : s.npu_bound === false ? _('Not bound') : _('Unknown');
-			var flowStr = f.enabled === true ? _('Enabled') : f.enabled === false ? _('Disabled') : _('Unknown');
-			var flowDetailStr = f.enabled === true ? _('Enabled in firewall') : f.enabled === false ? _('Disabled in firewall') : _('Unknown');
 
 			setText(cards.freq.val, curFreqStr);
 			setText(cards.freq.sub, _('Max limit:') + ' ' + maxFreqStr);
@@ -209,9 +208,6 @@ return view.extend({
 			setText(cards.gov.sub, _('Online CPUs:') + ' ' + text(s.cpu_count));
 			setText(cards.npu.val, npuBoundStr);
 			setText(cards.npu.sub, npuClockStr);
-			setText(cards.flow.val, flowStr);
-			setText(cards.flow.sub, _('Bound flows:') + ' ' + (Number.isInteger(ppe.bound_entries) && ppe.bound_entries >= 0 ? ppe.bound_entries : _('Unknown')));
-
 
 			setText(detailNodes.online, text(s.cpu_count));
 			setText(detailNodes.current, curFreqStr);
@@ -219,7 +215,15 @@ return view.extend({
 			setText(detailNodes.governor, govStr);
 			setText(detailNodes.driver, npuBoundStr);
 			setText(detailNodes.clock, npuClockStr);
-			setText(detailNodes.offload, flowDetailStr);
+		}
+		function updateFlow(f) {
+			var enabled = f && f.enabled;
+			setText(cards.flow.val, enabled === true ? _('Enabled') : enabled === false ? _('Disabled') : _('Unknown'));
+			setText(detailNodes.offload, enabled === true ? _('Enabled in firewall') : enabled === false ? _('Disabled in firewall') : _('Unknown'));
+		}
+		function updatePpe(p) {
+			var count = p && p.bound_entries;
+			setText(cards.flow.sub, _('Bound flows:') + ' ' + (Number.isInteger(count) && count >= 0 ? count : _('Unknown')));
 		}
 
 		var page = E('div', { 'class': 'cbi-map npu-dashboard' }, [
@@ -262,35 +266,36 @@ return view.extend({
 			])
 		]);
 
-		update(status, flow);
+		updateStatus(status);
+		updateFlow(flow);
+		updatePpe(ppe);
 		sample(status);
 
 		var statusPending = false, flowPending = false, ppePending = false;
 		self.pollFn = function() {
-			if (!self.active || !page.isConnected || document.visibilityState === 'hidden') return Promise.resolve();
-			// The chart timer below ages the window every second; redrawing here
-			// only doubled the work while the poll was also running.
-			// Firewall state has its own single-flight guard. Do not return its
-			// promise to LuCI poll: a held sibling must not suspend CPU sampling.
-			if (!flowPending && Date.now() - lastFlowRequest >= 6000) {
-				lastFlowRequest = Date.now(); flowPending = true;
+			if (!self.active || !page.isConnected || document.visibilityState === 'hidden') return;
+			var now = Date.now();
+			// Do not give LuCI poll any of these promises: it would block this
+			// whole callback until settlement. Each source owns its single flight.
+			if (!flowPending && now - lastFlowRequest >= 6000) {
+				lastFlowRequest = now; flowPending = true;
 				getFlow().catch(function() { return null; }).then(function(f) {
 					if (!self.active || !page.isConnected) return;
-					flow = f; update(status, flow);
+					updateFlow(f);
 				}).finally(function() { flowPending = false; });
 			}
-			if (!ppePending && Date.now() - lastPpeRequest >= 6000) {
-				lastPpeRequest = Date.now(); ppePending = true;
+			if (!ppePending && now - lastPpeRequest >= 6000) {
+				lastPpeRequest = now; ppePending = true;
 				getPpe().catch(function() { return null; }).then(function(p) {
 					if (!self.active || !page.isConnected) return;
-					ppe = p || {}; update(status, flow);
+					updatePpe(p);
 				}).finally(function() { ppePending = false; });
 			}
-			if (statusPending || Date.now() - lastRequest < 3000) return Promise.resolve();
-			lastRequest = Date.now(); statusPending = true;
-			return getStatus().catch(function() { return null; }).then(function(s) {
+			if (statusPending || now - lastRequest < 3000) return;
+			lastRequest = now; statusPending = true;
+			getStatus().catch(function() { return null; }).then(function(s) {
 				if (!self.active || !page.isConnected) return;
-				status = s; update(status, flow); sample(status);
+				updateStatus(s); sample(s);
 			}).finally(function() { statusPending = false; });
 		};
 		// Age the window even if a transport stalls; no synthetic samples.

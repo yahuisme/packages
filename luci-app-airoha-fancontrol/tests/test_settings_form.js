@@ -159,6 +159,13 @@ const w = j.window;
   assert(writes.some(a=>a[0]==='fan'&&a[1]==='custom'&&a[2]==='point1_temp'&&a[3]==='41'),
    'native save persists custom inputs after table reparenting');
   mods.uci.set=originalSet;
+  // LuCI removes values equal to an optional default during parse. These
+  // settings are required by the init script, even for automatic/balanced.
+  map.lookupOption('curve_preset','settings')[0].getUIElement('settings').setValue('balanced');
+  await map.save(()=>{
+   assert.equal(mods.uci.get('fan','settings','mode'),'auto');
+   assert.equal(mods.uci.get('fan','settings','curve_preset'),'balanced');
+  });
   const disconnectsBeforeDetach=disconnects;
   node.remove();assert.equal(w.document.querySelectorAll('.fan-settings style').length,0);
   await new Promise(resolve=>setImmediate(resolve));
