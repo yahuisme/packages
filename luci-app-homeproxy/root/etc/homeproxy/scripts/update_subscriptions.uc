@@ -42,7 +42,6 @@ const allow_insecure = uci.get(uciconfig, ucisubscription, 'allow_insecure') || 
           (subscription_urls_raw ? [subscription_urls_raw] : []),
       user_agent = uci.get(uciconfig, ucisubscription, 'user_agent'),
       via_proxy = uci.get(uciconfig, ucisubscription, 'update_via_proxy') || '0';
-const resources_updated = getenv('HOMEPROXY_RESOURCES_UPDATED') === '1';
 const mixed_port = int(uci.get(uciconfig, uciinfra, 'mixed_port')) || 5330;
 const update_proxy = (via_proxy === '1') ? `http://127.0.0.1:${mixed_port}` : null;
 const service_running = system('/etc/init.d/homeproxy running >/dev/null 2>&1') === 0;
@@ -121,25 +120,20 @@ function filter_check(name) {
 /* String helper end */
 
 const subscription_transaction = {
-	applying: false,
 	before: subscription_before,
 	pending: !isEmpty(uci.changes(uciconfig))
 };
-function reload_service(message) {
+function reload_service() {
 	if (!service_running)
 		return true;
 
-	log(message || 'Reloading service...');
+	log('Reloading service...');
 	if (system('/etc/init.d/homeproxy reload >/dev/null 2>&1') !== 0) {
 		log('Failed to reload HomeProxy; the updated configuration has not been applied.');
 		return false;
 	}
 
 	return true;
-}
-
-function apply_updated_resources() {
-	return !resources_updated || subscription_transaction.applying || reload_service('Reloading service to apply updated resources...');
 }
 
 function commit_subscription_changes() {
@@ -163,7 +157,6 @@ function commit_subscription_changes() {
 	const closed = fd.close();
 	if (written !== length(before) || closed !== true || subscription_fs.readfile(backup) !== before)
 		die('failed to verify subscription rollback configuration; recovery retained');
-	subscription_transaction.applying = true;
 	let committed_ok = false;
 	try { committed_ok = uci.commit(uciconfig) === true; }
 	catch (e) { log_error('Failed to commit subscription changes', e); }
@@ -1545,9 +1538,6 @@ function main() {
 
 	if (isEmpty(node_result)) {
 		log('Failed to update subscriptions: no valid node found.');
-
-		apply_updated_resources();
-
 		return false;
 	}
 
@@ -1578,7 +1568,6 @@ function main() {
 		const key = connection_key(node), label_key = node.grouphash + ':' + node.label;
 		incoming_connections[key] = (incoming_connections[key] || 0) + 1;
 		incoming_labels[label_key] = (incoming_labels[label_key] || 0) + 1;
-		node_cache[node.grouphash] = {};
 	}
 	/* Current label identity takes priority over hashes and connection renames. */
 	for (let node in node_result) {
@@ -1607,7 +1596,6 @@ function main() {
 		let id = node.__section_id;
 		if (existing_ids[id] && existing_ids[id].grouphash !== node.grouphash) {
 			log('Failed to update subscriptions: node ID belongs to another source; keeping the existing configuration.');
-			apply_updated_resources();
 			return false;
 		} else if (matched[id] || existing_ids[id]) {
 			let suffix = 2;
@@ -1637,12 +1625,13 @@ function main() {
 	for (let node in node_result) {
 		if (reconcile_group[node.grouphash] !== true && !node.__identity_matched) {
 			log(sprintf('Failed to update subscriptions: incomplete response contains unmatched nodes in group %s; keeping the existing configuration.', node.grouphash));
-			apply_updated_resources();
 			return false;
 		}
 	}
-	for (let node in node_result)
-		node_cache[node.grouphash] = {};
+	/* Reindex parsed IDs after matching; retain empty keys for failed feeds. */
+	for (let group, nodes in node_cache)
+		if (length(nodes))
+			node_cache[group] = {};
 	for (let node in node_result)
 		node_cache[node.grouphash][node.__section_id] = node;
 
@@ -1747,10 +1736,7 @@ function main() {
 
 	const config_changed = !isEmpty(uci.changes(uciconfig));
 	/* Reload reads committed UCI; a failed reload also restores persistence. */
-	if (config_changed) {
-		if (!commit_subscription_changes())
-			return false;
-	} else if (resources_updated && !reload_service())
+	if (config_changed && !commit_subscription_changes())
 		return false;
 
 	log(sprintf('%s added, %s updated, %s removed.', added, updated, removed));
@@ -1775,6 +1761,5 @@ if (!isEmpty(subscription_urls))
 			exit(1);
 	} catch(e) {
 		log_error('[FATAL ERROR] An error occurred during updating subscriptions', e);
-		apply_updated_resources();
 		exit(1);
 	}

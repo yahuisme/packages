@@ -28,12 +28,11 @@ class NativePluginImport(unittest.TestCase):
             source += 'const uci=cursor(%s,%s); uci.load("homeproxy");\n' % (json.dumps(str(root/'config')), json.dumps(str(root/'saved')))
             source += 'const payload=' + json.dumps(payload) + ''', subscription_urls=['https://fixture.invalid/sub'];
 const node_cache={},node_config_cache={},node_result=[],reconcile_group={};
-const user_agent='fixture',update_proxy=null,allow_insecure='0',packet_encoding='xudp',resources_updated=false;
+const user_agent='fixture',update_proxy=null,allow_insecure='0',packet_encoding='xudp';
 const uciconfig='homeproxy',ucinode='node',ucimain='config';
 const filter_mode='disabled',filter_keywords=[];
 function wGET(url){return payload;}
 function reload_service(){return true;}
-function apply_updated_resources(){return true;}
 function log_error(...args){warn('update failure\\n');}
 '''
             source += helper[helper.index('export function isEmpty'):helper.index('export function strToBool')].replace('export function','function')

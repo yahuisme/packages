@@ -138,7 +138,7 @@ function countedMap(a,cb){calls++;slots+=length(a);return map(a,cb);}
         source = "function isEmpty(v){return v===null || v==='' || (type(v) in ['object','array'] && !length(v));}\n"
         source += common + key.replace('function connection_key(', 'function original_key(')
         source += '''let calls=0; function connection_key(n){calls++;return original_key(n);}
-function log(s){} function apply_updated_resources(){}
+function log(s){}
 '''
         for name, body in [('oldPhase', phase[:start] + old_loop + phase[end:]), ('currentPhase', phase)]:
             source += 'function ' + name + '''(scenario) {

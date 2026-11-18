@@ -18,12 +18,11 @@ from test_subscription_parsing import BASE
 
 class SubscriptionApply(unittest.TestCase):
     def run_subscription(self, root, command, *, changed=True, commit=True,
-                         running=True, resources=False, payload=reconcile.GOOD,
+                         running=True, payload=reconcile.GOOD,
                          env=None):
         """Reuse the real-parser/main fixture, replacing only its apply stub."""
         production = (BASE / 'update_subscriptions.uc').read_text()
-        name = 'reload_service' if 'function reload_service' in production else 'restart_service'
-        helper = production[production.index('function ' + name):production.index('function commit_subscription_changes')]
+        helper = production[production.index('function reload_service'):production.index('function commit_subscription_changes')]
         real_run = subprocess.run
         captured = []
 
@@ -31,12 +30,10 @@ class SubscriptionApply(unittest.TestCase):
             if args[0] != 'ucode':
                 return real_run(args, **kwargs)
             source = Path(args[-1]).read_text()
-            source = source.replace('resources_updated=false', 'resources_updated=' + json.dumps(resources))
             source = source.replace('function log(...args) {}', "function log(...args) { warn(join(' ', args) + '\\n'); }")
-            source = source.replace('function restart_service(){return true;}\nfunction apply_updated_resources(){return true;}', '')
-            source = source.replace('function reload_service(){return true;}\nfunction apply_updated_resources(){return true;}', '')
-            marker = 'const subscription_transaction={applying:false};'
-            source = source.replace(marker, marker + '\n' + helper)
+            source = source.replace('function reload_service(){return true;}\n', '')
+            source = source.replace('function commit_subscription_changes()',
+                                    helper + 'function commit_subscription_changes()', 1)
             source = 'const service_running=' + json.dumps(running) + ';\n' + source
             source = source.replace('changes:()=>({changed:true})', 'changes:()=>(' + ('{changed:true}' if changed else '{}') + ')')
             source = source.replace('commits++;return true;', "commits++;warn('COMMIT\\n');return " + json.dumps(commit) + ';')
@@ -84,52 +81,38 @@ class SubscriptionApply(unittest.TestCase):
                     # no kill, return status, submission count and watched files.
                     runtime.Reload().run_case(fault, 'both')
 
-    def test_resources_fallback_reports_failure_without_commit(self):
-        for payload in [reconcile.GOOD, 'invalid subscription']:
-            with self.subTest(payload=payload), tempfile.TemporaryDirectory() as d:
+    def test_rejected_responses_never_commit_or_reload(self):
+        cases = [('invalid subscription', 'no valid node found'),
+                 (reconcile.GOOD + reconcile.BAD, 'incomplete response contains unmatched nodes')]
+        for payload, message in cases:
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as d:
                 root = Path(d)
                 command = root / 'service'
-                command.write_text('#!/bin/sh\nprintf "%s\\n" "$1" >> "' + str(root / 'calls') + '"\nexit 1\n')
+                command.write_text('#!/bin/sh\nprintf "%s\\n" "$1" >> "' + str(root / 'calls') + '"\n')
                 command.chmod(0o755)
-                result = self.run_subscription(root, str(command), changed=False,
-                                               resources=True, payload=payload)
+                result = self.run_subscription(root, str(command), payload=payload)
                 self.assertEqual(result.returncode, 1, result.stderr)
                 self.assertNotIn('COMMIT\n', result.stderr)
-                self.assertIn('Failed to reload HomeProxy', result.stderr)
                 self.assertNotIn('Successfully updated subscriptions.', result.stderr)
-                self.assertEqual((root / 'calls').read_text().splitlines(), ['reload'])
+                self.assertIn(message, result.stderr)
+                self.assertFalse((root / 'calls').exists())
 
-    def test_rejected_partial_response_applies_resources_but_never_reports_success(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d)
-            command = root / 'service'
-            command.write_text('#!/bin/sh\nprintf "%s\\n" "$1" >> "' + str(root / 'calls') + '"\n')
-            command.chmod(0o755)
-            result = self.run_subscription(root, str(command), resources=True,
-                                           payload=reconcile.GOOD + reconcile.BAD)
-            self.assertEqual(result.returncode, 1, result.stderr)
-            self.assertNotIn('COMMIT\\n', result.stderr)
-            self.assertNotIn('Successfully updated subscriptions.', result.stderr)
-            self.assertIn('incomplete response contains unmatched nodes', result.stderr)
-            self.assertEqual((root / 'calls').read_text().splitlines(), ['reload'])
-
-    def test_commit_noop_stopped_and_resources_contract(self):
+    def test_commit_noop_and_stopped_contract(self):
         cases = [
-            # changed, commit result, running, resources, commit/apply/exit
-            (True, True, True, False, True, True, 0),
-            (True, False, True, False, True, False, 1),
-            (False, True, True, False, False, False, 0),
-            (True, True, False, False, True, False, 0),
-            (False, True, True, True, False, True, 0),
+            # changed, commit result, running, commit/apply/exit
+            (True, True, True, True, True, 0),
+            (True, False, True, True, False, 1),
+            (False, True, True, False, False, 0),
+            (True, True, False, True, False, 0),
         ]
-        for changed, commit, running, resources, want_commit, want_apply, status in cases:
-            with self.subTest(case=(changed, commit, running, resources)), tempfile.TemporaryDirectory() as d:
+        for changed, commit, running, want_commit, want_apply, status in cases:
+            with self.subTest(case=(changed, commit, running)), tempfile.TemporaryDirectory() as d:
                 root = Path(d)
                 command = root / 'service'
                 command.write_text('#!/bin/sh\nprintf "%s\\n" "$1" >> "' + str(root / 'calls') + '"\n')
                 command.chmod(0o755)
                 result = self.run_subscription(root, str(command), changed=changed, commit=commit,
-                                               running=running, resources=resources)
+                                               running=running)
                 self.assertEqual(result.returncode, status, result.stderr)
                 self.assertEqual('COMMIT\n' in result.stderr, want_commit)
                 calls = (root / 'calls').read_text().splitlines() if (root / 'calls').exists() else []

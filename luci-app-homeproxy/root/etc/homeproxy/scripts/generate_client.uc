@@ -407,7 +407,6 @@ function get_control_matches() {
 		direct_source: lan_policy.use_direct_list ?
 			source_match('lan_direct_ipv4_ips', null, 'lan_direct_mac_addrs') : null,
 		proxy_source,
-		auto_source,
 		listed_source: lan_policy.restrict_to_list ? merge_matches([auto_source, proxy_source]) : null,
 		wan_proxy: lan_policy.use_proxy_list ? destination_match('wan_proxy_ipv4_ips', 'wan_proxy_ipv6_ips') : null,
 		wan_direct: destination_match('wan_direct_ipv4_ips', 'wan_direct_ipv6_ips'),
@@ -415,9 +414,7 @@ function get_control_matches() {
 	};
 }
 
-function add_control_pre_match_policy_rules(rules, proxy_outbound) {
-	const control = get_control_matches();
-
+function add_control_pre_match_policy_rules(rules, control, proxy_outbound) {
 	if (control.restrict_to_list)
 		push_bypass(rules, tun_unlisted_match(control.listed_source));
 	else
@@ -428,7 +425,6 @@ function add_control_pre_match_policy_rules(rules, proxy_outbound) {
 		push_route(rules, tun_match(control.wan_proxy), proxy_outbound);
 	}
 	push_bypass(rules, tun_match(control.wan_direct));
-	return control;
 }
 
 function add_control_pre_match_fallback_rules(rules, control) {
@@ -436,9 +432,7 @@ function add_control_pre_match_fallback_rules(rules, control) {
 	push_bypass(rules, tun_match(control.bypass_ports));
 }
 
-function add_control_policy_rules(rules, proxy_outbound) {
-	const control = get_control_matches();
-
+function add_control_policy_rules(rules, control, proxy_outbound) {
 	/* Unqualified bypass only applies during auto-redirect pre-match. */
 	if (control.restrict_to_list)
 		push_route(rules, tun_unlisted_match(control.listed_source), 'direct-out');
@@ -450,7 +444,6 @@ function add_control_policy_rules(rules, proxy_outbound) {
 		push_route(rules, control.wan_proxy, proxy_outbound);
 	}
 	push_route(rules, control.wan_direct, 'direct-out');
-	return control;
 }
 
 function add_control_fallback_rules(rules, control) {
@@ -508,20 +501,6 @@ function parse_dnsserver(server_addr, default_protocol) {
 	}
 }
 
-function generate_outbound(node) {
-	const outbound = renderOutbound(node);
-	if (outbound && node['.name'])
-		outbound.tag = get_node_outbound_tag(node['.name']);
-	return outbound;
-}
-
-function generate_endpoint(node) {
-	const endpoint = renderEndpoint(node);
-	if (endpoint && node['.name'])
-		endpoint.tag = get_node_outbound_tag(node['.name']);
-	return endpoint;
-}
-
 /* Config helper end */
 
 const config = {};
@@ -575,6 +554,7 @@ if (!isEmpty(main_node)) {
 		});
 
 	/* Main DNS */
+	const main_dns = parse_dnsserver(dns_server, 'tcp');
 	push(config.dns.servers, {
 		tag: 'main-dns',
 		domain_resolver: {
@@ -582,7 +562,7 @@ if (!isEmpty(main_node)) {
 			strategy: dns_default_strategy
 		},
 		detour: 'main-out',
-		...parse_dnsserver(dns_server, 'tcp')
+		...main_dns
 	});
 	config.dns.final = (routing_mode === 'bypass_mainland_china') ? 'china-dns' : 'main-dns';
 
@@ -603,10 +583,9 @@ if (!isEmpty(main_node)) {
 	function domain_group_dns_server(group) {
 		if (group.kind === 'direct')
 			return (routing_mode === 'bypass_mainland_china') ? 'china-dns' : 'default-dns';
-		if (group.kind === 'main' || domain_group_outbound_tag(group) === 'main-out')
-			return 'main-dns';
-
 		const outbound = domain_group_outbound_tag(group);
+		if (outbound === 'main-out')
+			return 'main-dns';
 		if (outbound in diversion_dns_servers)
 			return diversion_dns_servers[outbound];
 
@@ -619,7 +598,7 @@ if (!isEmpty(main_node)) {
 				strategy: dns_default_strategy
 			},
 			detour: outbound,
-			...parse_dnsserver(dns_server, 'tcp')
+			...main_dns
 		});
 		return tag;
 	}
@@ -753,7 +732,7 @@ config.outbounds = [
 
 /* Main outbounds */
 if (!isEmpty(main_node)) {
-	let emitted_nodes = {}, urltest_nodes = [];
+	const emitted_nodes = {};
 	function append_required_node(section_id, tag) {
 		if (section_id in emitted_nodes)
 			return emitted_nodes[section_id];
@@ -762,22 +741,23 @@ if (!isEmpty(main_node)) {
 		if (isEmpty(node))
 			die(`Node ${section_id} is unavailable.`);
 
-		emitted_nodes[section_id] = tag || get_node_outbound_tag(section_id);
+		tag ||= get_node_outbound_tag(section_id);
+		emitted_nodes[section_id] = tag;
 		if (node.type === 'wireguard') {
-			const endpoint = generate_endpoint(node);
+			const endpoint = renderEndpoint(node);
 			if (endpoint) {
-				endpoint.tag = tag || get_node_outbound_tag(section_id);
+				endpoint.tag = tag;
 				push(config.endpoints, endpoint);
 			}
 		} else {
-			const outbound = generate_outbound(node);
+			const outbound = renderOutbound(node);
 			if (outbound) {
 				addECHDNS(config, node, { server: 'default-dns', strategy: dns_default_strategy });
-				outbound.tag = tag || get_node_outbound_tag(section_id);
+				outbound.tag = tag;
 				push(config.outbounds, outbound);
 			}
 		}
-		return emitted_nodes[section_id];
+		return tag;
 	}
 	function append_urltest(tag, nodes, cfg, prefix, default_interval) {
 		const interval = cfg[prefix + 'urltest_interval'] || default_interval;
@@ -796,7 +776,7 @@ if (!isEmpty(main_node)) {
 	}
 
 	if (main_node === 'urltest') {
-		urltest_nodes = filterExistingNodes(
+		const urltest_nodes = filterExistingNodes(
 			uci, uciconfig, uci.get(uciconfig, ucimain, 'main_urltest_nodes')
 		);
 		if (!length(urltest_nodes))
@@ -804,10 +784,6 @@ if (!isEmpty(main_node)) {
 		append_urltest('main-out', urltest_nodes, uci.get_all(uciconfig, ucimain), 'main_', '120');
 	} else {
 		append_required_node(main_node, 'main-out');
-	}
-
-	for (let i in urltest_nodes) {
-		append_required_node(i);
 	}
 
 	for (let group in domain_groups)
@@ -857,7 +833,8 @@ if (!isEmpty(main_node)) {
 	};
 
 	/* Native auto_redirect pre-match: handle device and address exceptions first. */
-	const pre_match_control = add_control_pre_match_policy_rules(config.route.rules, 'main-out');
+	const control = get_control_matches();
+	add_control_pre_match_policy_rules(config.route.rules, control, 'main-out');
 
 	for (let group in domain_groups) {
 		const outbound = domain_group_outbound_tag(group);
@@ -878,7 +855,7 @@ if (!isEmpty(main_node)) {
 		push_route(config.route.rules, { inbound: tailscale_tag }, 'direct-out');
 		push_route(config.route.rules, { preferred_by: tailscale_tag }, tailscale_tag);
 	}
-	add_control_pre_match_fallback_rules(config.route.rules, pre_match_control);
+	add_control_pre_match_fallback_rules(config.route.rules, control);
 
 	if (routing_mode === 'bypass_mainland_china') {
 		push_bypass(config.route.rules, tun_match({ rule_set: 'geosite-cn' }));
@@ -886,7 +863,7 @@ if (!isEmpty(main_node)) {
 	}
 
 	push(config.route.rules, { action: 'sniff' });
-	const control = add_control_policy_rules(config.route.rules, 'main-out');
+	add_control_policy_rules(config.route.rules, control, 'main-out');
 
 	for (let group in domain_groups) {
 		const outbound = domain_group_outbound_tag(group);

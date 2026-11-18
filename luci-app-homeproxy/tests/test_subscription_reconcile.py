@@ -22,7 +22,7 @@ class SubscriptionReconcile(unittest.TestCase):
         parser += s[s.index('function has_value'):s.index('function main()')]
         pre = '''import {md5} from 'digest';
 const node_cache={},node_config_cache={},node_result=[],reconcile_group={};
-const user_agent='fixture',update_proxy=null,allow_insecure='0',packet_encoding='xudp',resources_updated=false;
+const user_agent='fixture',update_proxy=null,allow_insecure='0',packet_encoding='xudp';
 const uciconfig='homeproxy',ucinode='node',ucimain='config';
 let deleted=[],writes=[],commits=0,fetches=0;
 const old=[{'.name':'old-unparsed',grouphash:md5('https://fixture.invalid/sub'),label:'old-unparsed'},
@@ -36,7 +36,6 @@ function synchronizeNodeLabels(){return {used:{},changed:0};}
 function reserveUniqueLabel(used,label){return label;}
 function reconcileUrltestNodes(){}
 function reload_service(){return true;}
-function apply_updated_resources(){return true;}
 function log_error(...args){warn(sprintf('%J',args));}
 '''
         pre = 'const payload=' + json.dumps(payload) + ',blacklist=' + json.dumps(blacklist) + ',subscription_urls=' + json.dumps(urls or [URL]) + ';\n' + pre
@@ -153,12 +152,11 @@ const uci={foreach:function(c,t,fn){for(let n in rpc('all')) if(n['.type']===t) 
  set:(...a)=>rpc('set',...a),delete:(...a)=>rpc('delete',...a),
  changes:(...a)=>rpc('changes',...a),commit:(...a)=>rpc('commit',...a)};
 const node_cache={},node_config_cache={},node_result=[],reconcile_group={};
-const user_agent='fixture',update_proxy=null,allow_insecure='0',packet_encoding='xudp',resources_updated=false;
+const user_agent='fixture',update_proxy=null,allow_insecure='0',packet_encoding='xudp';
 const uciconfig='homeproxy',ucinode='node',ucimain='config';
 const filter_mode='disabled',filter_keywords=[];
 function wGET(url){return type(payload)==='object' ? payload[url] : payload;}
 function reload_service(){warn('RELOAD\\n');return true;}
-function apply_updated_resources(){return true;}
 function log_error(...args){warn(sprintf('%J',args)+'\\n');}
 '''
             source += h[h.index('export function isEmpty'):h.index('export function strToBool')].replace('export function', 'function')

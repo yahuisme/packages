@@ -13,8 +13,7 @@ def transaction_source(updater, config=None):
     start = updater.index('function commit_subscription_changes')
     end = updater.index('function has_value')
     if config is None:
-        return ('const subscription_transaction={applying:false};\n'
-                'function commit_subscription_changes(){'
+        return ('function commit_subscription_changes(){'
                 'if(uci.commit(uciconfig)!==true)die("failed to commit subscription changes");'
                 'return reload_service();}\n')
     return ("import * as subscription_fs from 'fs';\n" +

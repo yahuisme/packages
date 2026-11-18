@@ -18,41 +18,20 @@ fi
 
 HOMEPROXY_UPDATE_PROXY="$UPDATE_PROXY" "$SCRIPTS_DIR"/update_resources.sh
 RESOURCE_STATUS="$?"
-CORE_RESOURCES_UPDATED=0
-DASHBOARD_UPDATED=0
-if [ "$RESOURCE_STATUS" -ne 2 ]; then
-	CORE_RESOURCES_UPDATED="$(sed -n 's/^core_updated=//p' "$RUN_DIR/update_resources.result" 2>"/dev/null")"
-	[ "$CORE_RESOURCES_UPDATED" = "1" ] || CORE_RESOURCES_UPDATED=0
-	DASHBOARD_UPDATED="$(sed -n 's/^dashboard_updated=//p' "$RUN_DIR/update_resources.result" 2>"/dev/null")"
-	[ "$DASHBOARD_UPDATED" = "1" ] || DASHBOARD_UPDATED=0
-fi
-RESOURCES_UPDATED=$((CORE_RESOURCES_UPDATED || DASHBOARD_UPDATED))
-RELOAD_STATUS=0
 
 SUBSCRIPTION_URLS="$(uci -q get homeproxy.subscription.subscription_url)"
 SUBSCRIPTION_STATUS=0
 if [ -n "$SUBSCRIPTION_URLS" ]; then
-	HOMEPROXY_RESOURCES_UPDATED="$RESOURCES_UPDATED" \
-		"$SCRIPTS_DIR"/update_subscriptions.sh || SUBSCRIPTION_STATUS="$?"
+	"$SCRIPTS_DIR"/update_subscriptions.sh || SUBSCRIPTION_STATUS="$?"
 else
 	mkdir -p "$RUN_DIR"
 	printf '%s [SUBSCRIBE] No subscription URL configured; skipping update.\n' \
 		"$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_PATH"
 fi
 
-if [ "$RESOURCES_UPDATED" -eq 1 ] && \
-	{ [ -z "$SUBSCRIPTION_URLS" ] || [ "$SUBSCRIPTION_STATUS" -eq 2 ]; } && \
-	   /etc/init.d/homeproxy running >/dev/null 2>&1; then
-	if ! /etc/init.d/homeproxy reload >/dev/null 2>&1; then
-		RELOAD_STATUS=1
-		printf '%s [RESOURCES] Failed to reload HomeProxy after updating resources.\n' \
-			"$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_PATH"
-	fi
-fi
-
-# Preserve independent updates; busy/current are deliberate non-failure states.
+# Each updater applies its own changes; busy and already-current resources are not failures.
 if { [ "$RESOURCE_STATUS" -ne 0 ] && [ "$RESOURCE_STATUS" -ne 2 ] && [ "$RESOURCE_STATUS" -ne 3 ]; } || \
-	{ [ -n "$SUBSCRIPTION_URLS" ] && [ "$SUBSCRIPTION_STATUS" -ne 0 ] && [ "$SUBSCRIPTION_STATUS" -ne 2 ]; }; then
+	{ [ "$SUBSCRIPTION_STATUS" -ne 0 ] && [ "$SUBSCRIPTION_STATUS" -ne 2 ]; }; then
 	exit 1
 fi
-exit "$RELOAD_STATUS"
+exit 0

@@ -65,14 +65,13 @@ const uci={foreach:(...a)=>native.foreach(...a),get:(...a)=>invoke('get',a),
 get_first:(...a)=>invoke('get_first',a),set:(...a)=>invoke('set',a),
 delete:(...a)=>invoke('delete',a),changes:(...a)=>invoke('changes',a),commit:(...a)=>invoke('commit',a)};
 const node_cache={},node_config_cache={},node_result=[],reconcile_group={};
-const update_proxy=null,resources_updated=false;
+const update_proxy=null;
 const uciconfig='homeproxy',ucinode='node',ucimain='config',ucisubscription='subscription';
 function wGET(url){push(calls,['fetch',url]);if(concurrent)writefile(config_path,"config homeproxy 'config'\\n option main_node 'foreign'\\n");return payloads[url];}
-function apply_updated_resources(){warn('RESOURCES\\n');return true;}
 function log_error(...a){warn('ERROR '+sprintf('%J',a)+'\\n');}
 '''
             if native_settings:
-                source += updater[updater.index('const allow_insecure'):updater.index('const resources_updated')]
+                source += updater[updater.index('const allow_insecure'):updater.index('const mixed_port')]
             else:
                 source += "const user_agent='fixture',allow_insecure='0',packet_encoding='xudp',filter_mode='disabled',filter_keywords=[];\n"
             source += 'function reload_service(){warn("RELOAD\\n");return ' + json.dumps(reload_ok) + ';}\n'
@@ -89,7 +88,7 @@ function log_error(...a){warn('ERROR '+sprintf('%J',a)+'\\n');}
                 source += transaction
             source += updater[updater.index('function has_value'):updater.index('if (!isEmpty(subscription_urls))')]
             source += '''let code=0;
-try{let result=call(main);if(result===false)code=1;else if(result===3)code=3;}catch(e){log_error(e);apply_updated_resources();code=1;}
+try{let result=call(main);if(result===false)code=1;else if(result===3)code=3;}catch(e){log_error(e);code=1;}
 let sections=[];native.foreach('homeproxy','node',(n)=>push(sections,n));
 print(sprintf('%J',{ok:code===0,calls,sections,config:native.get_all('homeproxy','config'),node_result,reconcile_group}));
 exit(code);'''
@@ -252,7 +251,6 @@ exit(code);'''
                 script.write_text('const subscription_urls=["fixture"];'
                                   'function isEmpty(v){return !length(v);}'
                                   'function log_error(...args){}'
-                                  'function apply_updated_resources(){}'
                                   'function main(){' + body + '}\n' + tail)
                 run = subprocess.run(['ucode', str(script)], capture_output=True, text=True, timeout=10)
                 self.assertEqual(run.returncode, expected, run.stderr)
