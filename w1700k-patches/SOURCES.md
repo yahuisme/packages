@@ -12,7 +12,7 @@
 | `tree/package/kernel/mt76/patches/911-*` | 功率变更时刷新固件功率限制 | 作者 Yanghan Ye；适配 OpenW1700k 的 `0011-refresh-power-limits-on-txpower-changes`，SKU 启用沿用官方；本项目移除有效 BSS 功率通知的缓存去重，保留错误日志，不增加自动重试 |
 | `tree/package/kernel/mt76/patches/913-*` | TX-free 消息边界与分片校验，截断后完成已有回收与队列唤醒 | 基于 [C]/[D]；保留异常告警，不增加超时 token 回收 |
 | `tree/package/kernel/mt76/patches/914-*` | RRO 丢弃数据及 skb 分配失败时归还接收缓冲区 | 本项目修复；保留成功路径的 skb 所有权转移 |
-| `patches/610-*` | CN/US 功率与频段定制 | 包含 [A] 的 US 高频段及 6 GHz 设置，两版最终 regdb 内容一致 |
+| `patches/610-*` | CN/US 功率与频段定制 | 包含 [A] 的 US 高频段及 6 GHz 设置；迁移时对照固定源码，两版补丁处理后的 `db.txt` 一致 |
 | `tree/package/network/utils/iwinfo/patches/998-*` | 按目标 radio 选择接口与创建临时扫描接口 | 本项目扩展官方 multi-radio 实现，使用 UCI radio 索引及原生接口 radio mask |
 | `tree/package/network/utils/iwinfo/patches/999-*` | 按当前频率展示功率列表 | [A]/[B]，作者 Yanghan Ye |
 | `tree/package/system/procd/patches/001-*` | watchdog 超时协商后约束喂狗周期 | 本项目修复；沿用官方 ioctl 路径，仅修改 setter 及 last-confirmed 状态 |
