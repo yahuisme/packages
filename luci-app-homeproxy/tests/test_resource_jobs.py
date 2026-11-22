@@ -1,5 +1,6 @@
 """Wrapper fault boundaries with real flock, ash and ucode; no service/network."""
 import fcntl
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -12,6 +13,52 @@ WRAPPER = APP/'root/etc/homeproxy/scripts/resource_job.sh'
 
 
 class ResourceJobs(unittest.TestCase):
+    def test_status_rechecks_result_after_acquiring_the_worker_lock(self):
+        # Publish at the real lock boundary, after status has first seen no
+        # result. The worker owns fd 9 until publication; no listener is used.
+        for publish in (False, True):
+            with self.subTest(publish=publish), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                run = root / 'run'
+                run.mkdir()
+                job = Path(str(run) + '.resources')
+                job.mkdir(mode=0o700)
+                (job / 'id').write_text('fixture-job\n')
+                source = WRAPPER.read_text().replace('case "$1" in', '''flock() {
+ if [ "$1" = -n ] && [ "$PUBLISH" = 1 ]; then
+  printf 'status=0\\ngeoip_cn=0\\n' > "$JOB_DIR/result"
+ fi
+ command flock "$@"
+}
+case "$1" in''', 1)
+                script = root / 'case.sh'
+                script.write_text(source)
+                result = subprocess.run(['busybox', 'ash', str(script), 'status', 'fixture-job'],
+                    env=dict(os.environ, RUN_DIR=str(run), PUBLISH='1' if publish else '0'),
+                    capture_output=True, text=True, timeout=3)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                expected = {'state': 'done', 'status': '0', 'geoip_cn': '0'} if publish else {'state': 'done', 'status': '1'}
+                self.assertEqual(dict(line.split('=', 1) for line in result.stdout.splitlines()), expected)
+                (job / 'result').unlink(missing_ok=True)
+                # The exact production RPC decoder must preserve the raced final
+                # status too. Only its pipe command points at our private wrapper.
+                rpc = (APP / 'root/usr/share/rpcd/ucode/luci.homeproxy').read_text()
+                decode = rpc[rpc.index('function resourceTask('):rpc.index('\nconst RESOURCES =')]
+                decode = decode.replace('`${proxy}${HP_DIR}/scripts/resource_job.sh ${args}`',
+                    '`busybox ash ${shellQuote(WRAPPER)} ${args}`')
+                helper = (WRAPPER.parent / 'homeproxy.uc').read_text()
+                quote = helper[helper.index('export function shellQuote'):helper.index('export function isBinary')].replace('export function', 'function')
+                source = "import { popen } from 'fs';\nconst WRAPPER=" + json.dumps(str(script)) + ';\n' + quote + decode
+                source += "\nprint(sprintf('%J',resourceTask('status fixture-job',false)));"
+                reply = subprocess.run(['ucode', '-e', source],
+                    env=dict(os.environ, RUN_DIR=str(run), PUBLISH='1' if publish else '0'),
+                    capture_output=True, text=True, timeout=3)
+                self.assertEqual(reply.returncode, 0, reply.stderr)
+                data = json.loads(reply.stdout)
+                self.assertEqual(data['state'], 'done')
+                self.assertEqual(data['status'], 0 if publish else 1)
+                self.assertEqual(data['resources'], [{'type': 'geoip_cn', 'status': 0}] if publish else [])
+
     def test_first_directory_creation_loser_rechecks_safe_winner(self):
         # Deterministically let another caller win the first mkdir. Run both
         # entrypoints up to their real lock boundary without downloading anything.

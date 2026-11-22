@@ -3,7 +3,8 @@
 'require rpc';
 'require poll';
 
-var getOverview = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getOverview', reject: true });
+// Keep telemetry separate from acceleration's HTTP batch as well as Poll's guard.
+var getOverview = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getOverview', reject: true, nobatch: true });
 // Acceleration RPC contract: each key is {supported, enabled, configured},
 // strictly boolean or null. enabled is runtime readback, configured is the edit
 // baseline. Setter parameters are 0/1, or -1 to leave unknown/unsupported keys alone.
@@ -110,14 +111,14 @@ return view.extend({
 			}
 			// Background tabs get no telemetry: this page forks ~30 helpers per tick.
 			if (document.visibilityState === 'hidden') return Promise.resolve();
-			if (pending) return pending;
-			// Lightweight sibling query shares the existing tick, with its own guard.
+			// Poll must not wait for either source: a stalled overview must not
+			// stop independent acceleration updates on the next five-second tick.
 			refreshAcceleration();
+			if (pending) return;
 			pending = getOverview().then(function(data) {
 				if (!root.isConnected) return;
 				paint(data);
 			}).catch(clear).finally(function() { pending = null; });
-			return pending;
 		}
 		var portRows = Object.create(null), summaryCells = null, qualityCells = null, portOrder = '';
 		function text(node, value) { if (node.textContent !== value) node.textContent = value; }

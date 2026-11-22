@@ -11,6 +11,9 @@ const { chromium } = require('playwright');
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.setContent(fs.readFileSync(process.env.FAN_DOM,'utf8'));
   if(process.env.AURORA_CSS) await page.addStyleTag({content:fs.readFileSync(process.env.AURORA_CSS,'utf8')});
+  if(process.env.FAN_BOOTSTRAP_DIR) {
+   for(const css of ['cascade.css','mobile.css']) await page.addStyleTag({content:fs.readFileSync(path.join(process.env.FAN_BOOTSTRAP_DIR,'htdocs/luci-static/bootstrap',css),'utf8')});
+  }
   if(process.env.AURORA_DIR){
    const header=fs.readFileSync(path.join(process.env.AURORA_DIR,'ucode/template/themes/aurora/header.ut'),'utf8');
    const sidebar=header.slice(header.indexOf('<aside class="sidebar-panel"'),header.indexOf('</aside>')+8).replace(/{%[\s\S]*?%}/g,'').replace(/{{[^}]*}}/g,'');
@@ -29,8 +32,23 @@ const { chromium } = require('playwright');
    const helpers=source.slice(source.indexOf('function validPoints'),source.indexOf('\nreturn view.extend'));
    const setup=source.slice(source.indexOf('\t\t\tvar refresh ='),source.indexOf('\t\t\treturn node;',source.indexOf('\t\t\tvar refresh =')));
    // Trusted checked-out application source only; no user-supplied code.
-   new Function('node',helpers+'\nvar resize;\n'+setup)(document.querySelector('.fan-settings'));
+   // Read current production CSS, not stale CSS serialized in the DOM export.
+   new Function('node',helpers+'\nnode.querySelector(":scope > style").textContent=previewCSS;\nvar resize;\n'+setup)(document.querySelector('.fan-settings'));
   },source);
+  if(process.env.FAN_BOOTSTRAP_DIR) {
+   const contrast=[];
+   for(const dark of [false,true]) {
+    await page.evaluate(d=>document.documentElement.setAttribute('data-darkmode',String(d)),dark);
+    const values=await page.evaluate(()=>{
+     const rgb=color=>{const c=document.createElement('canvas').getContext('2d');c.fillStyle=color;return c.fillStyle.startsWith('#')?c.fillStyle.slice(1).match(/../g).map(n=>parseInt(n,16)):c.fillStyle.match(/[\d.]+/g).slice(0,3).map(Number);};
+     const luminance=color=>rgb(color).map(v=>{v/=255;return v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4);}).reduce((s,v,i)=>s+v*[.2126,.7152,.0722][i],0);
+     const background=e=>{for(let n=e;n;n=n.parentElement){const b=getComputedStyle(n).backgroundColor;if(b!=='rgba(0, 0, 0, 0)'&&b!=='transparent')return b;}return 'rgb(255,255,255)';};
+     return ['.fan-curve-table-head','.fan-curve-point','[data-name="point5_pwm"] input'].map(selector=>{const e=document.querySelector('.fan-settings '+selector),color=getComputedStyle(e).color,bg=background(e),a=luminance(color),b=luminance(bg);return{selector,color,background:bg,ratio:(Math.max(a,b)+.05)/(Math.min(a,b)+.05)};});
+    });contrast.push({dark,values});
+   }
+   if(process.env.FAN_RESULTS)fs.writeFileSync(process.env.FAN_RESULTS+'.contrast.json',JSON.stringify(contrast,null,2));
+   for(const state of contrast)for(const item of state.values)assert(item.ratio>=4.5,'fan curve text contrast '+JSON.stringify({dark:state.dark,...item}));
+  }
   for(const dark of [false,true]) for(const width of [320,390,768,820,900,960,1000,1017,1018,1024,1440,1577,1578,1580,1920]) {
    await page.setViewportSize({width,height:1000});
    await page.evaluate(d=>document.documentElement.setAttribute('data-darkmode',String(d)),dark);

@@ -7,10 +7,10 @@
 | 软件包 | 版本 | 功能 |
 | --- | --- | --- |
 | `luci-app-airoha-npu` | `20261118-r1` | Airoha NPU 状态与 CPU 调频 |
-| `luci-app-airoha-flowsense` | `20261118-r1` | Airoha 硬件加速设置与流量监控 |
-| `luci-app-airoha-fancontrol` | `20261118-r1` | Airoha 温控与风扇调速 |
+| `luci-app-airoha-flowsense` | `20261122-r1` | Airoha 硬件加速设置与流量监控 |
+| `luci-app-airoha-fancontrol` | `20261122-r1` | Airoha 温控与风扇调速 |
 | `luci-app-wifi7` | `20261118-r1` | WiFi 7 射频、MLO 与客户端管理 |
-| `luci-app-homeproxy` | `20261118-r1` | 基于 sing-box 的代理管理，独立维护 |
+| `luci-app-homeproxy` | `20261122-r1` | 基于 sing-box 的代理管理，独立维护 |
 | `sing-box` | `1.14.4` | 跟随 SagerNet 官方稳定版 |
 
 硬件相关功能需对应设备与驱动支持。

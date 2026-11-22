@@ -2652,3 +2652,15 @@ msgstr ""
 
 msgid "REALITY requires sing-box uTLS support."
 msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:75
+msgid "Generation failed."
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:76
+msgid "Unable to start the generator."
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:77
+msgid "Incomplete generator output."
+msgstr ""

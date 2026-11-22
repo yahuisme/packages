@@ -28,6 +28,12 @@ status)
 	if ! flock -n 9 >/dev/null 2>&1; then
 		printf 'state=running\n'; exit 0
 	fi
+	# Publication can finish between the first read and acquiring fd 9.
+	# The control lock still excludes a replacement job; read its final result
+	# again before declaring an interrupted worker.
+	if [ -f "$JOB_DIR/result" ]; then
+		printf 'state=done\n'; cat "$JOB_DIR/result"; exit 0
+	fi
 	# No lock and no final result means interrupted/not started, never success.
 	printf 'state=done\nstatus=1\n'; exit 0 ;;
 start)

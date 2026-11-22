@@ -33,6 +33,35 @@ const callNodeLatencyTest = rpc.declare({
 	reject: true
 });
 
+function waitSubscriptionTask(map) {
+	return new Promise((resolve) => {
+		let timer;
+		const finish = (attached) => {
+			if (timer != null) window.clearTimeout(timer);
+			document.removeEventListener('visibilitychange', wake);
+			observer.disconnect();
+			resolve(attached);
+		};
+		const wake = () => {
+			if (timer != null) window.clearTimeout(timer);
+			timer = null;
+			if (!map.root?.isConnected) return finish(false);
+			if (document.visibilityState === 'hidden') return;
+			timer = window.setTimeout(() => {
+				timer = null;
+				if (document.visibilityState !== 'hidden') finish(!!map.root?.isConnected);
+			}, 1000);
+		};
+		const host = document.getElementById('view') || document.body;
+		const observer = new MutationObserver(() => {
+			if (!map.root?.isConnected) finish(false);
+		});
+		observer.observe(host, { childList: true, subtree: !!host.id });
+		document.addEventListener('visibilitychange', wake);
+		wake();
+	});
+}
+
 function allowInsecureConfirm(ev, _section_id, value) {
 	if (value === '1' && !confirm(_('Are you sure to allow insecure?')))
 		ev.target.firstElementChild.checked = null;
@@ -1531,12 +1560,14 @@ function renderNodeSettings(section, data, features, node_latency_row_state) {
 		o.depends({'tls': '1', 'type': /^((?!hysteria2?|tuic$).)+$/});
 		o.validate = function(section_id, value) {
 			if (section_id) {
-				let tls_reality = this.map.findElement('id', 'cbid.homeproxy.%s.tls_reality'.format(section_id)).firstElementChild;
-				if (tls_reality.checked && !value)
+				const type = this.section.formvalue(section_id, 'type');
+				const reality = ['anytls', 'vless'].includes(type) &&
+					this.section.formvalue(section_id, 'tls_reality') === '1';
+				if (reality && !value)
 					return _('Expecting: %s').format(_('non-empty value'));
 
-				let vless_flow = this.map.lookupOption('vless_flow', section_id)[0].formvalue(section_id);
-				if ((tls_reality.checked || vless_flow) && ['360', 'android'].includes(value))
+				const vless_flow = type === 'vless' && this.section.formvalue(section_id, 'vless_flow');
+				if ((reality || vless_flow) && ['360', 'android'].includes(value))
 					return _('Unsupported fingerprint!');
 			}
 
@@ -1870,7 +1901,7 @@ return view.extend({
 			subscriptionResult = text;
 			subscriptionResultKind = kind || '';
 			const old = m.root?.querySelector('.hp-subscription-result');
-			if (old)
+			if (old?.isConnected)
 				old.replaceWith(renderSubscriptionResult());
 		}
 		o = s.taboption('subscription', form.Button, '_update_subscriptions', _('Update nodes from subscriptions'),
@@ -1890,9 +1921,9 @@ return view.extend({
 		subscriptionURLs.onchange = function(ev, section_id) {
 			for (const option of [ updateSubscriptions, removeSubscriptions ]) {
 				const title = option.inputtitle(section_id);
-				const hidden = document.getElementById(option.cbid(section_id));
+				const hidden = this.map.findElement('id', option.cbid(section_id));
 				const button = hidden?.previousElementSibling?.querySelector('button');
-				if (button) {
+				if (button?.isConnected) {
 					button.textContent = title;
 					button.disabled = !!(this.map.readonly || option.readonly);
 				}
@@ -1949,8 +1980,7 @@ return view.extend({
 				task = JSON.parse(res.stdout || '{}');
 				while (task.state === 'running') {
 					setSubscriptionResult(_('Updating subscriptions in the background. You can leave this page; check the subscription log for progress.'));
-					await new Promise(resolve => setTimeout(resolve, 1000));
-					if (!this.map.root?.isConnected)
+					if (!await waitSubscriptionTask(this.map))
 						return; // Worker owns the lock and continues after navigation.
 					failure = _('Subscription task status is unavailable. The task may still be running; check the subscription log before retrying.');
 					res = await fs.exec('/etc/homeproxy/scripts/update_subscriptions.sh', ['--status']);

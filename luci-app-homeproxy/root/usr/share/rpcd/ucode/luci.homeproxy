@@ -1018,9 +1018,21 @@ const methods = {
 					}
 				}
 
-				fd.close();
+				if (fd.close() !== 0)
+					return { result: false, error: 'generation failed' };
+			} else {
+				return { result: false, error: 'failed to start generator' };
 			}
 
+			const required = type === 'uuid' ? ['uuid'] :
+				type === 'ech-keypair' ? ['ech_cfg', 'ech_key'] : ['private_key', 'public_key'];
+			for (let key in required)
+				if (!length(trim(result[key] || '')))
+					return { result: false, error: 'incomplete generator output' };
+			if (type === 'ech-keypair' &&
+			    (!match(result.ech_cfg, /\n-----END ECH CONFIGS-----$/) ||
+			     !match(result.ech_key, /\n-----END ECH KEYS-----$/)))
+				return { result: false, error: 'incomplete generator output' };
 			return { result };
 		}
 	},

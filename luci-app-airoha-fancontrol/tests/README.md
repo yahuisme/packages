@@ -33,3 +33,7 @@ export FAN_DOM=/tmp/fan-regression.dom.html
 EXPORT_DOM="$FAN_DOM" node tests/test_settings_form.js
 node tests/test_curve_browser.js
 ```
+
+For the original Bootstrap theme, unset `AURORA_CSS` / `AURORA_DIR` and set
+`FAN_BOOTSTRAP_DIR=/path/to/luci-theme-bootstrap`. This also verifies light/dark
+contrast for curve labels and the fixed PWM field using current production CSS.

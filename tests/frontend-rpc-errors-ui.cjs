@@ -39,7 +39,12 @@ async function generate() {
  const msgid='Failed to generate %s, error: %s.';
  const po=fs.readFileSync(path.resolve(__dirname,'../luci-app-homeproxy/po/zh_Hans/homeproxy.po'),'utf8');
  const match=po.match(/msgid "Failed to generate %s, error: %s\."\nmsgstr "([^"]+)"/);assert(match,'Chinese generator error is catalogued');
- const h=await editor('server',{[msgid]:match[1]});
+ const generatorErrors = {
+  'generation failed': ['Generation failed.', '生成失败'],
+  'failed to start generator': ['Unable to start the generator.', '无法启动生成器'],
+  'incomplete generator output': ['Incomplete generator output.', '生成结果不完整']
+ };
+ const h=await editor('server',Object.assign({[msgid]:match[1]},Object.fromEntries(Object.values(generatorErrors))));
  try {
   const field=key=>h.fields.find(o=>o.option===key),sid=h.sid;
   const notes=[];h.mods.ui.addNotification=(_title,body,severity)=>notes.push({text:body.textContent,severity});
@@ -52,16 +57,18 @@ async function generate() {
    calls++;
    if(mode==='transport')throw new Error('injected transport failure');
    if(mode==='backend')return response(h,req,{error:'injected backend failure'});
+   if(generatorErrors[mode])return response(h,req,{result:false,error:mode});
    return response(h,req,{result:{private_key:'INJECTED_PRIVATE',public_key:'INJECTED_PUBLIC',ech_key:'INJECTED_ECH_KEY',ech_cfg:'INJECTED_ECH_CFG'}},mode==='success'?0:6);
   };
   for(const key of ['tls_reality_private_key','tls_ech_key']) {
    if(key==='tls_ech_key') {reality.getUIElement(sid).setValue('0');reality.triggerValidation(sid);h.modalMap.checkDepends();}
    assert(field(key).isActive(sid),'Generate field is active: '+key);
    const button=Array.from(h.modal.querySelector('[id="widget.'+field(key).cbid(sid)+'"]').parentElement.querySelectorAll('button')).find(b=>b.textContent==='Generate');assert(button);
-   for(mode of ['status','transport','backend']) {
+   for(mode of ['status','transport','backend',...Object.keys(generatorErrors)]) {
     const before=calls,n=notes.length;button.click();await until(()=>calls>before);await until(()=>!button.disabled);
     assert.equal(notes.length,n+1,key+' '+mode+' presents one concise failure, not generic handler failure');
     assert.match(notes.at(-1).text,/生成 .+ 失败，错误：.+/,'Chinese failure must explain rejection');
+    if(generatorErrors[mode])assert(notes.at(-1).text.includes(generatorErrors[mode][1]),'known backend error is localized');
     assert.equal(notes.at(-1).severity,'error');
     for(const [k,v] of Object.entries(original))assert.equal(field(k).formvalue(sid),v,'failed generator preserves '+k);
    }
@@ -73,7 +80,7 @@ async function generate() {
    const before=calls;button.click();await until(()=>calls>before);await until(()=>!button.disabled);
   }
   for(const [key,value] of Object.entries({tls_reality_private_key:'INJECTED_PRIVATE',tls_reality_public_key:'INJECTED_PUBLIC',tls_ech_key:'INJECTED_ECH_KEY',tls_ech_config:'INJECTED_ECH_CFG'}))assert.equal(field(key).formvalue(sid),value,'successful generator still updates '+key);
-  assert.equal(notes.length,6,'successful retry produces no error notification');
+  assert.equal(notes.length,12,'successful retry produces no error notification');
   console.log('PASS REALITY/ECH Generate: nonzero/transport/backend errors are Chinese and preserve all inputs; successful retry updates both pairs');
  } finally {h.w.close();}
 }

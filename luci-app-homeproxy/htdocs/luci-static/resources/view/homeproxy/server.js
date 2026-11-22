@@ -71,7 +71,12 @@ function handleGenKey(option) {
 			else
 				throw new Error(res.error || 'unknown_error');
 		}).catch((error) => {
-			ui.addNotification(null, E('p', _('Failed to generate %s, error: %s.').format(type, error.message || String(error))), 'error');
+			const reason = {
+				'generation failed': _('Generation failed.'),
+				'failed to start generator': _('Unable to start the generator.'),
+				'incomplete generator output': _('Incomplete generator output.')
+			}[error.message] || error.message || String(error);
+			ui.addNotification(null, E('p', _('Failed to generate %s, error: %s.').format(type, reason)), 'error');
 		});
 	} else {
 		let password, required_method;

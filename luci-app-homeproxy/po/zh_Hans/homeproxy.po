@@ -1721,3 +1721,12 @@ msgstr "REALITY 必须启用 uTLS 指纹。"
 
 msgid "REALITY requires sing-box uTLS support."
 msgstr "REALITY 需要 sing-box 提供 uTLS 支持。"
+
+msgid "Generation failed."
+msgstr "生成失败"
+
+msgid "Unable to start the generator."
+msgstr "无法启动生成器"
+
+msgid "Incomplete generator output."
+msgstr "生成结果不完整"
