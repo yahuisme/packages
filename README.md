@@ -1,6 +1,6 @@
 # packages
 
-面向 OpenWrt / ImmortalWrt 的源码 feed，不是路由器可直接添加的 APK 或 opkg 二进制软件源。
+OpenWrt / ImmortalWrt 软件包源码 feed，用于固件构建，不是路由器可直接添加的 APK 或 opkg 二进制软件源。
 
 ## 组件
 
@@ -13,19 +13,21 @@
 | `luci-app-homeproxy` | `20261122-r1` | 基于 sing-box 的代理管理，独立维护 |
 | `sing-box` | `1.14.4` | 跟随 SagerNet 官方稳定版 |
 
-风扇控制与 FlowSense 限 Airoha 目标，风扇控制还需要 NCT7802 硬件。SoC 状态与调频依赖目标系统的 PPE、CPUFreq 接口；[WiFi 7](luci-app-wifi7/README.md) 面向 W1700K 的 MT7996，射频和 MLO 功能取决于驱动及用户态工具。
+## 兼容性
 
-HomeProxy 不限 W1700K 或 MX4200，要求 sing-box 1.14.0 或更新版本及其余包依赖。建议使用此 feed 的完整 `sing-box`；`sing-box-tiny` 的功能随编译选项变化，不等同于完整版。
+- **HomeProxy**：只要目标固件满足软件包依赖，就可以从源码编译并使用，不限机型或固件仓库。需要 `sing-box` 1.14.0 或更新版本；推荐此 feed 的完整版，`sing-box-tiny` 的功能取决于编译选项。
+- **Airoha 应用**：FlowSense 和风扇控制限 Airoha 目标，风扇控制另需 NCT7802；NPU 状态与 CPU 调频依赖目标系统提供相应的 PPE、CPUFreq 接口。
+- **[WiFi 7](luci-app-wifi7/README.md)**：适配 W1700K 的 MT7996；射频和 MLO 功能取决于驱动与用户态工具。
 
 ## 使用
 
-在固件源码根目录的 `feeds.conf` 中保留已有 feeds（若文件不存在，先从 `feeds.conf.default` 复制），再添加：
+在固件源码根目录的 `feeds.conf` 末尾添加下列一行。若文件不存在，先复制 `feeds.conf.default` 为 `feeds.conf`。
 
 ```text
 src-git mypackages https://github.com/yahuisme/packages.git;main
 ```
 
-更新所有 feeds 以建立依赖索引，再将所需配方加入构建树。以 HomeProxy 为例：
+更新 feeds，再将需要的配方加入构建树。以 HomeProxy 为例：
 
 ```sh
 ./scripts/feeds update -a
@@ -33,7 +35,7 @@ src-git mypackages https://github.com/yahuisme/packages.git;main
 make menuconfig
 ```
 
-在 `menuconfig` 中选择所需软件包。若其他 feed 已引入同名配方，先确认当前来源；`-p mypackages` 只指定优先来源，不保证替换已安装的配方。
+在 `menuconfig` 中选中所需软件包。若已有同名配方，先核对来源：`-p mypackages` 指定优先使用的 feed，不会自动替换已引入的配方。
 
 ## 维护
 
