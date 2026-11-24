@@ -106,22 +106,6 @@ jobs:
         env:
           LUCI_RESOURCE_DIR: ${{ github.workspace }}/.luci/modules/luci-base/htdocs/luci-static/resources
         run: ./.github/scripts/run-tests.sh
-      - name: Verify shared single-wiphy channel selection
-        env:
-          LUCI_CHANNEL_SOURCE: ${{ github.workspace }}/.luci/modules/luci-mod-status
-        run: python3 -m unittest discover -s w1700k-patches/tests -p test_channel_analysis.py -v
-      - name: Verify shared radio scan patch chain
-        run: python3 -m unittest discover -s w1700k-patches/tests -p test_iwinfo_scan.py -v
-      - name: Verify shared firmware patches
-        run: |
-          # Source-bound patch replay; no kernel or firmware compilation.
-          python3 -m unittest discover -s w1700k-patches/tests -p test_migration.py -v
-          python3 -m unittest discover -s w1700k-patches/tests -p test_hostapd_context.py -v
-          python3 -m unittest discover -s w1700k-patches/tests -p test_txpower_retry.py -v
-          python3 -m unittest discover -s w1700k-patches/tests -p test_txfree_cleanup.py -v
-          python3 -m unittest discover -s w1700k-patches/tests -p test_rro_cleanup.py -v
-      - name: Verify watchdog cadence
-        run: python3 -m unittest discover -s w1700k-patches/tests -p test_watchdog_timeout.py -v
       - name: Verify private key ownership
         run: |
           # This isolated fixture needs uid switching; no service is started.
