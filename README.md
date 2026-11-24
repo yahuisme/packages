@@ -37,6 +37,5 @@ make menuconfig
 
 ## 维护
 
-- W1700K 固件补丁由 [w1700k-openwrt](https://github.com/yahuisme/w1700k-openwrt/blob/main/user/w1700k-patches/SOURCES.md) 维护。
 - FlowSense 沿用配置名 `npu-monitor` 和探针服务名 `npu-jitter`，升级时保留。
 - 测试依赖、运行命令与验证范围见 [测试说明](.github/scripts/TESTING.md)；专项说明位于各包的 `tests/`。
