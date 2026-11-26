@@ -15,6 +15,9 @@ from contextlib import contextmanager
 PACKAGE = Path(__file__).resolve().parents[1]
 BACKEND = PACKAGE / 'root/usr/libexec/rpcd/luci.airoha_npu'
 
+# Frozen pre-optimization escaper: it stays the oracle for every published string.
+LEGACY_QUOTE = r"""	printf '%s' "$1" | awk 'BEGIN { for(j=1;j<32;j++) esc[sprintf("%c",j)]=sprintf("\\u%04x",j); printf "\"" } { if (NR>1) printf "\\n"; for(i=1;i<=length;i++) { c=substr($0,i,1); if(c=="\"" || c=="\\") printf "\\%s",c; else if(c=="\r") printf "\\r"; else if(c in esc) printf "%s",esc[c]; else printf "%s",c } } END { printf "\"" }'"""
+
 UCI_PATH = os.environ.get('UCI_BIN') or shutil.which('uci')
 JSONFILTER_PATH = os.environ.get('JSONFILTER_BIN') or shutil.which('jsonfilter')
 
@@ -386,10 +389,15 @@ class Backend(unittest.TestCase):
         source = BACKEND.read_text()
         prefix, getter = source.split('get_status() {', 1)
         getter, suffix = getter.split('get_info() {', 1)
-        # Legacy field reads were one cat inside a command substitution.
-        legacy = 'legacy_word() { word=$(cat "$1" 2>/dev/null); }\n'
+        # Legacy field reads were one cat inside a command substitution, and the
+        # published text always went through the awk escaper.
+        legacy = ('legacy_word() { word=$(cat "$1" 2>/dev/null); }\n'
+                  'legacy_status_text() { status_text=$(cat "$1" 2>/dev/null); }\n'
+                  'legacy_quote() {\n' + LEGACY_QUOTE + '\n}\n')
         oracle.write_text(prefix + legacy + 'get_status() {' +
-                          getter.replace('read_status_value', 'read_value').replace('read_word', 'legacy_word') +
+                          getter.replace('read_status_text', 'legacy_status_text')
+                                .replace('quote', 'legacy_quote')
+                                .replace('read_word', 'legacy_word') +
                           'get_info() {' + suffix)
         paths = [self.policy / ('scaling_' + name) for name in
                  ('cur_freq', 'max_freq', 'min_freq', 'governor')]
@@ -437,6 +445,37 @@ class Backend(unittest.TestCase):
                 actual = subprocess.run(['busybox', 'ash', '-c', shell, 'x', value],
                                         capture_output=True, text=True, timeout=10).stdout.strip()
                 self.assertEqual(actual, expected)
+
+    def test_status_poll_spawns_no_child_process(self):
+        # Everything get_status publishes is now read and escaped in this shell;
+        # a 3 s poll must not fork for a governor string either.
+        source = BACKEND.read_text()
+        status = source[source.index('get_status() {'):source.index('get_info() {')]
+        self.assertNotIn('$(', status, 'status fields must stay in this shell')
+        self.assertNotIn('`', status, 'status fields must stay in this shell')
+        self.assertIn('read_status_text', status)
+        quote = source[source.index('quote() {'):source.index('number() {')]
+        # The unescaped fast path must return before the awk pipeline.
+        self.assertLess(quote.index('printf \'"%s"\''), quote.index('awk'),
+                        'plain strings must not reach the escaper child')
+
+    def test_quote_fast_path_matches_previous_awk(self):
+        # Freeze the awk escaper the fast path bypasses; the two must agree on
+        # every byte a policy file or sysfs attribute can hand over.
+        source = BACKEND.read_text()
+        quote = source[source.index('quote() {'):source.index('number() {')]
+        (self.root / 'quote-new').write_text(quote + '\nquote "$1"\n')
+        (self.root / 'quote-old').write_text(
+            'legacy_quote() {\n' + LEGACY_QUOTE + '\n}\nlegacy_quote "$1"\n')
+        values = ['', 'schedutil', '300000 500000 2200000', 'perf-x_y.z:1/2,3', ' lead',
+                  'trail ', 'a"b', 'a\\b', 'tab\there', 'line\nbreak', '\n', 'a\rb',
+                  '\x01', '\x1f', '\x7f', '中文', '`cmd`', '$(cmd)', '*', '?', '[a]', '~']
+        for value in values:
+            with self.subTest(value=value):
+                def run(script):
+                    return subprocess.run(['busybox', 'ash', str(self.root / script), value],
+                                          capture_output=True, timeout=10).stdout
+                self.assertEqual(run('quote-new'), run('quote-old'))
 
     def test_bound_flow_count(self):
         bind = self.root / 'sys/kernel/debug/ppe/bind'
