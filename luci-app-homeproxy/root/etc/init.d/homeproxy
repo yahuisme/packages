@@ -21,17 +21,24 @@ CRON_FILE="/etc/crontabs/root"
 CRON_LOCK="/var/lock/root-crontab"
 CRON_TAG="#${CONF}_autosetup"
 
-# we don't know which is the default server, just take the first one
-DNSMASQ_UCI_CONFIG="$(uci -q show "dhcp.@dnsmasq[0]" | awk 'NR==1 {split($0, conf, /[.=]/); print conf[2]}')"
 DNSMASQ_DIR=""
-if [ -f "/tmp/etc/dnsmasq.conf.$DNSMASQ_UCI_CONFIG" ]; then
-	DNSMASQ_DIR="$(awk '/^conf-dir=/ {sub(/^conf-dir=/, ""); sub(/,.*/, ""); print; exit}' "/tmp/etc/dnsmasq.conf.$DNSMASQ_UCI_CONFIG")"
-fi
-if [ -z "$DNSMASQ_DIR" ]; then
-	DNSMASQ_DIR="$(uci -q get "dhcp.${DNSMASQ_UCI_CONFIG}.confdir")"
+
+# dnsmasq derives one conf-dir per instance from the UCI section name, and that
+# name only exists after config_load: "uci show" would report "@dnsmasq[0]".
+dnsmasq_conf_dir() {
+	[ -z "$DNSMASQ_DIR" ] || return 0
+	config_get DNSMASQ_DIR "$1" confdir
 	DNSMASQ_DIR="${DNSMASQ_DIR%%,*}"
-fi
-[ -n "$DNSMASQ_DIR" ] || DNSMASQ_DIR="/tmp/dnsmasq${DNSMASQ_UCI_CONFIG:+.$DNSMASQ_UCI_CONFIG}.d"
+	case "$DNSMASQ_DIR" in
+		/*) ;;
+		*) DNSMASQ_DIR="/tmp/dnsmasq.$1.d" ;;
+	esac
+}
+
+# we don't know which is the default server, just take the first one
+config_load dhcp
+config_foreach dnsmasq_conf_dir dnsmasq
+[ -n "$DNSMASQ_DIR" ] || DNSMASQ_DIR="/tmp/dnsmasq.d"
 DNSMASQ_DIR="${DNSMASQ_DIR%/}/dnsmasq-homeproxy.d"
 
 log() {

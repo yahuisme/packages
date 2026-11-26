@@ -1,59 +1,87 @@
-"""Production DNSMasq path discovery in ash with private generated config files."""
+"""Production DNSMasq conf-dir discovery in ash, mirroring the dnsmasq init."""
 import os
 from pathlib import Path
 import subprocess
-import tempfile
 import unittest
 
 APP = Path(__file__).resolve().parents[1]
 
+# The init script runs under /etc/rc.common, which sources /lib/functions.sh, so
+# config_load/config_foreach/config_get come from there. Reproduce their
+# contract: config_load exposes anonymous sections under their generated
+# "cfgXXXXXX" name, config_foreach filters by type and keeps uci order.
+HARNESS = r'''
+config_load() { :; }
+
+config_foreach() {
+	local fn="$1" want="$2" section
+	for section in $SECTIONS; do
+		eval "[ \"\$TYPE_$section\" = \"$want\" ] || continue"
+		"$fn" "$section"
+	done
+}
+
+config_get() { eval "$1=\"\${OPT_${2}_${3}}\""; }
+'''
+
 
 class DnsmasqDirectory(unittest.TestCase):
-    def discover(self, config, confdir=None):
-        with tempfile.TemporaryDirectory(prefix='hp-dnsmasq-dir-') as directory:
-            root = Path(directory)
-            conf = root / 'dnsmasq.conf.fixture'
-            if config is not None:
-                conf.write_text(config.replace('@ROOT@', str(root)))
-            source = (APP / 'root/etc/init.d/homeproxy').read_text()
-            block = source[source.index('DNSMASQ_UCI_CONFIG='):source.index('\nlog() {')]
-            block = block.replace('/tmp/etc/dnsmasq.conf.$DNSMASQ_UCI_CONFIG', str(conf))
-            block = block.replace('/tmp/dnsmasq', str(root / 'fallback'))
-            code = '''uci() {
- case "$2" in
- show) printf 'dhcp.fixture=dnsmasq\\n';;
- get) [ -n "$FIXTURE_CONFDIR" ] || return 1; printf '%s\\n' "$FIXTURE_CONFDIR";;
- *) return 98;;
- esac
-}\n''' + block
-            code += '\nprintf "%s\\n" "$DNSMASQ_DIR"\n'
-            env = dict(os.environ, FIXTURE_CONFDIR=(confdir or '').replace('@ROOT@', str(root)))
-            result = subprocess.run(['busybox', 'ash', '-c', code], capture_output=True,
-                                    text=True, timeout=5, env=env)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stderr, '')
-            return result.stdout.strip().replace(str(root), '@ROOT@')
+    def discover(self, sections, types=None, confdirs=None):
+        source = (APP / 'root/etc/init.d/homeproxy').read_text()
+        block = source[source.index('dnsmasq_conf_dir() {'):source.index('\nlog() {')]
+        code = HARNESS + block + '\nprintf "%s\\n" "$DNSMASQ_DIR"\n'
+        env = dict(os.environ, SECTIONS=' '.join(sections))
+        for name, kind in (types or {}).items():
+            env['TYPE_' + name] = kind
+        for name, value in (confdirs or {}).items():
+            env['OPT_%s_confdir' % name] = value
+        result = subprocess.run(['busybox', 'ash', '-c', code], capture_output=True,
+                                text=True, timeout=5, env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, '')
+        return result.stdout.strip()
 
-    def test_confdir_excludes_dnsmasq_filename_filters(self):
-        self.assertEqual(self.discover('conf-dir=@ROOT@/dns,.bak,.old\n'),
-                         '@ROOT@/dns/dnsmasq-homeproxy.d')
+    def test_anonymous_instance_uses_generated_name(self):
+        self.assertEqual(self.discover(['cfg01411c'], {'cfg01411c': 'dnsmasq'}),
+                         '/tmp/dnsmasq.cfg01411c.d/dnsmasq-homeproxy.d')
 
-    def test_missing_empty_or_absent_config_uses_default_directory(self):
-        for config in (None, '', 'port=53\n', 'conf-dir=\n', 'conf-dir=,.bak\n'):
-            with self.subTest(config=config):
-                self.assertEqual(self.discover(config), '@ROOT@/fallback.fixture.d/dnsmasq-homeproxy.d')
+    def test_first_instance_wins(self):
+        self.assertEqual(
+            self.discover(['cfg01411c', 'guest'],
+                          {'cfg01411c': 'dnsmasq', 'guest': 'dnsmasq'},
+                          {'guest': '/tmp/guest'}),
+            '/tmp/dnsmasq.cfg01411c.d/dnsmasq-homeproxy.d')
 
-    def test_missing_generated_config_uses_configured_directory(self):
-        for config in (None, '', 'port=53\n'):
-            with self.subTest(config=config):
-                self.assertEqual(self.discover(config, '@ROOT@/custom,.bak'),
-                                 '@ROOT@/custom/dnsmasq-homeproxy.d')
+    def test_named_instance_without_confdir(self):
+        self.assertEqual(self.discover(['lan'], {'lan': 'dnsmasq'}),
+                         '/tmp/dnsmasq.lan.d/dnsmasq-homeproxy.d')
 
-    def test_plain_confdir_and_path_with_equals(self):
-        for path in ('dns', 'dns=fixture', 'dns space'):
+    def test_configured_confdir_excludes_filters(self):
+        for path in ('/srv/dns', '/srv/dns,.bak,.old', '/srv/dns=1 space'):
             with self.subTest(path=path):
-                self.assertEqual(self.discover('conf-dir=@ROOT@/' + path + '\n'),
-                                 '@ROOT@/' + path + '/dnsmasq-homeproxy.d')
+                self.assertEqual(
+                    self.discover(['cfg01411c'], {'cfg01411c': 'dnsmasq'},
+                                  {'cfg01411c': path}),
+                    path.split(',')[0] + '/dnsmasq-homeproxy.d')
+
+    def test_unusable_confdir_falls_back_to_instance_default(self):
+        for path in ('', ',.bak', 'dnsmasq.extra', 'dns', 'dns space'):
+            with self.subTest(path=path):
+                self.assertEqual(
+                    self.discover(['cfg01411c'], {'cfg01411c': 'dnsmasq'},
+                                  {'cfg01411c': path}),
+                    '/tmp/dnsmasq.cfg01411c.d/dnsmasq-homeproxy.d')
+
+    def test_other_sections_are_ignored(self):
+        self.assertEqual(
+            self.discover(['odhcpd', 'cfg01411c'],
+                          {'odhcpd': 'odhcpd', 'cfg01411c': 'dnsmasq'},
+                          {'odhcpd': '/tmp/odhcpd'}),
+            '/tmp/dnsmasq.cfg01411c.d/dnsmasq-homeproxy.d')
+
+    def test_missing_dnsmasq_section_uses_shared_directory(self):
+        self.assertEqual(self.discover([]),
+                         '/tmp/dnsmasq.d/dnsmasq-homeproxy.d')
 
 
 if __name__ == '__main__':
