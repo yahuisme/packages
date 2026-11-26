@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Copyright (c) 2026 Petr Wozniak <petr.wozniak@gmail.com>
+# Copyright (c) 2026 yahuisme
 
 include $(TOPDIR)/rules.mk
 
@@ -12,7 +12,7 @@ LUCI_TITLE:=LuCI Support for WiFi 7 (MT7996)
 LUCI_DESCRIPTION:=LuCI WiFi 7 Manager with support for MLO, 6GHz, diagnostics and multi-band status.
 LUCI_DEPENDS:=+luci-base +luci-mod-network +rpcd-mod-iwinfo +iw +hostapd-utils
 LUCI_PKGARCH:=all
-PKG_MAINTAINER:=Petr Wozniak <petr.wozniak@gmail.com>
+PKG_MAINTAINER:=yahuisme <40222380+yahuisme@users.noreply.github.com>
 PKG_LICENSE:=GPL-2.0-or-later
 PKG_LICENSE_FILES:=LICENSE
 

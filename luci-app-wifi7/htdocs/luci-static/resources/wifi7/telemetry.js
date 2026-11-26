@@ -28,7 +28,7 @@ function errorText(error) {
 
 function band(frequency) {
 	var f = Number(frequency);
-	return f >= 2400 && f < 2500 ? '2g' : f >= 4900 && f < 5925 ? '5g' : f >= 5925 && f <= 7125 ? '6g' : null;
+	return f >= 2400 && f < 2500 ? '2g' : f >= 4900 && f < 5955 ? '5g' : f >= 5955 && f <= 7125 ? '6g' : null;
 }
 
 function utilization(value) {
@@ -51,7 +51,7 @@ function dfs(states) {
 }
 
 function parse(raw) {
-	var out = { devices: Object.create(null), stations: Object.create(null), surveys: Object.create(null), hostapd: [], firmware: '', devicesOK: false };
+	var out = { devices: Object.create(null), stations: Object.create(null), surveys: Object.create(null), hostapd: [], devicesOK: false };
 	var section = '', name = '', ok = false, device = null, link = null, station = null, record = null, status = null;
 	function flush() {
 		if (record && record.inUse && record.active != null && record.busy != null)
@@ -96,7 +96,7 @@ function parse(raw) {
 		} else if (status) {
 			var eq = text.indexOf('=');
 			if (eq > 0) status[text.slice(0, eq)] = text.slice(eq + 1);
-		} else if (section === 'firmware' && !out.firmware && /mt7996.*firmware.*version/i.test(text)) out.firmware = text.replace(/^.*?mt7996[^:]*:\s*/i, '');
+		}
 	});
 	flush();
 	return out;
