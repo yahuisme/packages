@@ -57,7 +57,7 @@ function rate(bytes, previous, seconds) {
 	var current = number(bytes, 0, Number.MAX_SAFE_INTEGER), old = number(previous, 0, Number.MAX_SAFE_INTEGER);
 	return current != null && old != null && seconds > 0 && current >= old ? (current - old) * 8 / seconds / 1000000 : null;
 }
-function formatRate(value) { return value == null ? '—' : (value < 1 ? value.toFixed(2) : value.toFixed(value < 10 ? 1 : 0)) + ' Mbit/s'; }
+function formatRate(value) { return value == null ? '—' : value.toFixed(value < 1 ? 2 : value < 10 ? 1 : 0).replace(/\.0+$/, '') + ' Mbit/s'; }
 return view.extend({
 	handleSave: null,
 	handleSaveApply: null,

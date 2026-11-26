@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_VERSION:=20261126
-PKG_RELEASE:=5
+PKG_RELEASE:=6
 
 LUCI_TITLE:=LuCI Support for Airoha NPU Status
 LUCI_DESCRIPTION:=Airoha driver status and kernel CPU frequency controls.

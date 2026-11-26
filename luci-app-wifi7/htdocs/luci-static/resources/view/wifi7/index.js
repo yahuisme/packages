@@ -24,7 +24,7 @@ function integer(value) {
 function rate(value) {
 	var match = typeof value === 'string' && value.match(/^\s*([\d.]+)\s*Mbit\/s\b/i);
 	var mbits = match ? Number(match[1]) : value && typeof value === 'object' ? value.rate / 1000 : NaN;
-	return Number.isFinite(mbits) && mbits > 0 ? mbits.toFixed(1) + ' Mbit/s' : '—';
+	return Number.isFinite(mbits) && mbits > 0 ? mbits.toFixed(1).replace(/\.0$/, '') + ' Mbit/s' : '—';
 }
 // Reports the link's own label and width; MLO summaries pick the widest one.
 function standard(value) {
@@ -346,9 +346,19 @@ return view.extend({
 		function update(includeClients, initial) {
 			if ((!initial && !root.isConnected) || document.visibilityState === 'hidden') return Promise.resolve();
 			if (busy) return busy;
+			var clientsSkipped = !includeClients;
 			busy = Promise.all([
 				settled(telemetry.guard(wireless())),
-				includeClients ? settled(telemetry.guard(devices().then(function(list) { return Promise.all(Array.from(new Set(list)).map(function(d) { return Promise.all([settled(assoc(d)), settled(info(d))]).then(function(r) { return { name: d, stations: r[0], info: r[1] }; }); })); }))) : Promise.resolve({ ok: true, value: [] }),
+				includeClients ? settled(telemetry.guard(devices().then(function(list) {
+					// Enumeration may finish after the client tab is no longer visible.
+					if (!root.isConnected || activeTab !== 3 || document.visibilityState === 'hidden') {
+						clientsSkipped = true;
+						return [];
+					}
+					return Promise.all(Array.from(new Set(list)).map(function(d) {
+						return Promise.all([settled(assoc(d)), settled(info(d))]).then(function(r) { return { name: d, stations: r[0], info: r[1] }; });
+					}));
+				}))) : Promise.resolve({ ok: true, value: [] }),
 				settled(telemetry.guard(probe(includeClients ? '/usr/libexec/wifi7-status' : '/usr/libexec/wifi7-status-summary', []))),
 				Promise.all(radios.map(function(r) { return settled(telemetry.guard(info(r['.name']))); }))
 			]).then(function(result) {
@@ -402,6 +412,7 @@ return view.extend({
 						if (r) stats[r].util = telemetry.delta(s, previous[key]);
 						nextPrevious[key] = s;
 					});
+					if (clientsSkipped) return;
 					var merged = {};
 					if (n && n.stations.ok) n.stations.value.forEach(function(s) { merged[s.mac.toLowerCase()] = { mac: s.mac, signal: s.signal, tx: s.tx, rx: s.rx, connected: s.connected_time, links: {} }; });
 					(parsed.stations[iface] || []).forEach(function(s) {
@@ -445,16 +456,20 @@ return view.extend({
 				var remaining = parsed.hostapd.filter(function(h) { return telemetry.band(h.freq) === '5g' && h.state === 'DFS'; }).map(function(h) { return /^\d+$/.test(h.cac_time_left_seconds || '') ? Number(h.cac_time_left_seconds) : null; });
 				text(dfs, state === 'cac' ? _('DFS CAC in progress') + (remaining.length && remaining.every(function(n) { return n !== null; }) ? ' · ' + _('%d seconds remaining').format(Math.max.apply(null, remaining)) : '') : state === 'active' ? _('Operating') : _('Unknown'));
 				text(notice, '');
-				clientCache = { rows: rows, empty: anyKnown && !anyFailed ? _('No connected clients') : _('Client data unavailable') };
-				if (activeTab === 3) renderClients();
+				if (!clientsSkipped) {
+					clientCache = { rows: rows, empty: anyKnown && !anyFailed ? _('No connected clients') : _('Client data unavailable') };
+					if (activeTab === 3) renderClients();
+				}
 			}).catch(function() {
 				if (!root || !root.isConnected) return;
 				previous = Object.create(null);
 				text(notice, _('Telemetry update failed'));
 				Object.keys(cells).forEach(function(id) { paintRadio(cells[id], null); });
 				text(dfs, _('Unknown'));
-				clientCache = { rows: [], empty: _('Client data unavailable') };
-				if (activeTab === 3) renderClients();
+				if (!clientsSkipped) {
+					clientCache = { rows: [], empty: _('Client data unavailable') };
+					if (activeTab === 3) renderClients();
+				}
 			}).finally(function() { busy = null; });
 			return busy;
 		}

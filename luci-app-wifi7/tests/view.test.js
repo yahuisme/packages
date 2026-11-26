@@ -25,7 +25,7 @@ const {app,document,writes,poll,counters}=require('./harness');
   assert.ok(document.body.textContent.includes('5 GHz'));
  }
  if(process.env.MLO_TEST){assert.ok(document.body.textContent.includes('37 seconds remaining'));assert.ok(document.body.textContent.includes('-42 dBm'));assert.ok(document.body.textContent.includes('50%'));assert.ok(document.body.textContent.includes('DFS CAC in progress'));}
- if(process.env.NATIVE_TEST) assert.ok(document.body.textContent.includes('1200.0 Mbit/s'));
+ if(process.env.NATIVE_TEST) assert.ok(document.body.textContent.includes('1200 Mbit/s'),'whole iwinfo rate has no decimal suffix');
  if(!process.env.DENIED_TEST) {
   const ch=document.getElementById('wifi7-radio1-channel');
   assert.ok([...ch.options].some(o=>o.value==='36'));

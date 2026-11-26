@@ -23,7 +23,7 @@ sample.interfaces[0].stats.rx_bytes=1000;sample.interfaces[0].stats.tx_bytes=200
 sample.interfaces[0].ifindex=4;sample.interfaces[0].stats.rx_bytes=100001000;sample.interfaces[0].stats.tx_bytes=200002000;sample.uptime=115;await refresh();
 assert.equal(rateText(),'— / —','same-name recreated interface needs a fresh baseline');assert.deepEqual(totals(),['—','—']);
 sample.interfaces[0].stats.rx_bytes+=625000;sample.interfaces[0].stats.tx_bytes+=1250000;sample.uptime=120;await refresh();
-assert.equal(rateText(),'1.0 Mbit/s / 2.0 Mbit/s');assert.deepEqual(totals(),['1.0 Mbit/s','2.0 Mbit/s']);
+assert.equal(rateText(),'1 Mbit/s / 2 Mbit/s');assert.deepEqual(totals(),['1 Mbit/s','2 Mbit/s']);
 // Identical output must not rebuild the port rows or rewrite their cells.
 const portRows=[...root.querySelectorAll('.flowsense-port')],portCells=[...root.querySelectorAll('.flowsense-port-metric dd')],portMutations=[];
 const portObserver=new w.MutationObserver(records=>portMutations.push(...records));
@@ -33,13 +33,13 @@ portObserver.disconnect();
 assert.equal(portMutations.length,0,'unchanged port telemetry must not rewrite DOM');
 assert.deepEqual([...root.querySelectorAll('.flowsense-port')],portRows,'port rows are reused across refreshes');
 assert.deepEqual([...root.querySelectorAll('.flowsense-port-metric dd')],portCells,'metric cells are reused across refreshes');
-sample.uptime=130;await refresh();assert.equal(rateText(),'0.00 Mbit/s / 0.00 Mbit/s');sample.interfaces[0].stats.rx_bytes=0;sample.interfaces[0].stats.tx_bytes=0;sample.uptime=130;await refresh();assert.equal(rateText(),'— / —');
-sample.interfaces[0].stats.rx_bytes=625000;sample.interfaces[0].stats.tx_bytes=1250000;sample.uptime=135;await refresh();assert.equal(rateText(),'1.0 Mbit/s / 2.0 Mbit/s');
+sample.uptime=130;await refresh();assert.equal(rateText(),'0 Mbit/s / 0 Mbit/s');sample.interfaces[0].stats.rx_bytes=0;sample.interfaces[0].stats.tx_bytes=0;sample.uptime=130;await refresh();assert.equal(rateText(),'— / —');
+sample.interfaces[0].stats.rx_bytes=625000;sample.interfaces[0].stats.tx_bytes=1250000;sample.uptime=135;await refresh();assert.equal(rateText(),'1 Mbit/s / 2 Mbit/s');
 sample.interfaces[0].ifindex=null;sample.uptime=140;await refresh();
 sample.interfaces[0].stats.rx_bytes+=625000;sample.uptime=145;await refresh();
 assert.equal(rateText(),'— / —','unknown identity cannot establish a rate baseline');assert.deepEqual(totals(),['—','—']);
 sample.interfaces[0].ifindex=5;sample.uptime=150;await refresh();assert.equal(rateText(),'— / —');
-sample.uptime=155;await refresh();assert.equal(rateText(),'0.00 Mbit/s / 0.00 Mbit/s');
+sample.uptime=155;await refresh();assert.equal(rateText(),'0 Mbit/s / 0 Mbit/s');
 // A successful RPC may still lack its monotonic sample time. Never subtract
 // null as zero or recover rates against a fabricated zero-time baseline.
 sample.uptime=null;sample.interfaces[0].stats.rx_bytes+=625000;await refresh();
@@ -47,7 +47,9 @@ assert.equal(rateText(),'— / —','missing uptime must not produce a traffic r
 sample.uptime=160;sample.interfaces[0].stats.rx_bytes+=625000;await refresh();
 assert.equal(rateText(),'— / —','first valid uptime after a gap establishes the baseline');
 sample.uptime=165;sample.interfaces[0].stats.rx_bytes+=625000;await refresh();
-assert.equal(rateText(),'1.0 Mbit/s / 0.00 Mbit/s');
+assert.equal(rateText(),'1 Mbit/s / 0 Mbit/s');
+sample.uptime=170;sample.interfaces[0].stats.rx_bytes+=78750;sample.interfaces[0].stats.tx_bytes+=775000;await refresh();
+assert.equal(rateText(),'0.13 Mbit/s / 1.2 Mbit/s','fractional rates retain their existing rounding');assert.deepEqual(totals(),['0.13 Mbit/s','1.2 Mbit/s']);
 assertDots();
 const skeleton=[...root.querySelectorAll('.flowsense-summary .flowsense-card,.flowsense-section.cbi-section:not(.flowsense-acceleration) .cbi-value')];
 assert.equal(polls.size,1);overviewError=true;accelerationError=true;await refresh();assert.equal(root.querySelector('.flowsense-summary').children.length,4);assert.deepEqual([...root.querySelectorAll('.flowsense-summary .flowsense-card,.flowsense-section.cbi-section:not(.flowsense-acceleration) .cbi-value')],skeleton,'failure retains fixed skeleton');assert([...root.querySelectorAll('.flowsense-summary .flowsense-value')].every(n=>n.textContent==='—'));assert.equal(rateText(),'— / —');assert([...root.querySelectorAll('.flowsense-acceleration-state')].every(n=>n.textContent==='Unknown'));assert.equal(root.querySelectorAll('.flowsense-active').length,0);assertDots();
@@ -63,7 +65,7 @@ for(const device of ['__proto__','constructor','toString','hasOwnProperty']) {
  assert.equal(rateText(),'— / —','new identity starts with no rate baseline');
  const retained=root.querySelector('.flowsense-port');
  sample.interfaces[0].stats.rx_bytes+=625000;sample.uptime+=5;await refresh();
- assert.equal(rateText(),'1.0 Mbit/s / 0.00 Mbit/s','special-name identity retains its own counter baseline');
+ assert.equal(rateText(),'1 Mbit/s / 0 Mbit/s','special-name identity retains its own counter baseline');
  assert.equal(root.querySelector('.flowsense-port'),retained,'special-name row is reused');
 }
 sample.interfaces=[];sample.uptime+=5;await refresh();

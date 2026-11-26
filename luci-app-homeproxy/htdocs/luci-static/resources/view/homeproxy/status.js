@@ -268,8 +268,8 @@ function getRuntimeLog(o) {
 		const selected = sources[session.source];
 		textarea.id = session.source + '-log';
 		textarea.setAttribute('aria-label', _('%s Log').format(selected.name));
-		// A reset re-renders the same source: keep the bytes already collected.
-		textarea.value = session.text || _('Collecting data...');
+		// An empty buffer with a decoder is a successful read, not a pending poll.
+		textarea.value = session.decoder ? session.text || _('Log is empty.') : _('Collecting data...');
 		const section = selected.section;
 		level.hidden = !section;
 		level.style.display = section ? '' : 'none';

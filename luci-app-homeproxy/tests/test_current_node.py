@@ -48,7 +48,8 @@ function popen(command) {
  if (input.failure === 'popen') return null;
  let read = false;
  return { read: function() { if (read) return ''; read = true;
-  return input.failure === 'malformed' ? '{invalid' : sprintf('%J', {now:input.tag}); }, close: () => 0 };
+  return input.failure === 'malformed' ? '{invalid' : input.failure === 'empty' ? '' : sprintf('%J', {now:input.tag}); },
+  close: () => input.status ?? 0 };
 }
 function compare(value, tag) {
  if (stats.node_visits !== length(input.nodes) * stats.curl) die('comparison before full registration');
@@ -195,6 +196,22 @@ class CurrentNode(unittest.TestCase):
                 self.assertEqual(result['current']['node_visits'], 0)
                 self.assertEqual(result['current']['reverse_comparisons'], 0)
         self.assertEqual([r['actual']['active']['id'] for r in results[:len(controller_tags)]], ['node1', 'node2'])
+
+    def test_waiting_for_selection_requires_a_successful_controller_reply(self):
+        inputs = [
+            ('controller down', {'failure': 'empty', 'status': 7}, 'clash_api_unavailable'),
+            ('partial response', {'status': 18, 'tag': 'Selected'}, 'clash_api_unavailable'),
+            ('invalid JSON', {'failure': 'malformed'}, 'clash_api_unavailable'),
+            ('wrong value type', {'tag': 42}, 'clash_api_unavailable'),
+            ('waiting', {'tag': ''}, 'missing_current_proxy'),
+            ('selected', {'tag': 'Selected'}, None),
+        ]
+        cases = [{'name': name, 'nodes': [node('node1', 'Selected')], **fields}
+                 for name, fields, _ in inputs]
+        for result, (_, _, error) in zip(exercise(cases), inputs):
+            with self.subTest(case=result['name']):
+                self.assertEqual(result['actual']['error'], error)
+                self.assertEqual(result['actual']['active']['id'], 'urltest' if error else 'node1')
 
 
 if __name__ == '__main__':

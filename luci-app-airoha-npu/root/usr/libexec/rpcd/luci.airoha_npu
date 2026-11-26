@@ -217,7 +217,8 @@ get_info() {
 
 UCI=${NPU_UCI:-uci}
 get_flow() (
-	local sw=0 hw=0 flow_tmp options
+	local sw=0 hw=0 flow_tmp options section line quoted=0
+	local has_sw=0 has_hw=0 quote="'" backslash='\'
 	umask 077
 	flow_tmp=$(mktemp -d "$ROOT/tmp/luci-airoha-npu-read.XXXXXX" 2>/dev/null) || { printf '{"enabled":null}\n'; exit; }
 	trap 'rm -rf "$flow_tmp"' EXIT
@@ -225,10 +226,38 @@ get_flow() (
 	options=$("$UCI" -q -c "$ROOT/etc/config" -C "$flow_tmp" -t "$flow_tmp" get 'firewall.@defaults[0]') && [ "$options" = defaults ] || { printf '{"enabled":null}\n'; return; }
 	# Only confirmed absent options use firewall's disabled default.
 	options=$("$UCI" -q -c "$ROOT/etc/config" -C "$flow_tmp" -t "$flow_tmp" show 'firewall.@defaults[0]') || { printf '{"enabled":null}\n'; exit; }
-	case "$options" in *.flow_offloading=*)
-		sw=$("$UCI" -q -c "$ROOT/etc/config" -C "$flow_tmp" -t "$flow_tmp" get 'firewall.@defaults[0].flow_offloading') || { printf '{"enabled":null}\n'; exit; };; esac
-	case "$options" in *.flow_offloading_hw=*)
-		hw=$("$UCI" -q -c "$ROOT/etc/config" -C "$flow_tmp" -t "$flow_tmp" get 'firewall.@defaults[0].flow_offloading_hw') || { printf '{"enabled":null}\n'; exit; };; esac
+	# UCI show single-quotes option values, including literal newlines,
+	# and emits an escaped quote outside the quoted string. Scan keys only
+	# at the start of a record, without executing or unquoting any values.
+	{
+		IFS= read -r section
+		case "$section" in firewall.*=defaults) ;; *) printf '{"enabled":null}\n'; exit;; esac
+		section=${section%=defaults}
+		while IFS= read -r line; do
+			if [ "$quoted" = 0 ]; then
+				case "$line" in
+					"$section.flow_offloading="*) has_sw=1;;
+					"$section.flow_offloading_hw="*) has_hw=1;;
+				esac
+			fi
+			while [ "${line#*"$quote"}" != "$line" ]; do
+				case "$quoted:${line%%"$quote"*}" in
+					0:*"$backslash") ;;
+					*) quoted=$((1 - quoted));;
+				esac
+				line=${line#*"$quote"}
+			done
+		done
+	} <<EOF
+$options
+EOF
+	[ "$quoted" = 0 ] || { printf '{"enabled":null}\n'; exit; }
+	if [ "$has_sw" = 1 ]; then
+		sw=$("$UCI" -q -c "$ROOT/etc/config" -C "$flow_tmp" -t "$flow_tmp" get 'firewall.@defaults[0].flow_offloading') || { printf '{"enabled":null}\n'; exit; }
+	fi
+	if [ "$has_hw" = 1 ]; then
+		hw=$("$UCI" -q -c "$ROOT/etc/config" -C "$flow_tmp" -t "$flow_tmp" get 'firewall.@defaults[0].flow_offloading_hw') || { printf '{"enabled":null}\n'; exit; }
+	fi
 	# Match firewall4's scalar boolean parser, keeping invalid reads unknown.
 	case "$sw" in 1|on|true|yes) sw=1;; 0|off|false|no) sw=0;; esac
 	case "$hw" in 1|on|true|yes) hw=1;; 0|off|false|no) hw=0;; esac

@@ -517,7 +517,7 @@ const methods = {
 				push(commands, sprintf(
 					'/usr/bin/curl --location --silent --output /dev/null --user-agent %s --connect-timeout 5 --max-time 9 --write-out %s %s',
 					shellQuote('Mozilla/5.0'),
-					shellQuote(sprintf('%s\\t%%{http_code}\\t%%{time_appconnect}\\t%%{time_total}\\n', site)),
+					shellQuote(sprintf('%s\\t%%{http_code}\\t%%{time_appconnect}\\t%%{exitcode}\\n', site)),
 					shellQuote(CONNECTION_SITES[site])
 				));
 			}
@@ -548,13 +548,13 @@ const methods = {
 					continue;
 
 				const latency_ms = curlTimeMs(fields[2]);
-				const total_ms = curlTimeMs(fields[3]);
 				const http_code = int(fields[1] || '0');
+				const status = int(fields[3]);
 				responses[fields[0]] = {
 					site: fields[0],
-					result: http_code >= 100 && http_code <= 599,
+					result: status === 0 && http_code >= 100 && http_code <= 599,
 					latency_ms,
-					timed_out: http_code === 0 && total_ms >= 8900
+					timed_out: status === 28
 				};
 			}
 
@@ -597,32 +597,34 @@ const methods = {
 					error: null
 				};
 
+			const apiUnavailable = () => ({
+				mode: 'urltest',
+				active: { id: 'urltest', label: 'URLTest', type: 'urltest' },
+				error: 'clash_api_unavailable'
+			});
 			const clash_api_port = int(uci.get('homeproxy', 'infra', 'clash_api_port'));
 			if (!clash_api_port)
-				return {
-					mode: 'urltest',
-					active: { id: 'urltest', label: 'URLTest', type: 'urltest' },
-					error: 'clash_api_unavailable'
-				};
+				return apiUnavailable();
 			const fd = popen(`/usr/bin/curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:${clash_api_port}/proxies/main-out 2>"/dev/null"`);
 			if (!fd)
-				return {
-					mode: 'urltest',
-					active: { id: 'urltest', label: 'URLTest', type: 'urltest' },
-					error: 'clash_api_unavailable'
-				};
+				return apiUnavailable();
 
 			let payload = '', line;
 			for (line = fd.read('line'); length(line); line = fd.read('line'))
 				payload += line;
-			fd.close();
+			if (fd.close() !== 0)
+				return apiUnavailable();
 
-			let data = null;
+			let data;
 			try {
 				data = json(payload);
-			} catch (e) {}
+			} catch (e) {
+				return apiUnavailable();
+			}
+			if (type(data) !== 'object' || (data.now != null && type(data.now) !== 'string'))
+				return apiUnavailable();
 
-			const tag = trim(data?.now || '');
+			const tag = trim(data.now || '');
 			if (!tag)
 				return {
 					mode: 'urltest',

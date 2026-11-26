@@ -50,7 +50,7 @@ function acceleration(enabled) { return {hardware:{supported:true,enabled,config
    assert.equal(requests[held].length,1,'held source stays single-flight');
    assert.equal(requests[other].length,2,'a stalled '+held+' must not block independent '+other+' polling');
    requests[other][1].resolve(other==='getOverview'?overview(110):acceleration(false));await settle();
-   if(other==='getOverview') assert.equal(node.querySelectorAll('.flowsense-port-metric dd')[1].textContent,'1.0 Mbit/s / 0.00 Mbit/s','independent overview paints fresh counter deltas while acceleration stalls');
+   if(other==='getOverview') assert.equal(node.querySelectorAll('.flowsense-port-metric dd')[1].textContent,'1 Mbit/s / 0 Mbit/s','independent overview paints fresh counter deltas while acceleration stalls');
    else assert.equal(node.querySelector('.flowsense-acceleration-state').textContent,'Not enabled');
    requests[held][0].reject(Error('expected stalled-source failure'));await settle();
    await tick(10);

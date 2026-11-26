@@ -54,7 +54,7 @@ const assert=require('node:assert/strict');
   assert.equal(detail.open,true);
   if(process.env.MLO_TEST) {
    assert.ok(detail.textContent.includes('MLO 8'),'unknown RSSI link retained');
-   assert.ok(detail.textContent.includes('600.0 Mbit/s'),'iw rate normalized');
+   assert.ok(detail.textContent.includes('600 Mbit/s'),'whole iw rate has no decimal suffix');
    assert.ok(!detail.textContent.includes('MBit/s'));
   }
   if(process.env.NATIVE_TEST) {

@@ -43,11 +43,13 @@ const view = vm.runInContext('(function(){'+source+'})()', context);
  assert.strictEqual(polls[0].interval, 5);
  assert.strictEqual(node.querySelectorAll('.fan-summary-card').length, 4);
  assert.strictEqual(node.querySelectorAll('.fan-temp-card').length, 7);
- const temperatures=[-128,49.9,50,65,65.1,75,75.1];
+ const temperatures=[-128,49.975,50,65,65.05,75,75.1];
  const keys=['temp_cpu','temp_board','temp_phy2','temp_phy1','wifi_24g','wifi_5g','wifi_6g'];
  const good={fan_mode:2,uci_mode:'auto',uci_preset:'quiet',fan_rpm:1500,fan_pwm:80,...Object.fromEntries(keys.map((key,i)=>[key,temperatures[i]]))};
  pending(good);
  await new Promise(resolve => setImmediate(resolve));
+ assert.deepStrictEqual([...node.querySelectorAll('.fan-temp-value')].map(e=>e.textContent),
+  ['-128°C','50°C','50°C','65°C','65.1°C','75°C','75.1°C']);
  const accents=[...node.querySelectorAll('.fan-temp-card')].map(e=>e.style.getPropertyValue('--fan-temp-accent'));
  ['success','success','warning','warning','orange','orange','danger'].forEach((token,i)=>{
   if (token === 'warning') assert.strictEqual(accents[i], '#eab308', 'yellow is fixed clear yellow');
@@ -85,11 +87,11 @@ const view = vm.runInContext('(function(){'+source+'})()', context);
  assert.strictEqual(node.querySelector('#fan-summary-rpm .fan-card-sub').textContent,'—','successful empty data replaces transport failure');
  await refresh(good);
  assert.strictEqual(node.querySelector('#fan-summary-mode .fan-card-sub').textContent,'Following fan curve');
- assert.strictEqual(node.querySelector('#temp-board .fan-temp-value').textContent,'49.9°C');
+ assert.strictEqual(node.querySelector('#temp-board .fan-temp-value').textContent,'50°C');
  // Read live displayed values, not a raw-status equality shortcut.
  node.querySelector('#temp-board .fan-temp-value').textContent='stale';
  await refresh(good);assert.strictEqual(records.length,1);
- assert.strictEqual(node.querySelector('#temp-board .fan-temp-value').textContent,'49.9°C');
+ assert.strictEqual(node.querySelector('#temp-board .fan-temp-value').textContent,'50°C');
  changes.disconnect();
  const promise = polls[0].fn();
  node.remove(); observers[0].callback();

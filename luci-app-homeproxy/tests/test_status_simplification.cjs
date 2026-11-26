@@ -90,7 +90,12 @@ async function until(check) { const end=performance.now()+3000; while(!check()) 
   h.log.reply=()=>result(Buffer.alloc(0),glyphs.length,'whole');
   for(const poll of h.polls)await poll();
   assert.equal(status.firstChild,announcement,'unchanged log does not replace the aria-live DOM');
+  h.log.reply=()=>result(Buffer.alloc(0),0,'empty',true);
+  for(const poll of h.polls)await poll();
+  assert.equal(viewer().value,'Log is empty.');
   h.log.reply=null;
+  await h.mods.dom.findClassInstance(h.root()).reset();
+  assert.equal(viewer().value,'Log is empty.','Reset preserves a known empty log before the next poll');
   console.log('PASS status: one selected log read by offset; appended bytes only; selection/scroll; switch+reset in-flight lock; stale reply isolation; reentry; linked website name');
  } finally {h.w.close();}
  const ro=await boot([],{}, {readonly:true});

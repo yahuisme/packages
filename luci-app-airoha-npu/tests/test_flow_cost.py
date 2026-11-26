@@ -100,6 +100,24 @@ class FlowCostTest(unittest.TestCase):
                 self.env['FAIL_ARGS'] = target
                 self.compare(None)
 
+    def test_unrelated_option_value_is_not_an_offload_key(self):
+        for name in ('', " 'global'"):
+            for key in ('flow_offloading', 'flow_offloading_hw'):
+                with self.subTest(section=name, mentioned_key=key):
+                    self.firewall.write_text(f"config defaults{name}\n option note 'example.{key}=1'\n")
+                    result = self.run_getter('after')
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIs(json.loads(result.stdout)['enabled'], False)
+
+    def test_multiline_option_value_cannot_supply_offload_keys(self):
+        note = "config defaults global\n option note \"It's a test\nfirewall.global.flow_offloading=1\nfirewall.global.flow_offloading_hw=1\nDone\"\n"
+        for options, expected in [('', False), (" option flow_offloading '1'\n option flow_offloading_hw '1'\n", True)]:
+            with self.subTest(expected=expected):
+                self.firewall.write_text(note + options)
+                result = self.run_getter('after')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIs(json.loads(result.stdout)['enabled'], expected)
+
     def test_firewall_boolean_aliases(self):
         for sw, hw, enabled in [('on','yes',True), ('true','1',True), ('off','true',False),
                                  ('yes','no',False), ('true','false',False), ('unknown','yes',None)]:

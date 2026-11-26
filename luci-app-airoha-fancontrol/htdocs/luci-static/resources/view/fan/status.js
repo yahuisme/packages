@@ -9,6 +9,8 @@ var callFanStatus = rpc.declare({
 	reject: true
 });
 
+var tempFormat = new Intl.NumberFormat('en', { maximumFractionDigits: 1, useGrouping: false });
+
 var statusCSS = '\
 .fan-dashboard .fan-summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px;margin-bottom:16px}\
 .fan-dashboard .fan-summary-card,.fan-dashboard .fan-panel{background:var(--cbi-section-bg,transparent);border:1px solid var(--cbi-border-color,var(--hairline,#e0e0e0));border-radius:6px;box-sizing:border-box}\
@@ -30,6 +32,10 @@ function validNumber(value, min, max) {
 
 function validTemp(value) {
 	return validNumber(value, -128, 150);
+}
+
+function tempText(temp) {
+	return temp == null ? '—' : tempFormat.format(temp) + '\u00b0C';
 }
 
 function tempColor(value) {
@@ -80,7 +86,7 @@ function createTempGauge(label, value, id) {
 	return E('div', { 'id': id, 'class': 'fan-temp-card', 'style': '--fan-temp-accent:' + tempColor(temp) }, [
 		E('div', { 'class': 'fan-temp-row' }, [
 			E('span', { 'class': 'fan-temp-label' }, label),
-			E('span', { 'class': 'fan-temp-value' }, temp == null ? '—' : temp + '\u00b0C')
+			E('span', { 'class': 'fan-temp-value' }, tempText(temp))
 		]),
 		E('div', { 'class': 'fan-temp-track' }, E('div', { 'class': 'fan-temp-fill', 'style': 'width:' + (temp == null ? 0 : Math.min(100, Math.max(3, temp))) + '%' }))
 	]);
@@ -113,7 +119,7 @@ function updateTempGauge(nodes, value) {
 	var color = tempColor(temp), width = (temp == null ? 0 : Math.min(100, Math.max(3, temp))) + '%';
 	if (nodes.card.style.getPropertyValue('--fan-temp-accent') !== color)
 		nodes.card.style.setProperty('--fan-temp-accent', color);
-	updateText(nodes.value, temp == null ? '—' : temp + '\u00b0C');
+	updateText(nodes.value, tempText(temp));
 	if (nodes.fill.style.width !== width) nodes.fill.style.width = width;
 }
 

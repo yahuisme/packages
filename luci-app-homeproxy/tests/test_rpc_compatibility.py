@@ -10,6 +10,51 @@ APP = Path(__file__).resolve().parents[1]
 
 
 class RpcCompatibility(unittest.TestCase):
+    def test_connection_check_uses_each_curl_exit_code(self):
+        rpc = (APP / 'root/usr/share/rpcd/ucode/luci.homeproxy').read_text()
+        sites = rpc[rpc.index('const CONNECTION_SITES'):rpc.index('// BusyBox mktemp')]
+        start = rpc.index('\t\tcall: function(req)', rpc.index('\tconnection_check:'))
+        method = rpc[start + len('\t\tcall: '):rpc.index('\n\t},', start)]
+        helper = (APP / 'root/etc/homeproxy/scripts/homeproxy.uc').read_text()
+        quote = helper[helper.index('export function shellQuote'):helper.index('export function isBinary')].replace('export function', 'function')
+        with tempfile.TemporaryDirectory(prefix='hp-connection-rpc-') as directory:
+            root = Path(directory)
+            curl = root / 'curl'
+            curl.write_text(r'''#!/usr/bin/env python3
+import sys
+fmt = sys.argv[sys.argv.index('--write-out') + 1]
+site = fmt.split(r'\t', 1)[0]
+fields = {
+    'baidu': ('200', '0.000950', '0.100000', 0),
+    'bilibili': ('503', '0.042020', '0.333333', 0),
+    'jd': ('000', '0.000000', '5.001000', 28),
+    'google': ('200', '0.142000', '9.000000', 28),
+    'github': ('200', '0.456000', '0.700000', 56),
+    'youtube': ('000', '0.000000', '8.950000', 7),
+}
+http, connect, total, status = fields[site]
+for key, value in [('http_code', http), ('time_appconnect', connect),
+                   ('time_total', total), ('exitcode', str(status))]:
+    fmt = fmt.replace('%{' + key + '}', value)
+assert '%{' not in fmt
+print(fmt.replace(r'\t', '\t').replace(r'\n', '\n'), end='')
+sys.exit(status)
+''')
+            curl.chmod(0o700)
+            script = root / 'case.uc'
+            script.write_text("import {popen} from 'fs';\n" + quote + sites + '\nconst check = ' +
+                              method.replace('/usr/bin/curl', str(curl)) + ';\n' +
+                              "print(sprintf('%J', map(['all', 'jd'], site => check({args: {site}}).results)));\n")
+            run = subprocess.run(['ucode', str(script)], text=True, capture_output=True, timeout=10)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            all_sites, single_site = json.loads(run.stdout)
+            self.assertEqual([(r['site'], r['result'], r['latency_ms'], r['timed_out']) for r in all_sites], [
+                ('baidu', True, 0, False), ('bilibili', True, 42, False),
+                ('jd', False, 0, True), ('google', False, 142, True),
+                ('github', False, 456, False), ('youtube', False, 0, False),
+            ])
+            self.assertEqual(single_site, [all_sites[2]])
+
     def test_latency_probe_distinguishes_success_http_errors_and_timeout(self):
         rpc = (APP / 'root/usr/share/rpcd/ucode/luci.homeproxy').read_text()
         start = rpc.index('const parseDelayResponse =')

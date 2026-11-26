@@ -20,13 +20,14 @@ function baselineSources(root) {
   }
   if (relative.endsWith('/view/wifi7/index.js')) {
    // Carry only the authorized fixes into the immutable oracle: the folded MLO
-   // summary follows the widest link, the count copy names clients, and the
-   // dead `.wifi7-info-value` button selector is gone.
+   // summary follows the widest link, the count copy names clients, the
+   // dead `.wifi7-info-value` button selector is gone, and whole rates omit .0.
    let text = source.toString();
    for (const [before, after] of [
     ['first.standard', "entries.slice().sort(function(a, b) { return (String(b.standard).match(/([0-9]+)\\s*MHz/) || [0, 0])[1] - (String(a.standard).match(/([0-9]+)\\s*MHz/) || [0, 0])[1]; })[0].standard"],
     ["_('%d client associations').format(keys.length)", "(keys.length === 1 ? _('1 client') : _('%d clients').format(keys.length))"],
-    ['.wifi7-map .wifi7-info-value .cbi-button,', '']
+    ['.wifi7-map .wifi7-info-value .cbi-button,', ''],
+    ["mbits.toFixed(1) + ' Mbit/s'", "mbits.toFixed(1).replace(/\\.0$/, '') + ' Mbit/s'"]
    ]) {
     assert.equal(text.split(before).length, 2, 'baseline correction must match exactly once: ' + before);
     text = text.replace(before, after);

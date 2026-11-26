@@ -106,9 +106,38 @@ async function main(){if(OUT)fs.mkdirSync(OUT,{recursive:true});const results=[]
   const before=h.calls.length;release();await pending;await tick();
   assert.deepEqual(h.calls.slice(before).map(c=>c.method),['getWirelessDevices'],'only the already-issued held request may finish');
  });
+ for(const exit of ['detach','other tab','background']) await test('client enumeration does not start per-interface requests after '+exit,async h=>{
+  await h.poll();const post=h.mods.request.post;let hold=false,release;
+  h.mods.request.post=async(url,req)=>{
+   const [,object,method,params]=req.params;
+   if(object==='file'&&method==='exec'&&params.command==='/usr/libexec/wifi7-status')
+    return {ok:true,status:200,json:()=>h.w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result:[0,{code:0,stdout:'@@ devices 0\nInterface ap-mld\n channel 36 (5180 MHz), width: 80 MHz\n'}]}))};
+   if(hold&&object==='iwinfo'&&method==='devices'&&!release)await new Promise(r=>release=r);
+   return post(url,req);
+  };
+  await h.tab(3);await h.poll();
+  const detail=h.q('details');assert(detail,'iwinfo is the only source of this client');detail.open=true;
+  hold=true;const pending=h.poll();await tick();assert(release,'client tab reaches device enumeration');
+  const before=h.calls.length;
+  if(exit==='detach')h.node.remove();
+  else if(exit==='other tab')await h.tab(0);
+  else Object.defineProperty(h.w.document,'visibilityState',{configurable:true,value:'hidden'});
+  release();await pending;
+  const clientCalls=()=>h.calls.slice(before).filter(c=>c.object==='iwinfo'&&(c.method==='devices'||c.method==='assoclist'||c.params.device==='ap-mld')).map(c=>c.method);
+  assert.deepEqual(clientCalls(),['devices'],'only the already-issued enumeration may finish');
+  if(exit==='detach')return;
+  assert.equal(h.q('details'),detail,'skipping collection retains the existing iwinfo client');
+  assert(detail.open,'skipping collection retains the expanded state');
+  await h.poll();
+  assert.equal(h.q('details'),detail,'summary-only polls must not replace the client cache');
+  Object.defineProperty(h.w.document,'visibilityState',{configurable:true,value:'visible'});
+  await h.tab(3);await h.poll();
+  assert(clientCalls().includes('assoclist'),'returning to clients resumes per-interface requests');
+  assert.equal(h.q('details'),detail,'a successful fresh poll reuses the client');assert(detail.open);
+ });
  await test('MLO summary uses the widest measured direction and its protocol',async h=>{
   const post=h.mods.request.post;
-  const payload=`@@ devices 0\nInterface ap-mld\n - link ID 7\n channel 36 (5180 MHz), width: 80 MHz\n - link ID 9\n channel 2 (5935 MHz), width: 160 MHz\n@@ stations ap-mld 0\nStation aa:bb:cc:dd:ee:01\n Link 7:\n tx bitrate: 1200.0 MBit/s EHT-MCS 11\n rx bitrate: 1200.0 MBit/s 80MHz EHT-MCS 11\n Link 9:\n tx bitrate: 2400.0 MBit/s 40MHz EHT-MCS 11\n rx bitrate: 2000.0 MBit/s 160MHz HE-MCS 11\nStation aa:bb:cc:dd:ee:02\n Link 7:\n tx bitrate: 1200.0 MBit/s EHT-MCS 11\n Link 9:\n tx bitrate: 2400.0 MBit/s EHT-MCS 11\n`;
+  const payload=`@@ devices 0\nInterface ap-mld\n - link ID 7\n channel 36 (5180 MHz), width: 80 MHz\n - link ID 9\n channel 2 (5935 MHz), width: 160 MHz\n@@ stations ap-mld 0\nStation aa:bb:cc:dd:ee:01\n Link 7:\n tx bitrate: 1200.0 MBit/s EHT-MCS 11\n rx bitrate: 1200.0 MBit/s 80MHz EHT-MCS 11\n Link 9:\n tx bitrate: 2400.0 MBit/s 40MHz EHT-MCS 11\n rx bitrate: 2000.54 MBit/s 160MHz HE-MCS 11\nStation aa:bb:cc:dd:ee:02\n Link 7:\n tx bitrate: 1200.0 MBit/s EHT-MCS 11\n Link 9:\n tx bitrate: 2400.0 MBit/s EHT-MCS 11\n`;
   h.mods.request.post=async(url,req)=>req.params[3].command==='/usr/libexec/wifi7-status'
    ? {ok:true,status:200,json:()=>h.w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result:[0,{code:0,stdout:payload}]}))}
    : post(url,req);
@@ -117,7 +146,8 @@ async function main(){if(OUT)fs.mkdirSync(OUT,{recursive:true});const results=[]
   assert.match(measured.querySelector('summary').textContent,/Wi-Fi 6 \/ 160 MHz/);
   assert.match(measured.textContent,/MLO 9 \(6 GHz\)/);
   assert.match(measured.textContent,/Wi-Fi 7 \/ 40 MHz/,'keep the TX-first per-link display');
-  assert.match(measured.textContent,/2400\.0 Mbit\/s/);assert.match(measured.textContent,/2000\.0 Mbit\/s/);
+  assert.deepEqual([...measured.querySelectorAll('.wifi7-link-box')].map(n=>[...n.querySelectorAll('.wifi7-value')].slice(-2).map(v=>v.textContent)),
+   [['1200 Mbit/s','1200 Mbit/s'],['2400 Mbit/s','2000.5 Mbit/s']],'whole rates omit .0; fractional rates keep the existing rounding');
   assert.match(unknown.querySelector('summary').textContent,/Wi-Fi 7/);assert.doesNotMatch(unknown.querySelector('summary').textContent,/MHz/);
  });
  await test('hidden initial render skips telemetry',async h=>{assert.equal(h.calls.filter(c=>c.object==='file'&&c.method==='exec'&&c.params.command==='/usr/libexec/wifi7-status-summary').length,0);await h.poll();assert.equal(h.calls.filter(c=>c.object==='file'&&c.method==='exec'&&c.params.command==='/usr/libexec/wifi7-status-summary').length,0);},{hidden:true});
