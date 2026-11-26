@@ -115,15 +115,16 @@ async function domain() {
 async function log() {
  const h=await boot();
  try {
-  await h.settle({results:[]});const notes=[];let clears=0,reads=0;const post=h.mods.request.post;
+  await h.settle({results:[]});const notes=[];let clears=0;const post=h.mods.request.post;
   h.mods.ui.addNotification=(_title,body,severity)=>notes.push({text:body.textContent,severity});
-  h.mods.fs.read_direct=async()=>{reads++;return 'original log bytes';};
+  const reads=()=>h.calls.filter(c=>c.method==='log_read').length;
+  h.log.text='original log bytes';
   for(const poll of h.polls)await poll();
-  const area=h.root().querySelector('textarea'),before=reads;
+  const area=h.root().querySelector('textarea'),before=reads();
   h.mods.request.post=async(url,req)=>req.params[2]==='log_clean'?(clears++,response(h,req,{result:true},6)):post(url,req);
   const button=h.button('Clean log');button.click();await until(()=>clears===1);await until(()=>!button.disabled);
   assert.equal(notes.length,1,'log clear must report nonzero native status');assert.equal(notes[0].severity,'error');assert.match(notes[0].text,/Unable to clear log/);
-  assert.equal(area.value,'original log bytes');assert.equal(reads,before,'failure must not trigger successful-clear refresh');
+  assert.equal(area.value,'original log bytes');assert.equal(reads(),before,'failure must not trigger successful-clear refresh');
   console.log('PASS log clear: nonzero status reports error and retains original bytes without success refresh');
  } finally {h.w.close();}
 }

@@ -962,6 +962,66 @@ const methods = {
 		}
 	},
 
+	log_read: {
+		args: { type: 'type', offset: 0 },
+		call: function(req) {
+			const kind = req.args?.type;
+			if (!(kind in ['homeproxy', 'sing-box-c', 'sing-box-s']))
+				return { error: 'illegal type' };
+
+			// Same boundary as log_clean: a service-writable parent or a
+			// non-regular entry could redirect this read outside the runtime.
+			const runtime = lstat(RUN_DIR);
+			if (runtime && (runtime.type !== 'directory' || runtime.uid !== 0 || (runtime.mode & 0022)))
+				return { error: 'unsafe runtime directory' };
+			const path = `${RUN_DIR}/${kind}.log`;
+			const filestat = lstat(path);
+			if (!filestat)
+				return { status: 'missing' };
+			if (filestat.type !== 'file' || filestat.nlink !== 1)
+				return { error: 'unsafe log file' };
+
+			// The writers only append between in-place truncations, so a byte
+			// offset lets a poll ship the new lines instead of the whole file.
+			// A shrunken file or a stale offset resyncs from the last window.
+			const window = 65536;
+			const size = filestat.size;
+			let offset = req.args?.offset;
+			offset = (type(offset) in ['int', 'double'] && offset > 0) ? int(offset) : 0;
+			const reset = offset > size;
+			let start = reset ? size - window : offset;
+			if (start < 0)
+				start = 0;
+			let want = size - start;
+			if (want > window)
+				want = window;
+			if (want <= 0)
+				return { status: 'ok', size: size, offset: start, reset: reset, data: '' };
+
+			const fd = open(path, 'r');
+			if (!fd)
+				return { error: 'failed to open log file' };
+			if (fd.seek(start) !== true) {
+				fd.close();
+				return { error: 'failed to seek log file' };
+			}
+			const raw = fd.read(want);
+			fd.close();
+			if (raw === null)
+				return { error: 'failed to read log file' };
+
+			// A tail window can begin mid-line, so drop that partial line: it
+			// would otherwise render as a broken glyph and a torn record.
+			let data = raw;
+			if (reset && start > 0) {
+				const nl = index(raw, '\n');
+				if (nl >= 0)
+					data = substr(raw, nl + 1);
+			}
+			return { status: 'ok', size: size, offset: start + length(raw), reset: reset, data: data };
+		}
+	},
+
 	log_clean: {
 		args: { type: 'type' },
 		call: function(req) {

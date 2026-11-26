@@ -10,6 +10,16 @@ APP = Path(__file__).resolve().parents[1]
 
 
 class RpcCompatibility(unittest.TestCase):
+    def test_log_viewer_reads_through_its_own_rpc(self):
+        acl = json.loads((APP / 'root/usr/share/rpcd/acl.d/luci-app-homeproxy.json').read_text())['luci-app-homeproxy']
+        self.assertIn('log_read', acl['read']['ubus']['luci.homeproxy'])
+        for name in ('homeproxy', 'sing-box-c', 'sing-box-s'):
+            self.assertNotIn(f'/var/run/homeproxy/{name}.log', json.dumps(acl['read']),
+                             'the viewer must not need raw log file access')
+        view = (APP / 'htdocs/luci-static/resources/view/homeproxy/status.js').read_text()
+        self.assertIn("method: 'log_read'", view)
+        self.assertNotIn('read_direct', view, 'a poll must not refetch the whole log')
+
     def test_atomic_private_directories_are_unique_with_native_fs(self):
         runtime = os.environ.get('HP_COMPAT_UCODE', 'ucode')
         rpc = (APP / 'root/usr/share/rpcd/ucode/luci.homeproxy').read_text()

@@ -26,7 +26,7 @@ for (const message of [ 'Log updated.', 'Log unavailable.' ]) {
 		assert.match(cells[1].textContent, /Success/);
 		assert.match(cells[2].textContent, /18 ms/);
 
-		h.mods.fs.read_direct = async () => 'first log line\nsecond log line with private diagnostic details';
+		h.log.text = 'first log line\nsecond log line with private diagnostic details';
 		for (const poll of h.polls)
 			await poll();
 		const log = h.root().querySelector('textarea');
@@ -40,13 +40,13 @@ for (const message of [ 'Log updated.', 'Log unavailable.' ]) {
 		assert.match(liveLog.textContent, /updated|empty|unavailable/i);
 
 		const cases = [
-			{ read: async () => '', expected: 'Log is empty.' },
-			{ read: async () => { throw Object.assign(Error('missing'), { name: 'NotFoundError' }); }, expected: 'Log unavailable.' },
-			{ read: async () => { throw Error('未知错误：磁盘故障'); }, expected: 'Log unavailable.' },
-			{ read: async () => '中文日志内容', expected: 'Log updated.' }
+			{ reply: () => ({ status: 'ok', reset: true, offset: 0, data: '' }), expected: 'Log is empty.' },
+			{ reply: () => ({ status: 'missing' }), expected: 'Log unavailable.' },
+			{ reply: () => { throw Error('未知错误：磁盘故障'); }, expected: 'Log unavailable.' },
+			{ reply: () => ({ status: 'ok', reset: true, offset: 0, data: '中文日志内容' }), expected: 'Log updated.' }
 		];
 		for (const item of cases) {
-			h.mods.fs.read_direct = item.read;
+			h.log.reply = item.reply;
 			for (const poll of h.polls)
 				await poll();
 			assert.equal(liveLog.textContent, item.expected);

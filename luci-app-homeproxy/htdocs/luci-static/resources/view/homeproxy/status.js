@@ -7,15 +7,12 @@
 'use strict';
 'require dom';
 'require form';
-'require fs';
 'require homeproxy.lifecycle as lifecycle';
 'require homeproxy.resources as resources';
 'require rpc';
 'require uci';
 'require ui';
 'require view';
-
-const hp_dir = '/var/run/homeproxy';
 
 /* Declared once: these views re-render on Map reset/save, and declaring inside
  * a render function rebuilds the RPC wrappers on every redraw. */
@@ -25,6 +22,13 @@ const callConnStat = rpc.declare({
 	params: ['site'],
 	expect: { '': {} }
 });
+const callLogRead = rpc.declare({
+	object: 'luci.homeproxy',
+	method: 'log_read',
+	params: ['type', 'offset'],
+	reject: true,
+	expect: { '': {} }
+});
 const callLogClean = rpc.declare({
 	object: 'luci.homeproxy',
 	method: 'log_clean',
@@ -32,6 +36,25 @@ const callLogClean = rpc.declare({
 	reject: true,
 	expect: { '': {} }
 });
+
+/* The viewer keeps the newest bytes only: a textarea is a window, not storage. */
+const logWindow = 131072;
+/* Read only the bytes the viewer is missing; a poll then costs a few lines. */
+const appendLog = (session, result) => {
+	let dropped = 0;
+	if (result.reset) session.text = '';
+	if (result.data) {
+		session.text += result.data;
+		if (session.text.length > logWindow) {
+			const cut = session.text.indexOf('\n', session.text.length - logWindow);
+			const kept = session.text.slice(cut < 0 ? session.text.length - logWindow : cut + 1);
+			dropped = session.text.length - kept.length;
+			session.text = kept;
+		}
+	}
+	session.offset = result.offset;
+	return dropped;
+};
 
 const connectionSites = [
 	{ type: 'baidu', name: _('Baidu'), url: 'https://www.baidu.com/' },
@@ -191,7 +214,7 @@ function getConnectionStatus() {
 }
 
 function getRuntimeLog(o) {
-	const session = this.logSession || (this.logSession = { source: 'homeproxy', busy: false, revision: 0 });
+	const session = this.logSession || (this.logSession = { source: 'homeproxy', busy: false, revision: 0, text: '', offset: 0 });
 	const sources = {
 		homeproxy: { name: _('HomeProxy') },
 		'sing-box-c': { name: _('sing-box Client'), section: 'config' },
@@ -221,6 +244,8 @@ function getRuntimeLog(o) {
 			if (!sources[ev.target.value]) return;
 			session.source = ev.target.value;
 			session.revision++;
+			session.text = '';
+			session.offset = 0;
 			configure();
 			refresh();
 		}
@@ -230,34 +255,48 @@ function getRuntimeLog(o) {
 		const selected = sources[session.source];
 		textarea.id = session.source + '-log';
 		textarea.setAttribute('aria-label', _('%s Log').format(selected.name));
-		textarea.value = _('Collecting data...');
+		// A reset re-renders the same source: keep the bytes already collected.
+		textarea.value = session.text || _('Collecting data...');
 		const section = selected.section;
 		level.hidden = !section;
 		level.style.display = section ? '' : 'none';
 		level.value = section ? uci.get('homeproxy', section, 'log_level') || 'warn' : 'warn';
 	};
-	const update = (result) => {
-		if (textarea.value !== result.content) {
-			const focused = document.activeElement === textarea;
-			const start = textarea.selectionStart, end = textarea.selectionEnd, direction = textarea.selectionDirection;
-			const top = textarea.scrollTop, left = textarea.scrollLeft;
-			textarea.value = result.content;
-			if (focused) textarea.setSelectionRange(start, end, direction);
-			textarea.scrollTop = top;
-			textarea.scrollLeft = left;
-		}
-		dom.content(log_status, result.status === 'unavailable' ? _('Log unavailable.') :
-			result.status === 'empty' ? _('Log is empty.') : _('Log updated.'));
+	const show = (text, dropped) => {
+		if (textarea.value === text) return;
+		const focused = document.activeElement === textarea;
+		const start = textarea.selectionStart, end = textarea.selectionEnd, direction = textarea.selectionDirection;
+		const top = textarea.scrollTop, left = textarea.scrollLeft;
+		textarea.value = text;
+		// An appended tail shifts nothing, but a trimmed head moves every offset.
+		if (focused) textarea.setSelectionRange(Math.max(0, start - dropped), Math.max(0, end - dropped), direction);
+		textarea.scrollTop = top;
+		textarea.scrollLeft = left;
+	};
+	const fail = (message) => {
+		session.text = '';
+		session.offset = 0;
+		show(message, 0);
+		dom.content(log_status, _('Log unavailable.'));
+	};
+	const apply = (result) => {
+		const dropped = appendLog(session, result);
+		show(session.text || _('Log is empty.'), dropped);
+		dom.content(log_status, session.text ? _('Log updated.') : _('Log is empty.'));
 	};
 	const refresh = () => {
 		if (!alive() || document.visibilityState === 'hidden' || session.busy) return Promise.resolve();
-		const selected = session.source, requestRevision = session.revision;
+		const requestRevision = session.revision, offset = session.offset;
 		session.busy = true;
-		return fs.read_direct('%s/%s.log'.format(hp_dir, selected), 'text').then((content) =>
-			content ? { status: 'updated', content } : { status: 'empty', content: _('Log is empty.') }
-		).catch((err) => ({ status: 'unavailable', content: err?.name === 'NotFoundError' ?
-			_('Log file does not exist.') : _('Unknown error: %s.').format(err) })).then((result) => {
-			if (alive() && requestRevision === session.revision) update(result);
+		return callLogRead(session.source, offset).then((result) => {
+			if (!alive() || requestRevision !== session.revision) return;
+			if (result?.status === 'ok' && typeof result.data === 'string' && typeof result.offset === 'number')
+				return apply(result);
+			if (result?.status === 'missing')
+				return fail(_('Log file does not exist.'));
+			return fail(_('Unknown error: %s.').format(result?.error || '?'));
+		}).catch((err) => {
+			if (alive() && requestRevision === session.revision) fail(_('Unknown error: %s.').format(err));
 		}).finally(() => {
 			session.busy = false;
 			// Only the newest attached viewer can resume a source switch/reset.
@@ -276,6 +315,8 @@ function getRuntimeLog(o) {
 				else if (session.source === selected) {
 					// Reject pre-clear bytes, including reads begun by a replacement viewer.
 					session.revision++;
+					session.text = '';
+					session.offset = 0;
 					if (session.refresh) session.refresh();
 				}
 			}).finally(() => {

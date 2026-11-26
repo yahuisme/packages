@@ -66,6 +66,67 @@ _homeproxy_start_service
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def read_rpc(self, kind, offset=None):
+        rpc = (APP / 'root/usr/share/rpcd/ucode/luci.homeproxy').read_text()
+        body = rpc[rpc.index('\tlog_read: {'):rpc.index('\n\tlog_clean: {')].rstrip().rstrip(',')
+        args = {'type': kind}
+        if offset is not None:
+            args['offset'] = offset
+        script = self.root / 'read.uc'
+        script.write_text("import {lstat,open} from 'fs'; const RUN_DIR=" + json.dumps(str(self.runtime)) +
+                          ';const m={' + body + '};print(sprintf("%J",m.log_read.call({args:' + json.dumps(args) + '})));')
+        result = subprocess.run(['ucode', str(script)], capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_log_read_ships_only_new_bytes_and_resyncs_after_truncation(self):
+        os.chown(self.runtime, 0, 0)
+        log = self.runtime / 'homeproxy.log'
+        log.write_bytes(b'first line\n' * 3)
+        size = log.stat().st_size
+        initial = self.read_rpc('homeproxy', 0)
+        self.assertEqual((initial['status'], initial['reset'], initial['offset']), ('ok', False, size))
+        self.assertEqual(initial['data'], 'first line\n' * 3)
+        # A poll must not resend the prefix: only the appended bytes travel.
+        with log.open('ab') as handle:
+            handle.write(b'tail\n')
+        appended = self.read_rpc('homeproxy', size)
+        self.assertEqual((appended['data'], appended['offset'], appended['reset']), ('tail\n', size + 5, False))
+        # The cleaner truncates in place; a stale offset resyncs instead of skipping.
+        log.write_bytes(b'new\n')
+        shrunk = self.read_rpc('homeproxy', size + 5)
+        self.assertEqual((shrunk['data'], shrunk['offset'], shrunk['reset']), ('new\n', 4, True))
+
+    def test_log_read_bounds_the_window_and_drops_a_partial_first_line(self):
+        os.chown(self.runtime, 0, 0)
+        log = self.runtime / 'sing-box-c.log'
+        lines = b''.join(b'%06d payload\n' % index for index in range(20000))
+        log.write_bytes(lines)
+        size = len(lines)
+        initial = self.read_rpc('sing-box-c', 0)
+        self.assertEqual((initial['data'], initial['offset']), (lines[:65536].decode(), 65536))
+        stale = self.read_rpc('sing-box-c', size + 1)
+        self.assertTrue(stale['reset'])
+        self.assertEqual(stale['offset'], size)
+        start = size - 65536
+        self.assertNotEqual(lines[start - 1:start], b'\n', 'fixture window starts mid-line')
+        boundary = lines.index(b'\n', start) + 1
+        self.assertEqual(stale['data'].encode(), lines[boundary:], 'the partial first line is dropped')
+
+    def test_log_read_refuses_foreign_entries_and_unknown_sources(self):
+        self.assertEqual(self.read_rpc('../root-secret')['error'], 'illegal type')
+        # A service-writable parent could redirect the read outside the runtime.
+        self.assertEqual(self.read_rpc('homeproxy')['error'], 'unsafe runtime directory')
+        os.chown(self.runtime, 0, 0)
+        self.assertEqual(self.read_rpc('homeproxy')['status'], 'missing')
+        log = self.runtime / 'sing-box-s.log'
+        log.symlink_to(self.victim)
+        self.assertEqual(self.read_rpc('sing-box-s')['error'], 'unsafe log file')
+        log.unlink()
+        os.link(self.victim, log)
+        self.assertEqual(self.read_rpc('sing-box-s')['error'], 'unsafe log file')
+        self.assertEqual(self.victim.read_bytes(), b'v' * 73728)
+
     def clean_rpc(self, kind):
         rpc = (APP / 'root/usr/share/rpcd/ucode/luci.homeproxy').read_text()
         body = rpc[rpc.index('\tlog_clean: {'):rpc.index('\n\tsingbox_generator: {')].rstrip().rstrip(',')

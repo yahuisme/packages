@@ -130,7 +130,7 @@ async function logClean() {
 		await h.settle({ results: [] });
 		const original = h.mods.request.post, notices = [];
 		let pending, calls = 0, contents = 'retained log contents';
-		h.mods.fs.read_direct = async () => contents;
+		h.log.text = contents;
 		h.mods.ui.addNotification = (_title, message, kind) => {
 			notices.push({ message, kind });
 			h.w.document.body.append(message);
@@ -167,6 +167,7 @@ async function logClean() {
 			}
 		}
 		contents = '';
+		h.log.text = contents;
 		for (const poll of h.polls) await poll();
 		assert.equal(textarea().value, h.w._('Log is empty.'));
 		assert.equal(calls, 5);
@@ -188,10 +189,10 @@ async function logClearRace() {
 			const area = () => h.root().querySelector('textarea');
 			const source = () => h.root().querySelector('[aria-label="Log source"]');
 			const choose = value => { source().value=value; source().dispatchEvent(new h.w.Event('change',{bubbles:true})); };
-			h.mods.fs.read_direct = async () => 'confirmed before clear';
+			h.log.text = 'confirmed before clear';
 			for (const poll of h.polls) await poll();
 			const reads = [], clears = [], original = h.mods.request.post;
-			h.mods.fs.read_direct = path => new Promise((resolve,reject)=>reads.push({path,resolve,reject}));
+			h.log.reply = (type, offset) => new Promise((resolve,reject)=>reads.push({type,offset,resolve,reject}));
 			h.mods.request.post = async (url,req) => {
 				if (req.params[2] !== 'log_clean') return original(url,req);
 				return response(h,req,await new Promise(resolve=>clears.push({source:req.params[3].type,resolve})));
@@ -226,12 +227,13 @@ async function logClearRace() {
 			await until(()=>!h.button('Clean log').disabled,'clear releases shared lock');
 			assert.equal(area().value,before,'successful clear awaits confirmed bytes');
 			assert.equal(reads.length,1,'pre-clear read remains single flight');
-			reads[0].resolve('STALE PRE-CLEAR BYTES');await pendingRead;
+			reads[0].resolve(h.logBytes('STALE PRE-CLEAR BYTES'));await pendingRead;
 			assert.equal(area().value,before,'pre-clear reply cannot paint after successful clear');
 			assert.equal(old.value,oldText,'invalidated or detached textarea stays untouched');
 			await until(()=>reads.length===2,'completion refreshes attached viewer without a poll tick');
-			assert.equal(reads[1].path,'/var/run/homeproxy/'+source().value+'.log');
-			reads[1].resolve(scenario==='other-source'?'fresh server':'');
+			assert.equal(reads[1].type,source().value,'catch-up reads the selected source');
+			assert.equal(reads[1].offset,0,'a cleared log restarts at offset zero');
+			reads[1].resolve(h.logBytes(scenario==='other-source'?'fresh server':''));
 			await until(()=>area().value===(scenario==='other-source'?'fresh server':h.w._('Log is empty.')),'post-clear bytes are displayed');
 			assert.equal(reads.length,2,'exactly one catch-up read');
 			// No outstanding read: success must request fresh bytes immediately.
@@ -240,7 +242,7 @@ async function logClearRace() {
 			clears.at(-1).resolve({result:true});
 			await until(()=>reads.length===count+1,'successful clear refreshes without polling');
 			assert.equal(area().value,retained,'no optimistic empty on immediate refresh');
-			reads.at(-1).resolve('new after clear');await until(()=>area().value==='new after clear','fresh post-clear data');
+			reads.at(-1).resolve(h.logBytes('new after clear'));await until(()=>area().value==='new after clear','fresh post-clear data');
 			console.log('PASS native log clear race: '+scenario+'; stale read rejected, captured source, single-flight, attached catch-up, confirmed bytes');
 		} finally {h.w.close();}
 	}

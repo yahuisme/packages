@@ -25,6 +25,16 @@ async function boot(resources = [], translations = {}, options = {}) {
  Object.assign(w.env,{resource:'/luci-static/resources',scriptname:'/cgi-bin/luci',sessionid:'fixture',pollinterval:5});
  L.require=n=>Promise.resolve(mods[n]); L.hasViewPermission=()=>!options.readonly; L.loaded=true; w.E=mods.dom.create.bind(mods.dom);
  const calls=[], pending=[], polls=[];
+ // Log fixture: an append-only file the view can only reach through log_read.
+ // Tests replace log.reply to control timing, otherwise it serves bytes by offset.
+ const log={text:'',reply:null};
+ const logBytes=(data,offset=data.length)=>({status:'ok',reset:true,offset,data});
+ const logReply=async(type,offset)=>{
+  if(log.reply)return log.reply(type,offset);
+  const at=Math.max(0,Number(offset)||0);
+  if(at>log.text.length)return logBytes(log.text);
+  return {status:'ok',reset:at===0,offset:log.text.length,data:log.text.slice(at)};
+ };
  mods.request.post=async(url,req)=>{
   const [,object,method,p]=req.params; calls.push({object,method,p}); let result;
   if(object==='uci'&&method==='get')result=[0,{values:{config:{'.name':'config','.type':'homeproxy',log_level:'warn'},server:{'.name':'server','.type':'server'}}}];
@@ -32,6 +42,7 @@ async function boot(resources = [], translations = {}, options = {}) {
   else if(object==='session')result=[0,{access:!options.readonly}];
   else if(method==='resources_get')result=[0,{resources}];
   else if(method==='resources_update')result=[0,{status:3}];
+  else if(method==='log_read')result=[0,await logReply(p.type,p.offset)];
   else if(method==='connection_check')result=await new Promise((resolve,reject)=>pending.push({resolve,reject}));
   else throw Error('Unexpected RPC '+object+'/'+method);
   return {ok:true,status:200,json:()=>w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result}))};
@@ -54,7 +65,7 @@ async function boot(resources = [], translations = {}, options = {}) {
  const root=()=>w.document.querySelector('#cbi-homeproxy');assert(root(),'real view mounted');
  const button=text=>[...root().querySelectorAll('button')].find(x=>x.textContent===w._(text));
  const row=()=>root().querySelector('table').rows[1];
- return {j,w,mods,app,polls,calls,pending,navigationErrors,root,button,row,count:()=>calls.filter(x=>x.method==='connection_check').length,async settle(payload){pending.shift().resolve([0,payload]);await tick();await tick();}};
+ return {j,w,mods,app,polls,calls,pending,navigationErrors,root,button,row,log,logBytes,count:()=>calls.filter(x=>x.method==='connection_check').length,async settle(payload){pending.shift().resolve([0,payload]);await tick();await tick();}};
 }
 module.exports = { boot, tick };
 if (require.main === module) (async()=>{
