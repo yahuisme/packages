@@ -7,7 +7,7 @@ source+=`(async()=>{
  const input=name=>root.querySelector('[data-name="'+name+'"] input:not([type="hidden"])');
  const edit=value=>{input('target').value=value;input('target').dispatchEvent(new w.Event('input'));};
  const remount=async()=>{root.remove();root=await mods.app.render(await mods.app.load());w.document.querySelector('#view').prepend(root);};
- assert.equal(count('getOverview'),0,'Settings must not request uptime, jitter or interfaces');
+ assert.equal(count('getOverview') + count('getTelemetry'),0,'Settings must not request uptime, jitter or interfaces');
  assert.equal(count('getSettings'),1);assert.equal(count('getAcceleration'),1);
  assert.equal(input('target').value,'example.com');
  edit('saved.example');let before=calls.length;await mods.app.handleSave();
@@ -34,7 +34,7 @@ source+=`(async()=>{
  assert.equal(input('target').value,'readback.example');assert.equal(input('target').disabled,false);
  mods.request.post=post;
  writable=false;await remount();before=calls.length;await mods.app.handleSaveApply();await mods.app.handleReset();assert.equal(calls.length,before);
- assert(input('target').disabled);assert.equal(count('getOverview'),0);assert.equal(polls.size,0);
+ assert(input('target').disabled);assert.equal(count('getOverview') + count('getTelemetry'),0);assert.equal(polls.size,0);
  console.log('PASS Settings committed monitor reuse, RPC counts, Save/Reset/reload, Apply/partial retry, unknown/readonly and pending-error readback');w.close();
 })().catch(e=>{console.error(e);w.close();process.exitCode=1});`;
 const m=new Module(file,module);m.filename=file;m.paths=Module._nodeModulePaths(__dirname);m._compile(source,file);

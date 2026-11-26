@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_VERSION:=20261126
-PKG_RELEASE:=2
+PKG_RELEASE:=3
 
 PKG_LICENSE:=Apache-2.0
 
@@ -12,7 +12,7 @@ LUCI_PKGNAME:=luci-app-airoha-flowsense
 LUCI_PKGARCH:=all
 # Bridge/VLAN/PPPoE acceleration reads nft flowtables and writes bridge-nf sysctls.
 LUCI_DEPENDS:=+luci-base +nftables-json +flock @TARGET_airoha
-PKG_MAINTAINER:=yahuisme <40222380+yahuisme@users.noreply.github.com>
+LUCI_MAINTAINER:=yahuisme <40222380+yahuisme@users.noreply.github.com>
 
 define Package/$(LUCI_PKGNAME)/conffiles
 /etc/config/npu-monitor

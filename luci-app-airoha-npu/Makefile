@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_VERSION:=20261126
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 
 LUCI_TITLE:=LuCI Support for Airoha NPU Status
 LUCI_DESCRIPTION:=Airoha driver status and kernel CPU frequency controls.
@@ -12,7 +12,7 @@ LUCI_DEPENDS:=+luci-base +jsonfilter +flock
 LUCI_PKGARCH:=all
 
 PKG_LICENSE:=Apache-2.0
-PKG_MAINTAINER:=yahuisme <40222380+yahuisme@users.noreply.github.com>
+LUCI_MAINTAINER:=yahuisme <40222380+yahuisme@users.noreply.github.com>
 
 include $(TOPDIR)/feeds/luci/luci.mk
 

@@ -155,6 +155,27 @@ return view.extend({
 
 	render: function() {
 		var map = new form.Map('fan', _('Airoha Fan Settings'), _('Configure fan control mode and speed curves.'));
+		var parse = map.parse;
+		map.parse = function() {
+			// Native parse stages each option separately. Validate the active form
+			// first so a rejected save cannot leave a partial UCI draft behind.
+			for (var section of [settings, curve]) {
+				for (var sid of section.cfgsections()) {
+					for (var field of section.children) {
+						if (field.option === '_curve_preview' || !field.isActive(sid)) continue;
+						field.triggerValidation(sid);
+						var value = field.formvalue(sid), invalid = !field.isValid(sid);
+						if (invalid || (!field.rmempty && !field.optional && (value == null || value == ''))) {
+							var title = field.stripTags(field.title).trim() || field.option;
+							return Promise.reject(new TypeError(invalid
+								? _('Option "%s" contains an invalid input value.').format(title) + ' ' + field.getValidationError(sid)
+								: _('Option "%s" must not be empty.').format(title)));
+						}
+					}
+				}
+			}
+			return parse.call(this);
+		};
 		var save = map.save;
 		map.save = function(cb, silent) {
 			// Own only this map's error dialog; keep native validation and rejection.

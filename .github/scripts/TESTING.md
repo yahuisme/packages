@@ -1,4 +1,8 @@
-# Package regression runner
+# Local package regression runner
+
+Run regression checks locally; they are not a GitHub Actions workflow. The
+separate scheduled package updater still validates resources and new stable cores
+before publishing its own updates.
 
 ```sh
 export TMPDIR=/path/to/private/scratch
@@ -21,7 +25,9 @@ and the pure-Python po2lmo 1.0.0 wheel. It also stages checksum-pinned official
 It only extracts under `--dest`, uses the private musl loader explicitly, and
 probes UCI against a private configuration. It does not install packages, run init
 scripts, compile code or start a proxy. Host requirements: Python >=3.12, dpkg-deb,
-Node, npm, timeout, and gettext/msgfmt. Workflow LuCI resources are pinned by SHA.
+Node, npm, timeout, GNU make, gettext/msgfmt, and strace for the process-count
+tests. Use the full LuCI checkout at
+`a8c110bed82375b69eb3881b2e54e617520e8c7d` for the maintained native fixtures.
 The wheel is an alternate PO-to-LMO implementation; native LuCI catalog lookups
 are exercised by the localization gates. This does not claim testing of upstream
 C po2lmo itself.
@@ -67,11 +73,14 @@ shadowing the isolated UCI/ubus fixtures.
 
 ## Automatic stable-core updates
 
-`update-homeproxy.py` keeps daily resource-only updates on the SRS/schema smoke
-path. When the official stable core version changes, it additionally prepares
-the pinned prebuilt OpenWrt runtime and runs `check-core-compatibility.py` against
+`update-homeproxy.py` still verifies the official source archive. If the core
+version and both resource versions and Git blobs match, it skips the binary
+download and publication. Otherwise, it downloads only missing or changed SRS
+bytes and runs the SRS/schema smoke checks. When the stable core changes, it
+prepares the pinned OpenWrt tools and runs `check-core-compatibility.py` against
 that exact digest-verified candidate before publishing any new bytes. The gate
-reuses native client/server generation, ACME DNS-01 provider switches, explicit
+checks the installed-default config shared by both sing-box variants, and reuses
+native client/server generation, ACME DNS-01 provider switches, explicit
 DNS/ECH address-family policy, routing, URLTest, UoT/multiplex and retained
 Hysteria obfuscation suites with `SING_BOX_CHECK`, plus the DNS fallback and NTP
 bootstrap runtime cases in distinct, verified loopback-only network namespaces.
@@ -86,12 +95,19 @@ the resource commit. These pre-publication gates do not depend on a push workflo
 being triggered by `GITHUB_TOKEN`. `.github/tests/test_core_update.py` covers the
 conditional gate, refusal/rollback boundaries and real commits to a private local
 Git remote. Future versions must pass the same gates; this is not evidence of
-router startup, TUN/kernel behavior or remote protocol interoperability.
+router startup, feed-built full/tiny binary features, TUN/kernel behavior or
+remote protocol interoperability.
 
-`test_log_permissions.py` also runs in a separate privileged CI step. It uses a
-private runtime and dropped numeric service UID to verify root-owned runtime
-entries, legacy-link migration, retained append descriptors and both periodic
-and RPC log clearing. Its non-root skip is not acceptance of that boundary.
+For changes affecting HomeProxy permissions or native workers, use the prepared
+tool environment and an isolated root test unit. Run the affected private-fixture
+entrypoints explicitly; do not count a non-root or missing-runtime skip as a pass.
+`test_certificate_cleanup.py`, `test_generated_config_permissions.py`,
+`test_log_permissions.py` and `test_subscription_jobs.py` exercise the numeric
+service UID and filesystem boundaries. For `test_runtime_init_native.py`,
+`test_domain_session_rpc.py`, `tests/subscription-rpc-native.py` and
+`tests/resource-rpc-native.py`, set `OPENWRT_ROOTFS=$OPENWRT_TOOLS/rootfs.tar.gz`.
+The resource RPC fixture also needs
+`OPENWRT_DIGEST=$OPENWRT_TOOLS/runtime/usr/lib/ucode/digest.so`.
 
 jsdom stays at 26.1.0: 30.1.3 changes CSS custom-property computed styles and the
 subscription timer harness. The upstream whatwg-encoding deprecation remains visible;

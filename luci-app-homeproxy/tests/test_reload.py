@@ -14,6 +14,40 @@ INIT = (APP / 'root/etc/init.d/homeproxy').read_text()
 RC = (BASE / 'package/base-files/files/etc/rc.common').read_text()
 PROCD = (BASE / 'package/system/procd/files/procd.sh').read_text()
 
+DNS_UBUS = r'''
+if [ "$1 $3 $4 $5" = '-t call service list' ]; then
+    pid=$(cat "$ROOT/dns.pid" 2>/dev/null) || { printf '{}\n'; exit 0; }
+    printf '{"dnsmasq":{"instances":{"lan":{"running":true,"pid":%s}}}}\n' "$pid"
+    exit 0
+fi
+'''
+DNS_RESTART = r'''
+sleep() { :; }
+pidof() { cat "$ROOT/dns.pid" 2>/dev/null; }
+dnsmasq() {
+ printf 'dns\n' >> "$ROOT/events"
+ if [ "$FAULT" = dns ] && [ ! -e "$ROOT/failed" ]; then touch "$ROOT/failed"; return 1; fi
+ if [ "$FAULT" = dns-false-success ]; then printf 'dns-not-replaced\n' >> "$ROOT/events"; return 0; fi
+ local pid=100
+ if [ -e "$ROOT/dns.pid" ]; then pid=$(($(cat "$ROOT/dns.pid") + 1)); fi
+ local proc="$ROOT/proc/$pid" config="$ROOT/dnsmasq.conf.lan"
+ mkdir -p "$proc"
+ ln -s / "$proc/root"
+ printf 'Uid:\t53\t53\t53\t53\n' > "$proc/status"
+ printf '%s\0' /usr/sbin/dnsmasq -C "$config" -k -x /var/run/dnsmasq/dnsmasq.lan.pid > "$proc/cmdline"
+ local spec="$DNSMASQ_SPEC"
+ if [ "$FAULT" = dns-wrong-config ]; then spec=/not-the-selected-confdir; fi
+ printf 'conf-dir=%s\n' "$spec" > "$config"
+ printf '%s\n' "$pid" > "$ROOT/dns.pid"
+}
+'''
+
+
+def private_dns(code, root):
+    return (code.replace('/etc/init.d/dnsmasq', 'dnsmasq')
+                .replace('/proc/$pid', f'{root}/proc/$pid')
+                .replace('/var/etc/dnsmasq.conf.', f'{root}/dnsmasq.conf.'))
+
 
 def fn(source, name, indent=''):
     begin = source.index(indent + name + '() {')
@@ -54,7 +88,7 @@ json_dump() { printf '%s' "$INSTANCES"; }
 json_cleanup() { JSON_INSTANCES=0; INSTANCES=''; }
 ''')
             ubus = root / 'bin/ubus'
-            ubus.write_text('#!/bin/sh\nprintf "ubus:%s:%s\\n" "$3" "$4" >> "$ROOT/events"\n[ "$FAULT" != ubus ]\n')
+            ubus.write_text('#!/bin/sh\n' + DNS_UBUS + 'printf "ubus:%s:%s\\n" "$3" "$4" >> "$ROOT/events"\n[ "$FAULT" != ubus ]\n')
             ubus.chmod(0o755)
 
             old = {run / 'sing-box-c.json': 'OLD CLIENT',
@@ -77,25 +111,23 @@ mkdir() {
 sync_subscription_cron() { printf 'cron-sync\n' >> "$ROOT/events"; }
 procd_kill() { printf 'kill\n' >> "$ROOT/events"; }
 runtime_init() { [ "$FAULT" != runtime-init ]; }
-ucode() { case "$*" in *cleanup_urltest*) [ "$FAULT" != cleanup ];; *firewall_pre*) printf 'NEW FIREWALL' > "$RUN_DIR/fw4_input.nft";; *generate_client*) [ "$FAULT" != generate ] || return 1; printf 'NEW CLIENT' > "$RUN_DIR/sing-box-c.json.new";; *generate_server*) printf 'NEW SERVER' > "$RUN_DIR/sing-box-s.json.new";; esac; }
+ucode() { case "$*" in *prepareFiles*) [ "$3" = "$RUN_DIR" ] && printf 'prepare\n' >> "$ROOT/events" || :;; *cleanup_urltest*) [ "$FAULT" != cleanup ];; *firewall_pre*) printf 'NEW FIREWALL' > "$RUN_DIR/fw4_input.nft";; *generate_client*) [ "$FAULT" != generate ] || return 1; printf 'NEW CLIENT' > "$RUN_DIR/sing-box-c.json.new";; *generate_server*) printf 'NEW SERVER' > "$RUN_DIR/sing-box-s.json.new";; esac; }
 check_stub() { :; }
 sing_box_stub() { printf fixture; }
 chown() { :; }
 fw4() { :; }
-dnsmasq() { :; }
 flock() { :; }
 logger() { :; }
 lock() { :; }
 '''
             init = INIT.replace('/usr/libexec/homeproxy-runtime-init', 'runtime_init')
-            init = init.replace('/etc/init.d/dnsmasq', 'dnsmasq')
+            init = private_dns(init, root)
             init = init.replace('sing-box version -n', 'sing_box_stub version -n')
             # Install fixture boundaries after production function declarations;
             # otherwise sync_subscription_cron is overwritten and touches host cron.
-            init += '\n' + stubs
+            init += '\n' + stubs + DNS_RESTART
             init = init.replace('RUN_DIR="/var/run/homeproxy"', f'RUN_DIR="{run}"')
-            discovery = init[init.index('DNSMASQ_DIR=""'):init.index('\nlog() {')]
-            init = init.replace(discovery, f'DNSMASQ_DIR="{dns}"\n')
+            init += f'\nconfig_foreach() {{ :; }}\ndnsmasq_discover() {{ DNSMASQ_DIR="{dns}"; DNSMASQ_INCLUDE="{dns.parent}/dnsmasq-homeproxy.conf"; DNSMASQ_SECTION=lan; DNSMASQ_SPEC="{dns.parent}"; }}\n'
             init = init.replace('HP_DIR="/etc/homeproxy"', f'HP_DIR="{root}/hp"')
             init = init.replace('DASHBOARD_DIR="$HP_DIR/dashboard"', f'DASHBOARD_DIR="{root}/dashboard"')
             init = init.replace('PROG="/usr/bin/sing-box"', 'PROG="check_stub"')
@@ -113,6 +145,7 @@ lock() { :; }
             submissions = [line for line in events if line.startswith('ubus:set:')]
             self.assertEqual(result.stderr, '', result.stdout)
             self.assertNotIn('kill', events)
+            self.assertEqual(events.count('prepare'), 1, events)
             if not fault:
                 self.assertIn('cron-sync', events, 'cron fixture boundary must survive init sourcing')
             self.assertEqual(len([line for line in events if line == 'open']), 1, events)
@@ -133,7 +166,7 @@ lock() { :; }
                 self.assertEqual(result.returncode, 0, events)
 
     def run_case(self, fault='', mode='client', operation='reload', preexisting=True, cycle=False,
-                 expect_disabled_cleanup=False):
+                 expect_disabled_cleanup=False, switch_dns=False, no_dns_change=False, legacy_dns=False):
         with tempfile.TemporaryDirectory(prefix='homeproxy-reload-') as d:
             root = Path(d)
             run = root / 'run'
@@ -148,6 +181,19 @@ lock() { :; }
             if preexisting:
                 for path, text in old.items():
                     path.write_text(text)
+            new_dns = root / 'next-dns/dnsmasq-homeproxy.d'
+            marker = run / 'dnsmasq.include'
+            if (switch_dns or no_dns_change) and not legacy_dns:
+                marker.write_text(str(dns.parent / 'dnsmasq-homeproxy.conf') + '\n')
+            if no_dns_change or legacy_dns or switch_dns:
+                old[dns / 'redirect-dns.conf'] = 'no-poll\nno-resolv\nserver=127.0.0.1#5333\n'
+                old[dns.parent / 'dnsmasq-homeproxy.conf'] = f'conf-dir={dns}\n'
+                for path, text in old.items():
+                    path.write_text(text)
+            if switch_dns:
+                new_dns.parent.mkdir(parents=True)
+                (new_dns.parent / 'unrelated.conf').write_text('KEEP')
+                (root / 'dns.pid').write_text('99\n')
             logs = {run / 'sing-box-c.log': 'CLIENT HISTORY', run / 'sing-box-s.log': 'SERVER HISTORY'}
             for path, text in logs.items():
                 path.write_text(text)
@@ -155,12 +201,12 @@ lock() { :; }
             inodes = {path: path.stat().st_ino for path in old} if preexisting else {}
             (root / 'bin').mkdir()
             ubus = root / 'bin/ubus'
-            ubus.write_text('#!/bin/sh\nprintf "ubus:%s\\n" "$4" >> "$ROOT/events"\ncase "$FAULT" in ubus|restore-remove|restore-copy) exit 1;; esac\n')
+            ubus.write_text('#!/bin/sh\n' + DNS_UBUS + 'printf "ubus:%s\\n" "$4" >> "$ROOT/events"\ncase "$FAULT" in ubus|restore-remove|restore-copy) exit 1;; esac\n')
             ubus.chmod(0o755)
             # Load every production function without executing its path discovery.
-            code = INIT[INIT.index('log() {'):] + '\n'
+            code = INIT[INIT.index('dnsmasq_select() {'):] + '\n'
             code = code.replace('/usr/libexec/homeproxy-runtime-init', 'runtime_init')
-            code = code.replace('/etc/init.d/dnsmasq', 'dnsmasq')
+            code = private_dns(code, root)
             code = code.replace('sing-box version -n', 'sing_box_stub version -n')
             code += ''.join(fn(RC, n, '\t') for n in ['rc_procd', 'stop', 'reload'])
             code += ''.join(fn(PROCD, n) for n in ['_procd_call', '_procd_ubus_call', '_procd_close_service'])
@@ -196,6 +242,7 @@ json_cleanup() { :; }
 runtime_init() { [ "$FAULT" != runtime-init ]; }
 ucode() {
  case "$*" in
+ *prepareFiles*) [ "$3" = "$RUN_DIR" ] && printf 'prepare\n' >> "$ROOT/events" || :;;
  *cleanup_urltest*) [ "$FAULT" != cleanup ]; return $?;;
  *firewall_pre*) printf 'NEW FIREWALL' > "$RUN_DIR/fw4_input.nft"; [ "$FAULT" != firewall-pre ]; return $?;;
  *generate_client*) [ "$FAULT" != generate ] || return 1; printf 'NEW CLIENT' > "$RUN_DIR/sing-box-c.json.new";;
@@ -205,14 +252,19 @@ check_stub() { [ "$FAULT" != check ]; }
 sing_box_stub() { printf 'fixture'; }
 chown() { :; }
 fw4() { printf 'fw4\n' >> "$ROOT/events"; if [ "$FAULT" = fw4 ] && [ ! -e "$ROOT/failed" ]; then touch "$ROOT/failed"; return 1; fi; }
-dnsmasq() { printf 'dns\n' >> "$ROOT/events"; if [ "$FAULT" = dns ] && [ ! -e "$ROOT/failed" ]; then touch "$ROOT/failed"; return 1; fi; }
 mkdir() { if [ "$FAULT" = dns-prepare ] && [ "$2" = "$DNSMASQ_DIR" ]; then return 1; fi; command mkdir "$@"; }
 cp() { if [ "$FAULT" = restore-copy ] && [ "$3" = "$DNSMASQ_DIR" ]; then return 1; fi; command cp "$@"; }
 rm() { if [ "$FAULT" = restore-remove ] && [ "$1" = -rf ] && [ "$2" = "$DNSMASQ_DIR" ]; then return 1; fi; command rm "$@"; }
 mv() { if [ "$FAULT" = install ] && [ "$1" = -f ] && [ "$2" = "$RUN_DIR/sing-box-s.json.new" ]; then return 1; fi; command mv "$@"; }
 '''
+            code += DNS_RESTART
             code += f'\nROOT={root}\nRUN_DIR={run}\nDNSMASQ_DIR={dns}\n'
             code += f'HP_DIR={root}/hp\nDASHBOARD_DIR={root}/dashboard\n'
+            code += 'config_foreach() { :; }\ndnsmasq_discover() { DNSMASQ_DIR="$DNS_TARGET"; DNSMASQ_INCLUDE="${DNS_TARGET%/*}/dnsmasq-homeproxy.conf"; DNSMASQ_SECTION=lan; DNSMASQ_SPEC="${DNS_TARGET%/*}"; }\n'
+            code += f'DNS_TARGET={new_dns if switch_dns else dns}\n'
+            if legacy_dns:
+                code += f'\nconfig_foreach() {{ "$1" retired; }}\n'
+                code += f'\nconfig_get() {{ case "$2.$3" in retired.confdir) eval "$1={dns.parent}";; config.main_node) eval "$1=node";; *) eval "$1=\\\"$4\\\"";; esac; }}\n'
             code += 'LOG_PATH="$RUN_DIR/log"\nCACHE_DIR="$HP_DIR/cache"\nCACHE_PATH="$CACHE_DIR/cache.db"\n'
             code += 'mkdir -p "$DASHBOARD_DIR"; printf index > "$DASHBOARD_DIR/index.html"\n'
             code += 'CONF=homeproxy\nPROG=check_stub\ninitscript=/etc/init.d/homeproxy\n'
@@ -243,6 +295,7 @@ exit $?
                     self.assertEqual(path.read_text(), text, (fault, path))
                     self.assertEqual(path.stat().st_ino, log_inodes[path], (fault, path))
             self.assertNotIn('kill', events)
+            self.assertEqual(events.count('prepare'), 2 if cycle else 1, events)
             if expect_disabled_cleanup:
                 self.assertEqual(result.returncode, 0, (fault, events))
                 self.assertFalse(any(run.glob('sing-box-*.json')))
@@ -251,6 +304,30 @@ exit $?
                 self.assertEqual([e for e in events if e.endswith('-trigger')], ['config-trigger'])
                 self.assertEqual([e for e in events if e.startswith('ubus:')], ['ubus:'])
                 return
+            if no_dns_change:
+                self.assertNotIn('dns', events)
+                for path in (dns / 'redirect-dns.conf', dns.parent / 'dnsmasq-homeproxy.conf'):
+                    self.assertEqual(path.stat().st_ino, inodes[path])
+            if switch_dns:
+                self.assertEqual((new_dns.parent / 'unrelated.conf').read_text(), 'KEEP')
+                self.assertEqual(marker.read_text(), str((dns if fault else new_dns).parent / 'dnsmasq-homeproxy.conf') + '\n')
+                self.assertEqual(dns.exists(), bool(fault))
+                self.assertEqual((dns.parent / 'dnsmasq-homeproxy.conf').exists(), bool(fault))
+                self.assertEqual(new_dns.exists(), not fault)
+                self.assertEqual((new_dns.parent / 'dnsmasq-homeproxy.conf').exists(), not fault)
+                if fault in ('dns', 'dns-false-success', 'dns-wrong-config', 'ubus'):
+                    backup = run / '.reload.pending'
+                    self.assertEqual(result.returncode, 1, events)
+                    if fault == 'dns-false-success':
+                        self.assertIn('dns-not-replaced', events)
+                    self.assertEqual((run / 'reload.state').read_text(), 'installing')
+                    self.assertIn('restoration was incomplete', (run / 'log').read_text())
+                    self.assertEqual((backup / 'dnsmasq.previous.d/redirect-dns.conf').read_text(),
+                                     old[dns / 'redirect-dns.conf'])
+                    self.assertIn(f'dnsmasq.previous.conf\t{dns.parent}/dnsmasq-homeproxy.conf\n',
+                                  (backup / 'dnsmasq.paths').read_text())
+                    self.assertIn(f'dnsmasq.conf\t{new_dns.parent}/dnsmasq-homeproxy.conf\n',
+                                  (backup / 'dnsmasq.paths').read_text())
             if fault.startswith('restore-'):
                 self.assertNotEqual(result.returncode, 0)
                 backups = list(run.glob('.reload.*'))
@@ -259,6 +336,11 @@ exit $?
                 self.assertFalse((dns / 'dnsmasq.d').exists())
                 self.assertIn('restoration was incomplete', (run / 'log').read_text())
                 return
+            if fault == 'dns-false-success' and not switch_dns:
+                self.assertEqual(events.count('dns-not-replaced'), 2, events)
+                self.assertEqual((run / 'reload.state').read_text(), 'installing')
+                self.assertIn('restoration was incomplete', (run / 'log').read_text())
+                self.assertTrue((run / '.reload.pending/dnsmasq.paths').is_file())
             if fault and preexisting:
                 self.assertNotEqual(result.returncode, 0, (fault, events))
                 for path, text in old.items():
@@ -340,6 +422,20 @@ exit $?
         for fault in ['ubus', 'fw4', 'dns']:
             with self.subTest(fault=fault):
                 self.run_case(fault, 'disabled')
+
+    def test_path_switch_moves_only_managed_files_and_rolls_back_both_paths(self):
+        for fault in ('', 'generate', 'dns', 'ubus', 'dns-false-success', 'dns-wrong-config'):
+            with self.subTest(fault=fault):
+                self.run_case(fault, switch_dns=True)
+
+    def test_false_success_cannot_confirm_rollback_in_same_confdir(self):
+        self.run_case('dns-false-success')
+
+    def test_unchanged_dns_leaves_inodes_and_skips_restart(self):
+        self.run_case(no_dns_change=True)
+
+    def test_upgrade_removes_proven_legacy_include_before_recording_new_path(self):
+        self.run_case(switch_dns=True, legacy_dns=True)
 
     def test_disabled_dns_failure(self):
         self.run_case('dns', 'disabled')

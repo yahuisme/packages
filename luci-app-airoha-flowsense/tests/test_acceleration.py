@@ -92,6 +92,13 @@ class AccelerationTest(unittest.TestCase):
     def save(self, **values):
         return self.call('setAcceleration', dict(dict.fromkeys(('hardware', 'vlan', 'pppoe', 'ap'), -1), **values))
 
+    def test_hardware_config_accepts_native_firewall_boolean_aliases(self):
+        for sw, hw, configured in [('yes','true',True), ('on','1',True), ('off','yes',False),
+                                   ('true','no',False), ('yes','false',False), ('invalid','yes',None)]:
+            with self.subTest(sw=sw, hw=hw):
+                self.config.write_text(f"config defaults\n option flow_offloading '{sw}'\n option flow_offloading_hw '{hw}'\n")
+                self.assertIs(self.call()['hardware']['configured'], configured)
+
     def snapshot(self):
         return {str(p.relative_to(self.d)): p.read_bytes() for base in ('etc', 'proc')
                 for p in (self.d / base).rglob('*') if p.is_file()}

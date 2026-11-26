@@ -93,7 +93,7 @@ apply_settings
  def test_status_short_reads_without_substitutions(self):
   source=(ROOT/'root/usr/libexec/rpcd/luci.fan').read_text()
   self.assertNotRegex(source, r'\$\(read_(?:integer|temp|value)\b', 'short sensor reads must not spawn command-substitution shells')
-  for value,expected in [('42000\n',42),(' 42000 \n',42),('-12999\n',-12),('-128000\n',-128),('150000\n',150),('150001\n',None),('-128001\n',None),('',None),('42000',None),('42000\n999\n',42),('42 000\n',None),('-0\n',0),('null\n',None)]:
+  for value,expected in [('42000\n',42),(' 42000 \n',42),('-12999\n',-12.999),('-1\n',-0.001),('65001\n',65.001),('75001\n',75.001),('-128000\n',-128),('150000\n',150),('150001\n',None),('-128001\n',None),('',None),('42000',None),('42000\n999\n',42),('42 000\n',None),('-0\n',0),('null\n',None)]:
    with self.subTest(value=value):
     (self.hw/'temp1_input').write_text(value)
     result=self.rpc('getStatus')

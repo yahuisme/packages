@@ -752,7 +752,8 @@ if (!isEmpty(main_node)) {
 		} else {
 			const outbound = renderOutbound(node);
 			if (outbound) {
-				addECHDNS(config, node, { server: 'default-dns', strategy: dns_default_strategy });
+				addECHDNS(config, outbound, node.tls_ech_query_server,
+					{ server: 'default-dns', strategy: dns_default_strategy });
 				outbound.tag = tag;
 				push(config.outbounds, outbound);
 			}

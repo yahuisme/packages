@@ -15,7 +15,8 @@ const header = clean(template.slice(template.indexOf('<header>'), template.index
 const sidebar = clean(template.slice(template.indexOf('<aside class="sidebar-panel"'), template.indexOf('</aside>') + 8));
 const results = [];
 (async () => {
- const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+ const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'],
+  env: { ...process.env, DBUS_SESSION_BUS_ADDRESS: 'disabled:', DBUS_SYSTEM_BUS_ADDRESS: 'disabled:' } });
  try {
   for (const noRO of [false, true]) for (const width of [1440, 768, 390]) {
    const page = await browser.newPage({ viewport: { width, height: 1000 } });
@@ -27,6 +28,16 @@ const results = [];
     return pathname === '/' ? route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/luci-static/aurora/main.css"><link rel="stylesheet" href="/luci-static/aurora/fonts/aurora-font.css"></head><body data-nav-type="sidebar">' + header + sidebar + '<div id="maincontent"><div id="view"></div></div></body></html>' }) : route.fulfill({ path: path.join(aurora, 'htdocs', pathname) });
    });
    await page.goto('http://fixture/');
+   if (process.env.VERIFY_BROWSER_CGROUP === '1' && !results.length) {
+    const cdp = await browser.newBrowserCDPSession();
+    try {
+     const { processInfo } = await cdp.send('SystemInfo.getProcessInfo');
+     const group = fs.readFileSync('/proc/self/cgroup', 'utf8').trim();
+     assert(processInfo.length > 1, 'browser and renderer must both be observed');
+     for (const { id } of processInfo)
+      assert.equal(fs.readFileSync(`/proc/${id}/cgroup`, 'utf8').trim(), group, `browser PID ${id} escaped test cgroup`);
+    } finally { await cdp.detach(); }
+   }
    await page.evaluate(async () => { await document.fonts.ready; });
    await page.evaluate(({ luci, source, noRO }) => {
     // Evaluate only trusted local LuCI/package sources, never RPC/input text.
@@ -85,6 +96,9 @@ const results = [];
     assert(Math.abs(resized.width - resized.viewBox) <= 1, JSON.stringify(resized));
     const cleanup = await page.evaluate(async entry => {
      const svg = node.querySelector('svg');
+     dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+     dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+     if (timers.size !== 1 || queue.size !== 1) throw Error('cached page lost its chart or poll');
      if (entry) dispatchEvent(new Event('pagehide')); else node.remove();
      await Promise.resolve(); const before = svg.outerHTML;
      dispatchEvent(new Event('resize')); await new Promise(requestAnimationFrame);

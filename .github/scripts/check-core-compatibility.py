@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -47,6 +48,11 @@ def main():
     actual = subprocess.check_output([str(binary), 'version'], text=True, timeout=10)
     if actual.splitlines()[0] != 'sing-box version ' + args.version:
         raise ValueError('Core compatibility binary version mismatch')
+    # Both feed variants install this file. This verifies its schema against
+    # the candidate, not the feature set or ABI of a separately built package.
+    with tempfile.TemporaryDirectory(prefix='sing-box-default-') as workdir:
+        subprocess.run([str(binary), 'check', '-D', workdir, '-c',
+                        str(ROOT / 'sing-box/files/config.json')], check=True, timeout=15)
     os.environ.update(SING_BOX_CHECK=str(binary), DNS_RUNTIME_BINARY=str(binary),
                       NTP_RUNTIME_BINARY=str(binary), DNS_RUNTIME_VERSION=args.version)
     tests = ROOT / 'luci-app-homeproxy/tests'

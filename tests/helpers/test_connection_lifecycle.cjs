@@ -21,6 +21,7 @@ async function boot(resources = [], translations = {}, options = {}) {
  for(const [key,value] of Object.entries(translations)) w.TR[w.sfh(key.trim().replace(/\s+/g,' '))]=value;
  w.document.addEventListener=add;
  w.eval(fs.readFileSync(dir+'/luci.js','utf8').replace(/window\.LuCI\s*=\s*LuCI;/, 'window.LuCI = LuCI; window.mods=classes; window.env=env;'));
+ w.TextDecoder = TextDecoder;
  const mods=w.mods, L=w.L=Object.create(w.LuCI.prototype);
  Object.assign(w.env,{resource:'/luci-static/resources',scriptname:'/cgi-bin/luci',sessionid:'fixture',pollinterval:5});
  L.require=n=>Promise.resolve(mods[n]); L.hasViewPermission=()=>!options.readonly; L.loaded=true; w.E=mods.dom.create.bind(mods.dom);
@@ -29,8 +30,8 @@ async function boot(resources = [], translations = {}, options = {}) {
  // Tests replace log.reply to control timing, otherwise it serves bytes by offset.
  const log={text:'',reply:null};
  const logBytes=(data,offset=data.length)=>({status:'ok',reset:true,offset,data});
- const logReply=async(type,offset)=>{
-  if(log.reply)return log.reply(type,offset);
+ const logReply=async(type,offset,cursor)=>{
+  if(log.reply)return log.reply(type,offset,cursor);
   const at=Math.max(0,Number(offset)||0);
   if(at>log.text.length)return logBytes(log.text);
   return {status:'ok',reset:at===0,offset:log.text.length,data:log.text.slice(at)};
@@ -42,7 +43,13 @@ async function boot(resources = [], translations = {}, options = {}) {
   else if(object==='session')result=[0,{access:!options.readonly}];
   else if(method==='resources_get')result=[0,{resources}];
   else if(method==='resources_update')result=[0,{status:3}];
-  else if(method==='log_read')result=[0,await logReply(p.type,p.offset)];
+  else if(method==='log_read'){
+   const reply=await logReply(p.type,p.offset,p.cursor);
+   if(reply?.status==='ok' && typeof reply.data==='string'){
+    const {data,...rest}=reply;
+    result=[0,{...rest,cursor:'fixture-'+reply.offset,data_b64:Buffer.from(data).toString('base64')}];
+   } else result=[0,reply];
+  }
   else if(method==='connection_check')result=await new Promise((resolve,reject)=>pending.push({resolve,reject}));
   else throw Error('Unexpected RPC '+object+'/'+method);
   return {ok:true,status:200,json:()=>w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result}))};

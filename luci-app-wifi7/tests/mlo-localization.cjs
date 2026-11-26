@@ -16,9 +16,10 @@ const source=fs.readFileSync(path.join(app,'htdocs/luci-static/resources/wifi7/m
   const catalog=JSON.parse(execFileSync('python3',['-c',
    'import json,runpy,pathlib,sys; print(json.dumps(runpy.run_path(sys.argv[1])["catalog"](pathlib.Path(sys.argv[2]))))',
    path.join(__dirname,'catalog.test.py'),po],{encoding:'utf8'}));
-  const previousTranslations=process.env.WIFI7_TRANSLATIONS;
+  const previousTranslations=process.env.WIFI7_TRANSLATIONS, previousWifiLmo=process.env.WIFI7_LMO;
   fs.writeFileSync(path.join(tmp,'catalog.json'),JSON.stringify(catalog));
   process.env.WIFI7_TRANSLATIONS=path.join(tmp,'catalog.json');
+  process.env.WIFI7_LMO=process.env.MLO_LMO;
   try {
    const parent=await require('./integration.cjs').boot();
    try {
@@ -29,10 +30,25 @@ const source=fs.readFileSync(path.join(app,'htdocs/luci-static/resources/wifi7/m
     assert.equal(description.textContent,'Wi-Fi 7 (802.11be) 和 MLO 设置');
     assert.equal(description.getAttribute('style'),null);
     console.log('PASS native Chinese page description between original title and tabs');
+    await parent.tab(2);
+    const post=parent.mods.request.post;
+    let confirmed=false;
+    parent.mods.request.post=async(url,req)=>{
+     const [,object,method,p]=req.params;
+     if(object==='uci'&&method==='confirm')confirmed=true;
+     if(confirmed&&object==='uci'&&method==='get'&&p.config==='wireless')
+      return {ok:true,status:200,json:()=>parent.w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result:[7]}))};
+     return post(url,req);
+    };
+    parent.field('radio0','power').value='24';await parent.clickSave();
+    assert.equal(parent.save.textContent,'刷新已应用的配置');
+    assert.equal(parent.q('[data-mlo-action="apply"]').textContent,'刷新已应用的配置');
    } finally {parent.w.close();}
   } finally {
    if(previousTranslations===undefined)delete process.env.WIFI7_TRANSLATIONS;
    else process.env.WIFI7_TRANSLATIONS=previousTranslations;
+   if(previousWifiLmo===undefined)delete process.env.WIFI7_LMO;
+   else process.env.WIFI7_LMO=previousWifiLmo;
   }
   let x=await boot();
   try {

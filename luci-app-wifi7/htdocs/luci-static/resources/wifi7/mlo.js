@@ -72,41 +72,31 @@ function radioMap(radios) {
 }
 
 function flattenRuntime(status) {
-	let runtime = { radios: [], sections: Object.create(null), activeMldIfnames: [] };
+	let runtime = { sections: Object.create(null), activeMldIfnames: [] };
 
 	for (let radioName in status) {
 		let radio = status[radioName];
-		runtime.radios.push(radioName);
+
 
 		for (let iface of L.toArray(radio.interfaces)) {
 			if (!iface.section)
 				continue;
 
-			let section = runtime.sections[iface.section] || {
-				ifnames: [],
-				radios: [],
-				up: false,
-				mldDetected: false
-			};
+			let section = runtime.sections[iface.section] ||= { up: false };
+			let up = radio.up === true && iface.up !== false;
+			section.up ||= up;
+			if (!up || !iface.ifname) continue;
+
 			let mldDetected = iface.mld === true ||
 				(Array.isArray(iface.mld_links) && iface.mld_links.length > 1) ||
 				(Array.isArray(iface.links) && iface.links.length > 1);
 
-			if (iface.ifname && !section.ifnames.includes(iface.ifname))
-				section.ifnames.push(iface.ifname);
-			if (!section.radios.includes(radioName))
-				section.radios.push(radioName);
-
-			section.up ||= radio.up === true && iface.up !== false;
-			section.mldDetected ||= mldDetected;
-			runtime.sections[iface.section] = section;
-
-			if (iface.ifname && radio.up === true && iface.up !== false && mldDetected && !runtime.activeMldIfnames.includes(iface.ifname))
+			if (mldDetected && !runtime.activeMldIfnames.includes(iface.ifname))
 				runtime.activeMldIfnames.push(iface.ifname);
 		}
 	}
 
-	runtime.radios.sort(L.naturalCompare);
+
 	runtime.activeMldIfnames.sort(L.naturalCompare);
 	return runtime;
 }
@@ -119,7 +109,7 @@ function fetchRuntime(readWireless) {
 			throw new Error('Invalid wireless status');
 		return flattenRuntime(status);
 	}).catch(function() {
-		return { unknown: true, radios: [], sections: Object.create(null), activeMldIfnames: [] };
+		return { unknown: true, sections: Object.create(null), activeMldIfnames: [] };
 	});
 }
 
@@ -231,8 +221,15 @@ return baseclass.extend({
 		function lockActions() {
 			let node = actionRoot, locked = blocked();
 			if (node) node.querySelectorAll('button').forEach(button => {
-				if (button.hasAttribute('data-mlo-action')) button.disabled = locked;
-				else if (locked) {
+				let action = button.getAttribute('data-mlo-action');
+				if (action) {
+					button.disabled = locked || (action === 'reset' && !!operation.refreshApplied);
+					if (action === 'apply') {
+					let label = operation.refreshApplied ? _('Refresh applied configuration') : _('Apply staged changes');
+					if (button.textContent !== label) button.textContent = label;
+				}
+				}
+				else if (locked || operation.refreshApplied) {
 					if (!disabledBeforeLock.has(button)) disabledBeforeLock.set(button, button.disabled);
 					button.disabled = true;
 				}
@@ -245,26 +242,36 @@ return baseclass.extend({
 		function runAction(reset) {
 			lockActions();
 			if (blocked() || !actionRoot.isConnected) return;
-			if (!window.confirm(reset
+			if (operation.refreshApplied ? reset : !window.confirm(reset
 				? _('Discard all staged wireless changes and radio drafts?')
 				: _('Apply all staged configuration changes? Wireless connections may be interrupted.'))) return;
 			if (!operation.acquire()) return;
-			let applied = false;
 			return Promise.resolve().then(function() {
-				return reset ? revertWireless('wireless') : map.save().then(function() { return uci.apply(); }).then(function(result) { applied = true; return result; });
-			}).then(function() {
-				uci.unload('wireless');
-				return uci.load('wireless');
-			}).then(function() {
-				return reset && operation.wirelessReverted ? operation.wirelessReverted() : null;
-			}).then(function() { return map.reset(); }).then(function() {
-				ui.addNotification(null, E('p', {}, reset ? _('Wireless changes reset; radio drafts were discarded.') : _('Configuration applied. Runtime status will refresh.')), 'info');
+				if (operation.refreshApplied) return operation.refreshApplied();
+				if (reset) return revertWireless('wireless').then(function() { return reloadConfiguration(operation.wirelessReverted); }).then(function() {
+					ui.addNotification(null, E('p', {}, _('Wireless changes reset; radio drafts were discarded.')), 'info');
+				});
+				return map.save().then(function() { return uci.apply(); }).then(function() {
+					operation.refreshApplied = function() {
+						return reloadConfiguration(operation.wirelessApplied).then(function() {
+							ui.addNotification(null, E('p', {}, _('Configuration applied. Runtime status will refresh.')), 'info');
+							operation.refreshApplied = null;
+						});
+					};
+					return operation.refreshApplied();
+				});
 			}).catch(function(error) {
-				if (applied)
+				if (operation.refreshApplied)
 					ui.addNotification(null, E('p', {}, [_('Configuration applied, but runtime status refresh failed. %s').format(telemetry.errorText(error))]), 'warning');
 				else
 					ui.addNotification(null, E('p', {}, [ (reset ? _('Failed to update configuration: %s') : _('Failed to apply configuration: %s')).format(telemetry.errorText(error)) ]), 'error');
 			}).finally(function() { operation.release(); });
+		}
+		function reloadConfiguration(syncRadios) {
+			uci.unload('wireless');
+			return uci.load('wireless').then(function() {
+				if (actionRoot.isConnected && syncRadios) return syncRadios();
+			}).then(function() { if (actionRoot.isConnected) return map.reset(); });
 		}
 
 		let section = map.section(form.GridSection, 'wifi-iface', _('MLO Interfaces'));
@@ -284,10 +291,29 @@ return baseclass.extend({
 		section.sectiontitle = function(sectionId) {
 			return '%h'.format(uci.get('wireless', sectionId, 'ssid') || sectionId);
 		};
+		section.addModalOptions = function(modalSection, sectionId) {
+			let modal = modalSection.map, parse = modal.parse;
+			modal.parse = function() {
+				// Preflight only this editor, including fields on inactive tabs but
+				// not dependency-hidden fields. Native parse still owns all writes.
+				for (let option of modalSection.children) {
+					if (!option.isActive(sectionId)) continue;
+					option.triggerValidation(sectionId);
+					let value = option.formvalue(sectionId), invalid = !option.isValid(sectionId);
+					if (invalid || (!option.rmempty && !option.optional && (value == null || value == ''))) {
+						let title = option.stripTags(option.title).trim() || option.option;
+						return Promise.reject(new TypeError(invalid
+							? _('Option "%s" contains an invalid input value.').format(title) + ' ' + option.getValidationError(sectionId)
+							: _('Option "%s" must not be empty.').format(title)));
+					}
+				}
+				return parse.call(this);
+			};
+		};
 		section.handleAdd = function(event) {
 			if (event)
 				event.preventDefault();
-			if (blocked() || !actionRoot.isConnected)
+			if (blocked() || operation.refreshApplied || !actionRoot.isConnected)
 				return Promise.resolve();
 			return form.GridSection.prototype.handleAdd.call(this, event, nextSectionName('mlo')).catch(function(error) {
 				if (section.map.addedSection != null) {
@@ -298,7 +324,7 @@ return baseclass.extend({
 			});
 		};
 		section.renderMoreOptionsModal = function(sectionId, event) {
-			if (blocked())
+			if (blocked() || operation.refreshApplied)
 				return Promise.resolve();
 			if (this.map.addedSection == sectionId) {
 				uci.set('wireless', sectionId, 'mode', 'ap');
@@ -331,14 +357,14 @@ return baseclass.extend({
 		for (let method of [ 'handleRemove', 'handleModalSave' ]) {
 			let native = section[method];
 			section[method] = function() {
-				if (blocked() || !operation.acquire()) return Promise.resolve();
+				if (blocked() || operation.refreshApplied || !operation.acquire()) return Promise.resolve();
 				let args = arguments;
 				return Promise.resolve().then(() => native.apply(this, args)).finally(() => operation.release());
 			};
 		}
 		let nativeSort = section.handleSort;
 		section.handleSort = function(event) {
-			if (blocked() || !operation.acquire()) return;
+			if (blocked() || operation.refreshApplied || !operation.acquire()) return;
 			try { nativeSort.call(this, event); }
 			finally { window.requestAnimationFrame(() => operation.release()); }
 		};

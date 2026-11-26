@@ -21,11 +21,18 @@ class RuntimeConfigPermissions(unittest.TestCase):
                 path.chmod(0o644)
             source = (APP / 'root/etc/init.d/homeproxy').read_text()
             prepare = source[source.index('homeproxy_prepare_runtime()'):source.index('\nclear_firewall()')]
-            source = prepare + source[source.index('homeproxy_restore()'):source.index('start_service() {', source.index('homeproxy_transaction()'))]
+            dns = source[source.index('dnsmasq_previous()'):source.index('validate_cron_number()')]
+            source = prepare + dns + source[source.index('homeproxy_restore()'):source.index('start_service() {', source.index('homeproxy_transaction()'))]
             # Keep ordinary CI unprivileged; root ownership is exercised by
             # test_log_permissions and test_runtime_init_native independently.
             source = source.replace('chown root:root', f'chown {os.getuid()}:{os.getgid()}')
+            helper = root / 'runtime-files.uc'
+            helper.write_text((APP / 'root/etc/homeproxy/scripts/runtime-files.uc').read_text()
+                              .replace('chown(path, 0, 0)', f'chown(path, {os.getuid()}, {os.getgid()})'))
+            source = source.replace('/etc/homeproxy/scripts/runtime-files.uc', str(helper))
             checks = '''
+dnsmasq_discover() { DNSMASQ_DIR=''; DNSMASQ_INCLUDE=''; }
+config_foreach() { :; }
 log() { :; }
 _homeproxy_start_service() {
  python3 - "$RUN_DIR" <<'PY'

@@ -42,12 +42,13 @@ class CoreUpdate(unittest.TestCase):
         return root, makefile, resources, readme, source
 
     def run_update(self, root, source, version, gate):
-        def resources(home, binary, temp):
+        def resources(home, binary, temp, updates):
             (home / 'resources/fixture').write_text('new')
         with patch('sys.argv', ['update-homeproxy.py', '--root', str(root)]), \
              patch.object(updater, 'api', return_value={'tag_name': 'v' + version, 'draft': False, 'prerelease': False}), \
              patch.object(updater, 'download', return_value=source), \
              patch.object(updater, 'get_binary', side_effect=lambda release, temp: temp / 'sing-box'), \
+             patch.object(updater, 'resource_updates', return_value=['fixture update']), \
              patch.object(updater, 'resources', side_effect=resources), \
              patch.object(updater, 'core_compatibility', gate):
             updater.main()
@@ -89,6 +90,42 @@ class CoreUpdate(unittest.TestCase):
             self.run_update(root, source, '1.14.4', gate)
             self.assertEqual((makefile.read_bytes(), readme.read_bytes()), before)
             self.assertEqual(resources.joinpath('fixture').read_text(), 'new')
+
+    def test_matching_installed_blobs_skip_binary_download_and_publication(self):
+        for changed in (False, True):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as directory:
+                root, _, resources, _, source = self.fixture(directory)
+                data = b'SRS\x01fixture'
+                for kind, _, _ in updater.SOURCES:
+                    (resources / f'{kind}_cn.srs').write_bytes(b'bad' if changed and kind == 'geoip' else data)
+                    (resources / f'{kind}_cn.ver').write_text('20240203040506 ' + 'a' * 40 + '\n')
+
+                def api(path):
+                    if path == 'sing-box/releases/latest':
+                        return {'tag_name': 'v1.14.4', 'draft': False, 'prerelease': False}
+                    if '/commits/' in path:
+                        return {'sha': 'a' * 40, 'commit': {'committer': {'date': '2024-02-03T04:05:06Z'}}}
+                    if '/contents/' in path:
+                        return {'sha': updater.blob(data)}
+                    self.fail(f'unexpected API call: {path}')
+
+                def download(url):
+                    if '/sing-box/tar.gz/' in url:
+                        return source
+                    self.assertTrue(changed and url.endswith('/geoip-cn.srs'), url)
+                    return data
+
+                with patch('sys.argv', ['update-homeproxy.py', '--root', str(root)]), \
+                     patch.object(updater, 'api', side_effect=api), \
+                     patch.object(updater, 'download', side_effect=download) as requests, \
+                     patch.object(updater, 'get_binary', return_value=Path('/fixture/core')) as binary, \
+                     patch.object(updater, 'check') as check, \
+                     patch.object(updater, 'publish', wraps=updater.publish) as publish:
+                    updater.main()
+                self.assertEqual(requests.call_count, 2 if changed else 1)
+                for call in (binary, check, publish):
+                    self.assertEqual(call.call_count, int(changed))
+                self.assertEqual((resources / 'geoip_cn.srs').read_bytes(), data)
 
     def test_readme_install_failure_rolls_back_resources_and_recipe(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -196,6 +233,7 @@ class CoreGate(unittest.TestCase):
                          patch.object(checker.os, 'geteuid', return_value=0), \
                          patch.dict(checker.os.environ), patch.object(checker.sys, 'path', checker.sys.path.copy()), \
                          patch.object(checker.subprocess, 'check_output', return_value='sing-box version 1.15.0\n'), \
+                         patch.object(checker.subprocess, 'run') as check_default, \
                          contextlib.redirect_stderr(io.StringIO()), \
                          patch('sys.argv', ['check-core-compatibility.py', '--binary', str(binary), '--version', '1.15.0']):
                         if expected is None:
@@ -203,6 +241,11 @@ class CoreGate(unittest.TestCase):
                                 checker.main()
                         else:
                             self.assertEqual(checker.main(), expected)
+                    check_default.assert_called_once()
+                    args = check_default.call_args.args[0]
+                    self.assertEqual(args[:3], [str(binary), 'check', '-D'])
+                    self.assertEqual(args[-2:], ['-c', str(root / 'sing-box/files/config.json')])
+                    self.assertTrue(check_default.call_args.kwargs['check'])
 
     def test_workflow_commits_readme_with_core_not_resources(self):
         workflow = (ROOT / '.github/workflows/update-packages.yaml').read_text()
@@ -216,8 +259,12 @@ class CoreGate(unittest.TestCase):
             subprocess.run(['git', 'init', '-b', 'main', str(checkout)], check=True, capture_output=True)
             git('config', 'user.name', 'fixture')
             git('config', 'user.email', 'fixture@example.invalid')
-            for path, value in [('README.md', 'old docs\n'), ('sing-box/Makefile', 'PKG_UPSTREAM_VERSION:=1.14.4\n'),
-                                ('luci-app-homeproxy/resources/geoip_cn.ver', '20240101000000 old\n')]:
+            resource_dir = Path('luci-app-homeproxy/root/etc/homeproxy/resources')
+            inputs = [(Path('README.md'), 'old docs\n'), (Path('sing-box/Makefile'), 'PKG_UPSTREAM_VERSION:=1.14.4\n')]
+            for kind, _, _ in updater.SOURCES:
+                inputs.extend([(resource_dir / f'{kind}_cn.ver', '20240101000000 ' + 'a' * 40 + '\n'),
+                               (resource_dir / f'{kind}_cn.srs', 'old fixture\n')])
+            for path, value in inputs:
                 target = checkout / path
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(value)
@@ -227,13 +274,16 @@ class CoreGate(unittest.TestCase):
             git('push', '-u', 'origin', 'main')
             (checkout / 'README.md').write_text('new docs\n')
             (checkout / 'sing-box/Makefile').write_text('PKG_UPSTREAM_VERSION:=1.15.0\n')
-            (checkout / 'luci-app-homeproxy/resources/geoip_cn.ver').write_text('20240203040506 new\n')
+            # Replacing damaged bytes can legitimately leave the source version unchanged.
+            (checkout / resource_dir / 'geoip_cn.srs').write_text('verified fixture\n')
             result = subprocess.run(['bash', '-c', script], cwd=checkout, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(git('show', '-s', '--format=%s', 'HEAD'), 'chore: update HomeProxy resources\n')
             self.assertEqual(set(git('diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD^').splitlines()),
                              {'README.md', 'sing-box/Makefile'})
             self.assertEqual(git('show', 'HEAD^:README.md'), 'new docs\n')
+            self.assertEqual(git('show', '--format=', '--name-only', 'HEAD').strip(), str(resource_dir / 'geoip_cn.srs'))
+            self.assertEqual(git('rev-parse', 'HEAD'), git('rev-parse', 'origin/main'))
             self.assertEqual(git('status', '--porcelain'), '')
 
 

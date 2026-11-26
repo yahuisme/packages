@@ -757,15 +757,16 @@ export function dnsServerAddress(hostname, strategy) {
 	return address;
 };
 
-export function addECHDNS(config, node, resolver) {
-	if (node.tls !== '1' || node.tls_ech !== '1' || isEmpty(node.tls_ech_query_server) ||
-	    !isEmpty(node.tls_ech_config) || !isEmpty(node.tls_ech_config_path))
+export function addECHDNS(config, outbound, query_server, resolver) {
+	const tls = outbound?.tls;
+	if (!tls?.enabled || !tls.ech?.enabled || isEmpty(query_server) ||
+	    !isEmpty(tls.ech.config) || !isEmpty(tls.ech.config_path))
 		return;
-	const server = parseURL(node.tls_ech_query_server);
-	const name = node.tls_ech_query_server_name || node.tls_sni || node.address;
+	const server = parseURL(query_server);
+	const name = tls.ech.query_server_name || tls.server_name || outbound.server;
 	if (!server || !(server.protocol in ['https', 'udp']) || !validateHostname(name))
 		die('Invalid ECH DNS query settings.');
-	const tag = 'ech-dns-' + md5(node.tls_ech_query_server);
+	const tag = 'ech-dns-' + md5(query_server);
 	config.dns.rules ||= [];
 	for (let rule in config.dns.rules)
 		if (rule.query_type?.[0] === 'HTTPS' && rule.domain?.[0] === name) {

@@ -22,12 +22,14 @@ class ReloadCleanup(unittest.TestCase):
 
     def invoke(self, fault='', operation='transaction'):
         init = (APP / 'root/etc/init.d/homeproxy').read_text()
-        code = init[init.index('# Never copy'):init.index('\nstart_service()')]
+        code = init[init.index('dnsmasq_previous()'):init.index('validate_cron_number()')] + init[init.index('# Never copy'):init.index('\nstart_service()')]
         pre = r'''
 CONF=homeproxy
 cmp(){ command busybox cmp "$@"; }
 procd_open_service(){ :; }
 homeproxy_prepare_runtime(){ :; }
+dnsmasq_discover(){ DNSMASQ_DIR=''; DNSMASQ_INCLUDE=''; }
+config_foreach() { :; }
 # Ownership is outside this transaction contract, and the suite must run unprivileged.
 chown(){ :; }
 _homeproxy_start_service(){
@@ -147,12 +149,14 @@ cp(){ case "$FAULT" in backup|backup-cleanup) return 1;; esac; command cp "$@"; 
         private = self.root / 'runtime'
         (private / 'var/lock').mkdir(parents=True)
         init = (APP / 'root/etc/init.d/homeproxy').read_text()
-        body = init[init.index('# Never copy'):init.index('\nstart_service()')]
+        body = init[init.index('dnsmasq_previous()'):init.index('validate_cron_number()')] + init[init.index('# Never copy'):init.index('\nstart_service()')]
         script = self.root / 'lock.sh'
         script.write_text(lock + '''
 procd_open_service(){ procd_lock; }
 homeproxy_close_service(){ :; }
 homeproxy_prepare_runtime(){ :; }
+dnsmasq_discover(){ DNSMASQ_DIR=''; DNSMASQ_INCLUDE=''; }
+config_foreach() { :; }
 chown(){ :; }
 log(){ :; }
 _homeproxy_start_service(){

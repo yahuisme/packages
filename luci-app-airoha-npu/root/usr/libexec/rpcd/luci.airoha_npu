@@ -222,6 +222,9 @@ get_flow() (
 		sw=$("$UCI" -q -c "$ROOT/etc/config" -C "$flow_tmp" -t "$flow_tmp" get 'firewall.@defaults[0].flow_offloading') || { printf '{"enabled":null}\n'; exit; };; esac
 	case "$options" in *.flow_offloading_hw=*)
 		hw=$("$UCI" -q -c "$ROOT/etc/config" -C "$flow_tmp" -t "$flow_tmp" get 'firewall.@defaults[0].flow_offloading_hw') || { printf '{"enabled":null}\n'; exit; };; esac
+	# Match firewall4's scalar boolean parser, keeping invalid reads unknown.
+	case "$sw" in 1|on|true|yes) sw=1;; 0|off|false|no) sw=0;; esac
+	case "$hw" in 1|on|true|yes) hw=1;; 0|off|false|no) hw=0;; esac
 	case "$sw:$hw" in
 		1:1) printf '{"enabled":true}\n';;
 		0:0|0:1|1:0) printf '{"enabled":false}\n';;

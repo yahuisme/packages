@@ -88,17 +88,37 @@ def check(binary, home, temp):
     subprocess.run([str(binary), 'check', '-c', str(path)], check=True)
 
 
-def resources(home, binary, temp):
+def resource_updates(installed):
+    updates = []
     for kind, repo, branch in SOURCES:
         sha, version = version_metadata(repo, branch)
         name = f'{kind}-cn.srs'
-        metadata = api(f'{repo}/contents/{name}?ref={sha}')
-        data = download(f'https://raw.githubusercontent.com/SagerNet/{repo}/{sha}/{name}')
-        if metadata['sha'] != blob(data):
-            raise ValueError('SRS Git blob mismatch')
-        (home/'resources'/f'{kind}_cn.srs').write_bytes(data)
-        (home/'resources'/f'{kind}_cn.ver').write_text(version)
+        digest = api(f'{repo}/contents/{name}?ref={sha}')['sha']
+        if not re.fullmatch('[0-9a-f]{40}', digest):
+            raise ValueError('Invalid SRS Git blob identity')
+        try:
+            current_version = (installed/f'{kind}_cn.ver').read_bytes()
+            current_data = (installed/f'{kind}_cn.srs').read_bytes()
+            current_digest = blob(current_data) if current_data else None
+        except FileNotFoundError:
+            current_version, current_digest = None, None
+        if current_version != version.encode() or current_digest != digest:
+            updates.append((kind, version, digest, f'https://raw.githubusercontent.com/SagerNet/{repo}/{sha}/{name}'))
         print(f'{kind}: {version.strip()}', flush=True)
+    return updates
+
+
+def resources(home, binary, temp, updates):
+    for kind, version, digest, url in updates:
+        binary_path = home/'resources'/f'{kind}_cn.srs'
+        # A metadata-only change need not retrieve identical SRS bytes again.
+        data = binary_path.read_bytes() if binary_path.is_file() else b''
+        if blob(data) != digest or not data:
+            data = download(url)
+        if not data or digest != blob(data):
+            raise ValueError('SRS Git blob mismatch')
+        binary_path.write_bytes(data)
+        (home/'resources'/f'{kind}_cn.ver').write_text(version)
     check(binary, home, temp)
 
 
@@ -185,24 +205,34 @@ def main():
     # now; recover every target before deciding which ones need publication.
     prepare_publication([target/'resources', makefile, readme])
     original = makefile.read_text()
-    current = re.search(r'^PKG_UPSTREAM_VERSION:=(.+)$', original, re.M).group(1)
+    version_match = re.search(r'^PKG_UPSTREAM_VERSION:=(.+)$', original, re.M)
+    hash_match = re.search(r'^PKG_HASH:=([0-9a-f]{64})$', original, re.M)
+    if not version_match or not hash_match:
+        raise ValueError('Invalid current sing-box recipe version or hash')
+    current = version_match[1]
     latest = api('sing-box/releases/latest')
     version = stable_version(latest)
+    source = download(f'https://codeload.github.com/SagerNet/sing-box/tar.gz/v{version}')
+    digest = hashlib.sha256(source).hexdigest()
+    if version == current and digest != hash_match[1]:
+        raise ValueError('Current sing-box source hash mismatch')
+    if version != current:
+        with tarfile.open(fileobj=io.BytesIO(source), mode='r:gz') as archive:
+            archive.getmembers()
+    del source
+    print(f'sing-box source SHA256: {digest}', flush=True)
+    updates = resource_updates(target/'resources')
+    if version == current and not updates:
+        print('Core and both resource blobs are current.', flush=True)
+        return
     # Temporary files share the target filesystem; no binary/config survives exit.
     with tempfile.TemporaryDirectory(prefix='.homeproxy-update-', dir=root) as directory:
         temp = Path(directory)
         binary = get_binary(latest, temp)
-        source = download(f'https://codeload.github.com/SagerNet/sing-box/tar.gz/v{version}')
-        with tarfile.open(fileobj=io.BytesIO(source), mode='r:gz') as archive:
-            archive.getmembers()
-        digest = hashlib.sha256(source).hexdigest()
-        if version == current and digest != re.search(r'^PKG_HASH:=(.+)$', original, re.M).group(1):
-            raise ValueError('Current sing-box source hash mismatch')
-        print(f'sing-box source SHA256: {digest}', flush=True)
         home = temp/'homeproxy'
-        shutil.copytree(target, home)
-        resources(home, binary, temp)
-        pairs = [(home/'resources', target/'resources')]
+        shutil.copytree(target/'resources', home/'resources')
+        resources(home, binary, temp, updates)
+        pairs = [(home/'resources', target/'resources')] if updates else []
         if version != current:
             documentation, count = re.subn(r'^(\| `sing-box` \| )`[^`]+`( \|.*)$',
                                           lambda match: match[1] + f'`{version}`' + match[2],

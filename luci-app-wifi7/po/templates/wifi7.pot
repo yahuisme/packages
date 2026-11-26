@@ -331,6 +331,9 @@ msgstr ""
 msgid "Apply staged changes"
 msgstr ""
 
+msgid "Refresh applied configuration"
+msgstr ""
+
 msgid "Reset wireless changes"
 msgstr ""
 
@@ -383,4 +386,10 @@ msgid "Read-only access: configuration is visible but cannot be changed."
 msgstr ""
 
 msgid "Existing power outside 0–30 dBm is retained unchanged. Use Wireless to manage it, or enter a new value within this range."
+msgstr ""
+
+msgid "Option \"%s\" contains an invalid input value."
+msgstr ""
+
+msgid "Option \"%s\" must not be empty."
 msgstr ""

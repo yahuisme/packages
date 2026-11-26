@@ -51,7 +51,7 @@ class IPv6Policy(unittest.TestCase):
         for switch in ('0', '1'):
             for address in ('udp://[2001:db8::54]:5353', 'https://[2001:db8::54]/dns-query',
                             'udp://192.0.2.54', 'https://dns.example/dns-query'):
-                for inactive in ('', 'tls', 'tls_ech', 'tls_ech_config', 'tls_ech_config_path', 'unused-node'):
+                for inactive in ('', 'tls', 'tls_ech', 'tls_ech_config', 'tls_ech_config_path', 'unused-node', 'no-tls-protocol'):
                     with self.subTest(switch=switch, address=address, inactive=inactive), ClientGenerator() as f:
                         f.sections['config']['ipv6_support'] = switch
                         node = f.sections['node1']
@@ -66,6 +66,9 @@ class IPv6Policy(unittest.TestCase):
                             (f.root / 'retained-ech.pem').write_text('\n'.join(ECH_PEM) + '\n')
                         if inactive == 'unused-node':
                             f.sections['config']['main_node'] = 'nil'
+                        if inactive == 'no-tls-protocol':
+                            node.update(type='socks', socks_version='5')
+                        before = json.dumps(f.sections, sort_keys=True)
                         rejected = switch == '0' and '2001:db8' in address and not inactive
                         if rejected:
                             with self.assertRaisesRegex(AssertionError, 'IPv6 DNS server requires IPv6 support'):
@@ -76,15 +79,17 @@ class IPv6Policy(unittest.TestCase):
                             self.assertEqual(len(servers), 0 if inactive else 1)
                             if servers:
                                 self.assertNotIn('[', servers[0]['server'])
+                        self.assertEqual(json.dumps(f.sections, sort_keys=True), before)
                         # Execute production latency config try/catch and file write;
                         # no session allocator, core or controller process runs.
                         target = f.root / 'probe.json'
                         script = f.root / 'probe-family.uc'
-                        script.write_text("import {writefile} from 'fs';import {removeBlankAttrs,addECHDNS,shellQuote} from " +
+                        script.write_text("import {writefile} from 'fs';import {removeBlankAttrs,renderOutbound,addECHDNS,shellQuote} from " +
                             json.dumps(str(f.root / 'homeproxy.uc')) + ';\nconst entries=' +
-                            json.dumps([] if inactive == 'unused-node' else [{'section': node, 'outbound': {'type': 'direct', 'tag': 'fixture'}}]) +
+                            ('[]' if inactive == 'unused-node' else '[{section:' + json.dumps(node) + '}]') +
                             ',controller_port=19090,dns_strategy=' + json.dumps('prefer_ipv6' if switch == '1' else 'ipv4_only') +
                             ',session_dir=' + json.dumps(str(f.root / 'unused-session')) + ',config_path=' + json.dumps(str(target)) + ';\n' +
+                            'for (let e in entries) e.outbound = renderOutbound(e.section);\n' +
                             'function build(){' + rpc[start:end] + '\nreturn null;}print(sprintf("%J",build()));')
                         run = subprocess.run(['ucode', str(script)], capture_output=True, text=True, timeout=15)
                         self.assertEqual(run.returncode, 0, run.stderr)

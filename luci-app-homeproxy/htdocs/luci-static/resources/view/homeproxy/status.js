@@ -25,7 +25,7 @@ const callConnStat = rpc.declare({
 const callLogRead = rpc.declare({
 	object: 'luci.homeproxy',
 	method: 'log_read',
-	params: ['type', 'offset'],
+	params: ['type', 'offset', 'cursor'],
 	reject: true,
 	expect: { '': {} }
 });
@@ -42,19 +42,32 @@ const logWindow = 131072;
 /* Read only the bytes the viewer is missing; a poll then costs a few lines. */
 const appendLog = (session, result) => {
 	let dropped = 0;
-	if (result.reset) session.text = '';
-	if (result.data) {
-		session.text += result.data;
+	if (result.reset || !session.decoder) {
+		session.text = '';
+		session.decoder = new TextDecoder('utf-8', { ignoreBOM: true });
+	}
+	if (result.data_b64) {
+		const bytes = Uint8Array.from(atob(result.data_b64), (byte) => byte.charCodeAt(0));
+		session.text += session.decoder.decode(bytes, { stream: true });
 		if (session.text.length > logWindow) {
-			const cut = session.text.indexOf('\n', session.text.length - logWindow);
-			const kept = session.text.slice(cut < 0 ? session.text.length - logWindow : cut + 1);
-			dropped = session.text.length - kept.length;
-			session.text = kept;
+			dropped = session.text.length - logWindow;
+			const cut = session.text.indexOf('\n', dropped);
+			if (cut >= 0) dropped = cut + 1;
+			else if ((session.text.charCodeAt(dropped) & 0xfc00) === 0xdc00) dropped++;
+			session.text = session.text.slice(dropped);
 		}
 	}
 	session.offset = result.offset;
+	session.cursor = result.cursor;
 	return dropped;
 };
+
+function resetLog(session) {
+	session.text = '';
+	session.offset = 0;
+	session.cursor = '';
+	session.decoder = null;
+}
 
 const connectionSites = [
 	{ type: 'baidu', name: _('Baidu'), url: 'https://www.baidu.com/' },
@@ -244,8 +257,7 @@ function getRuntimeLog(o) {
 			if (!sources[ev.target.value]) return;
 			session.source = ev.target.value;
 			session.revision++;
-			session.text = '';
-			session.offset = 0;
+			resetLog(session);
 			configure();
 			refresh();
 		}
@@ -273,24 +285,32 @@ function getRuntimeLog(o) {
 		textarea.scrollTop = top;
 		textarea.scrollLeft = left;
 	};
+	let logAvailability;
+	const announce = (message, changed) => {
+		if (changed || logAvailability !== message) {
+			logAvailability = message;
+			dom.content(log_status, message);
+		}
+	};
 	const fail = (message) => {
-		session.text = '';
-		session.offset = 0;
+		resetLog(session);
 		show(message, 0);
-		dom.content(log_status, _('Log unavailable.'));
+		announce(_('Log unavailable.'));
 	};
 	const apply = (result) => {
+		const before = session.text;
 		const dropped = appendLog(session, result);
 		show(session.text || _('Log is empty.'), dropped);
-		dom.content(log_status, session.text ? _('Log updated.') : _('Log is empty.'));
+		announce(session.text ? _('Log updated.') : _('Log is empty.'), session.text !== before);
 	};
 	const refresh = () => {
 		if (!alive() || document.visibilityState === 'hidden' || session.busy) return Promise.resolve();
 		const requestRevision = session.revision, offset = session.offset;
 		session.busy = true;
-		return callLogRead(session.source, offset).then((result) => {
+		return callLogRead(session.source, offset, session.cursor || '').then((result) => {
 			if (!alive() || requestRevision !== session.revision) return;
-			if (result?.status === 'ok' && typeof result.data === 'string' && typeof result.offset === 'number')
+			if (result?.status === 'ok' && typeof result.data_b64 === 'string' &&
+			    typeof result.cursor === 'string' && Number.isSafeInteger(result.offset))
 				return apply(result);
 			if (result?.status === 'missing')
 				return fail(_('Log file does not exist.'));
@@ -315,8 +335,7 @@ function getRuntimeLog(o) {
 				else if (session.source === selected) {
 					// Reject pre-clear bytes, including reads begun by a replacement viewer.
 					session.revision++;
-					session.text = '';
-					session.offset = 0;
+					resetLog(session);
 					if (session.refresh) session.refresh();
 				}
 			}).finally(() => {

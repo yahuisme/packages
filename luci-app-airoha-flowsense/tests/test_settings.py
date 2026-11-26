@@ -556,6 +556,18 @@ esac
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('PASS real UCI monitor', result.stdout)
 
+    def test_status_telemetry_skips_committed_monitor_reads(self):
+        overview = self.call('getOverview')
+        self.assertIsInstance(overview.pop('monitor'), dict)
+        wrapper = (self.d / 'bin/uci').read_text()
+        mark = self.d / 'unexpected-uci'
+        self.script('uci', wrapper.replace('#!/bin/sh\n', '#!/bin/sh\ntouch ' + str(mark) + '\n', 1))
+        telemetry = self.call('getTelemetry')
+        telemetry.pop('timestamp')
+        overview.pop('timestamp')
+        self.assertEqual(telemetry, overview)
+        self.assertFalse(mark.exists())
+
     def test_monitor_getter_read_failure_is_unknown(self):
         config = self.d / 'etc/config/npu-monitor'
         for contents in ("config jitter\n option enabled '0'\n",

@@ -15,38 +15,130 @@ HP_DIR="/etc/homeproxy"
 RUN_DIR="/var/run/homeproxy"
 LOG_PATH="$RUN_DIR/homeproxy.log"
 CACHE_DIR="$HP_DIR/cache"
-CACHE_PATH="$CACHE_DIR/cache.db"
 DASHBOARD_DIR="$HP_DIR/dashboard"
 CRON_FILE="/etc/crontabs/root"
 CRON_LOCK="/var/lock/root-crontab"
 CRON_TAG="#${CONF}_autosetup"
 
-DNSMASQ_DIR=""
-
-# dnsmasq derives one conf-dir per instance from the UCI section name, and that
-# name only exists after config_load: "uci show" would report "@dnsmasq[0]".
-dnsmasq_conf_dir() {
-	[ -z "$DNSMASQ_DIR" ] || return 0
-	config_get DNSMASQ_DIR "$1" confdir
-	DNSMASQ_DIR="${DNSMASQ_DIR%%,*}"
-	case "$DNSMASQ_DIR" in
-		/*) ;;
-		*) DNSMASQ_DIR="/tmp/dnsmasq.$1.d" ;;
-	esac
+# Follow native OpenWrt/ImmortalWrt dnsmasq_start order, skipping disabled
+# sections. The optional ubus name isn't evidence that an instance is active:
+# its name callback runs before UCI options have been loaded.
+dnsmasq_select() {
+	local disabled
+	[ -z "$dnsmasq_section" ] || return 0
+	config_get_bool disabled "$1" disabled 0
+	[ "$disabled" -ne 0 ] || dnsmasq_section="$1"
 }
 
-# we don't know which is the default server, just take the first one
-config_load dhcp
-config_foreach dnsmasq_conf_dir dnsmasq
-[ -n "$DNSMASQ_DIR" ] || DNSMASQ_DIR="/tmp/dnsmasq.d"
-DNSMASQ_DIR="${DNSMASQ_DIR%/}/dnsmasq-homeproxy.d"
+# Mirror dnsmasq's required (*suffix) and excluded (suffix) lists.
+dnsmasq_accepts() {
+	local name="$1" filters="$2" suffix required=0 matched=0
+	while [ -n "$filters" ]; do
+		suffix="${filters%%,*}"
+		case "$filters" in *,*) filters="${filters#*,}" ;; *) filters='' ;; esac
+		case "$suffix" in
+		''|'*') ;;
+		\**) required=1; case "$name" in ?*"${suffix#\*}") matched=1 ;; esac ;;
+		*) case "$name" in ?*"$suffix") return 1 ;; esac ;;
+		esac
+	done
+	[ "$required" -eq 0 ] || [ "$matched" -eq 1 ]
+}
+
+dnsmasq_path() {
+	case "$1" in
+	/*) ;;
+	*) return 1 ;;
+	esac
+	# Not representable as a literal dnsmasq conf-dir or marker line.
+	case "$1" in *[[:cntrl:],#\"\\]*|*[[:space:]]) return 1 ;; esac
+}
+
+dnsmasq_shared_dir() {
+	local disabled spec other filters
+	[ "$1" != "$dnsmasq_section" ] || return 0
+	config_get_bool disabled "$1" disabled 0
+	[ "$disabled" -eq 0 ] || return 0
+	config_get spec "$1" confdir "/tmp/dnsmasq.$1.d"
+	other="${spec%%,*}"
+	dnsmasq_path "$other" || return 0
+	if [ -d "$other" ]; then
+		other="$(cd -P -- "$other" && pwd -P)" || return 0
+	fi
+	other="${other%/}"
+	[ "$other" = "$dnsmasq_parent" ] || return 0
+	filters=''
+	case "$spec" in *,*) filters="${spec#*,}" ;; esac
+	if dnsmasq_accepts "$dnsmasq_name" "$filters"; then shared=1; fi
+}
+
+dnsmasq_discover() {
+	local dnsmasq_section='' spec filters='' candidates suffix port dnsmasq_parent dnsmasq_name shared=0 name
+	DNSMASQ_DIR='' DNSMASQ_INCLUDE='' DNSMASQ_SECTION='' DNSMASQ_SPEC=''
+	config_load dhcp || return 0
+	config_foreach dnsmasq_select dnsmasq
+	[ -n "$dnsmasq_section" ] || return 0
+	case "$dnsmasq_section" in *[!a-zA-Z0-9_]*) return 0 ;; esac
+	config_get port "$dnsmasq_section" port 53
+	[ "$port" != 0 ] || return 0
+	config_get spec "$dnsmasq_section" confdir "/tmp/dnsmasq.$dnsmasq_section.d"
+	dnsmasq_parent="${spec%%,*}"
+	dnsmasq_path "$dnsmasq_parent" || return 0
+	# Resolve aliases where native dnsmasq already created the directory.
+	# Missing directories retain their configured identity until install.
+	if [ -d "$dnsmasq_parent" ]; then
+		dnsmasq_parent="$(cd -P -- "$dnsmasq_parent" && pwd -P)" || return 0
+	fi
+	dnsmasq_parent="${dnsmasq_parent%/}"
+	[ -n "$dnsmasq_parent" ] && dnsmasq_path "$dnsmasq_parent" || return 0
+	case "$spec" in *,*) filters="${spec#*,}" ;; esac
+	dnsmasq_name='dnsmasq-homeproxy.conf'
+	if ! dnsmasq_accepts "$dnsmasq_name" "$filters"; then
+		candidates="$filters"
+		dnsmasq_name=''
+		while [ -n "$candidates" ]; do
+			suffix="${candidates%%,*}"
+			case "$candidates" in *,*) candidates="${candidates#*,}" ;; *) candidates='' ;; esac
+			case "$suffix" in
+			\*?*) suffix="${suffix#\*}" ;;
+			*) continue ;;
+			esac
+			case "$suffix" in *[!a-zA-Z0-9._-]*) continue ;; esac
+			name="dnsmasq-homeproxy$suffix"
+			[ "$name" != dnsmasq-homeproxy.d ] || name="dnsmasq-homeproxy-include$suffix"
+			if dnsmasq_accepts "$name" "$filters"; then
+				dnsmasq_name="$name"
+				break
+			fi
+		done
+		# With exclusion-only filters, an extensionless name may still work.
+		if [ -z "$dnsmasq_name" ] && dnsmasq_accepts dnsmasq-homeproxy "$filters"; then
+			dnsmasq_name='dnsmasq-homeproxy'
+		fi
+	fi
+	[ -n "$dnsmasq_name" ] || return 0
+	config_foreach dnsmasq_shared_dir dnsmasq
+	[ "$shared" -eq 0 ] || return 0
+	DNSMASQ_DIR="$dnsmasq_parent/dnsmasq-homeproxy.d"
+	DNSMASQ_INCLUDE="$dnsmasq_parent/$dnsmasq_name"
+	DNSMASQ_SECTION="$dnsmasq_section" DNSMASQ_SPEC="$spec"
+}
+
+# The older implementation wrote into the first section, even if disabled,
+# and invented a conf-dir for relative paths. Recover that exact legacy
+# include only when the adjacent redirect proves it was ours.
+dnsmasq_legacy_section() {
+	[ -n "$legacy_parent" ] && return 0
+	config_get legacy_parent "$1" confdir
+	legacy_parent="${legacy_parent%%,*}"
+	case "$legacy_parent" in /*) ;; *) legacy_parent="/tmp/dnsmasq.$1.d" ;; esac
+}
 
 log() {
 	printf '%s [DAEMON] %s\n' "$(date "+%Y-%m-%d %H:%M:%S")" "$*" >> "$LOG_PATH"
 }
 
 homeproxy_prepare_runtime() {
-	local file
 	# Only root may replace runtime entries. The server needs writable log
 	# bytes, not ownership of the parent, configs, locks or recovery copies.
 	[ ! -L "$RUN_DIR" ] || return 1
@@ -55,16 +147,10 @@ homeproxy_prepare_runtime() {
 		[ -d "$RUN_DIR/latency-test" ] && [ ! -L "$RUN_DIR/latency-test" ] &&
 			chown root:root "$RUN_DIR/latency-test" && chmod 700 "$RUN_DIR/latency-test" || return 1
 	fi
-	for file in homeproxy.log sing-box-c.log sing-box-s.log; do
-		# After locking down the parent, discard old service-planted entries.
-		# Retain ordinary log inodes (and existing O_APPEND descriptors).
-		if [ -L "$RUN_DIR/$file" ] || { [ -e "$RUN_DIR/$file" ] &&
-			{ [ ! -f "$RUN_DIR/$file" ] || [ "$(stat -c %h "$RUN_DIR/$file")" != 1 ]; }; }; then
-			rm -f "$RUN_DIR/$file" || return 1
-		fi
-	done
-	: >> "$LOG_PATH" || return 1
-	chown root:root "$LOG_PATH" && chmod 644 "$LOG_PATH"
+	ucode -e '
+		import { logNames, prepareFiles } from "/etc/homeproxy/scripts/runtime-files.uc";
+		prepareFiles(ARGV[0], map(logNames, name => name + ".log"), "homeproxy.log", 0644);
+	' "$RUN_DIR"
 }
 
 clear_firewall() {
@@ -72,12 +158,173 @@ clear_firewall() {
 	fw4 reload >"/dev/null" 2>&1
 }
 
-clear_dnsmasq() {
-	if [ -e "${DNSMASQ_DIR%/*}/dnsmasq-homeproxy.conf" ] || [ -d "$DNSMASQ_DIR" ]; then
-		rm -rf "${DNSMASQ_DIR%/*}/dnsmasq-homeproxy.conf" "$DNSMASQ_DIR" || return 1
-		/etc/init.d/dnsmasq restart >"/dev/null" 2>&1 || return 1
+dnsmasq_previous() {
+	local state="$RUN_DIR/dnsmasq.include" legacy_parent='' dir include
+	HP_DNS_PREVIOUS=''
+	if [ ! -e "$state" ] && [ ! -L "$state" ]; then
+		config_foreach dnsmasq_legacy_section dnsmasq
+		[ -n "$legacy_parent" ] || return 0
+		dnsmasq_path "$legacy_parent" || return 0
+		dir="${legacy_parent%/}/dnsmasq-homeproxy.d"
+		include="${legacy_parent%/}/dnsmasq-homeproxy.conf"
+		if [ -f "$include" ] && [ ! -L "$include" ] && [ ! -L "$dir" ] &&
+		   [ -f "$dir/redirect-dns.conf" ] && [ ! -L "$dir/redirect-dns.conf" ] &&
+		   printf 'conf-dir=%s\n' "$dir" | cmp -s - "$include" &&
+		   grep -q '^server=127\.0\.0\.1#[0-9][0-9]*$' "$dir/redirect-dns.conf"; then
+			legacy_parent="$(cd -P -- "$legacy_parent" && pwd -P)" || return 1
+			HP_DNS_PREVIOUS="${legacy_parent%/}/dnsmasq-homeproxy.conf"
+		fi
+		return 0
 	fi
-	return 0
+	[ -f "$state" ] && [ ! -L "$state" ] && [ -O "$state" ] && IFS= read -r HP_DNS_PREVIOUS < "$state" || return 1
+	dnsmasq_path "$HP_DNS_PREVIOUS" || return 1
+	case "${HP_DNS_PREVIOUS##*/}" in
+	dnsmasq-homeproxy*[!a-zA-Z0-9._-]*) return 1 ;;
+	dnsmasq-homeproxy*) ;;
+	*) return 1 ;;
+	esac
+	printf '%s\n' "$HP_DNS_PREVIOUS" | cmp -s - "$state"
+}
+
+dnsmasq_remove() {
+	local include="$1" dir="$2"
+	if [ -n "$include" ] && { [ -e "$include" ] || [ -L "$include" ]; }; then
+		HP_DNS_CHANGED=1
+		rm -f "$include" || return 1
+	fi
+	if [ -n "$dir" ] && { [ -e "$dir" ] || [ -L "$dir" ]; }; then
+		HP_DNS_CHANGED=1
+		rm -rf "$dir" || return 1
+	fi
+}
+
+# Atomic same-directory replacements, ignored by dnsmasq until installed.
+dnsmasq_write() {
+	local path="$1" tmp
+	[ ! -e "$path" ] || [ -f "$path" ] || return 1
+	tmp="$(mktemp "${path%/*}/.homeproxy.XXXXXX")" || return 1
+	if ! cat > "$tmp" || ! chmod 644 "$tmp" || ! mv -f "$tmp" "$path"; then
+		rm -f "$tmp"
+		return 1
+	fi
+}
+
+# procd may report the ujail launcher as running before dnsmasq has even
+# parsed its options. Match the selected instance and its actual daemon,
+# and require the native dnsmasq privilege drop (after startup/config load).
+dnsmasq_launcher() {
+	local state
+	state="$(ubus -t 1 call service list '{"name":"dnsmasq"}')" || return 1
+	# A successful list can have no entry (e.g. first start).
+	jsonfilter -s "$state" -e "@.dnsmasq.instances['$DNSMASQ_SECTION'].pid" || [ "$?" -eq 1 ]
+}
+
+dnsmasq_ready() {
+	local launcher="$1" include="$2" pid root expected config="/var/etc/dnsmasq.conf.$DNSMASQ_SECTION"
+	expected="$(printf '%s\n' /usr/sbin/dnsmasq -C "$config" -k -x "/var/run/dnsmasq/dnsmasq.$DNSMASQ_SECTION.pid")"
+	for pid in $(pidof dnsmasq); do
+		root="/proc/$pid"
+		[ "$pid" = "$launcher" ] || grep -Eq "^PPid:[[:space:]]+$launcher$" "$root/status" || continue
+		grep -Eq '^Uid:[[:space:]]+[1-9][0-9]*[[:space:]]' "$root/status" || continue
+		[ "$(tr '\000' '\n' < "$root/cmdline")" = "$expected" ] || continue
+		grep -Fqx "conf-dir=$DNSMASQ_SPEC" "$root/root$config" || continue
+		if [ -n "$include" ]; then
+			[ -s "$root/root$include" ] && cmp -s "$include" "$root/root$include" &&
+				cmp -s "$DNSMASQ_DIR/redirect-dns.conf" "$root/root$DNSMASQ_DIR/redirect-dns.conf" || continue
+		fi
+		return 0
+	done 2>/dev/null
+	return 1
+}
+
+dnsmasq_restart() {
+	local include="$1" before after attempt
+	[ -n "$DNSMASQ_SECTION" ] || return 1
+	before="$(dnsmasq_launcher)" || return 1
+	/etc/init.d/dnsmasq restart >/dev/null 2>&1 || return 1
+	# rc.common/procd can mask a failed submission. Bound the readiness wait;
+	# a surviving old instance is not evidence that these files were loaded.
+	for attempt in 0 1 2 3 4 5; do
+		[ "$attempt" -eq 0 ] || sleep 1
+		after="$(dnsmasq_launcher)" || continue
+		case "$after" in ''|0*|*[!0-9]*) continue ;; esac
+		[ "$after" != "$before" ] && dnsmasq_ready "$after" "$include" && return 0
+	done
+	return 1
+}
+
+apply_dnsmasq() {
+	local enabled="$1" port="$2" previous_dir='' legacy='' include=''
+	[ -z "$HP_DNS_PREVIOUS" ] || previous_dir="${HP_DNS_PREVIOUS%/*}/dnsmasq-homeproxy.d"
+	[ -z "$DNSMASQ_DIR" ] || legacy="${DNSMASQ_DIR%/*}/dnsmasq-homeproxy.conf"
+	if [ "$enabled" -eq 1 ]; then
+		[ -n "$DNSMASQ_INCLUDE" ] || return 1
+		include="$DNSMASQ_INCLUDE"
+		case "$port" in ''|*[!0-9]*) return 1 ;; esac
+		if [ "$HP_DNS_PREVIOUS" != "$DNSMASQ_INCLUDE" ]; then
+			[ "$previous_dir" != "$DNSMASQ_DIR" ] || previous_dir=''
+			dnsmasq_remove "$HP_DNS_PREVIOUS" "$previous_dir" || return 1
+		fi
+		[ "$legacy" = "$DNSMASQ_INCLUDE" ] || dnsmasq_remove "$legacy" '' || return 1
+		[ ! -L "$DNSMASQ_DIR" ] && [ ! -L "$DNSMASQ_INCLUDE" ] &&
+			[ ! -L "$DNSMASQ_DIR/redirect-dns.conf" ] || return 1
+		if ! printf 'conf-dir=%s\n' "$DNSMASQ_DIR" | cmp -s - "$DNSMASQ_INCLUDE" ||
+		   ! printf 'no-poll\nno-resolv\nserver=127.0.0.1#%s\n' "$port" | cmp -s - "$DNSMASQ_DIR/redirect-dns.conf"; then
+			HP_DNS_CHANGED=1
+			mkdir -p "$DNSMASQ_DIR" &&
+				printf 'no-poll\nno-resolv\nserver=127.0.0.1#%s\n' "$port" | dnsmasq_write "$DNSMASQ_DIR/redirect-dns.conf" || return 1
+			printf 'conf-dir=%s\n' "$DNSMASQ_DIR" | dnsmasq_write "$DNSMASQ_INCLUDE" || return 1
+		fi
+	else
+		dnsmasq_remove "$HP_DNS_PREVIOUS" "$previous_dir" &&
+			dnsmasq_remove "$DNSMASQ_INCLUDE" "$DNSMASQ_DIR" &&
+			dnsmasq_remove "$legacy" '' || return 1
+	fi
+	if [ "$HP_DNS_CHANGED" -eq 1 ] || { [ "$HP_DNS_PREVIOUS" != "$DNSMASQ_INCLUDE" ] && [ "$enabled" -eq 1 ]; } ||
+	   { [ "$enabled" -eq 0 ] && [ -n "$HP_DNS_PREVIOUS" ]; }; then
+		HP_DNS_CHANGED=1
+		dnsmasq_restart "$include" || return 1
+	fi
+	if [ "$enabled" -eq 0 ]; then
+		rm -f "$RUN_DIR/dnsmasq.include"
+	elif [ "$HP_DNS_PREVIOUS" != "$DNSMASQ_INCLUDE" ] || [ ! -e "$RUN_DIR/dnsmasq.include" ]; then
+		HP_DNS_CHANGED=1
+		(umask 077; printf '%s\n' "$DNSMASQ_INCLUDE" > "$RUN_DIR/.reload.pending/dnsmasq.next") &&
+			mv -f "$RUN_DIR/.reload.pending/dnsmasq.next" "$RUN_DIR/dnsmasq.include"
+	fi
+}
+
+# Backup the exact managed paths, not the resolver's directory or neighbors.
+# Slots are kept distinct so a path/filename change rolls both sides back.
+dnsmasq_snapshot() {
+	local backup="$1" operation="$2" previous_dir='' legacy='' status=0
+	[ -z "$HP_DNS_PREVIOUS" ] || previous_dir="${HP_DNS_PREVIOUS%/*}/dnsmasq-homeproxy.d"
+	[ -z "$DNSMASQ_DIR" ] || legacy="${DNSMASQ_DIR%/*}/dnsmasq-homeproxy.conf"
+	[ "$previous_dir" != "$DNSMASQ_DIR" ] || previous_dir=''
+	[ "$legacy" != "$DNSMASQ_INCLUDE" ] && [ "$legacy" != "$HP_DNS_PREVIOUS" ] || legacy=''
+	local previous="$HP_DNS_PREVIOUS"
+	[ "$previous" != "$DNSMASQ_INCLUDE" ] || previous=''
+	"$operation" "$backup/dnsmasq.d" "$DNSMASQ_DIR" || status=1
+	"$operation" "$backup/dnsmasq.conf" "$DNSMASQ_INCLUDE" || status=1
+	"$operation" "$backup/dnsmasq.previous.d" "$previous_dir" || status=1
+	"$operation" "$backup/dnsmasq.previous.conf" "$previous" || status=1
+	"$operation" "$backup/dnsmasq.legacy.conf" "$legacy" || status=1
+	return "$status"
+}
+
+backup_dnsmasq_path() {
+	[ -n "$2" ] || return 0
+	# Record destinations for explicit recovery after an interrupted
+	# install; current UCI and even the active marker may already have moved.
+	printf '%s	%s\n' "${1##*/}" "$2" >> "${1%/*}/dnsmasq.paths" || return 1
+	if [ -e "$2" ] || [ -L "$2" ]; then
+		cp -a "$2" "$1"
+	fi
+}
+
+restore_dnsmasq_path() {
+	[ -n "$2" ] || return 0
+	homeproxy_restore "$1" "$2"
 }
 
 validate_cron_number() {
@@ -223,13 +470,12 @@ sync_subscription_cron() {
 
 _homeproxy_start_service() {
 	local outbound_node server_enabled
-	homeproxy_prepare_runtime || return 1
 	config_load "$CONF"
 	config_get outbound_node "config" "main_node" "nil"
 	config_get_bool server_enabled "server" "enabled" "0"
 	# Stopping must not depend on startup-only port/core checks or node repair.
 	if [ "$outbound_node" != "nil" ] || [ "$server_enabled" -eq 1 ]; then
-		if ! /usr/libexec/homeproxy-runtime-init; then
+		if ! /usr/libexec/homeproxy-runtime-init --runtime-prepared; then
 			log "Error: failed to initialize runtime ports."
 			return 1
 		fi
@@ -327,11 +573,10 @@ _homeproxy_start_service() {
 		# the server uid. Preserve an ordinary legacy database on upgrade.
 		[ ! -L "$CACHE_DIR" ] || return 1
 		mkdir -p "$CACHE_DIR" && chown root:root "$CACHE_DIR" && chmod 700 "$CACHE_DIR" || return 1
-		if [ -L "$CACHE_PATH" ] || { [ -e "$CACHE_PATH" ] &&
-			{ [ ! -f "$CACHE_PATH" ] || [ "$(stat -c %h "$CACHE_PATH")" != 1 ]; }; }; then
-			rm -f "$CACHE_PATH" || return 1
-		fi
-		touch "$CACHE_PATH" && chown root:root "$CACHE_PATH" && chmod 600 "$CACHE_PATH" || return 1
+		ucode -e '
+			import { prepareFiles } from "/etc/homeproxy/scripts/runtime-files.uc";
+			prepareFiles(ARGV[0], ["cache.db"], "cache.db", 0600);
+		' "$CACHE_DIR" || return 1
 		;;
 	esac
 
@@ -355,32 +600,11 @@ _homeproxy_start_service() {
 		client_ready=0
 		rm -f "$RUN_DIR/sing-box-c.json"
 	fi
-	if [ "$client_ready" -eq 1 ]; then
-		# DNSMasq rules
-		local dns_port dns_ready=1
-		config_get dns_port "infra" "dns_port" "5333"
-		if ! mkdir -p "$DNSMASQ_DIR" || \
-		   ! printf 'conf-dir=%s\n' "$DNSMASQ_DIR" > "${DNSMASQ_DIR%/*}/dnsmasq-homeproxy.conf" || \
-		   ! printf 'no-poll\nno-resolv\nserver=127.0.0.1#%s\n' "$dns_port" > "$DNSMASQ_DIR/redirect-dns.conf"; then
-			log "Error: failed to prepare client DNSMasq rules."
-			dns_ready=0
-		fi
-		if [ "$dns_ready" -eq 1 ] && ! /etc/init.d/dnsmasq restart >"/dev/null" 2>&1; then
-			log "Error: failed to reload client DNSMasq rules."
-			dns_ready=0
-		fi
-		if [ "$dns_ready" -eq 0 ]; then
-			[ "${HP_RELOAD:-0}" -ne 1 ] || return 1
-			clear_dnsmasq
-			clear_firewall
-			firewall_ready=0
-			client_ready=0
-			rm -f "$RUN_DIR/sing-box-c.json"
-		fi
-	else
-		clear_dnsmasq || {
-			[ "${HP_RELOAD:-0}" -ne 1 ] || return 1
-		}
+	local dns_port
+	config_get dns_port "infra" "dns_port" "5333"
+	if ! apply_dnsmasq "$client_ready" "$dns_port"; then
+		log "Error: failed to apply client DNSMasq rules (no usable default conf-dir or startup unconfirmed)."
+		return 1
 	fi
 
 	sync_subscription_cron "$client_ready" ||
@@ -477,7 +701,6 @@ _homeproxy_start_service() {
 
 	[ "$client_ready" -ne 1 ] || touch "$RUN_DIR/sing-box-c.log" || return 1
 	if [ "$server_ready" -eq 1 ]; then
-		touch "$RUN_DIR/sing-box-s.log" || return 1
 		mkdir -p "$HP_DIR/certs"
 		chown -R sing-box:sing-box "$HP_DIR/certs"
 		chmod 750 "$HP_DIR/certs"
@@ -499,11 +722,15 @@ _homeproxy_start_service() {
 
 stop_service() {
 	local client_was_running=0 server_was_running=0 status=0
-	homeproxy_prepare_runtime || return 1
+
 	# stop/restart holds the same native procd lock; preserve unresolved recovery.
 	# The all-disabled setup calls stop_service inside an active transaction.
-	if [ "${HP_TRANSACTION:-0}" -ne 1 ] && [ -d "$RUN_DIR" ]; then
-		homeproxy_reload_cleanup || status=1
+	if [ "${HP_TRANSACTION:-0}" -ne 1 ]; then
+		homeproxy_prepare_runtime || return 1
+		homeproxy_reload_cleanup || return 1
+		local DNSMASQ_DIR DNSMASQ_INCLUDE DNSMASQ_SECTION DNSMASQ_SPEC HP_DNS_PREVIOUS HP_DNS_CHANGED=0
+		dnsmasq_discover
+		dnsmasq_previous || return 1
 	fi
 	[ ! -s "$RUN_DIR/sing-box-c.json" ] || client_was_running=1
 	[ ! -s "$RUN_DIR/sing-box-s.json" ] || server_was_running=1
@@ -513,7 +740,7 @@ stop_service() {
 	clear_firewall || status=1
 
 	# Remove DNS hijack
-	clear_dnsmasq || status=1
+	apply_dnsmasq 0 || status=1
 
 	rm -f "$RUN_DIR/sing-box-c.json" "$RUN_DIR/sing-box-c.json.new" \
 		"$RUN_DIR/sing-box-s.json" "$RUN_DIR/sing-box-s.json.new"
@@ -600,7 +827,9 @@ homeproxy_reload_phase() {
 homeproxy_transaction() {
 	local service_open="${1:-0}" HP_TRANSACTION=1 HP_CLIENT_STOPPED=0 HP_SERVER_STOPPED=0
 	local backup="$RUN_DIR/.reload.pending" file status=0 HP_CONFIG_CHANGED=0 HP_NETWORK_CHANGED=0
+	local HP_DNS_CHANGED=0 HP_DNS_PREVIOUS DNSMASQ_DIR DNSMASQ_INCLUDE DNSMASQ_SECTION DNSMASQ_SPEC
 	homeproxy_prepare_runtime || return 1
+	[ "$service_open" -eq 1 ] || log "Reloading service..."
 	# Configuration contains credentials; also tighten files from older installs.
 	for file in sing-box-c.json sing-box-s.json; do
 		if [ -e "$RUN_DIR/$file" ] || [ -L "$RUN_DIR/$file" ]; then
@@ -614,6 +843,8 @@ homeproxy_transaction() {
 		chown root:root "$backup" && chmod 700 "$backup" || return 1
 	fi
 	homeproxy_reload_cleanup || return 1
+	dnsmasq_discover
+	dnsmasq_previous || return 1
 	(umask 077; set -C; printf preparing > "$RUN_DIR/reload.state") || return 1
 	mkdir -m 700 "$backup" || return 1
 	for file in sing-box-c.json sing-box-s.json fw4_input.nft; do
@@ -621,12 +852,8 @@ homeproxy_transaction() {
 			cp -p "$RUN_DIR/$file" "$backup/$file" || status=1
 		fi
 	done
-	if [ -d "$DNSMASQ_DIR" ]; then
-		cp -a "$DNSMASQ_DIR" "$backup/dnsmasq.d" || status=1
-	fi
-	if [ -e "${DNSMASQ_DIR%/*}/dnsmasq-homeproxy.conf" ]; then
-		cp -p "${DNSMASQ_DIR%/*}/dnsmasq-homeproxy.conf" "$backup/dnsmasq.conf" || status=1
-	fi
+	dnsmasq_snapshot "$backup" backup_dnsmasq_path || status=1
+	backup_dnsmasq_path "$backup/dnsmasq.include" "$RUN_DIR/dnsmasq.include" || status=1
 	if [ "$status" -ne 0 ]; then
 		homeproxy_reload_cleanup || log "Error: failed to remove unused runtime backup at $backup."
 		return 1
@@ -658,10 +885,19 @@ homeproxy_transaction() {
 	fi
 	rm -f "$RUN_DIR/sing-box-c.json.new" "$RUN_DIR/sing-box-s.json.new"
 	if [ "$HP_NETWORK_CHANGED" -eq 1 ]; then
-		homeproxy_restore "$backup/dnsmasq.d" "$DNSMASQ_DIR" || status=1
-		homeproxy_restore "$backup/dnsmasq.conf" "${DNSMASQ_DIR%/*}/dnsmasq-homeproxy.conf" || status=1
 		fw4 reload >"/dev/null" 2>&1 || status=1
-		/etc/init.d/dnsmasq restart >"/dev/null" 2>&1 || status=1
+	fi
+	if [ "$HP_DNS_CHANGED" -eq 1 ]; then
+		if ! dnsmasq_snapshot "$backup" restore_dnsmasq_path; then
+			status=1
+		# Restored bytes in a retired conf-dir don't restore the running rules.
+		# Do not restart again with a config that cannot read the old include.
+		elif [ -n "$HP_DNS_PREVIOUS" ] && [ "$HP_DNS_PREVIOUS" != "$DNSMASQ_INCLUDE" ]; then
+			status=1
+		elif ! dnsmasq_restart "$HP_DNS_PREVIOUS"; then
+			status=1
+		fi
+		homeproxy_restore "$backup/dnsmasq.include" "$RUN_DIR/dnsmasq.include" || status=1
 	fi
 	if [ "$status" -ne 0 ]; then
 		log "Error: service setup failed and runtime restoration was incomplete; backup retained at $backup."
@@ -688,9 +924,6 @@ service_started() {
 }
 
 reload_service() {
-	homeproxy_prepare_runtime || return 1
-	log "Reloading service..."
-
 	local HP_RELOAD=1
 	homeproxy_transaction
 }

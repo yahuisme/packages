@@ -197,6 +197,15 @@ async function tick(ms = 3000) {
   assert.equal(calls, hiddenCalls + 3, 'visible tab resumes overdue CPU, firewall and PPE reads');
   assert.equal(points().at(-1).dataset.time, String(now), 'resume records only an actual reply');
   assert(segments() > 1, 'background pause stays a real gap');
+  const beforeRestore = calls;
+  const timerIds = [...timers.keys()];
+  assert(timers.has(app.chartTimer), 'positive control: the chart has a live timer');
+  w.dispatchEvent(new w.PageTransitionEvent('pagehide', { persisted: true }));
+  w.dispatchEvent(new w.PageTransitionEvent('pageshow', { persisted: true }));
+  assert.equal(mods.poll.queue.length, 1, 'back/forward restoration keeps exactly one poll');
+  assert.deepEqual([...timers.keys()], timerIds, 'back/forward restoration preserves Poll and chart timers without duplication');
+  await tick(6000);
+  assert.equal(calls, beforeRestore + 3, 'restored view reads live CPU, firewall and PPE status');
   const flowSub = () => again.querySelector('#npu-summary-flow .npu-card-sub').textContent;
   for (const v of [0, null, -1, 1.5, '23', 23]) {
    boundEntries = v; await tick(6000);

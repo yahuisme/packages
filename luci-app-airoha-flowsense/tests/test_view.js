@@ -45,13 +45,13 @@ mods.request.post=async(url,req)=>{
   if(injected.transport) throw Error(hostile + ' RPC pending_changes');
   result=[0,injected.result];
  }
- else if(process.env.MONITOR_RPC && ['getOverview','getAcceleration','getSettings','saveSettings','applySettings'].includes(method)) {
+ else if(process.env.MONITOR_RPC && ['getTelemetry','getAcceleration','getSettings','saveSettings','applySettings'].includes(method)) {
   const output=require('child_process').execFileSync(process.env.MONITOR_BUSYBOX,
    ['ash',process.env.MONITOR_RPC,'call',method],{input:JSON.stringify({...v,ubus_rpc_session:'0123456789abcdef0123456789abcdef'}),
     env:{...process.env,PATH:process.env.MONITOR_PATH},encoding:'utf8'});
   result=[0,JSON.parse(output)];
  }
- else if(method==='getOverview')result=overviewError?[6]:[0,sample];
+ else if(method==='getTelemetry')result=overviewError?[6]:[0,sample];
  else if(method==='getAcceleration')result=accelerationError?[6]:[0,accelerationSample];
  else if(method==='getSettings')result=[0,{success:true,pending:staged,monitor:overviewError?null:sample.monitor}];
  else if(method==='saveSettings'){if(failure==='save')result=[6];else {staged={...v};result=[0,{success:true}]}}

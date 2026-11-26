@@ -51,12 +51,16 @@ export function cursor() {
             runtime.write_text('#!/bin/sh\nprintf "call\\n" >> ' + shlex.quote(str(calls)) +
                                '\nexec ' + shlex.quote(native_ucode) + ' "$@"\n')
             runtime.chmod(0o755)
+            runtime_files = root / 'runtime-files.uc'
+            runtime_files.write_text((SCRIPT.parents[2] / 'etc/homeproxy/scripts/runtime-files.uc').read_text()
+                                     .replace('chown(path, 0, 0)', f'chown(path, {os.getuid()}, {os.getgid()})'))
             script = root / 'runtime-init'
             script.write_text(SCRIPT.read_text().replace('const c = uci.cursor();',
                               'const c = fixture_cursor();').replace("ucode -l uci -e '\n",
                               "ucode -l uci -e '\nimport { cursor as fixture_cursor } from " +
                               json.dumps(str(adapter)) + ";\n")
                               .replace('/etc/config', str(root / 'config'))
+                              .replace('/etc/homeproxy/scripts/runtime-files.uc', str(runtime_files))
                               # Ordinary CI runs unprivileged; the separate
                               # native-rootfs/log suites verify uid 0 ownership.
                               .replace('chown root:root', f'chown {os.getuid()}:{os.getgid()}')

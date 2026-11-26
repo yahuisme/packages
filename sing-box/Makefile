@@ -23,7 +23,6 @@ PKG_CONFIG_DEPENDS:= \
 	CONFIG_SING_BOX_TINY_BUILD_ACME \
 	CONFIG_SING_BOX_TINY_BUILD_CLASH_API \
 	CONFIG_SING_BOX_TINY_BUILD_DHCP \
-	CONFIG_SING_BOX_TINY_BUILD_EMBEDDED_TOR \
 	CONFIG_SING_BOX_TINY_BUILD_GRPC \
 	CONFIG_SING_BOX_TINY_BUILD_GVISOR \
 	CONFIG_SING_BOX_TINY_BUILD_QUIC \
@@ -94,10 +93,6 @@ define Package/sing-box-tiny/config
     config SING_BOX_TINY_BUILD_DHCP
     bool "Build with DHCP support"
 
-    config SING_BOX_TINY_BUILD_EMBEDDED_TOR
-    bool "Build with embedded Tor support"
-    depends on BROKEN
-
     config SING_BOX_TINY_BUILD_GRPC
     bool "Build with standard gRPC support"
     help
@@ -138,7 +133,6 @@ else
 	$(if $(CONFIG_SING_BOX_TINY_BUILD_ACME),with_acme) \
 	$(if $(CONFIG_SING_BOX_TINY_BUILD_CLASH_API),with_clash_api) \
 	$(if $(CONFIG_SING_BOX_TINY_BUILD_DHCP),with_dhcp) \
-	$(if $(CONFIG_SING_BOX_TINY_BUILD_EMBEDDED_TOR),with_embedded_tor) \
 	$(if $(CONFIG_SING_BOX_TINY_BUILD_GRPC),with_grpc) \
 	$(if $(CONFIG_SING_BOX_TINY_BUILD_GVISOR),with_gvisor) \
 	$(if $(CONFIG_SING_BOX_TINY_BUILD_QUIC),with_quic) \
@@ -160,7 +154,7 @@ define Package/sing-box/install
 	$(call GoPackage/Package/Install/Bin,$(1))
 
 	$(INSTALL_DIR) $(1)/etc/sing-box
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/release/config/config.json $(1)/etc/sing-box
+	$(INSTALL_DATA) ./files/config.json $(1)/etc/sing-box/config.json
 
 	$(INSTALL_DIR) $(1)/etc/config/
 	$(INSTALL_CONF) ./files/sing-box.conf $(1)/etc/config/sing-box

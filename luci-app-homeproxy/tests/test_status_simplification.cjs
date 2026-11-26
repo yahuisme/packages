@@ -74,6 +74,22 @@ async function until(check) { const end=performance.now()+3000; while(!check()) 
   h.log.reply=()=>({status:'ok',reset:true,offset:10,data:'after\nclear'});
   for(const poll of h.polls)await poll();
   assert.equal(viewer().value,'after\nclear','a truncated log replaces the buffer instead of appending');
+  const glyphs=Buffer.from('中😀');
+  const result=(bytes, offset, cursor, reset=false)=>({status:'ok', reset, offset, cursor, data_b64:bytes.toString('base64')});
+  h.log.reply=()=>result(glyphs.subarray(0,2),2,'partial',true);
+  for(const poll of h.polls)await poll();
+  assert.equal(viewer().value,'Log is empty.','pending UTF-8 bytes are not rendered as replacement glyphs');
+  h.log.reply=(type,offset,cursor)=>{
+   assert.equal(offset,2);assert.equal(cursor,'partial');
+   return result(glyphs.subarray(2),glyphs.length,'whole');
+  };
+  for(const poll of h.polls)await poll();
+  assert.equal(viewer().value,'中😀');
+  const status=h.root().querySelector('.hp-runtime-log [role="status"]');
+  const announcement=status.firstChild;
+  h.log.reply=()=>result(Buffer.alloc(0),glyphs.length,'whole');
+  for(const poll of h.polls)await poll();
+  assert.equal(status.firstChild,announcement,'unchanged log does not replace the aria-live DOM');
   h.log.reply=null;
   console.log('PASS status: one selected log read by offset; appended bytes only; selection/scroll; switch+reset in-flight lock; stale reply isolation; reentry; linked website name');
  } finally {h.w.close();}

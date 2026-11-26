@@ -73,6 +73,53 @@ module.exports={boot};
 async function main(){if(OUT)fs.mkdirSync(OUT,{recursive:true});const results=[];
  async function test(name,fn,opts){let h;try{h=await boot(opts);await fn(h);results.push({name,pass:true});}catch(e){results.push({name,pass:false,error:e.stack});}finally{if(h){if(OUT)fs.writeFileSync(path.join(OUT,name+'.rpc.json'),JSON.stringify(h.calls,null,2));h.j.window.close();}}console.log((results.at(-1).pass?'PASS ':'FAIL ')+name);}
  await test('post-apply refresh failure does not report failed commit',async h=>{h.field('radio0','power').value='24';const load=h.mods.uci.load;let failReload=false;const apply=h.mods.uci.apply;h.mods.uci.apply=function(){return apply.call(this).then(value=>{failReload=true;return value;});};h.mods.uci.load=function(...args){return failReload?Promise.reject(new Error('fixture refresh failure')):load.apply(this,args);};await h.clickSave();assert(h.calls.some(c=>c.object==='uci'&&c.method==='apply'));assert.equal(h.notifications.at(-1).text,'Configuration applied, but runtime status refresh failed. Operation failed. Please retry.');});
+ await test('confirmed radio apply retries readback only',async h=>{
+  const post=h.mods.request.post;let confirmed=false,failures=2;
+  h.mods.request.post=async(url,req)=>{
+   const [,object,method,p]=req.params;
+   if(object==='uci'&&method==='confirm')confirmed=true;
+   if(confirmed&&object==='uci'&&method==='get'&&p.config==='wireless'&&failures>0){
+    failures--;return {ok:true,status:200,json:()=>h.w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result:[7]}))};
+   }
+   return post(url,req);
+  };
+  h.field('radio0','power').value='24';await h.clickSave();
+  assert.equal(h.db().committed.radio0.txpower,'24');assert.match(h.notifications.at(-1).text,/Configuration applied, but/);
+  assert.equal(h.save.textContent,h.w._('Refresh applied configuration'));assert(h.field('radio0','power').disabled);
+  const writes=h.writes().length;
+  await h.clickSave();assert.equal(h.writes().length,writes,'failed recovery must not replay a confirmed apply');
+  assert.match(h.notifications.at(-1).text,/Configuration applied, but/);
+  await h.clickSave();assert.equal(h.writes().length,writes,'successful recovery is also read-only');
+  assert.equal(h.field('radio0','power').value,'24');assert.equal(h.notifications.at(-1).type,'info');
+  assert.equal(h.save.textContent,h.w._('Save & Apply'));assert(!h.field('radio0','power').disabled);
+  await h.clickSave();assert.equal(h.writes().length,writes,'unchanged click after recovery is a no-op');
+  h.field('radio0','power').value='25';await h.clickSave();assert.equal(h.db().committed.radio0.txpower,'25','fresh edit is not mistaken for recovery');
+ });
+ await test('detaching during held overview refresh cancels queued client gather',async h=>{
+  await h.poll();const post=h.mods.request.post;let release;
+  h.mods.request.post=async(url,req)=>{
+   if(req.params[1]==='luci-rpc'&&req.params[2]==='getWirelessDevices'&&!release)await new Promise(r=>release=r);
+   return post(url,req);
+  };
+  const pending=h.poll();for(let i=0;i<100&&!release;i++)await tick();assert(release);
+  await h.tab(3);h.node.remove();await tick();
+  const before=h.calls.length;release();await pending;await tick();
+  assert.deepEqual(h.calls.slice(before).map(c=>c.method),['getWirelessDevices'],'only the already-issued held request may finish');
+ });
+ await test('MLO summary uses the widest measured direction and its protocol',async h=>{
+  const post=h.mods.request.post;
+  const payload=`@@ devices 0\nInterface ap-mld\n - link ID 7\n channel 36 (5180 MHz), width: 80 MHz\n - link ID 9\n channel 2 (5935 MHz), width: 160 MHz\n@@ stations ap-mld 0\nStation aa:bb:cc:dd:ee:01\n Link 7:\n tx bitrate: 1200.0 MBit/s EHT-MCS 11\n rx bitrate: 1200.0 MBit/s 80MHz EHT-MCS 11\n Link 9:\n tx bitrate: 2400.0 MBit/s 40MHz EHT-MCS 11\n rx bitrate: 2000.0 MBit/s 160MHz HE-MCS 11\nStation aa:bb:cc:dd:ee:02\n Link 7:\n tx bitrate: 1200.0 MBit/s EHT-MCS 11\n Link 9:\n tx bitrate: 2400.0 MBit/s EHT-MCS 11\n`;
+  h.mods.request.post=async(url,req)=>req.params[3].command==='/usr/libexec/wifi7-status'
+   ? {ok:true,status:200,json:()=>h.w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result:[0,{code:0,stdout:payload}]}))}
+   : post(url,req);
+  await h.tab(3);await h.poll();
+  const [measured,unknown]=h.node.querySelectorAll('details');
+  assert.match(measured.querySelector('summary').textContent,/Wi-Fi 6 \/ 160 MHz/);
+  assert.match(measured.textContent,/MLO 9 \(6 GHz\)/);
+  assert.match(measured.textContent,/Wi-Fi 7 \/ 40 MHz/,'keep the TX-first per-link display');
+  assert.match(measured.textContent,/2400\.0 Mbit\/s/);assert.match(measured.textContent,/2000\.0 Mbit\/s/);
+  assert.match(unknown.querySelector('summary').textContent,/Wi-Fi 7/);assert.doesNotMatch(unknown.querySelector('summary').textContent,/MHz/);
+ });
  await test('hidden initial render skips telemetry',async h=>{assert.equal(h.calls.filter(c=>c.object==='file'&&c.method==='exec'&&c.params.command==='/usr/libexec/wifi7-status-summary').length,0);await h.poll();assert.equal(h.calls.filter(c=>c.object==='file'&&c.method==='exec'&&c.params.command==='/usr/libexec/wifi7-status-summary').length,0);},{hidden:true});
  await test('firmware log is rendered literally',async h=>{
   assert.equal(h.q('.wifi7-info-value').textContent,'firmware version &amp; revision');

@@ -110,7 +110,12 @@ acc_hw_config() (
     for key in flow_offloading flow_offloading_hw; do
         if printf '%s\n' "$section" | grep -q "^[^.]*\\.[^.]*\\.$key="; then
             value=$(uci -c /etc/config -C "$committed" -t "$committed" -q get "firewall.@defaults[0].$key") || { printf null; return; }
-            case "$value" in 0|1) ;; *) printf null; return;; esac
+            # Match firewall4's scalar boolean parser; do not guess on invalid data.
+            case "$value" in
+                1|on|true|yes) value=1;;
+                0|off|false|no) value=0;;
+                *) printf null; return;;
+            esac
             case "$key" in flow_offloading) sw=$value;; *) hw=$value;; esac
         fi
     done

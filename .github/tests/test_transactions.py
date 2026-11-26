@@ -215,14 +215,15 @@ class Transactions(unittest.TestCase):
             target.mkdir(parents=True)
             makefile = root/'sing-box/Makefile'
             makefile.parent.mkdir()
-            makefile.write_text('PKG_UPSTREAM_VERSION:=1.14.4\n')
+            recipe = 'PKG_UPSTREAM_VERSION:=1.14.4\nPKG_HASH:=' + 'a' * 64 + '\n'
+            makefile.write_text(recipe)
             completed = makefile.with_name('Makefile.update-complete')
             completed.write_text('old core recipe')
             class StopBeforeDownload(Exception):
                 pass
             def lookup(_):
                 self.assertFalse(completed.exists())
-                self.assertEqual(makefile.read_text(), 'PKG_UPSTREAM_VERSION:=1.14.4\n')
+                self.assertEqual(makefile.read_text(), recipe)
                 raise StopBeforeDownload
             with patch('sys.argv', ['update-homeproxy.py', '--root', str(root)]), \
                  patch.object(updater, 'api', lookup), self.assertRaises(StopBeforeDownload):

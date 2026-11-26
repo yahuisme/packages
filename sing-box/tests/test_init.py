@@ -1,4 +1,5 @@
 """Run the package init body with private procd/configuration boundaries."""
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -62,6 +63,53 @@ class ServiceInit(unittest.TestCase):
         self.assertIn('param file /private/config.json\n', trace)
         self.assertIn('param user root\n', trace)
         self.assertTrue(trace.endswith('close\n'))
+
+    def test_interface_triggers_do_not_restart_on_down(self):
+        procd = Path(os.environ['OPENWRT_SOURCE']) / 'package/system/procd/files/procd.sh'
+        jshn = Path(os.environ['OPENWRT_TOOLS']) / 'share/libubox/jshn.sh'
+        self.assertTrue(procd.is_file() and jshn.is_file(), 'pinned procd.sh and jshn.sh required')
+        script = '''
+            readlink() { return 1; }
+            config_load() { :; }
+            config_get() { ifaces='wan wan6'; }
+            config_get_bool() { enabled=$ENABLED; }
+            . "$PROCD"
+            . "$INIT"
+            json_set_namespace procd
+            json_init
+            procd_open_trigger
+            service_triggers
+            procd_close_trigger
+            json_dump
+        '''
+        with tempfile.TemporaryDirectory() as directory:
+            library = Path(directory) / 'usr/share/libubox'
+            library.mkdir(parents=True)
+            (library / 'jshn.sh').symlink_to(jshn)
+            (Path(directory) / 'var/lock').mkdir(parents=True)
+            for enabled in ('0', '1'):
+                result = subprocess.run(['busybox', 'ash', '-c', script], text=True, capture_output=True,
+                                        env=dict(os.environ, ENABLED=enabled, INIT=str(INIT), PROCD=str(procd),
+                                                 IPKG_INSTROOT=directory, initscript='/etc/init.d/sing-box'))
+                self.assertEqual(result.returncode, 0, result.stderr)
+                def trigger(event, key, name, command):
+                    return [event, ['if', ['eq', key, name], ['run_script', '/etc/init.d/sing-box', command]], 1000]
+                expected = [trigger('config.change', 'package', 'sing-box', 'reload')]
+                if enabled == '1':
+                    expected = [trigger('interface.update', 'interface', iface, 'restart') for iface in ('wan', 'wan6')] + expected
+                self.assertEqual(json.loads(result.stdout)['triggers'], expected)
+
+    def test_installed_default_does_not_activate_upstream_example_listener(self):
+        package = INIT.parents[1]
+        recipe = (package / 'Makefile').read_text()
+        self.assertIn('./files/config.json $(1)/etc/sing-box/config.json', recipe)
+        config = json.loads((INIT.parent / 'config.json').read_text())
+        self.assertFalse(config.get('inbounds'))
+
+    def test_removed_embedded_tor_option_is_not_advertised(self):
+        recipe = (INIT.parents[1] / 'Makefile').read_text()
+        self.assertNotIn('SING_BOX_TINY_BUILD_EMBEDDED_TOR', recipe)
+        self.assertNotIn('with_embedded_tor', recipe)
 
 
 if __name__ == '__main__':

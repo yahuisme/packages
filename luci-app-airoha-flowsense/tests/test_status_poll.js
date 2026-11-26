@@ -27,7 +27,8 @@ function acceleration(enabled) { return {hardware:{supported:true,enabled,config
      const respond=()=>{if(replies.filter(Boolean).length!==messages.length)return;this.status=200;this.statusText='OK';this.responseText=JSON.stringify(batch?replies:replies[0]);this.readyState=4;this.onreadystatechange();};
      messages.forEach((message,index)=>{
       const method=message.params[2];calls.push(method);
-      requests[method].push({resolve(value){replies[index]={jsonrpc:'2.0',id:message.id,result:[0,value]};respond();},reject(){replies[index]={jsonrpc:'2.0',id:message.id,result:[6]};respond();}});
+      const key=method==='getTelemetry'?'getOverview':method;
+      requests[key].push({resolve(value){replies[index]={jsonrpc:'2.0',id:message.id,result:[0,value]};respond();},reject(){replies[index]={jsonrpc:'2.0',id:message.id,result:[6]};respond();}});
      });
     }
    };
@@ -41,6 +42,7 @@ function acceleration(enabled) { return {hardware:{supported:true,enabled,config
    async function tick(time) { poll.tick=time;poll.step();await settle(); }
    await tick(0);
    assert.equal(requests.getOverview.length,1,'positive control: initial overview query runs');
+   assert(calls.includes('getTelemetry') && !calls.includes('getOverview'), 'Status requests only the telemetry it renders');
    assert.equal(requests.getAcceleration.length,1,'positive control: initial acceleration query runs');
    const other=held==='getOverview'?'getAcceleration':'getOverview';
    requests[other][0].resolve(other==='getOverview'?overview(105):acceleration(true));await settle();

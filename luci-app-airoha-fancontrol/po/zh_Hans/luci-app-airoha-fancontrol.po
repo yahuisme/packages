@@ -195,3 +195,9 @@ msgstr "保存失败"
 
 msgid "Low PWM values, including 0, may stop the fan. Monitor temperatures when using manual mode."
 msgstr "低 PWM 值（包括 0）可能使风扇停转，使用手动模式时请留意温度"
+
+msgid "Option \"%s\" contains an invalid input value."
+msgstr "选项“%s”包含无效的输入值。"
+
+msgid "Option \"%s\" must not be empty."
+msgstr "选项“%s”不能为空。"

@@ -195,3 +195,9 @@ msgstr ""
 
 msgid "Low PWM values, including 0, may stop the fan. Monitor temperatures when using manual mode."
 msgstr ""
+
+msgid "Option \"%s\" contains an invalid input value."
+msgstr ""
+
+msgid "Option \"%s\" must not be empty."
+msgstr ""

@@ -42,6 +42,7 @@ function guard(promise) {
 
 function band(frequency) {
 	var f = Number(frequency);
+	if (f === 5935) return '6g'; // 6 GHz channel 2 is outside the usual grid.
 	return f >= 2400 && f < 2500 ? '2g' : f >= 4900 && f < 5955 ? '5g' : f >= 5955 && f <= 7125 ? '6g' : null;
 }
 

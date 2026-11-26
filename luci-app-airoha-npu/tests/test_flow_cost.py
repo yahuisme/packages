@@ -100,6 +100,13 @@ class FlowCostTest(unittest.TestCase):
                 self.env['FAIL_ARGS'] = target
                 self.compare(None)
 
+    def test_firewall_boolean_aliases(self):
+        for sw, hw, enabled in [('on','yes',True), ('true','1',True), ('off','true',False),
+                                 ('yes','no',False), ('true','false',False), ('unknown','yes',None)]:
+            with self.subTest(sw=sw, hw=hw):
+                self.firewall.write_text(f"config defaults\n option flow_offloading '{sw}'\n option flow_offloading_hw '{hw}'\n")
+                self.assertIs(json.loads(self.run_getter('after').stdout)['enabled'], enabled)
+
     def test_four_uci_execs_without_forwarding_subshells(self):
         self.firewall.write_text("config defaults\n option flow_offloading '1'\n option flow_offloading_hw '1'\n")
         before = (self.firewall.read_bytes(), self.firewall.stat().st_mtime_ns)

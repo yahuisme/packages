@@ -33,18 +33,19 @@ jobs:
           set -euo pipefail
           git config user.name "yahuisme"
           git config user.email "40222380+yahuisme@users.noreply.github.com"
-          for PACKAGE in sing-box luci-app-homeproxy; do
-            git add -A -- "$PACKAGE"
-            if [ "$PACKAGE" = sing-box ]; then git add -- README.md; fi
-            if git diff --cached --quiet; then continue; fi
-            if [ "$PACKAGE" = sing-box ]; then
-              VERSION=$(sed -n 's/^PKG_UPSTREAM_VERSION:=//p' "$PACKAGE/Makefile")
-              git commit -m "chore: update sing-box ${VERSION}"
-            else
-              VERSION=$(python3 -c 'import pathlib,re,subprocess; paths=subprocess.check_output(["git","diff","--cached","--name-only","--diff-filter=AM","--","luci-app-homeproxy"],text=True).splitlines(); versions=[pathlib.Path(p).read_text().split()[0] for p in paths if p.endswith(".ver")]; assert versions and all(re.fullmatch(r"[0-9]{14}",v) for v in versions), "Missing or invalid resource version"; print(max(versions))')
-              git commit -m "chore: update HomeProxy resources"
-            fi
-          done
+          git add -- sing-box/Makefile README.md
+          if ! git diff --cached --quiet; then
+            VERSION=$(sed -n 's/^PKG_UPSTREAM_VERSION:=//p' sing-box/Makefile)
+            git diff --cached --check
+            git commit -m "chore: update sing-box ${VERSION}"
+          fi
+          RESOURCES=luci-app-homeproxy/root/etc/homeproxy/resources
+          git add -- "$RESOURCES/geoip_cn.srs" "$RESOURCES/geoip_cn.ver" \
+                    "$RESOURCES/geosite_cn.srs" "$RESOURCES/geosite_cn.ver"
+          if ! git diff --cached --quiet; then
+            git diff --cached --check
+            git commit -m "chore: update HomeProxy resources"
+          fi
           if [ "$(git rev-parse HEAD)" != "$(git rev-parse '@{upstream}')" ]; then
             git push
           fi

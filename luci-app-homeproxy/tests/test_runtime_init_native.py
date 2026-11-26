@@ -25,7 +25,7 @@ class RuntimeInitNative(unittest.TestCase):
         for directory in ('etc/config', 'usr/libexec', 'tmp', 'var/run/homeproxy', 'var/run/uci', 'dev'):
             (self.root / directory).mkdir(parents=True, exist_ok=True)
         # The minimal upstream image omits some BusyBox applet links.
-        for applet in ('mktemp', 'mkdir', 'rm', 'date', 'chown', 'chmod', 'stat'):
+        for applet in ('mktemp', 'mkdir', 'rm', 'date', 'chown', 'chmod'):
             path = self.root / 'bin' / applet
             if not path.exists():
                 path.symlink_to('busybox')
@@ -37,6 +37,12 @@ class RuntimeInitNative(unittest.TestCase):
         self.script = self.root / 'usr/libexec/homeproxy-runtime-init'
         self.script.write_bytes((APP / 'root/usr/libexec/homeproxy-runtime-init').read_bytes())
         self.script.chmod(0o755)
+        module = self.root / 'etc/homeproxy/scripts/runtime-files.uc'
+        module.parent.mkdir(parents=True)
+        module.write_bytes((APP / 'root/etc/homeproxy/scripts/runtime-files.uc').read_bytes())
+        digest = Path(os.environ.get('OPENWRT_DIGEST', str(
+            Path(os.environ['OPENWRT_ROOTFS']).parent / 'runtime/usr/lib/ucode/digest.so')))
+        (self.root / 'usr/lib/ucode/digest.so').write_bytes(digest.read_bytes())
         for name, content in (
                 ('usr/bin/sing-box', '#!/bin/sh\nprintf 1.14.4\n'),
                 ('usr/libexec/homeproxy-random-port',

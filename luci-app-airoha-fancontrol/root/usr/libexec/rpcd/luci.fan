@@ -20,7 +20,12 @@ read_integer() {
 read_temp() {
     read_integer "$1" || return
     if [ "$read_result" -ge -128000 ] && [ "$read_result" -le 150000 ]; then
-        read_result=$((read_result / 1000))
+        local sign= millidegrees="${read_result#-}" fraction
+        if [ "$read_result" -lt 0 ]; then sign=-; fi
+        fraction=$((1000 + millidegrees % 1000))
+        read_result="$sign$((millidegrees / 1000))"
+        # Drop the leading sentinel digit without a printf subprocess.
+        [ "$fraction" = 1000 ] || read_result="$read_result.${fraction#1}"
     else
         read_result=null
     fi

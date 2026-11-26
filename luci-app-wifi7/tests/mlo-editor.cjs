@@ -13,7 +13,7 @@ const L={toArray:v=>v==null?[]:Array.isArray(v)?v:String(v).split(/\s+/),natural
 const src=fs.readFileSync(require('path').join(__dirname, '../htdocs/luci-static/resources/wifi7/mlo.js'),'utf8');
 const view=Function('baseclass','form','uci','ui','poll','rpc','L','_','E',src)({extend:v=>v},form,uci,{createHandlerFn:(c,fn)=>fn,addNotification:()=>{}},{add(){},remove(){}},{declare:()=>()=>Promise.resolve({})},L,s=>s,E);
 (async()=>{records={radio0:{'.name':'radio0','.type':'wifi-device'},radio1:{'.name':'radio1','.type':'wifi-device'},wan:{'.name':'wan','.type':'interface'},mesh:{'.name':'mesh','.type':'wifi-iface',mode:'mesh'},legacy:{'.name':'legacy','.type':'wifi-iface',mode:'ap',encryption:'psk2+ccmp'}};
-await view.render([null,null,{radios:[],sections:{},activeMldIfnames:[] }]);
+await view.render([null,null,{sections:{},activeMldIfnames:[] }]);
 await grid.handleAdd({preventDefault(){}});let added=Object.values(records).find(r=>r['.type']==='wifi-iface'&&!['mesh','legacy'].includes(r['.name']));assert(added);assert.equal(map.addedSection,added['.name']);assert(!added.device?.length);assert(!added.network?.length);assert.equal(added.mode,'ap');await nativeCancel.call(grid,{},{});assert(!records[added['.name']]);console.log('PASS native cancel cleanup and safe empty defaults');
 if(process.argv.includes('--add-only'))return;
 assert.deepEqual(grid.children.filter(o=>!o.modalonly).map(o=>o.option),['_overview']);

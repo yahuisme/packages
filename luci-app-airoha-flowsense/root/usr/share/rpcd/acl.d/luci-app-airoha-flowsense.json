@@ -1,7 +1,7 @@
 {
   "luci-app-airoha-flowsense": {
     "description": "FlowSense telemetry, acceleration and probe settings",
-    "read": { "ubus": { "luci.airoha_flowsense": ["getOverview", "getSettings", "getAcceleration"] } },
+    "read": { "ubus": { "luci.airoha_flowsense": ["getOverview", "getTelemetry", "getSettings", "getAcceleration"] } },
     "write": { "ubus": { "luci.airoha_flowsense": ["setMonitor", "setAcceleration", "saveSettings", "applySettings"] } }
   }
 }

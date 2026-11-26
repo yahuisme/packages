@@ -9,6 +9,7 @@
 
 import { lsdir, lstat, open, popen, readfile, rename, rmdir, unlink, writefile } from 'fs';
 import { cursor } from 'uci';
+import { cleanLog, logNames, readLog } from '/etc/homeproxy/scripts/runtime-files.uc';
 
 import {
 	HP_DIR, RUN_DIR, addECHDNS, createNodeOutboundTags, domainListPath, findDomainGroupConflict, isBinary,
@@ -746,7 +747,8 @@ const methods = {
 				try {
 					for (let entry in entries) {
 						push(entry.endpoint ? config.endpoints : config.outbounds, entry.outbound);
-						addECHDNS(config, entry.section, { server: 'local-dns', strategy: dns_strategy });
+						addECHDNS(config, entry.outbound, entry.section.tls_ech_query_server,
+							{ server: 'local-dns', strategy: dns_strategy });
 					}
 				} catch (e) {
 					system(`/bin/rm -rf ${shellQuote(session_dir)}`);
@@ -963,81 +965,31 @@ const methods = {
 	},
 
 	log_read: {
-		args: { type: 'type', offset: 0 },
+		args: { type: 'type', offset: 0, cursor: '' },
 		call: function(req) {
 			const kind = req.args?.type;
-			if (!(kind in ['homeproxy', 'sing-box-c', 'sing-box-s']))
+			if (!(kind in logNames))
 				return { error: 'illegal type' };
-
-			// Same boundary as log_clean: a service-writable parent or a
-			// non-regular entry could redirect this read outside the runtime.
-			const runtime = lstat(RUN_DIR);
-			if (runtime && (runtime.type !== 'directory' || runtime.uid !== 0 || (runtime.mode & 0022)))
-				return { error: 'unsafe runtime directory' };
-			const path = `${RUN_DIR}/${kind}.log`;
-			const filestat = lstat(path);
-			if (!filestat)
-				return { status: 'missing' };
-			if (filestat.type !== 'file' || filestat.nlink !== 1)
-				return { error: 'unsafe log file' };
-
-			// The writers only append between in-place truncations, so a byte
-			// offset lets a poll ship the new lines instead of the whole file.
-			// A shrunken file or a stale offset resyncs from the last window.
-			const window = 65536;
-			const size = filestat.size;
-			let offset = req.args?.offset;
-			offset = (type(offset) in ['int', 'double'] && offset > 0) ? int(offset) : 0;
-			const reset = offset > size;
-			let start = reset ? size - window : offset;
-			if (start < 0)
-				start = 0;
-			let want = size - start;
-			if (want > window)
-				want = window;
-			if (want <= 0)
-				return { status: 'ok', size: size, offset: start, reset: reset, data: '' };
-
-			const fd = open(path, 'r');
-			if (!fd)
-				return { error: 'failed to open log file' };
-			if (fd.seek(start) !== true) {
-				fd.close();
-				return { error: 'failed to seek log file' };
+			try {
+				return readLog(RUN_DIR, kind, req.args.offset, req.args.cursor);
+			} catch (e) {
+				return { error: e.message };
 			}
-			const raw = fd.read(want);
-			fd.close();
-			if (raw === null)
-				return { error: 'failed to read log file' };
-
-			// A tail window can begin mid-line, so drop that partial line: it
-			// would otherwise render as a broken glyph and a torn record.
-			let data = raw;
-			if (reset && start > 0) {
-				const nl = index(raw, '\n');
-				if (nl >= 0)
-					data = substr(raw, nl + 1);
-			}
-			return { status: 'ok', size: size, offset: start + length(raw), reset: reset, data: data };
 		}
 	},
 
 	log_clean: {
 		args: { type: 'type' },
 		call: function(req) {
-			if (!(req.args?.type in ['homeproxy', 'sing-box-c', 'sing-box-s']))
+			const kind = req.args?.type;
+			if (!(kind in logNames))
 				return { result: false, error: 'illegal type' };
-
-			// init owns RUN_DIR, so the service cannot replace a checked log
-			// entry. Refuse legacy/unprepared directories rather than trust them.
-			const runtime = lstat(RUN_DIR);
-			if (runtime && (runtime.type !== 'directory' || runtime.uid !== 0 || (runtime.mode & 0022)))
-				return { result: false, error: 'unsafe runtime directory' };
-			const filestat = lstat(`${RUN_DIR}/${req.args?.type}.log`);
-			if (filestat && (filestat.type !== 'file' || filestat.nlink !== 1 ||
-			    writefile(`${RUN_DIR}/${req.args?.type}.log`, '') === null))
-				return { result: false, error: 'failed to clean log file' };
-			return { result: true };
+			try {
+				cleanLog(RUN_DIR, kind, 0);
+				return { result: true };
+			} catch (e) {
+				return { result: false, error: e.message };
+			}
 		}
 	},
 

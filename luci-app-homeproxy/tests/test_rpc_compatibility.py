@@ -50,6 +50,7 @@ class RpcCompatibility(unittest.TestCase):
                               .replace("from 'luci.http'", 'from ' + json.dumps(str(http))))
             module = root / 'rpc.uc'
             module.write_text(rpc.replace("'/etc/homeproxy/scripts/homeproxy.uc'", json.dumps(str(helper)))
+                              .replace('/etc/homeproxy/scripts/runtime-files.uc', str(APP / 'root/etc/homeproxy/scripts/runtime-files.uc'))
                               .replace("return { 'luci.homeproxy': methods };", 'print("linked\\n");'))
             run = subprocess.run([runtime, str(module)], text=True, capture_output=True, timeout=10)
             self.assertEqual(run.returncode, 0, run.stderr)

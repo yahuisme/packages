@@ -3,9 +3,21 @@
 # Absolute-path libuci loads are non-delta packages: neither the default
 # /tmp/.uci drafts nor /var/run/uci overrides are read or committed.
 umask 077
+case "${1:-}" in
+'')
+	# Standalone uci-defaults caller: take ownership before touching logs.
+	[ ! -L /var/run/homeproxy ] || exit 1
+	mkdir -p /var/run/homeproxy && chown root:root /var/run/homeproxy && chmod 755 /var/run/homeproxy || exit 1
+	;;
+--runtime-prepared) ;; # Same serialized init transaction already did this.
+*) exit 1 ;;
+esac
 settings="$(ucode -l uci -e '
+	import { logNames, prepareFiles } from "/etc/homeproxy/scripts/runtime-files.uc";
 	const c = uci.cursor();
 	if (!c || c.load("/etc/config/homeproxy") !== true) exit(1);
+	if (!ARGV[0])
+		prepareFiles("/var/run/homeproxy", map(logNames, name => name + ".log"), "homeproxy.log", 0644);
 	let urltest = c.get("homeproxy", "config", "main_node") === "urltest";
 	c.foreach("homeproxy", "domain_route", (section) => {
 		if (section.enabled !== "0" && section.node === "urltest") urltest = true;
@@ -19,24 +31,11 @@ settings="$(ucode -l uci -e '
 	print(c.get("homeproxy", "config", "dashboard_enabled") === "1" ? "1 " : "0 ",
 	      c.get("homeproxy", "tailscale", "enabled") === "1" ? "1 " : "0 ",
 	      urltest ? "1" : "0");
-')" || exit 1
+' "${1:-}")" || exit 1
 read -r dashboard_port dashboard_port_initialized clash_api_port clash_api_port_initialized \
 	dashboard_enabled tailscale_enabled urltest_enabled <<EOF
 $settings
 EOF
-
-# Also runs from uci-defaults before init. Lock down the legacy service-owned
-# parent before any root log write; retain normal history, never follow a link.
-[ ! -L /var/run/homeproxy ] || exit 1
-mkdir -p /var/run/homeproxy && chown root:root /var/run/homeproxy && chmod 755 /var/run/homeproxy || exit 1
-for file in homeproxy.log sing-box-c.log sing-box-s.log; do
-	if [ -L "/var/run/homeproxy/$file" ] || { [ -e "/var/run/homeproxy/$file" ] &&
-	    { [ ! -f "/var/run/homeproxy/$file" ] || [ "$(stat -c %h "/var/run/homeproxy/$file")" != 1 ]; }; }; then
-		rm -f "/var/run/homeproxy/$file" || exit 1
-	fi
-done
-: >> /var/run/homeproxy/homeproxy.log || exit 1
-chown root:root /var/run/homeproxy/homeproxy.log && chmod 644 /var/run/homeproxy/homeproxy.log || exit 1
 
 log() {
 	printf '%s [DAEMON] %s\n' "$(date "+%Y-%m-%d %H:%M:%S")" "$*" >> /var/run/homeproxy/homeproxy.log

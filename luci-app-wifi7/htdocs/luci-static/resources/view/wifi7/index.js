@@ -37,6 +37,7 @@ function standard(value) {
 		label = value.eht ? 'Wi-Fi 7' : value.he ? 'Wi-Fi 6' : value.vht ? 'Wi-Fi 5' : value.ht ? 'Wi-Fi 4' : _('Legacy');
 		if (value.mhz) width = Number(value.mhz);
 	}
+	if (!Number.isFinite(width) || width <= 0) width = null;
 	return { label: width ? label + ' / ' + width + ' MHz' : label, width: width };
 }
 function select(id, values, current, labels) {
@@ -106,6 +107,7 @@ return view.extend({
 				operation.pending = true; operation.changed(); return true;
 			},
 			wirelessReverted: function() { return syncRadioConfiguration(); },
+			wirelessApplied: function() { return syncRadioConfiguration(true); },
 			release: function() { operation.pending = false; operation.changed(); }
 		};
 		(data[0] || []).forEach(function(item) { channelLists[item.id] = item; });
@@ -232,6 +234,10 @@ return view.extend({
 		var save = E('button', { 'class': 'cbi-button cbi-button-apply', click: function() {
 			lockControls();
 			if (operation.pending || !root.isConnected || !L.hasViewPermission()) return;
+			if (operation.refreshApplied) {
+				if (!operation.acquire()) return;
+				return operation.refreshApplied().catch(warnApplied).finally(function() { operation.release(); });
+			}
 			if (controls.some(function(c) {
 				if (c.missing) return false;
 				// Retain an unchanged integer-shaped legacy value without relaxing
@@ -268,67 +274,75 @@ return view.extend({
 				else uci.unset('wireless', change.id, change.key);
 			});
 			lockControls();
-			var applied = false;
 			return uci.save().then(function() { return uci.apply(); }).then(function() {
-				applied = true;
-				uci.unload('wireless');
-				return uci.load('wireless');
-			}).then(function() {
-				if (operation.refreshMloConfiguration) operation.refreshMloConfiguration();
-				return syncRadioConfiguration();
-			}).then(function() {
-				ui.addNotification(null, E('p', {}, _('Configuration applied. Runtime status will refresh.')), 'info');
-				return update();
+				// After confirmation, a retry must only reread, never save or apply.
+				controls.forEach(function(c) { c.pending = null; });
+				operation.refreshApplied = refreshApplied;
+				return refreshApplied();
 			}).catch(function(err) {
-				if (!applied) {
-					ui.addNotification(null, E('p', {}, [_('Failed to apply configuration: %s').format(telemetry.errorText(err))]), 'error');
-					return;
-				}
-				ui.addNotification(null, E('p', {}, [_('Configuration applied, but runtime status refresh failed. %s').format(telemetry.errorText(err))]), 'warning');
+				if (operation.refreshApplied) warnApplied(err);
+				else ui.addNotification(null, E('p', {}, [_('Failed to apply configuration: %s').format(telemetry.errorText(err))]), 'error');
 			}).finally(function() { operation.release(); });
 		} }, _('Save & Apply'));
 		settings.appendChild(E('div', { 'class': 'wifi7-save-bar' }, save));
-		function syncRadioConfiguration() {
+		function warnApplied(err) {
+			ui.addNotification(null, E('p', {}, [_('Configuration applied, but runtime status refresh failed. %s').format(telemetry.errorText(err))]), 'warning');
+		}
+		function refreshApplied() {
+			uci.unload('wireless');
+			return uci.load('wireless').then(function() {
+				if (!root.isConnected) return;
+				if (operation.refreshMloConfiguration) operation.refreshMloConfiguration();
+				return syncRadioConfiguration();
+			}).then(function() {
+				if (!root.isConnected) return;
+				ui.addNotification(null, E('p', {}, _('Configuration applied. Runtime status will refresh.')), 'info');
+				return update();
+			}).then(function() { operation.refreshApplied = null; });
+		}
+		function syncRadioConfiguration(preserveDrafts) {
 			var fresh = uci.sections('wireless', 'wifi-device');
 			return Promise.all(controls.map(function(c) {
 				var original = fresh.find(function(r) { return r['.name'] === c.id; });
 				c.missing = !original;
 				if (!original) return;
-				var changedCountry = c.original.country !== original.country;
+				var old = c.original, changedCountry = old.country !== original.country;
+				var channelDraft = preserveDrafts && c.channel.value !== (old.channel || 'auto') ? c.channel.value : null;
 				c.original = Object.assign({}, original);
 				c.pending = null;
-				c.enabled.checked = original.disabled !== '1';
-				if (!changedCountry) restoreSelectValue(c.channel, original.channel || 'auto');
-				restoreSelectValue(c.width, original.htmode || '');
-				c.power.value = original.txpower || '';
-				c.country.value = original.country || '';
-				if (c.radar) c.radar.checked = original.background_radar === '1';
+				if (!preserveDrafts || c.enabled.checked === (old.disabled !== '1')) c.enabled.checked = original.disabled !== '1';
+				if (!changedCountry) restoreSelectValue(c.channel, channelDraft || original.channel || 'auto');
+				if (!preserveDrafts || c.width.value === (old.htmode || '')) restoreSelectValue(c.width, original.htmode || '');
+				if (!preserveDrafts || c.power.value === (old.txpower || '')) c.power.value = original.txpower || '';
+				if (!preserveDrafts || c.country.value === (old.country || '')) c.country.value = original.country || '';
+				if (c.radar && (!preserveDrafts || c.radar.checked === (old.background_radar === '1'))) c.radar.checked = original.background_radar === '1';
 				if (!changedCountry) return;
 				return settled(frequencies(c.id)).then(function(result) {
 					var replacement = channelSelect(c.channel.id, channelChoices(result, original), original);
 					c.channel.replaceChildren.apply(c.channel, Array.from(replacement.options));
-					c.channel.value = original.channel || 'auto';
+					// A country change invalidates choices from the old regulatory list.
+				c.channel.value = channelDraft && Array.from(c.channel.options).some(function(o) { return o.value === channelDraft; }) ? channelDraft : original.channel || 'auto';
 				});
 			}));
 		}
 		function lockControls() {
 			var readonly = !L.hasViewPermission();
+			var editingLocked = operation.pending || operation.refreshApplied || readonly;
 			save.disabled = operation.pending || readonly;
+			text(save, operation.refreshApplied ? _('Refresh applied configuration') : _('Save & Apply'));
 			controls.forEach(function(c) {
-				['enabled', 'channel', 'width', 'power', 'country', 'radar'].forEach(function(key) { if (c[key]) c[key].disabled = operation.pending || readonly || c.missing; });
+				['enabled', 'channel', 'width', 'power', 'country', 'radar'].forEach(function(key) { if (c[key]) c[key].disabled = editingLocked || c.missing; });
 				var legacyPower = integer(c.original.txpower) && Number(c.original.txpower) > POWER_MAX;
 				c.powerNotice.hidden = !legacyPower;
 				c.powerNotice.textContent = legacyPower ? _('Existing power outside 0–30 dBm is retained unchanged. Use Wireless to manage it, or enter a new value within this range.') : '';
-				c.channel.disabled = operation.pending || readonly || c.missing || c.country.value.toUpperCase() !== (c.original.country || '').toUpperCase();
+				c.channel.disabled = editingLocked || c.missing || c.country.value.toUpperCase() !== (c.original.country || '').toUpperCase();
 			});
 		}
 
 		lockControls();
 
-		function update(includeClients) {
-			if (document.visibilityState === 'hidden') return Promise.resolve();
-			// Detachment is enforced after the await below; the first paint happens
-			// before the map is mounted, so there is no entry-time DOM check.
+		function update(includeClients, initial) {
+			if ((!initial && !root.isConnected) || document.visibilityState === 'hidden') return Promise.resolve();
 			if (busy) return busy;
 			busy = Promise.all([
 				settled(telemetry.guard(wireless())),
@@ -397,10 +411,14 @@ return view.extend({
 						var s = merged[mac], linkIds = Object.keys(s.links || {});
 						function row(value, lid) {
 							var f = lid != null ? ((dev.links || {})[lid] || {}).frequency : linkIds.length ? null : frequency, b = telemetry.band(f);
-							var phy = standard(value.tx || value.rx);
+							var phy = standard(value.tx || value.rx), widest = phy;
+						if (lid != null && value.tx && value.rx) {
+							var rxPhy = standard(value.rx);
+							if (rxPhy.width != null && (phy.width == null || rxPhy.width > phy.width)) widest = rxPhy;
+						}
 							rows.push({ clientKey: iface + '/' + mac, linkKey: lid == null ? 'station' : String(lid), ssid: ssids[iface] || '',
 								label: iface + (lid != null ? ' / MLO ' + lid : '') + ' (' + (names[b] || _('Unknown')) + ')', mac: mac,
-								standard: phy.label, bandwidth: phy.width, signal: value.signal < 0 ? value.signal + ' dBm' : '—',
+								standard: phy.label, summary: widest, signal: value.signal < 0 ? value.signal + ' dBm' : '—',
 								tx: rate(value.tx), rx: rate(value.rx), connected: s.connected != null ? s.connected + ' s' : '—' });
 						}
 
@@ -465,14 +483,17 @@ return view.extend({
 			keys.forEach(function(key) {
 				var entries = groups[key], first = entries[0], node = clientNodes[key];
 				// Fold to the widest link; the first one may be the slowest band.
-				var primary = entries.reduce(function(best, entry) { return entry.bandwidth > best.bandwidth ? entry : best; });
+				var primary = entries.reduce(function(best, entry) {
+				var phy = entry.summary;
+				return phy.width != null && (best.width == null || phy.width > best.width) ? phy : best;
+			}, first.summary);
 				if (!node) {
 					var summary = E('summary', { 'class': 'wifi7-client-summary' });
 					var detail = E('details', { 'class': 'cbi-section-node wifi7-client-details', 'data-client': key }, summary);
 					node = clientNodes[key] = { detail: detail, summary: summary, links: {} };
 					clients.appendChild(detail);
 				}
-				text(node.summary, first.mac + (first.ssid ? ' · ' + first.ssid : '') + ' · ' + primary.standard + ' · ' + first.connected);
+				text(node.summary, first.mac + (first.ssid ? ' · ' + first.ssid : '') + ' · ' + primary.label + ' · ' + first.connected);
 				var linkKeys = new Set(entries.map(function(row) { return row.linkKey; }));
 				Object.keys(node.links).forEach(function(key) {
 					if (!linkKeys.has(key)) { node.links[key].box.remove(); delete node.links[key]; }
@@ -569,7 +590,7 @@ return view.extend({
 		// every badge/card write this page performs on its own telemetry.
 		observer.observe(document.getElementById('view') || root.parentNode || document.body, { childList: true });
 		poll.add(refresh, 5);
-		update(false);
+		update(false, true);
 		return root;
 	},
 	handleSaveApply: null,

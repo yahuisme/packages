@@ -116,8 +116,10 @@ get_overview() {
     # The view treats null as a missing rate baseline, never as uptime zero.
     fs_uint "$whole" || uptime=null
     case "$fraction" in ''|*[!0-9]*) uptime=null;; esac
-    printf '{"timestamp":%s,"uptime":%s,"monitor":' "$now" "$uptime"
-    get_monitor; printf ',"jitter":'
+    printf '{"timestamp":%s,"uptime":%s' "$now" "$uptime"
+    # Keep the full response for existing RPC callers; Status needs only telemetry.
+    if [ "${1:-}" != telemetry ]; then printf ',"monitor":'; get_monitor; fi
+    printf ',"jitter":'
     get_jitter; printf ',"interfaces":'; get_interfaces; printf '}'
 }
 
@@ -180,7 +182,7 @@ set_monitor_locked() {
 
 boolean() { case "$1" in 1) printf true;; 0) printf false;; *) printf null;; esac; }
 case "$1:$2" in
-    list:) printf '{"getOverview":{},"getSettings":{},"saveSettings":{"hardware":"int","vlan":"int","pppoe":"int","ap":"int","target":"str","enabled":"int"},"applySettings":{"expected":"str"},"getAcceleration":{},"setAcceleration":{"hardware":"int","vlan":"int","pppoe":"int","ap":"int"},"setMonitor":{"target":"str","enabled":"int"}}';;
+    list:) printf '{"getOverview":{},"getTelemetry":{},"getSettings":{},"saveSettings":{"hardware":"int","vlan":"int","pppoe":"int","ap":"int","target":"str","enabled":"int"},"applySettings":{"expected":"str"},"getAcceleration":{},"setAcceleration":{"hardware":"int","vlan":"int","pppoe":"int","ap":"int"},"setMonitor":{"target":"str","enabled":"int"}}';;
     call:getSettings|call:saveSettings|call:applySettings)
         . /usr/libexec/flowsense-acceleration.sh
         . /usr/libexec/flowsense-settings.sh
@@ -188,5 +190,6 @@ case "$1:$2" in
     call:getAcceleration|call:setAcceleration)
         . /usr/libexec/flowsense-acceleration.sh
         case "$2" in getAcceleration) get_acceleration;; *) set_acceleration;; esac;;
-    call:getOverview) get_overview;; call:setMonitor) set_monitor;; *) printf '{"error":"Invalid method"}'; exit 1;;
+    call:getOverview) get_overview;; call:getTelemetry) get_overview telemetry;;
+    call:setMonitor) set_monitor;; *) printf '{"error":"Invalid method"}'; exit 1;;
 esac

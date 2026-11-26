@@ -4,7 +4,7 @@
 'require poll';
 
 // Keep telemetry separate from acceleration's HTTP batch as well as Poll's guard.
-var getOverview = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getOverview', reject: true, nobatch: true });
+var getTelemetry = rpc.declare({ object: 'luci.airoha_flowsense', method: 'getTelemetry', reject: true, nobatch: true });
 // Acceleration RPC contract: each key is {supported, enabled, configured},
 // strictly boolean or null. enabled is runtime readback, configured is the edit
 // baseline. Setter parameters are 0/1, or -1 to leave unknown/unsupported keys alone.
@@ -62,7 +62,7 @@ return view.extend({
 	handleSave: null,
 	handleSaveApply: null,
 	handleReset: null,
-	load: function() { return Promise.all([getOverview().catch(function() { return null; }), getAcceleration().catch(function() { return null; })]); },
+	load: function() { return Promise.all([getTelemetry().catch(function() { return null; }), getAcceleration().catch(function() { return null; })]); },
 
 	render: function(initial) {
 		var initialAcceleration = Array.isArray(initial) ? initial[1] : null;
@@ -109,13 +109,13 @@ return view.extend({
 				poll.remove(update);
 				return Promise.resolve();
 			}
-			// Background tabs get no telemetry: this page forks ~30 helpers per tick.
+			// Background tabs need neither telemetry nor acceleration reads.
 			if (document.visibilityState === 'hidden') return Promise.resolve();
 			// Poll must not wait for either source: a stalled overview must not
 			// stop independent acceleration updates on the next five-second tick.
 			refreshAcceleration();
 			if (pending) return;
-			pending = getOverview().then(function(data) {
+			pending = getTelemetry().then(function(data) {
 				if (!root.isConnected) return;
 				paint(data);
 			}).catch(clear).finally(function() { pending = null; });

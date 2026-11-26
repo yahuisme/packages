@@ -32,6 +32,27 @@ const tick=()=>new Promise(r=>setImmediate(r));
    input.value=value;input.dispatchEvent(new h.w.Event('change',{bubbles:true}));
    await section.handleModalSave(edit,{});
   }
+  for(const invalid of ['short','']) {
+   h.mods.uci.set('wireless','radio2','txpower','18'); // A legitimate pre-existing draft.
+   await section.renderMoreOptionsModal('test');
+   const modal=h.mods.dom.findClassInstance(section.getActiveModalMap());
+   for(const [field,value] of [['ssid','Invalid attempt'],['key',invalid]]) {
+    const input=h.w.document.getElementById('widget.cbid.wireless.test.'+field);
+    input.value=value;input.dispatchEvent(new h.w.Event('change',{bubbles:true}));
+   }
+   const before=JSON.stringify(h.mods.uci.state),writes=h.writes().length;
+   await section.handleModalSave(modal,{});
+   assert(section.getActiveModalMap(),'invalid native Save keeps the editor open');
+   assert.equal(JSON.stringify(h.mods.uci.state),before,'invalid key must not stage the valid SSID or disturb an existing draft');
+   assert.equal(h.writes().length,writes);
+   await modal.reset();
+   assert.equal(modal.lookupOption('ssid','test')[0].formvalue('test'),'Before');
+   await section.handleModalCancel(modal,{});
+   h.field('radio0','power').value=invalid?'23':'24';await h.clickSave();
+   assert.equal(h.db().committed.test.ssid,'Before','other Save must not commit the abandoned edit');
+   assert.equal(h.db().committed.test.key,'test-password');
+   assert.equal(h.db().committed.radio2.txpower,'18','legitimate staging survives');
+  }
   await edit('After');assert.equal(h.db().committed.test.ssid,'Before');
   const button=kind=>h.q('[data-mlo-action="'+kind+'"]');
   assert(button('apply'),'MLO must provide an explicit apply entry');
@@ -42,6 +63,28 @@ const tick=()=>new Promise(r=>setImmediate(r));
   await edit('Discard');await click('reset');assert.equal(h.db().staged.test.ssid,'After');assert.match(h.q('.mlo-overview-primary').textContent,/After/);
   await edit('Retry');h.state.applyCode=6;await click('apply');assert.equal(h.db().committed.test.ssid,'After');assert.equal(h.notifications.at(-1).text,h.w._('Failed to apply configuration: %s').replace('%s',h.w._('Permission denied')));
   h.state.applyCode=0;await click('apply');assert.equal(h.db().committed.test.ssid,'Retry');
+ await edit('Confirmed');
+ h.field('radio0','power').value='26'; // An unrelated, unstaged Radio Settings draft.
+ let confirmed=false,failures=2;const transportWithNetwork=h.mods.request.post;
+ h.mods.request.post=async(url,req)=>{
+  const [,object,method,p]=req.params;
+  if(object==='uci'&&method==='confirm')confirmed=true;
+  if(confirmed&&object==='uci'&&method==='get'&&p.config==='wireless'&&failures>0){
+   failures--;return {ok:true,status:200,json:()=>h.w.JSON.parse(JSON.stringify({jsonrpc:'2.0',id:req.id,result:[7]}))};
+  }
+  return transportWithNetwork(url,req);
+ };
+ await click('apply');assert.equal(h.db().committed.test.ssid,'Confirmed');assert.match(h.notifications.at(-1).text,/^Configuration applied, but/);
+ assert.equal(button('apply').textContent,h.w._('Refresh applied configuration'));assert(button('reset').disabled);
+ const confirmedWrites=h.writes().length;
+ await h.clickSave();assert.equal(h.writes().length,confirmedWrites,'other tab also retries readback only');
+ assert.match(h.notifications.at(-1).text,/^Configuration applied, but/);
+ await click('apply');assert.equal(h.writes().length,confirmedWrites,'MLO recovery must not apply a second time');
+ assert.equal(h.field('radio0','power').value,'26','MLO recovery preserves radio drafts');
+ assert.equal(h.notifications.at(-1).type,'info');
+ assert.equal(button('apply').textContent,h.w._('Apply staged changes'));assert(!button('reset').disabled);
+ await h.clickSave();assert.equal(h.db().committed.radio0.txpower,'26','fresh radio Save after recovery works');
+ h.mods.request.post=transportWithNetwork;
   await edit('Held');
   const transport=h.mods.request.post;let release,applyCount=0;
   h.mods.request.post=async(url,req)=>{

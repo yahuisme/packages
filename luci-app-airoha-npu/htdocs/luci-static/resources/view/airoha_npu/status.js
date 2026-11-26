@@ -300,7 +300,11 @@ return view.extend({
 		};
 		// Age the window even if a transport stalls; no synthetic samples.
 		self.chartTimer = window.setInterval(drawChart, 1000);
-		self.onHide = self.cleanup.bind(self);
+		self.onHide = function(event) {
+			// A cached document resumes its existing timers; do not tear down the
+			// view on a back/forward cache transition. Hidden ticks already do no work.
+			if (!event.persisted) self.cleanup();
+		};
 		window.addEventListener('pagehide', self.onHide);
 
 		var mounted = false;

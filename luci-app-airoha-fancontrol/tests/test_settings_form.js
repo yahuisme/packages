@@ -20,7 +20,12 @@ const w = j.window;
   L.require=n=>Promise.resolve(mods[n]);L.hasViewPermission=()=>true;w.E=mods.dom.create.bind(mods.dom);
   const values={settings:{'.name':'settings','.type':'fancontrol',mode:'auto',curve_preset:'custom',manual_pwm:'127'},custom:{'.name':'custom','.type':'curve'}};
   [[40,54],[50,69],[60,95],[70,199],[80,255]].forEach(([t,p],i)=>{values.custom[`point${i+1}_temp`]=String(t);values.custom[`point${i+1}_pwm`]=String(p);});
-  mods.rpc={declare:spec=>async()=>spec.object==='session'?true:spec.method==='get'?w.JSON.parse(JSON.stringify(values)): {}};
+  mods.rpc={declare:spec=>async(config,section,options)=>{
+   if(spec.object==='session')return true;
+   if(spec.method==='get')return w.JSON.parse(JSON.stringify(values));
+   if(spec.method==='set')Object.assign(values[section],options);
+   return {};
+  }};
   function load(n){const text=read(n),deps=[...text.matchAll(/'require ([^';]+)';/g)].map(m=>m[1]);const C=w.Function(...deps.map(d=>d.split(' as ')[1]||d.split('.').at(-1)),text)(...deps.map(d=>mods[d.split(' as ')[0]]));mods[n]=new C();}
   load('uci'); mods.fs={};load('validation');load('ui');load('form');
   const source=fs.readFileSync(path.join(__dirname,'../htdocs/luci-static/resources/view/fan/settings.js'),'utf8');
@@ -117,19 +122,28 @@ const w = j.window;
   assert.deepEqual([...resetSVG.querySelectorAll('.fan-curve-y-tick')].map(e=>e.textContent),['0','32','64','96','128','160','192','224','255']);
   assert.equal(resetSVG.querySelector('.fan-curve-dots circle:last-child').getAttribute('cy'),'28','PWM 255 remains actual top endpoint');
   assert.equal(resetSVG.querySelectorAll('.fan-curve-axes line').length,20,'all tick gridlines remain after reset');
+  map.lookupOption('curve_preset','settings')[0].getUIElement('settings').setValue('balanced');
+  await map.save();
+  mods.uci.set('fan','custom','point1_pwm','53');
+  const uciSnapshot=()=>JSON.stringify(mods.uci.state);
   const resetInput=node.querySelector('[data-name="point1_temp"] input');
   resetInput.value='90';resetInput.dispatchEvent(new w.Event('input',{bubbles:true}));
   const originalShowModal=mods.ui.showModal, originalMapSave=mods.form.Map.prototype.save;
   const modal=()=>w.document.querySelector('#modal_overlay .modal');
   const active=()=>w.document.body.classList.contains('modal-overlay-active');
   for(const kind of ['curve','manual']) {
+   if(kind==='curve') {
+    map.lookupOption('curve_preset','settings')[0].getUIElement('settings').setValue('custom');map.checkDepends();
+   }
    if(kind==='manual') {
     map.lookupOption('mode','settings')[0].getUIElement('settings').setValue('manual');map.checkDepends();
     map.lookupOption('manual_pwm','settings')[0].getUIElement('settings').setValue('999');
    }
+   const baseline=uciSnapshot(); // Reset can merge legitimate drafts into native UCI values.
    let callbackCalled=false;
    await assert.rejects(map.save(()=>{callbackCalled=true;}));
    assert.equal(callbackCalled,false,'invalid parse never calls save callback');
+   assert.equal(uciSnapshot(),baseline,`invalid ${kind} must not leave partial mode/preset edits in the UCI cache`);
    assert(active());assert(modal().classList.contains('fan-settings-modal'));
    assert.equal(modal().querySelector('h4').textContent,'Save error');
    assert.equal(modal().querySelectorAll('style').length,0,'no typography injection');
@@ -140,8 +154,13 @@ const w = j.window;
    mods.ui.showModal('Unrelated',[w.E('p',{},['Independent modal'])]);
    assert(!modal().classList.contains('fan-settings-modal'),'next modal does not inherit fan styling');
    await assert.rejects(map.save(null,true));
+   assert.equal(uciSnapshot(),baseline,'all rejected saves preserve the draft');
    assert.equal(modal().querySelector('h4').textContent,'Unrelated','silent failure preserves unrelated modal');
    mods.ui.hideModal();
+   if(kind==='curve') {
+    await map.reset();
+    assert.equal(map.lookupOption('curve_preset','settings')[0].formvalue('settings'),'balanced');
+   }
   }
   assert.equal(mods.ui.showModal,originalShowModal,'no global UI monkey patch');
   assert.equal(mods.form.Map.prototype.save,originalMapSave,'no global Map monkey patch');

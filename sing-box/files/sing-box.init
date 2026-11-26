@@ -44,13 +44,17 @@ start_service() {
 }
 
 service_triggers() {
-	local ifaces
+	local enabled ifaces iface
 	config_load "$NAME"
-	config_get ifaces "main" "ifaces"
-	procd_open_trigger
-	for iface in $ifaces; do
-		procd_add_interface_trigger "interface.*.up" $iface /etc/init.d/$NAME restart
-	done
-	procd_close_trigger
+	config_get_bool enabled "main" "enabled" "0"
+	if [ "$enabled" -eq 1 ]; then
+		config_get ifaces "main" "ifaces"
+		procd_open_trigger
+		# procd's .* matches a prefix, not a glob with a suffix.
+		for iface in $ifaces; do
+			procd_add_interface_trigger 'interface.update' "$iface" "/etc/init.d/$NAME" restart
+		done
+		procd_close_trigger
+	fi
 	procd_add_reload_trigger "$NAME"
 }
