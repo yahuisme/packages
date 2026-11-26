@@ -28,6 +28,8 @@ CONF=homeproxy
 cmp(){ command busybox cmp "$@"; }
 procd_open_service(){ :; }
 homeproxy_prepare_runtime(){ :; }
+# Ownership is outside this transaction contract, and the suite must run unprivileged.
+chown(){ :; }
 _homeproxy_start_service(){
  printf 'setup\n' >> "$ROOT/events"
  [ "$FAULT" != crash-installing ] || exit 99
@@ -151,6 +153,7 @@ cp(){ case "$FAULT" in backup|backup-cleanup) return 1;; esac; command cp "$@"; 
 procd_open_service(){ procd_lock; }
 homeproxy_close_service(){ :; }
 homeproxy_prepare_runtime(){ :; }
+chown(){ :; }
 log(){ :; }
 _homeproxy_start_service(){
  mkdir "$ROOT/active" || return 1
