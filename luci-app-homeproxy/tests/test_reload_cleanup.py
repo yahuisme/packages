@@ -27,6 +27,7 @@ class ReloadCleanup(unittest.TestCase):
 CONF=homeproxy
 cmp(){ command busybox cmp "$@"; }
 procd_open_service(){ :; }
+homeproxy_prepare_runtime(){ :; }
 _homeproxy_start_service(){
  printf 'setup\n' >> "$ROOT/events"
  [ "$FAULT" != crash-installing ] || exit 99
@@ -149,6 +150,7 @@ cp(){ case "$FAULT" in backup|backup-cleanup) return 1;; esac; command cp "$@"; 
         script.write_text(lock + '''
 procd_open_service(){ procd_lock; }
 homeproxy_close_service(){ :; }
+homeproxy_prepare_runtime(){ :; }
 log(){ :; }
 _homeproxy_start_service(){
  mkdir "$ROOT/active" || return 1
