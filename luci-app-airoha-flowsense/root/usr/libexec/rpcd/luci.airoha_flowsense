@@ -5,10 +5,22 @@ json_number() {
     fs_uint "$1" && printf '%s' "$1" || printf null
 }
 
+# Published decimals are validated inline: one shell pass per field instead of
+# an awk child, accepting exactly what the previous per-field awk accepted.
 json_decimal() {
-    printf '%s\n' "$1" | awk -v max="${2:-60000}" '
-        /^[0-9]+(\.[0-9]+)?$/ && $0 !~ /^0[0-9]/ && length($0) <= 20 && $0 + 0 <= max { value=$0; valid=1 }
-        END { if (NR == 1 && valid) printf "%s", value; else printf "null" }'
+    local value=$1 max=${2:-60000} whole fraction
+    case "$value" in ''|*[!0-9.]*|.*|*.|*.*.*) printf null; return 0;; esac
+    case "$value" in 0[0-9]*) printf null; return 0;; esac
+    [ "${#value}" -le 20 ] || { printf null; return 0; }
+    whole=${value%%.*}; fraction=
+    [ "$whole" = "$value" ] || fraction=${value#*.}
+    [ "${#whole}" -le 18 ] || { printf null; return 0; }
+    # A non-zero fraction can only push the value past an integer ceiling.
+    case "$fraction" in
+        *[1-9]*) [ "$whole" -lt "$max" ] || { printf null; return 0; } ;;
+    esac
+    [ "$whole" -le "$max" ] || { printf null; return 0; }
+    printf '%s' "$value"
 }
 
 # Getter-only result slot, dynamically scoped to get_interfaces. Keep public
@@ -67,7 +79,14 @@ get_jitter() {
     json_get_var samples samples
     json_get_var received received
     json_get_var loss loss
-    printf '{"timestamp":%s,"target":"%s","last_ping":%s,"deviation":%s,"samples":%s,"received":%s,"loss":%s}' "$stamp" "$target" "$(json_decimal "$last")" "$(json_decimal "$deviation")" "$(json_number "$samples")" "$(json_number "$received")" "$(json_decimal "$loss" 100)"
+    # Emit field by field so each value stays in this shell: no subshell per field.
+    printf '{"timestamp":%s,"target":"%s","last_ping":' "$stamp" "$target"
+    json_decimal "$last"
+    printf ',"deviation":'; json_decimal "$deviation"
+    printf ',"samples":'; json_number "$samples"
+    printf ',"received":'; json_number "$received"
+    printf ',"loss":'; json_decimal "$loss" 100
+    printf '}'
 }
 
 get_monitor() (

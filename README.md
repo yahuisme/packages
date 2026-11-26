@@ -6,8 +6,8 @@ OpenWrt / ImmortalWrt 软件包源码 feed，用于固件构建，不是路由�
 
 | 软件包 | 版本 | 功能 |
 | --- | --- | --- |
-| `luci-app-airoha-npu` | `20261126-r1` | Airoha NPU 状态与 CPU 调频 |
-| `luci-app-airoha-flowsense` | `20261126-r1` | Airoha 硬件加速设置与流量监控 |
+| `luci-app-airoha-npu` | `20261126-r2` | Airoha NPU 状态与 CPU 调频 |
+| `luci-app-airoha-flowsense` | `20261126-r2` | Airoha 硬件加速设置与流量监控 |
 | `luci-app-airoha-fancontrol` | `20261122-r1` | Airoha 温控与风扇调速 |
 | `luci-app-wifi7` | `20261126-r1` | WiFi 7 射频、MLO 与客户端管理 |
 | `luci-app-homeproxy` | `20261126-r2` | 基于 sing-box 的代理管理，独立维护 |

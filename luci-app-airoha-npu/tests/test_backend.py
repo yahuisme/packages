@@ -386,7 +386,11 @@ class Backend(unittest.TestCase):
         source = BACKEND.read_text()
         prefix, getter = source.split('get_status() {', 1)
         getter, suffix = getter.split('get_info() {', 1)
-        oracle.write_text(prefix + 'get_status() {' + getter.replace('read_status_value', 'read_value') + 'get_info() {' + suffix)
+        # Legacy field reads were one cat inside a command substitution.
+        legacy = 'legacy_word() { word=$(cat "$1" 2>/dev/null); }\n'
+        oracle.write_text(prefix + legacy + 'get_status() {' +
+                          getter.replace('read_status_value', 'read_value').replace('read_word', 'legacy_word') +
+                          'get_info() {' + suffix)
         paths = [self.policy / ('scaling_' + name) for name in
                  ('cur_freq', 'max_freq', 'min_freq', 'governor')]
         paths += [self.root / 'sys/kernel/debug/clk/npu/clk_rate',
@@ -409,6 +413,30 @@ class Backend(unittest.TestCase):
                 # One cat still consumes RPC stdin; none may read status files.
                 cats = re.findall(rb'^\++ cat(?: |$)', actual.stderr, re.M)
                 self.assertEqual(len(cats), 1, 'six status file reads must use shell builtins')
+
+    def test_cpu_online_count_matches_previous_awk(self):
+        # Freeze the per-poll awk pass this replaced; the shell path must agree
+        # on every single-line value read_word can hand it.
+        source = BACKEND.read_text()
+        counter = source[source.index('cpu_count() {'):source.index('get_status() {')]
+        awk = ("printf '%s\\n' \"$1\" | awk '/^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$/ "
+               "{ n=split($0,a,\",\"); for(i=1;i<=n;i++) { k=split(a[i],b,\"-\"); "
+               "if(k==2 && b[2]<b[1]) exit; count+=k==2?b[2]-b[1]+1:1 } print count; ok=1 } "
+               "END { if(!ok) print \"null\" }'")
+        shell = counter + '\nprintf "%s" "$(cpu_count "$1")"\n'
+        status_src = source[source.index('get_status() {'):source.index('get_info() {')]
+        self.assertNotRegex(status_src, r'\$\(\s*read_word\b',
+                            'status fields must be read in place, not captured')
+        self.assertNotIn('awk', counter, 'the per-poll counter must not spawn awk')
+        for value in ['', '0', '0-3', '0-1,4,6-7', '4-4', '5-3', '01', '0-01', ',', ',,',
+                      '0,', ',0', '0,,1', '3,,4', '-', '0-', '-1', '0--1', '0-1-2', '1,2,3',
+                      'a', '0 1', ' 0-1', '999', '0-0', '7-9', '0-9,10-19']:
+            with self.subTest(value=value):
+                expected = subprocess.run(['busybox', 'ash', '-c', awk, 'x', value],
+                                          capture_output=True, text=True, timeout=10).stdout.strip()
+                actual = subprocess.run(['busybox', 'ash', '-c', shell, 'x', value],
+                                        capture_output=True, text=True, timeout=10).stdout.strip()
+                self.assertEqual(actual, expected)
 
     def test_bound_flow_count(self):
         bind = self.root / 'sys/kernel/debug/ppe/bind'

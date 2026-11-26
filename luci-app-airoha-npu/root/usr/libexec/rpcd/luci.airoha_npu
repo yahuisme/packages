@@ -122,18 +122,39 @@ read_status_value() {
 	local line
 	{ while IFS= read -r line || [ -n "$line" ]; do printf '%s\n' "$line"; done < "$1"; } 2>/dev/null
 }
-get_status() {
-	local field value first=1
-	printf '{'
-	for field in cur_freq max_freq min_freq; do
-		[ "$first" = 1 ] || printf ','; first=0
-		printf '"cpu_%s":' "$field"; number "$(read_status_value "$POLICY/scaling_$field")"
+# Numeric status fields are single-line sysfs words. Read them into the caller's
+# shell with builtins only: a 3 s poll must not pay for a subshell per field.
+read_word() {
+	local extra
+	word=
+	{ IFS= read -r word; IFS= read -r extra; } 2>/dev/null < "$1"
+	[ -z "$extra" ] || word=
+}
+# Same counting as the previous per-poll awk pass, without the pipeline.
+cpu_count() {
+	local list=$1 part lo hi total=0
+	case "$list" in ''|*[!0-9,-]*|,*|*,|*,,*) printf null; return 0;; esac
+	local IFS=,
+	for part in $list; do
+		case "$part" in
+			*-*)
+				lo=${part%%-*}; hi=${part#*-}
+				case "$lo$hi" in ''|*[!0-9]*) printf null; return 0;; esac
+				[ "$hi" -ge "$lo" ] || { printf null; return 0; }
+				total=$((total + hi - lo + 1));;
+			*) total=$((total + 1));;
+		esac
 	done
+	printf '%s' "$total"
+}
+get_status() {
+	local field value
+	printf '{"cpu_cur_freq":'; read_word "$POLICY/scaling_cur_freq"; number "$word"
+	printf ',"cpu_max_freq":'; read_word "$POLICY/scaling_max_freq"; number "$word"
+	printf ',"cpu_min_freq":'; read_word "$POLICY/scaling_min_freq"; number "$word"
 	printf ',"cpu_governor":'; quote "$(read_status_value "$POLICY/scaling_governor")"
-	printf ',"npu_clock":'; number "$(read_status_value "$ROOT/sys/kernel/debug/clk/npu/clk_rate")"
-	printf ',"cpu_count":'
-	value=$(read_status_value "$ROOT/sys/devices/system/cpu/online")
-	printf '%s\n' "$value" | awk '/^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$/ { n=split($0,a,","); for(i=1;i<=n;i++) { k=split(a[i],b,"-"); if(k==2 && b[2]<b[1]) exit; count+=k==2?b[2]-b[1]+1:1 } print count; ok=1 } END { if(!ok) print "null" }'
+	printf ',"npu_clock":'; read_word "$ROOT/sys/kernel/debug/clk/npu/clk_rate"; number "$word"
+	printf ',"cpu_count":'; read_word "$ROOT/sys/devices/system/cpu/online"; cpu_count "$word"
 	printf ',"npu_bound":'
 	if [ ! -d "$ROOT/sys/bus/platform/drivers" ]; then printf null
 	else

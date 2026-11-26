@@ -36,6 +36,12 @@ class SamplingTest(unittest.TestCase):
             self.assertEqual(json.loads(self.run_shell(FUNCTIONS + '\njson_decimal "$1"', [value])), float(value))
         self.assertIsNone(json.loads(self.run_shell(FUNCTIONS + '\njson_decimal 100.1 100')))
 
+    def test_published_fields_are_printed_without_per_field_subshells(self):
+        self.assertNotRegex(SOURCE, r'\$\(\s*json_(?:decimal|number)\b',
+                            'jitter fields must be emitted in place, not captured')
+        self.assertNotIn('awk', FUNCTIONS[FUNCTIONS.index('json_decimal()'):FUNCTIONS.index('interface_read()')],
+                         'published decimals must not spawn awk')
+
     def test_overview_contract(self):
         script = FUNCTIONS + """
 uci() { printf '1'; }
