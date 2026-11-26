@@ -11,26 +11,32 @@ from client_generator_fixture import APP, ClientGenerator
 
 class RetainedTLS(unittest.TestCase):
     def test_certificate_path_obeys_switch_without_erasing_retained_value(self):
-        for protocol in ('anytls', 'http', 'hysteria', 'hysteria2', 'shadowtls',
-                         'trojan', 'tuic', 'vless', 'vmess'):
-            for flag in (None, '', '0', '1'):
-                with self.subTest(protocol=protocol, flag=flag), ClientGenerator() as fixture:
-                    node = fixture.sections['node1']
-                    certificate = fixture.hp / 'certs/client_ca.pem'
-                    certificate.parent.mkdir()
-                    certificate.write_text('RETAINED CERTIFICATE FIXTURE\n')
-                    node.update(type=protocol, tls='1', tls_cert_path=str(certificate),
-                                password='fixture', uuid='00000000-0000-4000-8000-000000000001')
-                    if flag is not None:
-                        node['tls_self_sign'] = flag
-                    outbound = next(o for o in fixture.generate()['outbounds']
-                                    if o.get('server') == node['address'])
-                    if flag == '1':
-                        self.assertEqual(outbound['tls']['certificate_path'], node['tls_cert_path'])
-                    else:
-                        self.assertNotIn('certificate_path', outbound['tls'])
-                    self.assertEqual(node['tls_cert_path'], str(certificate))
-                    self.assertEqual(certificate.read_text(), 'RETAINED CERTIFICATE FIXTURE\n')
+        with ClientGenerator() as fixture:
+            certificate = fixture.hp / 'certs/client_ca.pem'
+            certificate.parent.mkdir()
+            subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+                            '-keyout', str(fixture.root / 'test-key.pem'), '-out', str(certificate),
+                            '-subj', '/CN=fixture.invalid', '-days', '1'],
+                           capture_output=True, check=True, timeout=15)
+            retained = certificate.read_bytes()
+            for protocol in ('anytls', 'http', 'hysteria', 'hysteria2', 'shadowtls',
+                             'trojan', 'tuic', 'vless', 'vmess'):
+                for flag in (None, '', '0', '1'):
+                    with self.subTest(protocol=protocol, flag=flag):
+                        sections = {**fixture.sections}
+                        node = sections['node1'] = dict(fixture.sections['node1'], type=protocol, tls='1',
+                            tls_cert_path=str(certificate), password='fixture', uuid='00000000-0000-4000-8000-000000000001',
+                            hysteria_up_mbps='20', hysteria_down_mbps='30')
+                        if flag is not None:
+                            node['tls_self_sign'] = flag
+                        outbound = next(o for o in fixture.generate(sections)['outbounds']
+                                        if o.get('server') == node['address'])
+                        if flag == '1':
+                            self.assertEqual(outbound['tls']['certificate_path'], node['tls_cert_path'])
+                        else:
+                            self.assertNotIn('certificate_path', outbound['tls'])
+                        self.assertEqual(node['tls_cert_path'], str(certificate))
+                        self.assertEqual(certificate.read_bytes(), retained)
 
 
     def test_latency_json_obeys_retained_certificate_switch(self):

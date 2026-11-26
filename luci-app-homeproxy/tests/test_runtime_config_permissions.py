@@ -33,6 +33,7 @@ class RuntimeConfigPermissions(unittest.TestCase):
             checks = '''
 dnsmasq_discover() { DNSMASQ_DIR=''; DNSMASQ_INCLUDE=''; }
 config_foreach() { :; }
+sync_subscription_cron() { :; }
 log() { :; }
 _homeproxy_start_service() {
  python3 - "$RUN_DIR" <<'PY'

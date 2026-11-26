@@ -1,7 +1,10 @@
 """Keep both CI architectures bound to reviewed official runtime packages."""
+import hashlib
 import importlib.util
 from pathlib import Path
+import tempfile
 import unittest
+from unittest.mock import patch
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/setup-test-tools.py'
 spec = importlib.util.spec_from_file_location('setup_tools', SCRIPT)
@@ -25,6 +28,21 @@ class DigestPackage(unittest.TestCase):
     def test_unknown_architecture_fails_closed(self):
         with self.assertRaises(ValueError):
             setup.digest_package('unsupported')
+
+    def test_cached_download_is_hashed_once_and_bad_bytes_are_not_accepted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'source'
+            target = Path(directory) / 'target'
+            source.write_bytes(b'expected fixture')
+            digest = hashlib.sha256(b'expected fixture').hexdigest()
+            setup.download(source.as_uri(), digest, target)
+            with patch.object(setup, 'file_sha256', wraps=setup.file_sha256) as hash_file:
+                setup.download(source.as_uri(), digest, target)
+                hash_file.assert_called_once_with(target)
+            source.write_bytes(b'wrong fixture')
+            target.write_bytes(b'corrupt cache')
+            with self.assertRaisesRegex(RuntimeError, 'SHA256 mismatch'):
+                setup.download(source.as_uri(), digest, target)
 
 
 if __name__ == '__main__':

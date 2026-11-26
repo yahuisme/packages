@@ -16,7 +16,7 @@ start_service() {
 	[ "$enabled" -eq "1" ] || return 0
 
 	config_get user "main" "user" "root"
-	config_get conffile "main" "conffile"
+	config_get conffile "main" "conffile" "/etc/sing-box/config.json"
 	config_get ifaces "main" "ifaces"
 	config_get workdir "main" "workdir" "/usr/share/sing-box"
 	config_get_bool log_stdout "main" "log_stdout" "0"
@@ -36,7 +36,6 @@ start_service() {
 	[ -z "$ifaces" ] || procd_set_param netdev $ifaces
 	procd_set_param stdout "$log_stdout"
 	procd_set_param stderr "$log_stderr"
-	procd_set_param limits core="unlimited"
 	procd_set_param limits nofile="1000000 1000000"
 	procd_set_param respawn
 

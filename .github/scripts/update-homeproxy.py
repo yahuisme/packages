@@ -15,12 +15,12 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-import zipfile
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = [('geoip', 'sing-geoip', 'rule-set'),
            ('geosite', 'sing-geosite', 'rule-set-unstable')]
+CURL = ('curl', '-fsSL', '--retry', '3', '--connect-timeout', '10', '--max-time', '180')
 
 
 def stable_version(release):
@@ -35,7 +35,7 @@ def api(path):
 
 
 def download(url):
-    return subprocess.check_output(['curl', '-fsSL', '--retry', '3', '--connect-timeout', '10', '--max-time', '180', url])
+    return subprocess.check_output([*CURL, url])
 
 
 def blob(data):
@@ -54,19 +54,28 @@ def version_metadata(repo, branch):
 def get_binary(release, temp):
     version = stable_version(release)
     arch = {'aarch64': 'arm64', 'x86_64': 'amd64'}[platform.machine()]
-    name = f'sing-box-{version}-linux-{arch}.tar.gz'
-    asset = next(a for a in release['assets'] if a['name'] == name)
-    data = download(asset['browser_download_url'])
-    if asset.get('digest') != 'sha256:' + hashlib.sha256(data).hexdigest():
+    name = f'sing-box-{version}-linux-{arch}'
+    archive_path = temp / (name + '.tar.gz')
+    asset = next(a for a in release['assets'] if a['name'] == archive_path.name)
+    subprocess.run([*CURL, '--output', str(archive_path), asset['browser_download_url']], check=True)
+    with archive_path.open('rb') as compressed:
+        digest = hashlib.file_digest(compressed, 'sha256').hexdigest()
+    if asset.get('digest') != 'sha256:' + digest:
         raise ValueError('Official binary digest mismatch/missing')
-    with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as archive:
-        stream = archive.extractfile(f'sing-box-{version}-linux-{arch}/sing-box')
-        if stream is None:
+    binary = temp/'sing-box'
+    with tarfile.open(archive_path, mode='r|gz') as archive:
+        for member in archive:
+            if member.name == f'{name}/sing-box' and member.isfile():
+                stream = archive.extractfile(member)
+                if stream is not None:
+                    with stream, binary.open('wb') as target:
+                        shutil.copyfileobj(stream, target)
+                    break
+        else:
             raise ValueError('Missing sing-box binary')
-        binary = temp/'sing-box'
-        binary.write_bytes(stream.read())
-        binary.chmod(0o755)
-    actual = subprocess.check_output([str(binary), 'version'], text=True)
+    archive_path.unlink()
+    binary.chmod(0o755)
+    actual = subprocess.check_output([str(binary), 'version'], text=True, timeout=10)
     if actual.splitlines()[0] != f'sing-box version {version}':
         raise ValueError('Binary version mismatch')
     print(actual.splitlines()[0], flush=True)
@@ -122,16 +131,16 @@ def resources(home, binary, temp, updates):
     check(binary, home, temp)
 
 
-def core_compatibility(binary, version, root, temp):
+def core_compatibility(binary, version, root, temp, *, resources_dir):
     # Only core-version changes pay for the native generator/runtime gates.
     # Keep the verified candidate alive until they finish, before publication.
     tools = temp/'tools'
     env = dict(os.environ, TMPDIR=str(temp), PYTHONDONTWRITEBYTECODE='1')
     subprocess.run([sys.executable, str(root/'.github/scripts/setup-test-tools.py'),
                     '--dest', str(tools)], env=env, check=True)
-    subprocess.run(['sh', '-ec', '. "$1"; exec "$2" "$3" --binary "$4" --version "$5"',
+    subprocess.run(['sh', '-ec', '. "$1"; exec "$2" "$3" --binary "$4" --version "$5" --resources "$6"',
                     'core-compatibility', str(tools/'env.sh'), sys.executable,
-                    str(root/'.github/scripts/check-core-compatibility.py'), str(binary), version],
+                    str(root/'.github/scripts/check-core-compatibility.py'), str(binary), version, str(resources_dir)],
                    env=env, check=True)
 
 
@@ -239,7 +248,7 @@ def main():
                                           readme.read_text(), flags=re.M)
             if count != 1:
                 raise ValueError('Expected exactly one sing-box README version row')
-            core_compatibility(binary, version, root, temp)
+            core_compatibility(binary, version, root, temp, resources_dir=home/'resources')
             updated = re.sub(r'^PKG_UPSTREAM_VERSION:=.*$', f'PKG_UPSTREAM_VERSION:={version}', original, flags=re.M)
             updated = re.sub(r'^PKG_HASH:=.*$', f'PKG_HASH:={digest}', updated, flags=re.M)
             updated = re.sub(r'^PKG_RELEASE:=.*$', 'PKG_RELEASE:=', updated, flags=re.M)

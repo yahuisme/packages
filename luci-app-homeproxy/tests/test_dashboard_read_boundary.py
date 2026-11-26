@@ -30,6 +30,11 @@ class DashboardReadBoundary(unittest.TestCase):
                           .replace("from 'luci.http'", 'from ' + json.dumps(str(http)))
                           .replace("'/etc/homeproxy'", json.dumps(str(root / 'hp'))))
         source = source.replace("'/etc/homeproxy/scripts/homeproxy.uc'", json.dumps(str(helper)))
+        # This RPC does not touch the log helper. Fail if that boundary changes.
+        source = source.replace(
+            "import { cleanLog, logNames, readLog } from '/etc/homeproxy/scripts/runtime-files.uc';",
+            "const logNames = []; function cleanLog() { die('Unexpected log cleanup'); } "
+            "function readLog() { die('Unexpected log read'); }")
         source = source.replace('open, popen, readfile,', 'open as nativeOpen, fdopen, popen, readfile as nativeReadfile,')
         wrappers = '''
 let indexBytes = 0, reads = 0, closes = 0;

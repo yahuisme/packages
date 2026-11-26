@@ -128,4 +128,20 @@ async function log() {
   console.log('PASS log clear: nonzero status reports error and retains original bytes without success refresh');
  } finally {h.w.close();}
 }
-(async()=>{const cases={upload,generate,domain,log};const names=process.argv.slice(2);for(const name of names.length?names:Object.keys(cases)){assert(cases[name],'known case');await cases[name]();}})().catch(e=>{console.error(e);process.exitCode=1;});
+async function connectivity() {
+ const h=await boot();
+ try {
+  await h.settle({results:[]});
+  const post=h.mods.request.post;
+  const payload={results:[{site:'baidu',result:true,latency_ms:42}]};
+  let status=0;
+  h.mods.request.post=async(url,req)=>req.params[2]==='connection_check'?response(h,req,payload,status):post(url,req);
+  const button=h.button('Test all');
+  const row=()=>Array.from(h.root().querySelectorAll('tr')).find(r=>r.textContent.includes('Baidu')).textContent;
+  button.click();await until(()=>row().includes('42 ms')&&!button.disabled);
+  status=6;button.click();await until(()=>!button.disabled);
+  assert.match(row(),/Failed/,'nonzero native status must reject success-shaped connectivity data');
+  assert(!row().includes('42 ms'));
+ } finally {h.w.close();}
+}
+(async()=>{const cases={upload,generate,domain,log,connectivity};const names=process.argv.slice(2);for(const name of names.length?names:Object.keys(cases)){assert(cases[name],'known case');await cases[name]();}})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -803,11 +803,19 @@ const methods = {
 			};
 
 			const parseDelayResponse = (entry) => {
-				const payload = readfile(entry.response_path);
-				if (!trim(payload || '')) {
+				const transfer = match(trim(readfile(entry.response_path + '.status') || ''), /^([0-9]{3}) ([0-9]+)$/);
+				const http = int(transfer?.[1] || '0');
+				const status = transfer ? int(transfer[2]) : -1;
+				if (status === 28 || (status === 0 && http === 504))
 					return formatResult(entry.node, 'timeout', null, {
 						code: error_codes.delay_timeout,
 						message: sprintf('sing-box delay request timed out after %dms', delay_timeout_ms)
+					});
+				const payload = readfile(entry.response_path);
+				if (status !== 0 || !trim(payload || '')) {
+					return formatResult(entry.node, 'error', null, {
+						code: error_codes.delay_failed,
+						message: 'sing-box delay request failed'
 					});
 				}
 
@@ -822,12 +830,12 @@ const methods = {
 				}
 
 				const delay_ms = int(data?.delay || '0');
-				if (delay_ms > 0)
+				if (http === 200 && delay_ms > 0)
 					return formatResult(entry.node, 'success', delay_ms, null);
 
 				const message = trim(sprintf('%s', data?.message || data?.error || '')) || 'sing-box delay request failed';
-				return formatResult(entry.node, match(message, /timeout/i) ? 'timeout' : 'error', null, {
-					code: match(message, /timeout/i) ? error_codes.delay_timeout : error_codes.delay_failed,
+				return formatResult(entry.node, 'error', null, {
+					code: error_codes.delay_failed,
 					message
 				});
 			};
@@ -844,11 +852,14 @@ const methods = {
 						delay_timeout_ms
 					);
 					entry.response_path = `${runtime_meta.session_dir}/${entry.tag}.json`;
+					// Preserve HTTP errors and the transport exit separately. Give the
+					// local controller a second to return its explicit timeout result.
 					push(commands, sprintf(
-						'/usr/bin/curl -fsS --connect-timeout 1 --max-time %d -o %s %s 2>"/dev/null" &',
-						int((delay_timeout_ms + 999) / 1000),
+						'(/usr/bin/curl -sS --connect-timeout 1 --max-time %d --write-out "%%{http_code} " -o %s %s 2>"/dev/null"; printf "%%s\\n" "$?") > %s &',
+						int((delay_timeout_ms + 999) / 1000) + 1,
 						shellQuote(entry.response_path),
-						shellQuote(delay_endpoint)
+						shellQuote(delay_endpoint),
+						shellQuote(entry.response_path + '.status')
 					));
 
 					if (length(commands) === probe_parallelism || i + 1 === length(entries)) {

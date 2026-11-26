@@ -130,6 +130,20 @@ exit(code);'''
         if len(states) == 2:
             self.assertEqual(states[0]['sections'], states[1]['sections'])
 
+    def test_retained_scalar_filter_matches_equivalent_list(self):
+        payload = json.dumps([dict(NODE, remarks='HK shared'),
+                              dict(NODE, remarks='JP shared', server='jp.example')])
+        for mode, expected in [('blacklist', 'JP shared'), ('whitelist', 'HK shared')]:
+            for syntax in ('option', 'list'):
+                with self.subTest(mode=mode, syntax=syntax):
+                    original = EMPTY + ("config homeproxy 'subscription'\n option subscription_url '%s'\n"
+                                        " option filter_nodes '%s'\n %s filter_keywords '^HK'\n"
+                                        % (URL, mode, syntax))
+                    state = self.run_main({URL: payload}, original, native_settings=True)
+                    self.assertEqual(state['returncode'], 0, state['stderr'])
+                    self.assertEqual([n['label'] for n in state['sections']], [expected])
+                    self.assertIn("%s filter_keywords '^HK'" % syntax, state['after'])
+
     def test_full_main_avoids_discarded_map_arrays_with_equal_results(self):
         source = (BASE / 'update_subscriptions.uc').read_text()
         # Restore only the former side-effect maps as the semantic oracle.

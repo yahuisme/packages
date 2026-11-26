@@ -1,4 +1,4 @@
-"""REALITY import/render boundaries; native ucode, private fixtures, no core."""
+"""REALITY import/render boundaries; native ucode and optional core schema check."""
 import json
 from pathlib import Path
 import subprocess
@@ -10,7 +10,8 @@ from test_subscription_parsing import BASE, PREAMBLE
 
 
 LINK = ('vless://11111111-1111-4111-8111-111111111111@example.com:443'
-        '?security=reality&pbk=fixture&sid=1234')
+        # RFC 7748 X25519 test-vector public key, not a deployment credential.
+        '?security=reality&pbk=hSDwCYkwp1R0i33ctD73Wg2_Og0mOBr066SpjqqbTmo&sid=1234')
 
 
 class RealityImport(unittest.TestCase):

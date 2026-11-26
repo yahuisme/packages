@@ -607,8 +607,7 @@ _homeproxy_start_service() {
 		return 1
 	fi
 
-	sync_subscription_cron "$client_ready" ||
-		log "Error: failed to update the subscription update schedule."
+	HP_CLIENT_READY="$client_ready"
 
 	if [ "$client_ready" -eq 1 ]; then
 		# sing-box (client)
@@ -735,8 +734,10 @@ stop_service() {
 	[ ! -s "$RUN_DIR/sing-box-c.json" ] || client_was_running=1
 	[ ! -s "$RUN_DIR/sing-box-s.json" ] || server_was_running=1
 
-	config_load "$CONF"
-	sync_subscription_cron 0 || log "Error: failed to clear the subscription update schedule."
+	if [ "${HP_TRANSACTION:-0}" -ne 1 ]; then
+		config_load "$CONF"
+		sync_subscription_cron 0 || log "Error: failed to clear the subscription update schedule."
+	fi
 	clear_firewall || status=1
 
 	# Remove DNS hijack
@@ -825,7 +826,7 @@ homeproxy_reload_phase() {
 }
 
 homeproxy_transaction() {
-	local service_open="${1:-0}" HP_TRANSACTION=1 HP_CLIENT_STOPPED=0 HP_SERVER_STOPPED=0
+	local service_open="${1:-0}" HP_TRANSACTION=1 HP_CLIENT_READY=0 HP_CLIENT_STOPPED=0 HP_SERVER_STOPPED=0
 	local backup="$RUN_DIR/.reload.pending" file status=0 HP_CONFIG_CHANGED=0 HP_NETWORK_CHANGED=0
 	local HP_DNS_CHANGED=0 HP_DNS_PREVIOUS DNSMASQ_DIR DNSMASQ_INCLUDE DNSMASQ_SECTION DNSMASQ_SPEC
 	homeproxy_prepare_runtime || return 1
@@ -862,6 +863,9 @@ homeproxy_transaction() {
 	homeproxy_reload_phase installing || return 1
 	[ "$service_open" -eq 1 ] || procd_open_service "$CONF" "$initscript"
 	if _homeproxy_start_service && homeproxy_close_service; then
+		# Only change scheduling once procd has accepted the new service.
+		sync_subscription_cron "$HP_CLIENT_READY" ||
+			log "Error: failed to update the subscription update schedule."
 		if [ "$HP_CLIENT_STOPPED" -eq 1 ]; then
 			rm -f "$RUN_DIR/sing-box-c.log"
 			log "sing-box client stopped."

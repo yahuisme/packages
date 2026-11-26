@@ -3,6 +3,7 @@ import contextlib
 import hashlib
 import importlib.util
 import io
+import os
 from pathlib import Path
 import subprocess
 import tarfile
@@ -18,12 +19,12 @@ updater = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(updater)
 
 
-def archive():
+def archive(name='source/fixture', body=b'fixture'):
     data = io.BytesIO()
     with tarfile.open(fileobj=data, mode='w:gz') as tar:
-        member = tarfile.TarInfo('source/fixture')
-        member.size = 7
-        tar.addfile(member, io.BytesIO(b'fixture'))
+        member = tarfile.TarInfo(name)
+        member.size = len(body)
+        tar.addfile(member, io.BytesIO(body))
     return data.getvalue()
 
 
@@ -58,9 +59,11 @@ class CoreUpdate(unittest.TestCase):
             root, makefile, resources, readme, source = self.fixture(directory)
             before = (makefile.read_bytes(), resources.joinpath('fixture').read_bytes(), readme.read_bytes())
             calls = []
-            def gate(binary, version, checkout, temp):
+            def gate(binary, version, checkout, temp, *, resources_dir=None):
                 self.assertEqual((makefile.read_bytes(), resources.joinpath('fixture').read_bytes(), readme.read_bytes()), before)
                 self.assertEqual((version, checkout), ('1.15.0', root))
+                assert resources_dir is not None, 'candidate checker must receive the staged resources'
+                self.assertEqual((resources_dir / 'fixture').read_text(), 'new')
                 calls.append(version)
             self.run_update(root, source, '1.15.0', gate)
             self.assertEqual(calls, ['1.15.0'])
@@ -74,7 +77,7 @@ class CoreUpdate(unittest.TestCase):
             root, makefile, resources, readme, source = self.fixture(directory)
             targets = [makefile, resources / 'fixture', readme]
             before = [path.read_bytes() for path in targets]
-            def gate(*args):
+            def gate(*args, **kwargs):
                 raise subprocess.CalledProcessError(1, 'injected incompatible candidate')
             with self.assertRaises(subprocess.CalledProcessError):
                 self.run_update(root, source, '1.15.0', gate)
@@ -138,7 +141,7 @@ class CoreUpdate(unittest.TestCase):
                     raise OSError('injected README installation failure')
                 return rename(path, target)
             with patch.object(Path, 'rename', fault), self.assertRaises(OSError):
-                self.run_update(root, source, '1.15.0', lambda *args: None)
+                self.run_update(root, source, '1.15.0', lambda *args, **kwargs: None)
             self.assertEqual([path.read_bytes() for path in targets], before)
             self.assertFalse(list(root.rglob('*.update-*')))
 
@@ -168,6 +171,41 @@ class CoreUpdate(unittest.TestCase):
 
 
 class CoreGate(unittest.TestCase):
+    def test_binary_archive_is_verified_before_extracting_or_executing(self):
+        name = 'sing-box-1.15.0-linux-amd64'
+        body = b'#!/bin/sh\nprintf "sing-box version 1.15.0\\n"\n'
+        with tempfile.TemporaryDirectory() as directory, patch.object(updater.platform, 'machine', return_value='x86_64'):
+            root = Path(directory)
+            source = root / 'source.tar.gz'
+            stage = root / 'stage'
+            stage.mkdir()
+            release = {'tag_name': 'v1.15.0', 'draft': False, 'prerelease': False,
+                       'assets': [{'name': name + '.tar.gz', 'browser_download_url': source.as_uri()}]}
+            asset = release['assets'][0]
+            source.write_bytes(archive(name + '/sing-box', body))
+            asset['digest'] = 'sha256:' + '0' * 64
+            with self.assertRaisesRegex(ValueError, 'digest mismatch'):
+                updater.get_binary(release, stage)
+            self.assertFalse((stage / 'sing-box').exists())
+            asset['digest'] = 'sha256:' + hashlib.sha256(source.read_bytes()).hexdigest()
+            binary = updater.get_binary(release, stage)
+            self.assertEqual(binary.read_bytes(), body)
+            self.assertEqual(set(stage.iterdir()), {binary})
+
+    def test_client_generator_uses_selected_resource_bytes(self):
+        spec = importlib.util.spec_from_file_location('client_generator_fixture',
+            ROOT / 'luci-app-homeproxy/tests/client_generator_fixture.py')
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as directory:
+            resources = Path(directory)
+            for name in ('geoip_cn.srs', 'geosite_cn.srs'):
+                (resources / name).write_bytes(name.encode())
+            with patch.dict(os.environ, HOMEPROXY_TEST_RESOURCES=str(resources)), module.ClientGenerator() as fixture:
+                for name in ('geoip_cn.srs', 'geosite_cn.srs'):
+                    self.assertEqual((fixture.hp / 'resources' / name).read_bytes(), name.encode())
+
     def test_unprivileged_runner_uses_sudo_with_candidate_and_prepared_paths(self):
         spec = importlib.util.spec_from_file_location('core_gate_sudo', ROOT / '.github/scripts/check-core-compatibility.py')
         assert spec and spec.loader
@@ -179,13 +217,14 @@ class CoreGate(unittest.TestCase):
             with patch.object(checker.os, 'geteuid', return_value=1001), \
                  patch.dict(checker.os.environ, {'GH_TOKEN': 'fixture-not-a-secret', 'UCODE_LIB_DIR': directory}), \
                  patch.object(checker.subprocess, 'call', return_value=7) as call, \
-                 patch('sys.argv', ['check-core-compatibility.py', '--binary', str(binary), '--version', '1.15.0']):
+                 patch('sys.argv', ['check-core-compatibility.py', '--binary', str(binary), '--version', '1.15.0',
+                                    '--resources', directory]):
                 self.assertEqual(checker.main(), 7)
             command = call.call_args.args[0]
             self.assertEqual(command[:3], ['sudo', '-n', 'env'])
             self.assertIn('UCODE_LIB_DIR=' + directory, command)
             self.assertNotIn('GH_TOKEN=fixture-not-a-secret', command)
-            self.assertEqual(command[-4:], ['--binary', str(binary), '--version', '1.15.0'])
+            self.assertEqual(command[-6:], ['--binary', str(binary), '--version', '1.15.0', '--resources', directory])
 
     def test_preparation_and_checker_failures_propagate(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -198,16 +237,18 @@ class CoreGate(unittest.TestCase):
                     if len(calls) == fail_at:
                         raise subprocess.CalledProcessError(1, command)
                 with patch.object(updater.subprocess, 'run', side_effect=run):
+                    args = (root / 'sing-box', '1.15.0', root, root)
+                    resources = root / 'resources'
                     if fail_at:
                         with self.assertRaises(subprocess.CalledProcessError):
-                            updater.core_compatibility(root / 'sing-box', '1.15.0', root, root)
+                            updater.core_compatibility(*args, resources_dir=resources)
                     else:
-                        updater.core_compatibility(root / 'sing-box', '1.15.0', root, root)
+                        updater.core_compatibility(*args, resources_dir=resources)
                 self.assertEqual(len(calls), fail_at or 2)
                 self.assertIn(str(root / '.github/scripts/setup-test-tools.py'), calls[0])
                 if len(calls) == 2:
                     self.assertIn(str(root / '.github/scripts/check-core-compatibility.py'), calls[1])
-                    self.assertEqual(calls[1][-2:], [str(root / 'sing-box'), '1.15.0'])
+                    self.assertEqual(calls[1][-3:], [str(root / 'sing-box'), '1.15.0', str(resources)])
 
     def test_checker_rejects_skips_empty_suites_and_failures(self):
         spec = importlib.util.spec_from_file_location('core_gate', ROOT / '.github/scripts/check-core-compatibility.py')

@@ -31,7 +31,9 @@ const app=vm.runInContext('(function(){'+fs.readFileSync(path.join(__dirname,'..
   assert.deepEqual([...n.querySelectorAll('.fan-temp-value')].map(e=>e.textContent),Array(7).fill('—'));
   assert([...n.querySelectorAll('.fan-temp-fill')].every(e=>e.style.width==='0%'));
   for(const id of ['rpm','pwm'])assert.equal(n.querySelector('#fan-summary-'+id+' .fan-card-value').textContent,'—');
-  assert.deepEqual(Object.keys(await app.load()),[],'initial RPC failure returns unavailable data');
+  const cold=app.render(await app.load());
+  assert.deepEqual([...cold.querySelectorAll('.fan-card-sub')].map(e=>e.textContent),Array(4).fill('Read failed'),
+   'the initial rejected RPC should show the same failure state as a rejected poll');
  }
  networkFailure=false;response=good;await polls[0]();assert(n.textContent.includes('1500 RPM'));assert(n.textContent.includes('54°C'));
  console.log('PASS real LuCI RPC: ubus rejection, network failure, initial failure, all metrics cleared, recovery; auto/manual/mismatch configured semantics');

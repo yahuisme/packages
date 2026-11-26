@@ -34,8 +34,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', required=True, type=Path)
     parser.add_argument('--version', required=True)
+    parser.add_argument('--resources', type=Path, default=ROOT / 'luci-app-homeproxy/root/etc/homeproxy/resources')
     args = parser.parse_args()
     binary = args.binary.resolve(strict=True)
+    resources = args.resources.resolve()
     if os.geteuid() != 0:
         # Preserve only the prepared runtime paths, not credentials or ambient
         # optional-test selectors. Do not fall back to the host network.
@@ -44,7 +46,7 @@ def main():
             if key in os.environ:
                 command.append(key + '=' + os.environ[key])
         return subprocess.call([*command, sys.executable, str(Path(__file__).resolve()),
-                                '--binary', str(binary), '--version', args.version])
+                                '--binary', str(binary), '--version', args.version, '--resources', str(resources)])
     actual = subprocess.check_output([str(binary), 'version'], text=True, timeout=10)
     if actual.splitlines()[0] != 'sing-box version ' + args.version:
         raise ValueError('Core compatibility binary version mismatch')
@@ -54,7 +56,8 @@ def main():
         subprocess.run([str(binary), 'check', '-D', workdir, '-c',
                         str(ROOT / 'sing-box/files/config.json')], check=True, timeout=15)
     os.environ.update(SING_BOX_CHECK=str(binary), DNS_RUNTIME_BINARY=str(binary),
-                      NTP_RUNTIME_BINARY=str(binary), DNS_RUNTIME_VERSION=args.version)
+                      NTP_RUNTIME_BINARY=str(binary), DNS_RUNTIME_VERSION=args.version,
+                      HOMEPROXY_TEST_RESOURCES=str(resources))
     tests = ROOT / 'luci-app-homeproxy/tests'
     sys.path.insert(0, str(tests))
     suite = unittest.TestSuite()

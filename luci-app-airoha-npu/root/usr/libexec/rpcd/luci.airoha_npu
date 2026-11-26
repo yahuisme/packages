@@ -148,23 +148,30 @@ read_status_text() {
 read_word() {
 	local extra
 	word=
-	{ IFS= read -r word; IFS= read -r extra; } 2>/dev/null < "$1"
-	[ -z "$extra" ] || word=
+	{
+		IFS= read -r word
+		while IFS= read -r extra || [ -n "$extra" ]; do
+			if [ -n "$extra" ]; then word=; break; fi
+		done
+	} 2>/dev/null < "$1"
 }
-# Same counting as the previous per-poll awk pass, without the pipeline.
+# Linux's online mask is a sorted decimal list of disjoint ranges. Validate
+# both endpoints before integer comparison/arithmetic (ash treats 0-prefix as octal).
+cpu_index() {
+	case "$1" in 0) return 0;; ''|0*|*[!0-9]*|??????????*) return 1;; esac
+}
 cpu_count() {
-	local list=$1 part lo hi total=0
+	local list=$1 part lo hi previous=-1 total=0
 	case "$list" in ''|*[!0-9,-]*|,*|*,|*,,*) printf null; return 0;; esac
 	local IFS=,
 	for part in $list; do
 		case "$part" in
-			*-*)
-				lo=${part%%-*}; hi=${part#*-}
-				case "$lo$hi" in ''|*[!0-9]*) printf null; return 0;; esac
-				[ "$hi" -ge "$lo" ] || { printf null; return 0; }
-				total=$((total + hi - lo + 1));;
-			*) total=$((total + 1));;
+			*-*) lo=${part%%-*}; hi=${part#*-};;
+			*) lo=$part; hi=$part;;
 		esac
+		cpu_index "$lo" && cpu_index "$hi" && [ "$lo" -gt "$previous" ] && [ "$hi" -ge "$lo" ] || { printf null; return 0; }
+		total=$((total + hi - lo + 1))
+		previous=$hi
 	done
 	printf '%s' "$total"
 }
@@ -247,9 +254,9 @@ case "$1" in
 	list)
 		printf '%s\n' '{"getSettings":{},"saveSettings":{"governor":"str","freq":"str"},"applySettings":{"expected":"str"},"getStatus":{},"getInfo":{},"getFlowOffload":{},"getPpeStatus":{}}';;
 	call)
-		input=$(cat)
 		case "$2" in
-			getSettings|saveSettings|applySettings) settings_rpc "$2";;
+			getSettings) settings_rpc "$2";;
+			saveSettings|applySettings) input=$(cat); settings_rpc "$2";;
 			getStatus) get_status;;
 			getInfo) get_info;;
 			getFlowOffload) get_flow;;

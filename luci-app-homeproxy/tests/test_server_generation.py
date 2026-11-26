@@ -32,6 +32,7 @@ class ServerGeneration(unittest.TestCase):
                               'uuid': '11111111-1111-4111-8111-111111111111',
                               'hysteria_up_mbps': '20', 'hysteria_down_mbps': '30',
                               'hysteria_obfs_password': 'retained-obfs-secret',
+                              'hysteria_masquerade': 'https://fixture.invalid/',
                               'shadowsocks_encrypt_method': 'aes-128-gcm', 'tls': '1',
                               'tls_cert_path': str(cert), 'tls_key_path': str(key),
                               'transport': transport, 'grpc_servicename': 'fixture',
@@ -59,6 +60,10 @@ export function cursor() { return {
                     inbound = config['inbounds'][0]
                     self.assertEqual(inbound['type'], protocol)
                     self.assertEqual(inbound['listen_port'], 15443)
+                    if protocol == 'hysteria2':
+                        self.assertEqual(inbound['masquerade'], server['hysteria_masquerade'])
+                    else:
+                        self.assertNotIn('masquerade', inbound)
                     if transport:
                         self.assertEqual(inbound['transport']['type'], transport)
                     if os.environ.get('SING_BOX_CHECK'):

@@ -162,11 +162,11 @@ uci.foreach(uciconfig, uciserver, (cfg) => {
 			type: cfg.hysteria_obfs_type,
 			password: cfg.hysteria_obfs_password
 		} : null) : cfg.hysteria_obfs_password;
-		inbound.masquerade = cfg.hysteria_masquerade;
 		if (cfg.type === 'hysteria') {
 			user.auth = (cfg.hysteria_auth_type === 'base64') ? cfg.hysteria_auth_payload : null;
 			user.auth_str = (cfg.hysteria_auth_type === 'string') ? cfg.hysteria_auth_payload : null;
 		} else {
+			inbound.masquerade = cfg.hysteria_masquerade;
 			inbound.ignore_client_bandwidth = strToBool(cfg.hysteria_ignore_client_bandwidth);
 			user.password = cfg.password;
 		}

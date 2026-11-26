@@ -118,7 +118,9 @@ return view.extend({
 		radios.forEach(function(r) {
 			var id = r['.name'], band = r.band, prefix = 'wifi7-' + id + '-';
 			var c = cells[id] = {};
-			var badge = c.state = E('span', { 'class': 'wifi7-status-badge' }, '—');
+			c.arrow = E('span', { 'class': 'wifi7-status-arrow', 'aria-hidden': 'true' });
+			c.status = E('span', {}, '—');
+			var badge = c.state = E('span', { 'class': 'wifi7-status-badge' }, [c.arrow, c.status]);
 			var header = E('div', { 'class': 'wifi7-card-header' }, [
 				E('div', { 'class': 'wifi7-card-title' }, [
 					E('span', { 'class': 'wifi7-band-name' }, names[band] || id),
@@ -436,19 +438,8 @@ return view.extend({
 				previous = nextPrevious;
 				parsed.hostapd.forEach(function(h) { var r = radioFor(h.socket, h.freq), u = telemetry.utilization(h.chan_util_avg); if (r && u != null) stats[r].util = u; });
 				radios.forEach(function(r) {
-					var id = r['.name'], s = stats[id], c = cells[id], d = runtimeRadios[id];
-					var isUp = d && d.up;
-					var isDis = d && !d.up;
-					// The error path clears the badge; recreate its children only then or on first load.
-					if (!c.state.firstElementChild)
-						c.state.replaceChildren(E('span', { 'class': 'wifi7-status-arrow', 'aria-hidden': 'true' }), E('span'));
-					text(c.state.firstElementChild, d ? (isUp ? '↑' : '↓') : '—');
-					text(c.state.lastElementChild, d ? (isUp ? _('Enabled') : _('Disabled')) : _('Unknown'));
-					var className = 'wifi7-status-badge' + (isUp ? ' wifi7-badge-up' : isDis ? ' wifi7-badge-disabled' : '');
-					if (c.state.className !== className) c.state.className = className;
-					text(c.util, s.util == null ? '—' : s.util + '%');
-					text(c.channel, s.current && s.current.channel ? s.current.channel + ' / ' + (s.current.width || '—') : '—');
-					text(c.power, s.current && s.current.txpower != null ? s.current.txpower + ' dBm' : '—');
+					var id = r['.name'], d = runtimeRadios[id];
+					paintRadio(cells[id], d ? d.up : null, stats[id]);
 				});
 				var state = telemetry.dfs(parsed.hostapd);
 				var remaining = parsed.hostapd.filter(function(h) { return telemetry.band(h.freq) === '5g' && h.state === 'DFS'; }).map(function(h) { return /^\d+$/.test(h.cac_time_left_seconds || '') ? Number(h.cac_time_left_seconds) : null; });
@@ -459,9 +450,9 @@ return view.extend({
 			}).catch(function() {
 				if (!root || !root.isConnected) return;
 				previous = Object.create(null);
-				notice.textContent = _('Telemetry update failed');
-				Object.keys(cells).forEach(function(id) { Object.keys(cells[id]).forEach(function(k) { cells[id][k].textContent = '—'; }); });
-				dfs.textContent = _('Unknown');
+				text(notice, _('Telemetry update failed'));
+				Object.keys(cells).forEach(function(id) { paintRadio(cells[id], null); });
+				text(dfs, _('Unknown'));
 				clientCache = { rows: [], empty: _('Client data unavailable') };
 				if (activeTab === 3) renderClients();
 			}).finally(function() { busy = null; });
@@ -470,6 +461,16 @@ return view.extend({
 		var clientSummary = E('div', { 'class': 'cbi-section-descr' });
 		function text(node, value) {
 			if (node.textContent !== value) node.textContent = value;
+		}
+		function paintRadio(c, up, stats) {
+			text(c.arrow, up === true ? '↑' : up === false ? '↓' : '—');
+			text(c.status, up === true ? _('Enabled') : up === false ? _('Disabled') : _('Unknown'));
+			var cls = 'wifi7-status-badge' + (up === true ? ' wifi7-badge-up' : up === false ? ' wifi7-badge-disabled' : '');
+			if (c.state.className !== cls) c.state.className = cls;
+			var current = stats && stats.current;
+			text(c.util, !stats || stats.util == null ? '—' : stats.util + '%');
+			text(c.channel, current && current.channel ? current.channel + ' / ' + (current.width || '—') : '—');
+			text(c.power, current && current.txpower != null ? current.txpower + ' dBm' : '—');
 		}
 		function renderClients() {
 			var groups = {};

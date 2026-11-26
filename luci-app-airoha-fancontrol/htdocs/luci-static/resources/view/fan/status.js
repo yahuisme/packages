@@ -65,12 +65,12 @@ function summaryData(status) {
 	];
 }
 
-function renderSummary(status) {
+function renderSummary(status, failed) {
 	return E('div', { 'class': 'fan-summary-grid' }, summaryData(status).map(function(card) {
 		return E('div', { 'id': card.id, 'class': 'fan-summary-card' }, [
 			E('div', { 'class': 'fan-card-title' }, card.title),
 			E('div', { 'class': 'fan-card-value' }, card.value),
-			E('div', { 'class': 'fan-card-sub' }, card.sub)
+			E('div', { 'class': 'fan-card-sub' }, failed ? _('Read failed') : card.sub)
 		]);
 	}));
 }
@@ -133,7 +133,7 @@ function updateView(viewEl, status, failed) {
 
 return view.extend({
 	load: function() {
-		return callFanStatus().catch(function() { return {}; });
+		return callFanStatus().catch(function() { return null; });
 	},
 
 	render: function(data) {
@@ -142,7 +142,7 @@ return view.extend({
 			E('style', {}, statusCSS),
 			E('h2', {}, _('Airoha Fan Status')),
 			E('div', { 'class': 'cbi-map-descr' }, _('View fan speed and system temperatures.')),
-			renderSummary(status),
+			renderSummary(status, data == null),
 			E('div', { 'class': 'fan-panel' }, [
 				E('h3', { 'class': 'fan-panel-title cbi-section-title' }, _('Temperatures')),
 				E('div', { 'class': 'fan-temp-grid' }, [

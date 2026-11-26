@@ -36,6 +36,12 @@ source+=`(async()=>{
   const retry=[...notification.querySelectorAll('button')].find(n=>n.textContent===w._('Refresh current state'));
   assert(retry,'warning provides an explicit read-only recovery action');
   const writes=calls.filter(n=>/^(saveSettings|applySettings)$/.test(n)).length;
+  if(fault!=='acceleration') {
+   assert(input('hardware').disabled,'unverified staging must lock edits even with known acceleration');
+   await mods.app.handleSaveApply();
+   assert.equal(calls.filter(n=>/^(saveSettings|applySettings)$/.test(n)).length,writes,
+    'a second click cannot overwrite staging while the pending state is unknown');
+  }
   // Recovery must work with write permission revoked and perform reads only.
   writable=false;retry.click();await settle();await settle();
   assert.equal(calls.filter(n=>/^(saveSettings|applySettings)$/.test(n)).length,writes);
@@ -96,6 +102,44 @@ source+=`(async()=>{
   await mods.app.handleSaveApply();assert.equal(desired.hardware,-1,'successful acceleration group must not be applied again');assert.equal(staged,null);
   mods.request.post=originalPost;
  }
+ // Drop a reply only after the real backend or fixture has accepted the write.
+ // Another session can stage new settings before this page recovers.
+ for(const method of ['saveSettings','applySettings']) {
+  const own=method.toLowerCase()+'-lost.example', other=method.toLowerCase()+'-other.example';
+  const committed=(await mods.app.load())[0].monitor.target;
+  edit('target',own);
+  let lost=false;
+  mods.request.post=async(url,req)=>{
+   const response=await originalPost(url,req);
+   if(lost||Array.isArray(req)||req.params[2]!==method)return response;
+   assert.equal((await response.json()).result[1].success,true,'the write actually succeeded before its reply was lost');
+   const [session,object]=req.params;
+   const next=await originalPost(url,{...req,params:[session,object,'saveSettings',
+     {hardware:-1,vlan:-1,pppoe:-1,ap:-1,target:other,enabled:1}]});
+   assert.equal((await next.json()).result[1].success,true);
+   lost=true;
+   throw Error('fixture drops the reply after the backend write');
+  };
+  if(method==='saveSettings')await mods.app.handleSave();else await mods.app.handleSaveApply();
+  mods.request.post=originalPost;
+  assert(lost);
+  assert(input('target').disabled,method+' reply lost: editing must stay locked until a fresh read');
+  assert(input('hardware').disabled);
+  assert(notification.closest('.alert-message').classList.contains('error'));
+  assert(!notification.textContent.includes(w._('Settings saved and applied.')));
+  const retry=notification.querySelector('button');assert(retry);
+  const start=calls.length;
+  await mods.app.handleSave();await mods.app.handleSaveApply();await mods.app.handleReset();
+  assert.equal(calls.length,start,'an uncertain response must not permit replay');
+  retry.click();await settle();await settle();
+  assert.deepEqual(calls.slice(start),['getSettings','getAcceleration']);
+  assert.equal(input('target').value,other,'keep the newer pending record');
+  assert(!input('target').disabled);
+  const state=(await mods.app.load())[0];
+  assert.equal(state.pending.target,other);
+  assert.equal(state.monitor.target,method==='applySettings'?own:committed);
+ }
+ console.log('PASS lost Save/Apply replies never overwrite newer pending settings'+(errorTest?' Chinese':''));
  console.log('PASS '+cases+' confirmed Apply refresh warning/read-only recovery cases'+(process.env.MONITOR_RPC?' with real BusyBox/jshn/UCI':' plus partial failure completion'));w.close();
 })().catch(e=>{console.error(e);w.close();process.exitCode=1});`;
 const m=new Module(file,module);m.filename=file;m.paths=Module._nodeModulePaths(__dirname);m._compile(source,file);

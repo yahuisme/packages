@@ -406,7 +406,7 @@ class Backend(unittest.TestCase):
         for p in paths:
             p.parent.mkdir(parents=True, exist_ok=True)
         values = [None, b'', b'500000', b'500000\n', b'500000\n\n',
-                  b'500000\n600000', b'\n500000\n', b'0-1\n4-5\n',
+                  b'500000\n600000', b'500000\n\n600000\n', b'\n500000\n', b'0-1\n4-5\n',
                   b' schedutil\t\\test\r\nmore\n', b'bad"\\\x01\tend']
         for content in values:
             with self.subTest(content=content):
@@ -418,15 +418,27 @@ class Backend(unittest.TestCase):
                                           input=b'{}', env=self.env, capture_output=True, check=True)
                 expected, actual = run(oracle), run(BACKEND)
                 self.assertEqual(actual.stdout, expected.stdout)
-                # One cat still consumes RPC stdin; none may read status files.
                 cats = re.findall(rb'^\++ cat(?: |$)', actual.stderr, re.M)
-                self.assertEqual(len(cats), 1, 'six status file reads must use shell builtins')
+                self.assertEqual(cats, [], 'getStatus needs neither input parsing nor external file reads')
+
+    def test_status_rejects_broken_cpu_ranges_without_losing_other_fields(self):
+        online = self.root / 'sys/devices/system/cpu/online'
+        for value, expected in [('0-3', 4), ('0-1,4,6-7', 5), ('', None),
+                                ('0-08', None), ('01', None), ('0-01', None), ('-1', None), ('0-', None),
+                                ('0-1,1-2', None), ('2,0-1', None),
+                                ('0-999999999999999999999', None)]:
+            with self.subTest(value=value):
+                online.write_text(value + '\n')
+                data = self.call('getStatus')
+                self.assertEqual(data['cpu_count'], expected)
+                self.assertEqual(data['cpu_cur_freq'], 500000)
+                self.assertEqual(data['cpu_governor'], 'schedutil')
 
     def test_cpu_online_count_matches_previous_awk(self):
-        # Freeze the per-poll awk pass this replaced; the shell path must agree
-        # on every single-line value read_word can hand it.
+        # Freeze the per-poll awk pass this replaced for Linux's canonical
+        # decimal outputs and the malformed formats both readers reject.
         source = BACKEND.read_text()
-        counter = source[source.index('cpu_count() {'):source.index('get_status() {')]
+        counter = source[source.index('cpu_index() {'):source.index('get_status() {')]
         awk = ("printf '%s\\n' \"$1\" | awk '/^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$/ "
                "{ n=split($0,a,\",\"); for(i=1;i<=n;i++) { k=split(a[i],b,\"-\"); "
                "if(k==2 && b[2]<b[1]) exit; count+=k==2?b[2]-b[1]+1:1 } print count; ok=1 } "
@@ -436,7 +448,7 @@ class Backend(unittest.TestCase):
         self.assertNotRegex(status_src, r'\$\(\s*read_word\b',
                             'status fields must be read in place, not captured')
         self.assertNotIn('awk', counter, 'the per-poll counter must not spawn awk')
-        for value in ['', '0', '0-3', '0-1,4,6-7', '4-4', '5-3', '01', '0-01', ',', ',,',
+        for value in ['', '0', '0-3', '0-1,4,6-7', '4-4', '5-3', ',', ',,',
                       '0,', ',0', '0,,1', '3,,4', '-', '0-', '-1', '0--1', '0-1-2', '1,2,3',
                       'a', '0 1', ' 0-1', '999', '0-0', '7-9', '0-9,10-19']:
             with self.subTest(value=value):

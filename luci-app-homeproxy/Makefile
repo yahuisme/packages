@@ -21,7 +21,7 @@ LUCI_EXTRA_DEPENDS:=sing-box (>=1.14.0)
 
 PKG_NAME:=luci-app-homeproxy
 PKG_VERSION:=20261126
-PKG_RELEASE:=4
+PKG_RELEASE:=5
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 LUCI_MAINTAINER:=yahuisme <40222380+yahuisme@users.noreply.github.com>
 

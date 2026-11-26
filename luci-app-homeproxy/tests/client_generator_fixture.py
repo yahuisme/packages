@@ -24,8 +24,9 @@ class ClientGenerator:
         self.run = self.root / 'run'
         for path in (self.hp / 'diversion', self.hp / 'resources', self.run):
             path.mkdir(parents=True, exist_ok=True)
-        for path in (APP / 'root/etc/homeproxy/resources').glob('*.srs'):
-            (self.hp / 'resources' / path.name).write_bytes(path.read_bytes())
+        resources = Path(os.environ.get('HOMEPROXY_TEST_RESOURCES', APP / 'root/etc/homeproxy/resources'))
+        for name in ('geoip_cn.srs', 'geosite_cn.srs'):
+            (self.hp / 'resources' / name).write_bytes((resources / name).read_bytes())
         validator = self.root / 'validate'
         validator.write_text('''#!/usr/bin/python3
 import ipaddress, sys

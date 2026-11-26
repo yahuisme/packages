@@ -275,7 +275,8 @@ export function reconcileUrltestNodes(uci, config, logger) {
 			log(sprintf('URLTest node %s is unavailable; removing it from %s.%s.', node, section, option));
 		});
 
-		if (sprintf('%J', normalized) !== sprintf('%J', available)) {
+		// The filter only removes entries and preserves order and values.
+		if (length(normalized) !== length(available)) {
 			if (length(available))
 				uci.set(config, section, option, available);
 			else

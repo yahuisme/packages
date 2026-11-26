@@ -78,8 +78,9 @@ version and both resource versions and Git blobs match, it skips the binary
 download and publication. Otherwise, it downloads only missing or changed SRS
 bytes and runs the SRS/schema smoke checks. When the stable core changes, it
 prepares the pinned OpenWrt tools and runs `check-core-compatibility.py` against
-that exact digest-verified candidate before publishing any new bytes. The gate
-checks the installed-default config shared by both sing-box variants, and reuses
+that exact digest-verified candidate and the staged rule sets before publishing
+any new bytes. The gate checks the default config shared by both sing-box
+variants and reuses
 native client/server generation, ACME DNS-01 provider switches, explicit
 DNS/ECH address-family policy, routing, URLTest, UoT/multiplex and retained
 Hysteria obfuscation suites with `SING_BOX_CHECK`, plus the DNS fallback and NTP

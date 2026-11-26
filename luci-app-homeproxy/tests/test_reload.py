@@ -221,7 +221,7 @@ config_get() {
 config_get_bool() {
  case "$2.$3:$MODE" in server.enabled:server|server.enabled:both|config.dashboard_enabled:*) eval "$1=1";; *) eval "$1=0";; esac
 }
-sync_subscription_cron() { :; }
+sync_subscription_cron() { printf 'cron:%s\n' "$1" >> "$ROOT/events"; }
 procd_lock() { :; }
 procd_kill() { printf 'kill\n' >> "$ROOT/events"; }
 procd_open_service() { INSTANCES=''; }
@@ -296,6 +296,15 @@ exit $?
                     self.assertEqual(path.stat().st_ino, log_inodes[path], (fault, path))
             self.assertNotIn('kill', events)
             self.assertEqual(events.count('prepare'), 2 if cycle else 1, events)
+            cron = [event for event in events if event.startswith('cron:')]
+            if not fault or expect_disabled_cleanup:
+                self.assertEqual(cron, ['cron:0', 'cron:1'] if cycle else
+                                 ['cron:1' if mode in ('client', 'both') else 'cron:0'], events)
+                for index, event in enumerate(events):
+                    if event.startswith('cron:'):
+                        self.assertTrue(events[index - 1].startswith('ubus:'), events)
+            else:
+                self.assertEqual(cron, [], events)
             if expect_disabled_cleanup:
                 self.assertEqual(result.returncode, 0, (fault, events))
                 self.assertFalse(any(run.glob('sing-box-*.json')))

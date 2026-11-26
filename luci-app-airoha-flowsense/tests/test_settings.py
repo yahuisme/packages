@@ -352,6 +352,8 @@ esac
         self.assertIn('PASS 4 confirmed Apply refresh warning/read-only recovery cases with real BusyBox/jshn/UCI', result.stdout)
         self.assertIn('PASS newly verified Save survives old completion mask and read-only refresh\n', result.stdout)
         self.assertIn('PASS newly verified Save survives old completion mask and read-only refresh Chinese\n', result.stdout)
+        self.assertIn('PASS lost Save/Apply replies never overwrite newer pending settings\n', result.stdout)
+        self.assertIn('PASS lost Save/Apply replies never overwrite newer pending settings Chinese\n', result.stdout)
 
     def test_vlan_ap_native_form_preserves_intent(self):
         import os

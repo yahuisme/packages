@@ -233,6 +233,37 @@ print(sprintf('%J',results));'''
         self.assertEqual(results[1]['after']['state']['main_node'], 'nil')
         self.assertEqual(results[4]['after']['state']['main_urltest_nodes'], ['n1'])
 
+    def test_urltest_reconciliation_avoids_serializing_lists(self):
+        helper = (BASE / 'homeproxy.uc').read_text()
+        current = helper[helper.index('export function isEmpty'):helper.index('export function strToBool')].replace('export function', 'function')
+        # Only instrument the list comparison, not the diagnostics using sprintf.
+        oracle_comparison = "sprintf('%J', normalized) !== sprintf('%J', available)"
+        legacy = current.replace('length(normalized) !== length(available)', oracle_comparison)
+        source = '''let encodes=0;
+function encode(format, value) { encodes++; return sprintf(format,value); }
+function run(reconcile, value) {
+ let writes=[],logs=[],state={main_urltest_nodes:value,main_node:'urltest'};
+ const uci={get:(c,s,o)=>o?state[o]:(s in ['a','b']?'node':null),
+ get_first:()=> 'a', foreach:()=>null,
+ set:(c,s,o,v)=>{push(writes,['set',o,v]);state[o]=v;},
+ delete:(c,s,o)=>{push(writes,['delete',o]);delete state[o];}};
+ encodes=0;
+ const result=reconcile(uci,'homeproxy',(message)=>push(logs,message));
+ return {result,state,writes,logs,encodes};
+}
+'''
+        source += current.replace("sprintf('%J',", "encode('%J',")
+        start = legacy.index('function reconcileUrltestNodes')
+        source += legacy[start:].replace('function reconcileUrltestNodes','function legacy').replace("sprintf('%J',", "encode('%J',")
+        source += '''let rows=[];
+for (let value in [null,'','nil','a','gone',['b','a'],['a','a'],['b','gone','a'],['nil','',null]])
+ push(rows,[run(legacy,value),run(reconcileUrltestNodes,value)]);
+print(sprintf('%J',rows));'''
+        for before, after in self.run_ucode('urltest-list-comparison', source):
+            self.assertEqual(before.pop('encodes'), 2)
+            self.assertEqual(after.pop('encodes'), 0)
+            self.assertEqual(before, after)
+
 
 if __name__ == '__main__':
     unittest.main()

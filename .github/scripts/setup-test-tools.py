@@ -23,10 +23,16 @@ WHEEL = ('https://files.pythonhosted.org/packages/d9/5e/813b8aa30445ecffeeba3552
 
 
 def download(url, digest, target):
-    if not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest() != digest:
-        urllib.request.urlretrieve(url, target)
-    if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+    if target.is_file() and file_sha256(target) == digest:
+        return
+    urllib.request.urlretrieve(url, target)
+    if file_sha256(target) != digest:
         raise RuntimeError('SHA256 mismatch: ' + url)
+
+
+def file_sha256(path):
+    with path.open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
 def digest_package(machine):

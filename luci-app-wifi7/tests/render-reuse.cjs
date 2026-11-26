@@ -56,8 +56,17 @@ async function radio() {
   h.mods['wifi7.telemetry'].parse = () => { throw Error('fixture processing failure'); };
   await h.poll();
   assert.equal(h.q('.wifi7-notice').textContent, 'Telemetry update failed');
-  assert(badges.every(n => n.textContent === '—'));
+  for (let i = 0; i < badges.length; i++) {
+  assert.equal(badges[i].textContent, '—Unknown');
+  assert.equal(badges[i].className, 'wifi7-status-badge', 'processing failure clears the previous enabled color');
+  assert.equal(badges[i].firstElementChild, children[i][0], 'processing failure reuses the ARIA-hidden arrow');
+ }
   assert([...h.node.querySelectorAll('.wifi7-card .wifi7-value')].every(n => n.textContent === '—'));
+  records.length = 0;
+  observer.observe(h.node, { subtree: true, childList: true, characterData: true, attributes: true });
+  await h.poll();
+  observer.disconnect();
+  assert.equal(records.length, 0, 'an unchanged processing failure does not repaint the DOM');
   h.mods['wifi7.telemetry'].parse = parse;
   await h.poll();
   assert.equal(h.node.outerHTML, before, 'processing failure restores markup including ARIA');

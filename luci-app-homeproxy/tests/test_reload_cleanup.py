@@ -157,6 +157,7 @@ homeproxy_close_service(){ :; }
 homeproxy_prepare_runtime(){ :; }
 dnsmasq_discover(){ DNSMASQ_DIR=''; DNSMASQ_INCLUDE=''; }
 config_foreach() { :; }
+sync_subscription_cron() { :; }
 chown(){ :; }
 log(){ :; }
 _homeproxy_start_service(){

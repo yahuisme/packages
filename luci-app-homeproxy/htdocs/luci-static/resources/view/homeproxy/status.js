@@ -20,6 +20,7 @@ const callConnStat = rpc.declare({
 	object: 'luci.homeproxy',
 	method: 'connection_check',
 	params: ['site'],
+	reject: true,
 	expect: { '': {} }
 });
 const callLogRead = rpc.declare({

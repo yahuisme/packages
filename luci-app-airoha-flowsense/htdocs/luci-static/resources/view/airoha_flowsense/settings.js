@@ -106,7 +106,7 @@ return view.extend({
 			return true;
 		}
 		self.resetSettings = function() {
-			if (!root.isConnected || !L.hasViewPermission() || settingsBusy()) return;
+			if (!root.isConnected || !L.hasViewPermission() || settingsBusy() || !settingsReady) return;
 			dirty = false; accelerationDirty = {};
 			paintAcceleration(accelerationState, true);
 			paintMonitor();
@@ -134,15 +134,17 @@ return view.extend({
 			return self.load().then(function(data) {
 				if (!root.isConnected) return;
 				var ready = !!(data[0] && data[0].success === true);
-				if (ready) { settingsReady = true; baseline = remaining(data[0].pending); }
+				settingsReady = ready;
+				baseline = ready ? remaining(data[0].pending) : null;
 				dirty = false; accelerationDirty = {};
 				paint(data[0]); paintAcceleration(data[1], true);
-				if (!ready || !monitorState || !data[1]) ui.addNotification(null, refreshWarning(data[0] && data[0].error), 'warning');
+				if (!ready || !monitorState || !data[1])
+					ui.addNotification(null, E('p', {}, [settingsError(data[0] && data[0].error || 'read'), ' ', refreshAction()]), 'warning');
 				else ui.addNotification(null, E('p', {}, _('Current state refreshed.')), 'info');
 			}).finally(function() { accelerationSaving = false; if (root.isConnected) lockAcceleration(); });
 		};
 		self.saveSettings = function(apply) {
-			if (!settingsReady || !root.isConnected || !L.hasViewPermission() || settingsBusy()) return Promise.resolve();
+			if (!root.isConnected || !L.hasViewPermission() || settingsBusy() || !settingsReady) return Promise.resolve();
 			if (baseline && (accelerationKeys.some(function(key) { return baseline[key] !== -1 && !editable(key); }) || baseline.enabled !== -1 && !monitorState)) {
 				ui.addNotification(null, E('p', {}, _('Unable to verify saved settings.')), 'error');
 				return Promise.resolve();
@@ -163,32 +165,44 @@ return view.extend({
 			var monitorChanged = monitorState && (baseline && baseline.enabled !== -1 || target.value.trim() !== monitorState.target || enabled.checked !== monitorState.enabled);
 			desired.target = monitorChanged ? target.value.trim() : '';
 			desired.enabled = monitorChanged ? +enabled.checked : -1;
-			var failureMessage = settingsError();
+			var failureMessage = settingsError(), previousCompletion = completed;
 			function fail(message) { failureMessage = message; throw new Error(message); }
 			accelerationSaving = true; lockAcceleration();
 			return Promise.resolve().then(function() {
 				if (!root.isConnected || !L.hasViewPermission()) fail(_('Unable to save settings.'));
+				// A lost reply cannot tell us whether staging was replaced.
+				settingsReady = false;
+				completed = null;
 				return saveSettings.apply(null, values.concat([desired.target, desired.enabled]));
 			}).then(function(result) {
-				if (!result || result.success !== true) fail(settingsError(result && result.error));
+				if (result && result.success === false) {
+					settingsReady = true;
+					completed = previousCompletion;
+					fail(settingsError(result.error));
+				}
+				if (!result || result.success !== true) fail(settingsError());
 				return getSettings();
 			}).then(function(result) {
 				if (!result || result.success !== true || !result.pending || !Object.keys(desired).every(function(key) { return result.pending[key] === desired[key]; }))
 					fail(result && result.error ? settingsError(result.error) : _('Unable to verify saved settings.'));
-				completed = null;
+				settingsReady = true;
 				baseline = result.pending; dirty = false; accelerationDirty = {};
 				if (!apply) { ui.addNotification(null, E('p', {}, _('Settings saved; not yet applied.')), 'info'); return; }
 				if (!root.isConnected || !L.hasViewPermission()) fail(_('Unable to save settings.'));
+				settingsReady = false;
 				return applySettings(JSON.stringify(desired)).then(function(result) {
+					if (!result || typeof result.success !== 'boolean') fail(settingsError());
 					// applySettings already verified live writes. Independent reads
 					// cannot undo that commit boundary, including partial completion.
-					completed = { desired: desired, acceleration: result && result.acceleration === 'applied', monitor: result && result.monitor === 'applied' };
+					completed = { desired: desired, acceleration: result.acceleration === 'applied', monitor: result.monitor === 'applied' };
 					baseline = remaining(baseline);
 					return Promise.all([getAcceleration(), getSettings()].map(function(request) { return request.catch(function() { return null; }); })).then(function(data) {
 						if (!root.isConnected) return;
-						var checkpoint = result && result.error === 'storage' && (completed.acceleration || completed.monitor);
-						var refreshed = !!(data[1] && data[1].success === true && data[0]);
-						if (data[1] && data[1].success === true) baseline = remaining(data[1].pending);
+						var checkpoint = result.error === 'storage' && (completed.acceleration || completed.monitor);
+						// Don't let another click replace a pending record we could not read.
+						settingsReady = !!(data[1] && data[1].success === true);
+						baseline = settingsReady ? remaining(data[1].pending) : null;
+						var refreshed = settingsReady && !!data[0];
 						paintAcceleration(data[0], true); paint(data[1]);
 						var accOK = accelerationKeys.every(function(key) { return desired[key] === -1 || editable(key) && accelerationState[key].configured === !!desired[key] && accelerationState[key].enabled === !!desired[key]; });
 						var monOK = desired.enabled === -1 || monitorState && monitorState.target === desired.target && monitorState.enabled === !!desired.enabled;
@@ -199,21 +213,21 @@ return view.extend({
 								_('Probe Settings') + ': ' + (result.monitor === 'applied' ? _('Applied') : result.monitor === 'unchanged' && monOK ? _('Unchanged') : _('Not verified; check current settings.')), ' ', !refreshed ? refreshAction() : ''
 							]), 'warning'); return;
 						}
-						if (result && result.error) fail(settingsError(result.error));
-						if (result && result.success === true && (!refreshed || !accOK || !monOK || baseline)) {
+						if (result.error) fail(settingsError(result.error));
+						if (result.success && (!refreshed || !accOK || !monOK || baseline)) {
 							ui.addNotification(null, refreshWarning(data[1] && data[1].error), 'warning'); return;
 						}
-						if (!result || result.success !== true) {
+						if (!result.success) {
 							ui.addNotification(null, E('p', {}, [
-								_('Acceleration') + ': ' + (result && result.acceleration === 'unchanged' && accOK ? _('Unchanged') : result && result.acceleration === 'applied' ? _('Applied') : _('Not verified; check current settings.')) + (result && result.acceleration_error ? ' (' + settingsError(result.acceleration_error) + ')' : '') + '; ' +
-								_('Probe Settings') + ': ' + (result && result.monitor === 'unchanged' && monOK ? _('Unchanged') : result && result.monitor === 'applied' ? _('Applied') : _('Not verified; check current settings.')) + (result && result.monitor_error ? ' (' + settingsError(result.monitor_error) + ')' : ''), ' ', !refreshed ? refreshAction() : ''
+								_('Acceleration') + ': ' + (result.acceleration === 'unchanged' && accOK ? _('Unchanged') : result.acceleration === 'applied' ? _('Applied') : _('Not verified; check current settings.')) + (result.acceleration_error ? ' (' + settingsError(result.acceleration_error) + ')' : '') + '; ' +
+								_('Probe Settings') + ': ' + (result.monitor === 'unchanged' && monOK ? _('Unchanged') : result.monitor === 'applied' ? _('Applied') : _('Not verified; check current settings.')) + (result.monitor_error ? ' (' + settingsError(result.monitor_error) + ')' : ''), ' ', !refreshed ? refreshAction() : ''
 							]), 'error'); return;
 						}
 						ui.addNotification(null, E('p', {}, _('Settings saved and applied.')), 'info');
 					});
 				});
 			}).catch(function() {
-				if (root.isConnected) ui.addNotification(null, E('p', {}, [failureMessage]), 'error');
+				if (root.isConnected) ui.addNotification(null, E('p', {}, [failureMessage, !settingsReady ? ' ' : '', !settingsReady ? refreshAction() : '']), 'error');
 			}).finally(function() { accelerationSaving = false; if (root.isConnected) lockAcceleration(); });
 		};
 		function paint(data) {

@@ -90,13 +90,14 @@ function log_missing_quic(protocol, node) {
 /* String helper start */
 const invalid_filter_patterns = {};
 const filter_patterns = {};
+const patterns = type(filter_keywords) === 'string' && filter_keywords ? [filter_keywords] : filter_keywords;
 
 function filter_check(name) {
-	if (isEmpty(name) || filter_mode === 'disabled' || isEmpty(filter_keywords))
+	if (isEmpty(name) || filter_mode === 'disabled' || isEmpty(patterns))
 		return false;
 
 	let ret = false;
-	for (let i in filter_keywords) {
+	for (let i in patterns) {
 		if (invalid_filter_patterns[i])
 			continue;
 		let pattern = filter_patterns[i];
