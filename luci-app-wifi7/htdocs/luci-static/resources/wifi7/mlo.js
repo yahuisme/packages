@@ -112,7 +112,8 @@ function flattenRuntime(status) {
 }
 
 function fetchRuntime(readWireless) {
-	return (readWireless ? readWireless() : callWirelessDevices()).then(function(status) {
+	// The parent bounds its own refresh; a direct call needs the same guard.
+	return (readWireless ? readWireless() : telemetry.guard(callWirelessDevices())).then(function(status) {
 		if (!status || typeof status != 'object' || Array.isArray(status) || !Object.keys(status).length ||
 			Object.values(status).some(radio => !radio || typeof radio.up != 'boolean'))
 			throw new Error('Invalid wireless status');

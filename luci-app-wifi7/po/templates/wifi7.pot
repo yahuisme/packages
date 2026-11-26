@@ -9,7 +9,10 @@ msgstr ""
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "Language: \n"
 
-msgid "%d client associations"
+msgid "1 client"
+msgstr ""
+
+msgid "%d clients"
 msgstr ""
 
 msgid "Pending addition"

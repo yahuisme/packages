@@ -1,6 +1,8 @@
 #!/bin/sh
 # Read once on page load, not during periodic station polling.
 [ "$#" -eq 0 ] || exit 2
+[ -n "$PATH" ] || PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
 dmesg 2>/dev/null | awk '
     tolower($0) ~ /mt7996.*firmware.*version/ {
         sub(/^.*mt7996[^:]*:[[:space:]]*/, "")

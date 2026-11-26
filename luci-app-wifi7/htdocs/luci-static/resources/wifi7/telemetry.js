@@ -26,6 +26,20 @@ function errorText(error) {
 	}
 }
 
+// A stalled iw/hostapd child would otherwise keep the poll's in-flight promise
+// alive forever, freezing every later refresh without an error.
+function guard(promise) {
+	var timer;
+	return new Promise(function(resolve, reject) {
+		timer = window.setTimeout(function() { reject(new Error('Probe timeout')); }, 12000);
+		promise.then(function(value) {
+			window.clearTimeout(timer); resolve(value);
+		}, function(error) {
+			window.clearTimeout(timer); reject(error);
+		});
+	});
+}
+
 function band(frequency) {
 	var f = Number(frequency);
 	return f >= 2400 && f < 2500 ? '2g' : f >= 4900 && f < 5955 ? '5g' : f >= 5955 && f <= 7125 ? '6g' : null;
@@ -51,7 +65,7 @@ function dfs(states) {
 }
 
 function parse(raw) {
-	var out = { devices: Object.create(null), stations: Object.create(null), surveys: Object.create(null), hostapd: [], devicesOK: false };
+	var out = { devices: Object.create(null), stations: Object.create(null), surveys: Object.create(null), hostapd: [] };
 	var section = '', name = '', ok = false, device = null, link = null, station = null, record = null, status = null;
 	function flush() {
 		if (record && record.inUse && record.active != null && record.busy != null)
@@ -63,7 +77,6 @@ function parse(raw) {
 		if (marker) {
 			flush(); section = marker[1]; name = marker[2] || ''; ok = marker[3] === '0';
 			device = link = station = status = null;
-			if (section === 'devices') out.devicesOK = ok;
 			if (section === 'stations' && ok) out.stations[name] = [];
 			if (section === 'survey' && ok) out.surveys[name] = [];
 			if (section === 'hostapd' && ok) { status = { socket: name }; out.hostapd.push(status); }
@@ -102,4 +115,4 @@ function parse(raw) {
 	return out;
 }
 
-return baseclass.extend({ errorText: errorText, parse: parse, band: band, utilization: utilization, delta: delta, dfs: dfs });
+return baseclass.extend({ errorText: errorText, guard: guard, parse: parse, band: band, utilization: utilization, delta: delta, dfs: dfs });

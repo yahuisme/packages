@@ -2,6 +2,8 @@
 # Fixed read-only probe. No caller-supplied commands, paths or interfaces.
 # "summary" is the only accepted argument: it skips the per-station dump for
 # the 5s telemetry path. Everything else keeps the collector argument-free.
+[ -n "$PATH" ] || PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
 case "$#:$1" in
     0:) stations=1 ;;
     1:summary) stations= ;;

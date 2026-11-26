@@ -10,8 +10,11 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-msgid "%d client associations"
-msgstr "%d 个客户端关联"
+msgid "1 client"
+msgstr "1 个客户端"
+
+msgid "%d clients"
+msgstr "%d 个客户端"
 
 msgid "Pending addition"
 msgstr "待添加"

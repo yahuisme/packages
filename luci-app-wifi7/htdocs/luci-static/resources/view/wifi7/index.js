@@ -13,23 +13,31 @@ var assoc = rpc.declare({ object: 'iwinfo', method: 'assoclist', params: ['devic
 var info = rpc.declare({ object: 'iwinfo', method: 'info', params: ['device'], reject: true });
 var probe = rpc.declare({ object: 'file', method: 'exec', params: ['command', 'params'], reject: true });
 var frequencies = rpc.declare({ object: 'iwinfo', method: 'freqlist', params: ['device'], expect: { results: [] }, reject: true });
-var names = { '2g': '2.4 GHz', '5g': '5 GHz', '6g': '6 GHz' };
+var names = { '2g': '2.4 GHz', '5g': '5 GHz', '6g': '6 GHz' }, POWER_MAX = 30;
 
 function settled(promise) {
 	return promise.then(function(value) { return { ok: true, value: value }; }, function() { return { ok: false }; });
+}
+function integer(value) {
+	return /^(0|[1-9][0-9]*)$/.test(value || '');
 }
 function rate(value) {
 	var match = typeof value === 'string' && value.match(/^\s*([\d.]+)\s*Mbit\/s\b/i);
 	var mbits = match ? Number(match[1]) : value && typeof value === 'object' ? value.rate / 1000 : NaN;
 	return Number.isFinite(mbits) && mbits > 0 ? mbits.toFixed(1) + ' Mbit/s' : '—';
 }
+// Reports the link's own label and width; MLO summaries pick the widest one.
 function standard(value) {
+	var label = '—', width = null, bw;
 	if (typeof value === 'string') {
-		var tag = /EHT/.test(value) ? 'Wi-Fi 7' : /HE/.test(value) ? 'Wi-Fi 6' : /VHT/.test(value) ? 'Wi-Fi 5' : /HT/.test(value) ? 'Wi-Fi 4' : _('Legacy');
-		var bw = value.match(/(\d+)\s*MHz/);
-		return tag + (bw ? ' / ' + bw[1] + ' MHz' : '');
+		label = /EHT/.test(value) ? 'Wi-Fi 7' : /HE/.test(value) ? 'Wi-Fi 6' : /VHT/.test(value) ? 'Wi-Fi 5' : /HT/.test(value) ? 'Wi-Fi 4' : _('Legacy');
+		bw = value.match(/(\d+)\s*MHz/);
+		if (bw) width = Number(bw[1]);
+	} else if (value) {
+		label = value.eht ? 'Wi-Fi 7' : value.he ? 'Wi-Fi 6' : value.vht ? 'Wi-Fi 5' : value.ht ? 'Wi-Fi 4' : _('Legacy');
+		if (value.mhz) width = Number(value.mhz);
 	}
-	return value ? (value.eht ? 'Wi-Fi 7' : value.he ? 'Wi-Fi 6' : value.vht ? 'Wi-Fi 5' : value.ht ? 'Wi-Fi 4' : _('Legacy')) + (value.mhz ? ' / ' + value.mhz + ' MHz' : '') : '—';
+	return { label: width ? label + ' / ' + width + ' MHz' : label, width: width };
 }
 function select(id, values, current, labels) {
 	values = values.slice();
@@ -76,7 +84,7 @@ return view.extend({
 					return { id: r['.name'], result: result[0], capabilities: result[1] };
 				});
 			}));
-		}), settled(probe('/usr/libexec/wifi7-firmware', []))]);
+		}), settled(telemetry.guard(probe('/usr/libexec/wifi7-firmware', [])))]);
 	},
 	render: function(data) {
 		var radios = uci.sections('wireless', 'wifi-device');
@@ -138,7 +146,7 @@ return view.extend({
 			}) : [];
 			if (!r.htmode) modes.unshift('');
 			var width = select(prefix + 'width', modes, r.htmode);
-			var power = E('input', { id: prefix + 'power', name: prefix + 'power', type: 'number', min: '0', max: '30', step: '1', value: r.txpower || '', placeholder: _('Auto'), 'class': 'cbi-input-text wifi7-narrow-input' });
+			var power = E('input', { id: prefix + 'power', name: prefix + 'power', type: 'number', min: '0', max: String(POWER_MAX), step: '1', value: r.txpower || '', placeholder: _('Auto'), 'class': 'cbi-input-text wifi7-narrow-input' });
 			var country = E('input', { id: prefix + 'country', name: prefix + 'country', value: r.country || '', maxlength: '2', pattern: '[A-Za-z0-9]{2}', placeholder: _('Auto'), 'class': 'cbi-input-text wifi7-narrow-input' });
 			country.addEventListener('change', function() {
 				channel.value = controls.find(function(c) { return c.id === id; }).original.channel || 'auto';
@@ -146,7 +154,7 @@ return view.extend({
 			});
 			var box = E('div', { 'class': 'cbi-section-node wifi7-settings-card' }, [ E('h4', {}, id + (names[band] ? ' (' + names[band] + ')' : '')),
 				field(_('Enabled'), enabled), field(_('Operating Channel'), channel, choices.length ? _('Channels reported by the driver; current configuration is preserved.') : _('Channel discovery unavailable; only the current setting is preserved.')),
-				field(_('Bandwidth / Mode'), width), field(_('TX Power (dBm)'), power, _('0-%d dBm, leave empty for regulatory auto').format(30)), field(_('Country Code'), country, _('After changing country, apply and reload to refresh permitted channels.')) ]);
+				field(_('Bandwidth / Mode'), width), field(_('TX Power (dBm)'), power, _('0-%d dBm, leave empty for regulatory auto').format(POWER_MAX)), field(_('Country Code'), country, _('After changing country, apply and reload to refresh permitted channels.')) ]);
 			var powerNotice = E('p', { 'class': 'cbi-section-descr', hidden: true });
 			box.appendChild(powerNotice);
 			var radar = null;
@@ -171,7 +179,7 @@ return view.extend({
 		var download = E('button', { 'class': 'cbi-button', click: function() {
 			if (!window.confirm(_('Diagnostic output includes SSIDs and MAC addresses. Review before sharing. Continue?'))) return;
 			download.disabled = true;
-			return probe('/usr/libexec/wifi7-diagnostics', []).then(function(result) {
+			return telemetry.guard(probe('/usr/libexec/wifi7-diagnostics', [])).then(function(result) {
 				if (result.code !== 0 || !result.stdout) throw new Error(_('Diagnostic collection failed'));
 				var url = URL.createObjectURL(new Blob([result.stdout], { type: 'text/plain;charset=utf-8' }));
 				var anchor = E('a', { href: url, download: 'wifi7-diagnostics.txt' });
@@ -228,7 +236,7 @@ return view.extend({
 				if (c.missing) return false;
 				// Retain an unchanged integer-shaped legacy value without relaxing
 				// the 0–30 dBm contract for any new user input.
-				var legacyPower = /^(0|[1-9][0-9]*)$/.test(c.original.txpower || '') && c.power.value === c.original.txpower;
+				var legacyPower = integer(c.original.txpower) && c.power.value === c.original.txpower;
 				return !c.channel.reportValidity() || !legacyPower && !c.power.reportValidity() || !c.country.reportValidity();
 			})) return;
 			var changes = [];
@@ -308,7 +316,7 @@ return view.extend({
 			save.disabled = operation.pending || readonly;
 			controls.forEach(function(c) {
 				['enabled', 'channel', 'width', 'power', 'country', 'radar'].forEach(function(key) { if (c[key]) c[key].disabled = operation.pending || readonly || c.missing; });
-				var legacyPower = /^(0|[1-9][0-9]*)$/.test(c.original.txpower || '') && Number(c.original.txpower) > 30;
+				var legacyPower = integer(c.original.txpower) && Number(c.original.txpower) > POWER_MAX;
 				c.powerNotice.hidden = !legacyPower;
 				c.powerNotice.textContent = legacyPower ? _('Existing power outside 0–30 dBm is retained unchanged. Use Wireless to manage it, or enter a new value within this range.') : '';
 				c.channel.disabled = operation.pending || readonly || c.missing || c.country.value.toUpperCase() !== (c.original.country || '').toUpperCase();
@@ -323,10 +331,10 @@ return view.extend({
 			// before the map is mounted, so there is no entry-time DOM check.
 			if (busy) return busy;
 			busy = Promise.all([
-				settled(wireless()),
-				includeClients ? settled(devices().then(function(list) { return Promise.all(Array.from(new Set(list)).map(function(d) { return Promise.all([settled(assoc(d)), settled(info(d))]).then(function(r) { return { name: d, stations: r[0], info: r[1] }; }); })); })) : Promise.resolve({ ok: true, value: [] }),
-				settled(probe(includeClients ? '/usr/libexec/wifi7-status' : '/usr/libexec/wifi7-status-summary', [])),
-				Promise.all(radios.map(function(r) { return settled(info(r['.name'])); }))
+				settled(telemetry.guard(wireless())),
+				includeClients ? settled(telemetry.guard(devices().then(function(list) { return Promise.all(Array.from(new Set(list)).map(function(d) { return Promise.all([settled(assoc(d)), settled(info(d))]).then(function(r) { return { name: d, stations: r[0], info: r[1] }; }); })); }))) : Promise.resolve({ ok: true, value: [] }),
+				settled(telemetry.guard(probe(includeClients ? '/usr/libexec/wifi7-status' : '/usr/libexec/wifi7-status-summary', []))),
+				Promise.all(radios.map(function(r) { return settled(telemetry.guard(info(r['.name']))); }))
 			]).then(function(result) {
 				if (!root || !root.isConnected) return;
 				wirelessSnapshot = result[0];
@@ -389,9 +397,10 @@ return view.extend({
 						var s = merged[mac], linkIds = Object.keys(s.links || {});
 						function row(value, lid) {
 							var f = lid != null ? ((dev.links || {})[lid] || {}).frequency : linkIds.length ? null : frequency, b = telemetry.band(f);
+							var phy = standard(value.tx || value.rx);
 							rows.push({ clientKey: iface + '/' + mac, linkKey: lid == null ? 'station' : String(lid), ssid: ssids[iface] || '',
 								label: iface + (lid != null ? ' / MLO ' + lid : '') + ' (' + (names[b] || _('Unknown')) + ')', mac: mac,
-								standard: standard(value.tx || value.rx), signal: value.signal < 0 ? value.signal + ' dBm' : '—',
+								standard: phy.label, bandwidth: phy.width, signal: value.signal < 0 ? value.signal + ' dBm' : '—',
 								tx: rate(value.tx), rx: rate(value.rx), connected: s.connected != null ? s.connected + ' s' : '—' });
 						}
 
@@ -449,19 +458,21 @@ return view.extend({
 			clientCache.rows.forEach(function(row) { (groups[row.clientKey] || (groups[row.clientKey] = [])).push(row); });
 			var keys = Object.keys(groups);
 			if (!clientSummary.parentNode) clients.appendChild(clientSummary);
-			text(clientSummary, keys.length ? _('%d client associations').format(keys.length) : clientCache.empty);
+			text(clientSummary, keys.length ? (keys.length === 1 ? _('1 client') : _('%d clients').format(keys.length)) : clientCache.empty);
 			Object.keys(clientNodes).forEach(function(key) {
 				if (!groups[key]) { clientNodes[key].detail.remove(); delete clientNodes[key]; }
 			});
 			keys.forEach(function(key) {
 				var entries = groups[key], first = entries[0], node = clientNodes[key];
+				// Fold to the widest link; the first one may be the slowest band.
+				var primary = entries.reduce(function(best, entry) { return entry.bandwidth > best.bandwidth ? entry : best; });
 				if (!node) {
 					var summary = E('summary', { 'class': 'wifi7-client-summary' });
 					var detail = E('details', { 'class': 'cbi-section-node wifi7-client-details', 'data-client': key }, summary);
 					node = clientNodes[key] = { detail: detail, summary: summary, links: {} };
 					clients.appendChild(detail);
 				}
-				text(node.summary, first.mac + (first.ssid ? ' · ' + first.ssid : '') + ' · ' + first.standard + ' · ' + first.connected);
+				text(node.summary, first.mac + (first.ssid ? ' · ' + first.ssid : '') + ' · ' + primary.standard + ' · ' + first.connected);
 				var linkKeys = new Set(entries.map(function(row) { return row.linkKey; }));
 				Object.keys(node.links).forEach(function(key) {
 					if (!linkKeys.has(key)) { node.links[key].box.remove(); delete node.links[key]; }
@@ -516,7 +527,7 @@ return view.extend({
 			.wifi7-map .wifi7-info-row { display:flex; align-items:center; padding:8px 0; }
 			.wifi7-map .wifi7-info-label { width:160px; flex:0 0 160px; color:var(--cbi-muted-color,var(--text-muted,inherit)); }
 			.wifi7-map .wifi7-info-value { flex:1; min-width:0; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
-			.wifi7-map .wifi7-info-value .cbi-button,.wifi7-map .wifi7-save-bar .cbi-button { height:32px; padding:0 16px; margin:0; }
+			.wifi7-map .wifi7-save-bar .cbi-button { height:32px; padding:0 16px; margin:0; }
 			.wifi7-map .wifi7-narrow-input { width:104px !important; height:32px; font-variant-numeric:tabular-nums; }
 			.wifi7-map .wifi7-notice:empty { display:none; }
 			.wifi7-map > div > .cbi-button { height:32px; padding:0 16px; }
