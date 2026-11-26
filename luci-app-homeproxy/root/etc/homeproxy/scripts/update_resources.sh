@@ -110,7 +110,7 @@ verify_blob() {
 	ucode -l fs -l digest -e 'let s = fs.readfile(ARGV[0]); exit(s == null || digest.sha1("blob " + length(s) + "\u0000" + s) != ARGV[1]);' "$1" "$2"
 }
 
-# Resource task controls must survive init's recursive RUN_DIR service chown.
+# Keep task controls separate from runtime cleanup and retained legacy paths.
 JOB_DIR="${RUN_DIR}.resources"
 [ -d "$JOB_DIR" ] || mkdir -m 0700 "$JOB_DIR" || [ -d "$JOB_DIR" ] || exit 1
 ucode -l fs -e 'let s=fs.lstat(ARGV[0]), p=fs.stat(ARGV[1]); exit(s?.type != "directory" || s.uid != p?.uid);' "$JOB_DIR" "${JOB_DIR%/*}" || exit 1

@@ -38,6 +38,28 @@ log() {
 	printf '%s [DAEMON] %s\n' "$(date "+%Y-%m-%d %H:%M:%S")" "$*" >> "$LOG_PATH"
 }
 
+homeproxy_prepare_runtime() {
+	local file
+	# Only root may replace runtime entries. The server needs writable log
+	# bytes, not ownership of the parent, configs, locks or recovery copies.
+	[ ! -L "$RUN_DIR" ] || return 1
+	mkdir -p "$RUN_DIR" && chown root:root "$RUN_DIR" && chmod 755 "$RUN_DIR" || return 1
+	if [ -e "$RUN_DIR/latency-test" ] || [ -L "$RUN_DIR/latency-test" ]; then
+		[ -d "$RUN_DIR/latency-test" ] && [ ! -L "$RUN_DIR/latency-test" ] &&
+			chown root:root "$RUN_DIR/latency-test" && chmod 700 "$RUN_DIR/latency-test" || return 1
+	fi
+	for file in homeproxy.log sing-box-c.log sing-box-s.log; do
+		# After locking down the parent, discard old service-planted entries.
+		# Retain ordinary log inodes (and existing O_APPEND descriptors).
+		if [ -L "$RUN_DIR/$file" ] || { [ -e "$RUN_DIR/$file" ] &&
+			{ [ ! -f "$RUN_DIR/$file" ] || [ "$(stat -c %h "$RUN_DIR/$file")" != 1 ]; }; }; then
+			rm -f "$RUN_DIR/$file" || return 1
+		fi
+	done
+	: >> "$LOG_PATH" || return 1
+	chown root:root "$LOG_PATH" && chmod 644 "$LOG_PATH"
+}
+
 clear_firewall() {
 	: > "$RUN_DIR/fw4_input.nft" || return 1
 	fw4 reload >"/dev/null" 2>&1
@@ -194,7 +216,7 @@ sync_subscription_cron() {
 
 _homeproxy_start_service() {
 	local outbound_node server_enabled
-	mkdir -p "$RUN_DIR" || return 1
+	homeproxy_prepare_runtime || return 1
 	config_load "$CONF"
 	config_get outbound_node "config" "main_node" "nil"
 	config_get_bool server_enabled "server" "enabled" "0"
@@ -294,9 +316,15 @@ _homeproxy_start_service() {
 
 	case "$client_ready:$routing_mode" in
 	"1:bypass_mainland_china")
-		mkdir -p "$CACHE_DIR"
-		touch "$CACHE_PATH"
-		chown -R sing-box:sing-box "$CACHE_DIR"
+		# Only the root client uses this database; do not give its path to
+		# the server uid. Preserve an ordinary legacy database on upgrade.
+		[ ! -L "$CACHE_DIR" ] || return 1
+		mkdir -p "$CACHE_DIR" && chown root:root "$CACHE_DIR" && chmod 700 "$CACHE_DIR" || return 1
+		if [ -L "$CACHE_PATH" ] || { [ -e "$CACHE_PATH" ] &&
+			{ [ ! -f "$CACHE_PATH" ] || [ "$(stat -c %h "$CACHE_PATH")" != 1 ]; }; }; then
+			rm -f "$CACHE_PATH" || return 1
+		fi
+		touch "$CACHE_PATH" && chown root:root "$CACHE_PATH" && chmod 600 "$CACHE_PATH" || return 1
 		;;
 	esac
 
@@ -396,6 +424,11 @@ _homeproxy_start_service() {
 	[ "$client_ready" -eq 1 ] || [ "$server_ready" -eq 1 ] || return 1
 
 	if [ "$server_ready" -eq 1 ]; then
+		# Explicit server access, without transferring the runtime parent or
+		# unrelated client credentials/recovery material to the service uid.
+		touch "$RUN_DIR/sing-box-s.log" || return 1
+		chown sing-box:sing-box "$RUN_DIR/sing-box-s.log" "$RUN_DIR/sing-box-s.json" || return 1
+		chmod 600 "$RUN_DIR/sing-box-s.json" || return 1
 		# sing-box (server)
 		procd_open_instance "sing-box-s"
 
@@ -443,9 +476,6 @@ _homeproxy_start_service() {
 		chmod 750 "$HP_DIR/certs"
 	fi
 
-	# Update permissions for ujail
-	chown -R sing-box:sing-box "$RUN_DIR"
-
 	local sing_box_version
 	sing_box_version="$(sing-box version -n)"
 	if [ "$client_ready" -eq 1 ]; then
@@ -462,6 +492,7 @@ _homeproxy_start_service() {
 
 stop_service() {
 	local client_was_running=0 server_was_running=0 status=0
+	homeproxy_prepare_runtime || return 1
 	# stop/restart holds the same native procd lock; preserve unresolved recovery.
 	# The all-disabled setup calls stop_service inside an active transaction.
 	if [ "${HP_TRANSACTION:-0}" -ne 1 ] && [ -d "$RUN_DIR" ]; then
@@ -562,16 +593,18 @@ homeproxy_reload_phase() {
 homeproxy_transaction() {
 	local service_open="${1:-0}" HP_TRANSACTION=1 HP_CLIENT_STOPPED=0 HP_SERVER_STOPPED=0
 	local backup="$RUN_DIR/.reload.pending" file status=0 HP_CONFIG_CHANGED=0 HP_NETWORK_CHANGED=0
-	mkdir -p "$RUN_DIR" || return 1
+	homeproxy_prepare_runtime || return 1
 	# Configuration contains credentials; also tighten files from older installs.
 	for file in sing-box-c.json sing-box-s.json; do
 		if [ -e "$RUN_DIR/$file" ] || [ -L "$RUN_DIR/$file" ]; then
 			[ -f "$RUN_DIR/$file" ] && [ ! -L "$RUN_DIR/$file" ] &&
 				chmod 600 "$RUN_DIR/$file" || return 1
+			# The server's retained config must remain readable after rollback.
+			[ "$file" != sing-box-c.json ] || chown root:root "$RUN_DIR/$file" || return 1
 		fi
 	done
 	if [ -d "$backup" ] && [ ! -L "$backup" ]; then
-		chmod 700 "$backup" || return 1
+		chown root:root "$backup" && chmod 700 "$backup" || return 1
 	fi
 	homeproxy_reload_cleanup || return 1
 	(umask 077; set -C; printf preparing > "$RUN_DIR/reload.state") || return 1
@@ -648,6 +681,7 @@ service_started() {
 }
 
 reload_service() {
+	homeproxy_prepare_runtime || return 1
 	log "Reloading service..."
 
 	local HP_RELOAD=1

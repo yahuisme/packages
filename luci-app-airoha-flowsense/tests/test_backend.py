@@ -33,7 +33,7 @@ class BackendRealToolsTest(unittest.TestCase):
             rpc = (root / 'root/usr/libexec/rpcd/luci.airoha_flowsense').read_text().replace(
                 '/usr/libexec/flowsense-common.sh', str(common)).replace(
                 '/etc/init.d/npu-jitter restart', 'fake_restart').replace(
-                '/var/run/flowsense-settings.lock', str(d / 'monitor.lock'))
+                '/var/run/flowsense-settings.flock', str(d / 'monitor.flock'))
             (d / 'rpc').write_text(rpc)
             assert UCI and JSONFILTER and BUSYBOX
             (d / 'bin/jsonfilter').symlink_to(JSONFILTER)

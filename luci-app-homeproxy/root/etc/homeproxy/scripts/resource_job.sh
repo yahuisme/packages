@@ -6,8 +6,8 @@ SCRIPTS_DIR="${SCRIPTS_DIR:-/etc/homeproxy/scripts}"
 JOB_DIR="${RUN_DIR}.resources"
 umask 077
 mkdir -p "$RUN_DIR" || exit 1
-# Never put root task controls below RUN_DIR: init chowns it recursively to
-# sing-box. This sibling is created under root-owned /var/run and stays private.
+# Keep root task controls in their existing private sibling across runtime
+# cleanup and upgrades from the old service-owned RUN_DIR.
 [ -d "$JOB_DIR" ] || mkdir -m 0700 "$JOB_DIR" || [ -d "$JOB_DIR" ] || exit 1
 ucode -l fs -e 'let s=fs.lstat(ARGV[0]), p=fs.stat(ARGV[1]); exit(s?.type != "directory" || s.uid != p?.uid);' "$JOB_DIR" "${JOB_DIR%/*}" || exit 1
 chmod 0700 "$JOB_DIR" || exit 1

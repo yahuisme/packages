@@ -25,7 +25,18 @@ read -r dashboard_port dashboard_port_initialized clash_api_port clash_api_port_
 $settings
 EOF
 
-mkdir -p /var/run/homeproxy
+# Also runs from uci-defaults before init. Lock down the legacy service-owned
+# parent before any root log write; retain normal history, never follow a link.
+[ ! -L /var/run/homeproxy ] || exit 1
+mkdir -p /var/run/homeproxy && chown root:root /var/run/homeproxy && chmod 755 /var/run/homeproxy || exit 1
+for file in homeproxy.log sing-box-c.log sing-box-s.log; do
+	if [ -L "/var/run/homeproxy/$file" ] || { [ -e "/var/run/homeproxy/$file" ] &&
+	    { [ ! -f "/var/run/homeproxy/$file" ] || [ "$(stat -c %h "/var/run/homeproxy/$file")" != 1 ]; }; }; then
+		rm -f "/var/run/homeproxy/$file" || exit 1
+	fi
+done
+: >> /var/run/homeproxy/homeproxy.log || exit 1
+chown root:root /var/run/homeproxy/homeproxy.log && chmod 644 /var/run/homeproxy/homeproxy.log || exit 1
 
 log() {
 	printf '%s [DAEMON] %s\n' "$(date "+%Y-%m-%d %H:%M:%S")" "$*" >> /var/run/homeproxy/homeproxy.log

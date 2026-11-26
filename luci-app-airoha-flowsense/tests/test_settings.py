@@ -1,7 +1,10 @@
 """Real BusyBox/jshn/UCI, redirected persistent storage and harmless services."""
 import json
+import os
 from pathlib import Path
+import signal
 import subprocess
+import time
 import test_acceleration as fixture
 ROOT, TOOLS = fixture.ROOT, fixture.TOOLS
 import unittest
@@ -11,23 +14,220 @@ class SettingsTest(unittest.TestCase):
     # Populated by the shared acceleration fixture's setUp().
     d: Path
     busybox: str
+    env: dict
     script = fixture.AccelerationTest.script
     knob = fixture.AccelerationTest.knob
     conf = fixture.AccelerationTest.conf
     call = fixture.AccelerationTest.call
     snapshot = fixture.AccelerationTest.snapshot
+    held_lock = fixture.AccelerationTest.held_lock
+    assert_lock_available = fixture.AccelerationTest.assert_lock_available
     def setUp(self):
         fixture.AccelerationTest.setUp(self)
         (self.d / 'bin/jsonfilter').symlink_to(TOOLS / 'bin/jsonpath')
         (self.d / 'etc/config/npu-monitor').write_text("config jitter\n option target 'example.com'\n option enabled '1'\n")
         self.script('monitor_restart', '#!/bin/sh\nprintf restart >> "' + str(self.d / 'monitor-restarts') + '"\n[ "$MONITOR_FAIL" != 1 ]\n')
-        source = (ROOT / 'root/usr/libexec/flowsense-settings.sh').read_text().replace('/usr/share/libubox/jshn.sh', str(TOOLS / 'share/libubox/jshn.sh')).replace('/etc/flowsense', str(self.d / 'etc/flowsense')).replace('/var/run/flowsense-settings.lock', str(self.d / 'var/run/flowsense-settings.lock'))
+        source = (ROOT / 'root/usr/libexec/flowsense-settings.sh').read_text().replace('/usr/share/libubox/jshn.sh', str(TOOLS / 'share/libubox/jshn.sh')).replace('/etc/flowsense', str(self.d / 'etc/flowsense'))
         (self.d / 'settings.sh').write_text(source)
         rpc = (self.d / 'rpc').read_text().replace('/usr/share/libubox/jshn.sh', str(TOOLS / 'share/libubox/jshn.sh')).replace('/usr/libexec/flowsense-settings.sh', str(self.d / 'settings.sh')).replace('/etc/init.d/npu-jitter restart', str(self.d / 'bin/monitor_restart'))
-        for prefix in ('/etc/config', '/tmp/flowsense-committed', '/var/run/flowsense-settings.lock', '/var/run/npu-jitter.json', '/sys/class/net/*', '/proc/uptime'):
+        for prefix in ('/etc/config', '/tmp/flowsense-committed', '/var/run/flowsense-settings.flock', '/var/run/npu-jitter.json', '/sys/class/net/*', '/proc/uptime'):
             rpc = rpc.replace(prefix, str(self.d) + prefix)
         (self.d / 'proc/uptime').write_text('100.0 0\n')
         (self.d / 'rpc').write_text(rpc)
+
+    def wait_for_gate(self, marker):
+        for _ in range(500):
+            if marker.exists() and marker.read_text().strip():
+                return int(marker.read_text().strip())
+            time.sleep(.01)
+        self.fail('private native-tool boundary was not reached: ' + str(marker))
+
+    def start_rpc(self, method, payload):
+        process = subprocess.Popen([self.busybox, 'ash', str(self.d / 'rpc'), 'call', method],
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, text=True, env=self.env,
+                                   start_new_session=True)
+        assert process.stdin is not None
+        process.stdin.write(json.dumps(payload))
+        process.stdin.close()
+        process.stdin = None
+        return process
+
+    def stop_rpc(self, process):
+        # Includes the native-tool children, even when the outer shell exited.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.communicate(timeout=10)
+
+    def test_settings_owner_sigkill_allows_future_writes(self):
+        # Stop a real restart after lock acquisition. Killing the entire owned
+        # group closes every inherited descriptor; no stale-lock cleanup occurs.
+        marker = self.d / 'restart-entered'
+        self.script('monitor_restart', '#!' + self.busybox + ' ash\n'
+                    'printf "%s\\n" "$PPID" > "' + str(marker) + '"\n'
+                    'while :; do sleep .01; done\n')
+        process = self.start_rpc('setMonitor', dict(target='killed.example', enabled=0))
+        try:
+            self.wait_for_gate(marker)
+        finally:
+            self.stop_rpc(process)
+        self.assertEqual(process.returncode, -signal.SIGKILL)
+        self.script('monitor_restart', '#!/bin/sh\nexit 0\n')
+        payload = dict(hardware=-1, vlan=-1, pppoe=-1, ap=-1, target='retry.example', enabled=1)
+        for method, data in (('setMonitor', dict(target='direct.example', enabled=0)),
+                             ('saveSettings', payload), ('applySettings', {})):
+            with self.subTest(method=method):
+                self.assertTrue(self.call(method, data)['success'],
+                                'ownerless settings lock must not leave ' + method + ' busy')
+
+    def test_acceleration_owner_sigkill_allows_future_writes(self):
+        # Harmless nft read is reached before preparation or live writes.
+        marker = self.d / 'nft-entered'
+        self.script('nft', '#!' + self.busybox + ' ash\n'
+                    'printf "%s\\n" "$PPID" > "' + str(marker) + '"\n'
+                    'while :; do sleep .01; done\n')
+        before = self.snapshot()
+        process = self.start_rpc('setAcceleration', dict(hardware=0, vlan=-1, pppoe=-1, ap=-1))
+        try:
+            self.wait_for_gate(marker)
+        finally:
+            self.stop_rpc(process)
+        self.assertEqual(process.returncode, -signal.SIGKILL)
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual(self.call('setAcceleration', dict(hardware=-1, vlan=-1, pppoe=0, ap=-1)),
+                         dict(success=True), 'ownerless acceleration lock must not leave retry busy')
+
+    def test_monitor_owner_death_retains_lock_until_native_child_closes(self):
+        owner, child, release = (self.d / name for name in ('monitor-owner', 'monitor-child', 'monitor-release'))
+        self.script('monitor_restart', '#!' + self.busybox + ' ash\n'
+                    'printf "%s\\n" "$PPID" > "' + str(owner) + '"\n'
+                    'printf "%s\\n" "$$" > "' + str(child) + '"\n'
+                    'while [ ! -e "' + str(release) + '" ]; do sleep .01; done\n')
+        process = self.start_rpc('setMonitor', dict(target='killed.example', enabled=0))
+        try:
+            owner_pid, child_pid = self.wait_for_gate(owner), self.wait_for_gate(child)
+            lock = self.d / 'var/run/flowsense-settings.flock'
+            inode = lock.stat().st_ino
+            for pid in (owner_pid, child_pid):
+                self.assertEqual(os.readlink('/proc/%s/fd/9' % pid), str(lock))
+            os.kill(owner_pid, signal.SIGKILL)
+            self.wait_for_process_exit(owner_pid)
+            for method, data in (('setMonitor', dict(target='blocked.example', enabled=1)),
+                                 ('saveSettings', dict(hardware=-1, vlan=-1, pppoe=-1, ap=-1,
+                                                       target='staged.example', enabled=1)),
+                                 ('applySettings', {})):
+                self.assertEqual(self.call(method, data), dict(success=False, error='busy'), method)
+                self.assertEqual(lock.stat().st_ino, inode)
+            release.touch()
+            self.wait_for_process_exit(child_pid)
+            process.communicate(timeout=10)
+            self.assert_lock_available('settings')
+            self.assertEqual(lock.stat().st_ino, inode)
+            self.script('monitor_restart', '#!/bin/sh\nexit 0\n')
+            self.assertTrue(self.call('setMonitor', dict(target='retry.example', enabled=1))['success'])
+        finally:
+            release.touch()
+            self.stop_rpc(process)
+
+    def test_nested_apply_keeps_both_locks_until_inherited_child_closes(self):
+        payload = dict(hardware=0, vlan=-1, pppoe=-1, ap=-1, target='', enabled=-1)
+        self.assertTrue(self.call('saveSettings', payload)['success'])
+        owner, child, release = (self.d / name for name in ('owner', 'child', 'release'))
+        self.script('restart', '#!' + self.busybox + ' ash\n'
+                    'printf "%s\\n" "$PPID" > "' + str(owner) + '"\n'
+                    'printf "%s\\n" "$$" > "' + str(child) + '"\n'
+                    'while [ ! -e "' + str(release) + '" ]; do sleep .01; done\n')
+        process = self.start_rpc('applySettings', dict(expected=json.dumps(payload)))
+        try:
+            owner_pid, child_pid = self.wait_for_gate(owner), self.wait_for_gate(child)
+            # The nested transaction must not replace the enclosing fd 9.
+            for descriptor, name in ((8, 'acceleration'), (9, 'settings')):
+                expected = str(self.d / ('var/run/flowsense-' + name + '.flock'))
+                self.assertEqual(os.readlink('/proc/%s/fd/%s' % (owner_pid, descriptor)), expected)
+                self.assertEqual(os.readlink('/proc/%s/fd/%s' % (child_pid, descriptor)), expected)
+            locks = {name: (self.d / ('var/run/flowsense-' + name + '.flock')).stat().st_ino
+                     for name in ('settings', 'acceleration')}
+            for killed in (False, True):
+                if killed:
+                    os.kill(owner_pid, signal.SIGKILL)
+                    # Wait for the actual lock owner, not merely the RPC pipe.
+                    self.wait_for_process_exit(owner_pid)
+                with self.subTest(owner_killed=killed):
+                    for method, data in (('setMonitor', dict(target='blocked.example', enabled=0)),
+                                         ('saveSettings', payload), ('applySettings', {}),
+                                         ('setAcceleration', dict(hardware=-1, vlan=-1, pppoe=0, ap=-1))):
+                        self.assertEqual(self.call(method, data), dict(success=False, error='busy'), method)
+                    self.assertTrue(self.call('getSettings')['success'], 'getter stays read-only and unlocked')
+                    for name, inode in locks.items():
+                        self.assertEqual((self.d / ('var/run/flowsense-' + name + '.flock')).stat().st_ino, inode)
+            release.touch()
+            self.wait_for_process_exit(child_pid)
+            process.communicate(timeout=10)
+            for name in locks:
+                self.assert_lock_available(name)
+                self.assertEqual((self.d / ('var/run/flowsense-' + name + '.flock')).stat().st_ino, locks[name])
+            self.assertTrue(self.call('saveSettings', payload)['success'])
+            self.assertEqual(self.call('setAcceleration', dict(hardware=-1, vlan=-1, pppoe=0, ap=-1)), dict(success=True))
+        finally:
+            release.touch()
+            self.stop_rpc(process)
+
+    def wait_for_process_exit(self, pid):
+        for _ in range(500):
+            try:
+                state = Path('/proc/%s/stat' % pid).read_text().split(') ', 1)[1].split()[0]
+            except FileNotFoundError:
+                return
+            if state == 'Z':
+                return
+            time.sleep(.01)
+        self.fail('owned native-tool process did not exit: %s' % pid)
+
+    def test_lock_failures_fail_closed_and_legacy_directories_do_not_block(self):
+        payload = dict(hardware=-1, vlan=-1, pppoe=0, ap=-1, target='retry.example', enabled=0)
+        methods = (('setMonitor', dict(target='direct.example', enabled=0)),
+                   ('saveSettings', payload), ('applySettings', {}),
+                   ('setAcceleration', dict(hardware=-1, vlan=-1, pppoe=0, ap=-1)))
+        before = self.snapshot()
+        stamps = {path: (self.d / path).stat().st_mtime_ns for path in before}
+        flock = self.d / 'bin/flock'
+        executable = flock.resolve()
+        for failure in ('missing', 'failed', 'open'):
+            with self.subTest(failure=failure):
+                if failure == 'missing':
+                    flock.unlink()
+                elif failure == 'failed':
+                    self.script('flock', '#!/bin/sh\nexit 1\n')
+                else:
+                    for name in ('settings', 'acceleration'):
+                        lock = self.d / ('var/run/flowsense-' + name + '.flock')
+                        lock.unlink(missing_ok=True)
+                        lock.mkdir()
+                try:
+                    for method, data in methods:
+                        self.assertEqual(self.call(method, data), dict(success=False, error='busy'), method)
+                    self.assertEqual(self.snapshot(), before)
+                    self.assertEqual({path: (self.d / path).stat().st_mtime_ns for path in before}, stamps)
+                    self.assertFalse((self.d / 'restarts').exists())
+                    self.assertFalse((self.d / 'monitor-restarts').exists())
+                    self.assertTrue(self.call('getSettings')['success'])
+                finally:
+                    if failure == 'open':
+                        for name in ('settings', 'acceleration'):
+                            (self.d / ('var/run/flowsense-' + name + '.flock')).rmdir()
+                    else:
+                        flock.unlink(missing_ok=True)
+                        flock.symlink_to(executable)
+        for name in ('settings', 'acceleration'):
+            (self.d / ('var/run/flowsense-' + name + '.lock')).mkdir()
+        for method, data in methods:
+            self.assertTrue(self.call(method, data)['success'], method)
+        for name in ('settings', 'acceleration'):
+            self.assertTrue((self.d / ('var/run/flowsense-' + name + '.lock')).is_dir())
+            self.assert_lock_available(name)
+        self.assertIn('+flock', (ROOT / 'Makefile').read_text())
 
     def test_settings_returns_committed_monitor_without_telemetry(self):
         rpc = (self.d / 'rpc').read_text()
@@ -58,9 +258,7 @@ class SettingsTest(unittest.TestCase):
         directory.mkdir()
         pending = directory / 'pending.json'
         before = (self.d / 'etc/config/npu-monitor').read_bytes()
-        lock = self.d / 'var/run/flowsense-settings.lock'
-        lock.mkdir()
-        try:
+        with self.held_lock('settings'):
             self.assertEqual(self.call('getSettings'), dict(success=True, pending=None,
                 monitor=dict(target='example.com', enabled=True)))
             pending.write_text('{broken')
@@ -77,21 +275,18 @@ class SettingsTest(unittest.TestCase):
             self.assertEqual(self.call('getSettings'), dict(success=False, error='storage',
                 monitor=dict(target='example.com', enabled=True)))
             self.assertTrue(directory.is_symlink())
-        finally:
-            lock.rmdir()
+
         self.assertEqual((self.d / 'etc/config/npu-monitor').read_bytes(), before)
         self.assertFalse((self.d / 'monitor-restarts').exists())
         self.assertEqual(list((self.d / 'tmp').iterdir()), [])
 
     def test_direct_monitor_shares_settings_lock(self):
-        lock = self.d / 'var/run/flowsense-settings.lock'
-        lock.mkdir()
         before = (self.d / 'etc/config/npu-monitor').read_bytes()
-        self.assertEqual(self.call('setMonitor', dict(target='direct.example', enabled=0)), dict(success=False, error='busy'))
-        self.assertEqual((self.d / 'etc/config/npu-monitor').read_bytes(), before)
-        lock.rmdir()
+        with self.held_lock('settings'):
+            self.assertEqual(self.call('setMonitor', dict(target='direct.example', enabled=0)), dict(success=False, error='busy'))
+            self.assertEqual((self.d / 'etc/config/npu-monitor').read_bytes(), before)
         self.assertTrue(self.call('setMonitor', dict(target='direct.example', enabled=0))['success'])
-        self.assertFalse(lock.exists())
+        self.assert_lock_available('settings')
 
     def test_pending_io_failure_does_not_verify_or_apply_read_bytes(self):
         payload = dict(hardware=-1, vlan=-1, pppoe=-1, ap=-1, target='pending.example', enabled=0)
@@ -116,7 +311,7 @@ esac
         self.assertEqual(marker.read_text(), 'xx')
         self.assertEqual(self.snapshot(), before)
         self.assertFalse((self.d / 'monitor-restarts').exists())
-        self.assertFalse((self.d / 'var/run/flowsense-settings.lock').exists())
+        self.assert_lock_available('settings')
 
         (self.d / 'bin/cat').unlink()
         (self.d / 'bin/cat').symlink_to(self.busybox)
@@ -522,10 +717,8 @@ esac
         self.assertEqual(self.call('applySettings', RESTART_FAIL='1'), dict(success=False, acceleration='failed', monitor='unchanged', acceleration_error='apply'))
         self.assertEqual(self.call('getSettings')['pending'], payload)
         self.assertTrue(self.call('applySettings')['success'])
-        lock = self.d / 'var/run/flowsense-settings.lock'
-        lock.mkdir()
-        self.assertEqual(self.call('saveSettings', payload)['error'], 'busy')
-        lock.rmdir()
+        with self.held_lock('settings'):
+            self.assertEqual(self.call('saveSettings', payload)['error'], 'busy')
         pending = self.d / 'etc/flowsense/pending.json'
         pending.symlink_to(self.config)
         self.assertEqual(self.call('saveSettings', payload)['error'], 'storage')

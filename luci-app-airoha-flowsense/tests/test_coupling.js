@@ -39,10 +39,17 @@ src+=`(async()=>{
  edit('vlan',true);await mods.app.handleSaveApply();await assertState(true,true);
  // Failed transaction keeps both saved values across reload and retry.
  edit('vlan',false);edit('ap',false);
- const lock=path.join(base,'var/run/flowsense-acceleration.lock');fs.mkdirSync(lock);
- await mods.app.handleSaveApply();assert(notification.closest('.alert-message').classList.contains('error'));
- pending=(await mods.app.load())[0].pending;assert.equal(pending.vlan,0);assert.equal(pending.ap,0);
- fs.rmdirSync(lock);await remount();await mods.app.handleSaveApply();await assertState(false,false);
+ const lock=path.join(base,'var/run/flowsense-acceleration.flock');
+ const holder=require('child_process').spawn(process.env.MONITOR_BUSYBOX,
+  ['ash','-c','exec 8>> "$1"; flock -n 8 || exit 1; printf held; read -r release','holder',lock],
+  {env:{...process.env,PATH:process.env.MONITOR_PATH}});
+ const holderExit=new Promise(resolve=>holder.on('exit',resolve));
+ try {
+  await new Promise((resolve,reject)=>{holder.stdout.once('data',data=>{try{assert.equal(String(data),'held');resolve();}catch(e){reject(e);}});holder.once('error',reject);holder.once('exit',()=>reject(new Error('flock holder exited before release')));});
+  await mods.app.handleSaveApply();assert(notification.closest('.alert-message').classList.contains('error'));
+  pending=(await mods.app.load())[0].pending;assert.equal(pending.vlan,0);assert.equal(pending.ap,0);
+ } finally {holder.stdin.end('release\\n');assert.equal(await holderExit,0);}
+ await remount();await mods.app.handleSaveApply();await assertState(false,false);
  // Pending AP intent may not be overwritten when AP telemetry becomes unknown.
  edit('vlan',true);await mods.app.handleSave();
  const knob=path.join(base,'proc/sys/net/bridge/bridge-nf-call-iptables'),old=fs.readFileSync(knob,'utf8');

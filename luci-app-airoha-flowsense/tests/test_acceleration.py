@@ -1,6 +1,8 @@
 """Isolated real BusyBox/jshn/UCI tests; every kernel/service path is redirected."""
 import json
 import os
+from contextlib import contextmanager
+import fcntl
 from pathlib import Path
 import shutil
 import subprocess
@@ -25,6 +27,11 @@ class AccelerationTest(unittest.TestCase):
         self.busybox = busybox
         for applet in subprocess.check_output([self.busybox, '--list'], text=True).splitlines():
             (self.d / 'bin' / applet).symlink_to(self.busybox)
+        # flock is an explicit package dependency, not an assumed ash applet.
+        flock = shutil.which('flock')
+        assert flock, 'native flock is required'
+        (self.d / 'bin/flock').unlink(missing_ok=True)
+        (self.d / 'bin/flock').symlink_to(flock)
         self.keys = ['call-iptables', 'call-ip6tables', 'call-arptables', 'filter-vlan-tagged',
                      'filter-pppoe-tagged', 'pass-vlan-input-dev']
         for k in self.keys:
@@ -88,6 +95,21 @@ class AccelerationTest(unittest.TestCase):
     def snapshot(self):
         return {str(p.relative_to(self.d)): p.read_bytes() for base in ('etc', 'proc')
                 for p in (self.d / base).rglob('*') if p.is_file()}
+
+    @contextmanager
+    def held_lock(self, name):
+        # This is a real kernel flock, contending with the handler's native
+        # executable on the same inode. Presence alone is never contention.
+        with (self.d / ('var/run/flowsense-' + name + '.flock')).open('a') as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            yield
+
+    def assert_lock_available(self, name):
+        lock = self.d / ('var/run/flowsense-' + name + '.flock')
+        self.assertTrue(lock.is_file())
+        result = subprocess.run([str(self.d / 'bin/flock'), '-n', str(lock), 'true'],
+                                env=self.env, capture_output=True, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def official_inet(self):
         # Source-derived official fw4 boundary, not real nft/kernel execution.
@@ -589,8 +611,8 @@ else:
         self.assertEqual(self.snapshot(), before)
 
     def test_busy_malformed_nft_and_empty_ppe(self):
-        (self.d / 'var/run/flowsense-acceleration.lock').mkdir()
-        self.assertEqual(self.save(hardware=0)['error'], 'busy')
+        with self.held_lock('acceleration'):
+            self.assertEqual(self.save(hardware=0)['error'], 'busy')
         self.assertTrue(self.call()['hardware']['enabled'])  # no PPE entries required
         self.script('nft', '#!/bin/sh\nprintf "{}"\n')
         self.assertIsNone(self.call()['hardware']['enabled'])

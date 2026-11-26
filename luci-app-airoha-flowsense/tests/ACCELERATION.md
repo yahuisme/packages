@@ -3,11 +3,12 @@
 Run `python3 luci-app-airoha-flowsense/tests/test_acceleration.py -v` from the
 packages root. `OPENWRT_TOOLS` selects a native OpenWrt-tools prefix containing
 `bin/uci`, `bin/jshn`, `share/libubox/jshn.sh`, and `lib/` (default:
-`/opt/test-tools/openwrt`). BusyBox and Python 3 are required.
+`/opt/test-tools/openwrt`). BusyBox, native `flock`, and Python 3 are required.
 The tests run the real shell handler, jshn and UCI, redirect every kernel,
 configuration, lock and temporary path, and replace nft/firewall boundaries.
 They never reload the host firewall or write host sysctls. The applet PATH
-contains BusyBox and the native tools only, not fallback GNU utilities.
+contains BusyBox, the explicit native `flock` dependency and the native tools,
+not fallback GNU utilities for the applets under test.
 
 The RPC fixture includes uhttpd's injected `ubus_rpc_session` and rpcd's
 newline-free JSON stdin. Omitting that transport metadata hid an entry-point

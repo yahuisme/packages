@@ -325,7 +325,7 @@ Resource mutation RPCs also return short background-job identifiers. The native
 metadata by 22 seconds and checks short start/status requests, exact installed
 bytes, scope restrictions, busy reentry and retained rollback failures. Its
 decoder and service boundaries remain explicit stubs. Task controls live in a
-root-only sibling of the service-owned runtime directory.
+root-only sibling of the runtime directory, retained across upgrades.
 
 `test_upgrade_defaults.py`, `test_cron_status.py` and the certificate cleanup
 suite cover upgrade reload/retry, child failure propagation, private certificate
@@ -333,6 +333,28 @@ staging, preplanted symlinks and the final runtime uid/mode contract. No host
 defaults or services are invoked.
 
 # Audit-boundary regressions
+
+`test_log_permissions.py` is a required root-only gate (private numeric uid 5566,
+no host accounts/services). It executes actual init preparation, the periodic
+ash cleaner and ucode clear RPC: root-owned runtime parent, retained ordinary log
+inodes/O_APPEND, 180-second schedule, rejected service entry replacement,
+legacy planted links, root main log and server log/config access. The client-only
+cache migrates to root ownership without dropping ordinary database bytes.
+`test_runtime_init_native.py` also verifies the upgrade error logger inside its
+private OpenWrt rootfs. Non-root discovery skips are not acceptance for these gates.
+
+`test_acme_dns01.py` runs native UCI/full server generation through both DNS-01
+provider switches and retains inactive secrets; `test_acme_dns01.cjs` saves and
+reopens the native form with private persistent RPC. The stored/UI `cfdns` spelling
+remains compatible; generated JSON uses `cloudflare` and only active fields.
+With a verified `SING_BOX_CHECK`, the Python suite validates good configs and
+checks that the former discriminator/foreign-field shapes are really rejected.
+
+`test_ipv6_policy.py` covers active main/China/ECH/probe literals, IPv4/hostname
+controls and inactive settings. IPv6-off explicitly rejects an active IPv6-only
+DNS endpoint (no silent fallback or UCI deletion); IPv6-on strips URL brackets
+and retains IPv6 endpoints. The optional checker validates client and probe JSON,
+including a structurally valid retained ECH config, without starting a listener.
 
 Run these through the caller's verified memory-bounded wrapper, after selecting
 checksum-pinned OpenWrt ucode/fs/UCI/digest and the native LuCI resource tree:

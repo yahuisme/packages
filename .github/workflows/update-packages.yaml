@@ -16,14 +16,14 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
 
-      - name: Update resources and reviewed stable sing-box
+      - name: Validate resources and stable core compatibility before publication
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 .github/scripts/update-homeproxy.py
@@ -35,6 +35,7 @@ jobs:
           git config user.email "40222380+yahuisme@users.noreply.github.com"
           for PACKAGE in sing-box luci-app-homeproxy; do
             git add -A -- "$PACKAGE"
+            if [ "$PACKAGE" = sing-box ]; then git add -- README.md; fi
             if git diff --cached --quiet; then continue; fi
             if [ "$PACKAGE" = sing-box ]; then
               VERSION=$(sed -n 's/^PKG_UPSTREAM_VERSION:=//p' "$PACKAGE/Makefile")

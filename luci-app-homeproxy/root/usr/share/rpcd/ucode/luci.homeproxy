@@ -968,8 +968,14 @@ const methods = {
 			if (!(req.args?.type in ['homeproxy', 'sing-box-c', 'sing-box-s']))
 				return { result: false, error: 'illegal type' };
 
+			// init owns RUN_DIR, so the service cannot replace a checked log
+			// entry. Refuse legacy/unprepared directories rather than trust them.
+			const runtime = lstat(RUN_DIR);
+			if (runtime && (runtime.type !== 'directory' || runtime.uid !== 0 || (runtime.mode & 0022)))
+				return { result: false, error: 'unsafe runtime directory' };
 			const filestat = lstat(`${RUN_DIR}/${req.args?.type}.log`);
-			if (filestat && writefile(`${RUN_DIR}/${req.args?.type}.log`, '') === null)
+			if (filestat && (filestat.type !== 'file' || filestat.nlink !== 1 ||
+			    writefile(`${RUN_DIR}/${req.args?.type}.log`, '') === null))
 				return { result: false, error: 'failed to clean log file' };
 			return { result: true };
 		}

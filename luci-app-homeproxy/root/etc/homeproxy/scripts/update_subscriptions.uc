@@ -1457,7 +1457,7 @@ function main() {
 
 				/* Shadowsocks SIP008 format */
 				if (nodes[0].server && nodes[0].method)
-					map(nodes, (_, i) => nodes[i].nodetype = 'sip008');
+					for (let node in nodes) node.nodetype = 'sip008';
 			} catch(e) {
 				nodes = parse_mihomo_yaml(res);
 				if (isEmpty(nodes)) {
@@ -1717,20 +1717,20 @@ function main() {
 		}
 	});
 
-	map(node_result, (node) => {
+	for (let node in node_result) {
 		if (node.isExisting)
-			return null;
+			continue;
 
 		const nameHash = node.__section_id;
 		writer.set(uciconfig, nameHash, 'node');
-		map(keys(node), (v) => {
+		for (let v in keys(node)) {
 			if (!match(v, /^__/) && node[v] !== null)
 				writer.set(uciconfig, nameHash, v, node[v]);
-		});
+		}
 
 		added++;
 		log(sprintf('Adding node: %s.', node.label));
-	});
+	}
 
 	reconcileUrltestNodes(writer, uciconfig, (message) => log(message));
 

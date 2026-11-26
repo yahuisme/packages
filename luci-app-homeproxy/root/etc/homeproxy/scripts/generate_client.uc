@@ -12,7 +12,7 @@ import { connect } from 'ubus';
 import { cursor } from 'uci';
 
 import {
-	addECHDNS, createNodeLabelRegistry, filterExistingNodes, findDomainGroupConflict,
+	addECHDNS, createNodeLabelRegistry, dnsServerAddress, filterExistingNodes, findDomainGroupConflict,
 	isEmpty, normalizeDomainList, normalizeList, parseURL,
 	readDomainList, resolveLanPolicy, splitDomainList,
 	reserveUniqueLabel, strToBool, strToInt, strToTime,
@@ -493,7 +493,7 @@ function parse_dnsserver(server_addr, default_protocol) {
 
 	return {
 		type: protocol,
-		server: server_addr.hostname,
+		server: dnsServerAddress(server_addr.hostname, dns_default_strategy),
 		server_port: strToInt(server_addr.port),
 		path: (protocol in ['https', 'h3']) && server_addr.search
 			? server_addr.pathname + '?' + server_addr.search

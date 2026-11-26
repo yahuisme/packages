@@ -44,7 +44,30 @@ capabilities are unavailable (including retained pending settings and fixed runt
 readings). RPC failures retain the retry error instead of claiming missing hardware.
 The status view and its real CPU telemetry remain independent.
 
-Python RPC tests use real BusyBox ash and private sysfs/config/locks. Flow offloading is read-only here; tests verify status and rejection of the removed setter without modifying firewall configuration. Optional `UCI_BIN` and `JSONFILTER_BIN` select real tools; without them the suite uses adapters, not real-UCI verification. `/dev/null` and `/dev/full` model read/write failures. `l10n.js` is a support module, not an entrypoint.
+Python RPC tests use real BusyBox ash, `flock`, and private sysfs/config/locks. Flow offloading is read-only here; tests verify status and rejection of the removed setter without modifying firewall configuration. Optional `UCI_BIN` and `JSONFILTER_BIN` select real tools; without them the suite uses adapters, not real-UCI verification. `/dev/null` and `/dev/full` model read/write failures. `l10n.js` is a support module, not an entrypoint.
+
+All three settings RPCs share a nonblocking kernel-owned advisory lock on
+`/var/lock/luci-airoha-npu.lock` (fd 9); the package explicitly depends on `flock`.
+The stable lock inode is never unlinked or replaced, even after success or failure.
+A retained legacy `/var/lock/luci-airoha-npu` directory is ignored, not reaped;
+this migrates stale locks without PID heuristics or deleting another owner's
+state. This is same-boot recovery, not merely tmpfs cleanup at reboot. It does
+not coordinate an already-running pre-upgrade backend using the old directory,
+so cross-version concurrent RPCs during a live package replacement are outside
+this contract.
+
+The transaction shell and its short-lived synchronous tools inherit fd 9. The
+kernel releases it when the last holder exits, including SIGKILL. If the shell
+is killed while a tool still runs, that child retains the lock until it exits;
+no timeout or PID reaper forcibly unlocks a live operation. Tests gate the real
+jsonfilter boundary, SIGKILL the actual ash owner, and verify rejection of Get,
+Save and Apply while held, automatic recovery without directory cleanup, and
+child-descriptor lifetime. Independent advisory-lock contention asserts pending
+bytes/mtime and both runtime fields are unchanged and the inode remains stable.
+Missing/failing `flock` and lock-open failures return `busy` without mutations;
+normal/error/rollback exits permit fresh calls. A lock file's presence is not
+contention, so release checks reacquire the real lock instead of expecting its
+file to disappear. These are process/fixture tests, not rpcd/device acceptance.
 
 CPUFreq maximum-frequency readback accounts for asynchronous QoS policy updates:
 forward and rollback each use at most six reads with five 50 ms sleeps (250 ms
@@ -54,8 +77,8 @@ uses the real ash/jsonfilter transaction and private policy files, modeling only
 the delayed policy read boundary: two stale reads then convergence, permanent
 non-convergence, delayed rollback and a real `/dev/full` write error. It asserts
 bounded read counts, actual waiting, saved-pair preservation, final values and
-lock cleanup. This is not execution of a kernel CPUFreq/QoS driver; on-device
-policy0 acceptance remains separate.
+lock release by real reacquisition. This is not execution of a kernel CPUFreq/QoS
+driver; on-device policy0 acceptance remains separate.
 
 The status DOM test also verifies retained SVG grid/tick/path/sample identity during
 expiry, resize and new samples, alongside cadence, outages and teardown. Backend

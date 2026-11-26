@@ -20,7 +20,11 @@ class RuntimeConfigPermissions(unittest.TestCase):
                 path.write_text('fixture-secret')
                 path.chmod(0o644)
             source = (APP / 'root/etc/init.d/homeproxy').read_text()
-            source = source[source.index('homeproxy_restore()'):source.index('start_service() {', source.index('homeproxy_transaction()'))]
+            prepare = source[source.index('homeproxy_prepare_runtime()'):source.index('\nclear_firewall()')]
+            source = prepare + source[source.index('homeproxy_restore()'):source.index('start_service() {', source.index('homeproxy_transaction()'))]
+            # Keep ordinary CI unprivileged; root ownership is exercised by
+            # test_log_permissions and test_runtime_init_native independently.
+            source = source.replace('chown root:root', f'chown {os.getuid()}:{os.getgid()}')
             checks = '''
 log() { :; }
 _homeproxy_start_service() {
@@ -39,7 +43,8 @@ umask 022
 homeproxy_transaction 1
 '''
             result = subprocess.run(['busybox', 'ash', '-c', source + checks],
-                                    env=dict(os.environ, RUN_DIR=str(run), DNSMASQ_DIR=str(root / 'dns/rules')),
+                                    env=dict(os.environ, RUN_DIR=str(run), LOG_PATH=str(run / 'homeproxy.log'),
+                                             DNSMASQ_DIR=str(root / 'dns/rules')),
                                     capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse((run / '.reload.pending').exists())

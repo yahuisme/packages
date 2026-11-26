@@ -6,11 +6,11 @@ OpenWrt / ImmortalWrt 软件包源码 feed，用于固件构建，不是路由�
 
 | 软件包 | 版本 | 功能 |
 | --- | --- | --- |
-| `luci-app-airoha-npu` | `20261118-r1` | Airoha NPU 状态与 CPU 调频 |
-| `luci-app-airoha-flowsense` | `20261122-r1` | Airoha 硬件加速设置与流量监控 |
+| `luci-app-airoha-npu` | `20261126-r1` | Airoha NPU 状态与 CPU 调频 |
+| `luci-app-airoha-flowsense` | `20261126-r1` | Airoha 硬件加速设置与流量监控 |
 | `luci-app-airoha-fancontrol` | `20261122-r1` | Airoha 温控与风扇调速 |
 | `luci-app-wifi7` | `20261118-r1` | WiFi 7 射频、MLO 与客户端管理 |
-| `luci-app-homeproxy` | `20261122-r1` | 基于 sing-box 的代理管理，独立维护 |
+| `luci-app-homeproxy` | `20261126-r1` | 基于 sing-box 的代理管理，独立维护 |
 | `sing-box` | `1.14.4` | 跟随 SagerNet 官方稳定版 |
 
 ## 兼容性
@@ -40,4 +40,5 @@ make menuconfig
 ## 维护
 
 - FlowSense 沿用配置名 `npu-monitor` 和探针服务名 `npu-jitter`，升级时保留。
+- 每天香港时间 02:00 检查 GeoIP、GeoSite 和官方稳定核心；核心升级须先通过 HomeProxy 原生兼容性测试，并同步配方与本页版本。Dashboard 仅手动更新。
 - 测试依赖、运行命令与验证范围见 [测试说明](.github/scripts/TESTING.md)；专项说明位于各包的 `tests/`。

@@ -8,7 +8,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
+from contextlib import contextmanager
 
 PACKAGE = Path(__file__).resolve().parents[1]
 BACKEND = PACKAGE / 'root/usr/libexec/rpcd/luci.airoha_npu'
@@ -161,7 +163,221 @@ class Backend(unittest.TestCase):
 
     def call(self, method, args=None):
         return json.loads(subprocess.check_output(['busybox', 'ash', str(BACKEND), 'call', method],
-                         input=json.dumps(args or {}).encode(), env=self.env))
+                         input=json.dumps(args or {}).encode(), env=self.env, timeout=5))
+
+    def assert_lock_available(self):
+        # Probe the persistent inode, not its presence: unlinking a held lock can
+        # create two independently locked inodes and defeat mutual exclusion.
+        lock = self.root / 'var/lock/luci-airoha-npu.lock'
+        self.assertTrue(lock.is_file())
+        result = subprocess.run(['flock', '-n', str(lock), 'true'], capture_output=True, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    @contextmanager
+    def held_lock(self):
+        lock = self.root / 'var/lock/luci-airoha-npu.lock'
+        with subprocess.Popen(['busybox', 'ash', '-c',
+                'exec 9>> "$1"; flock -n 9 || exit; printf "held\\n"; read -r done',
+                'lock-holder', str(lock)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True) as holder:
+            try:
+                assert holder.stdout is not None
+                self.assertEqual(holder.stdout.readline(), 'held\n')
+                yield lock
+            finally:
+                holder.communicate('\n', timeout=5)
+                self.assertEqual(holder.returncode, 0)
+
+    def wait_exited(self, pid):
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            status = Path('/proc') / str(pid) / 'status'
+            try:
+                state = status.read_text()
+            except FileNotFoundError:
+                return
+            if re.search(r'^State:\s+Z', state, re.M):
+                return
+            time.sleep(.01)
+        self.fail('owned fixture process did not exit: %s' % pid)
+
+    @contextmanager
+    def held_settings(self, inherited_child=False):
+        # Gate the real jsonfilter boundary after acquisition. The wrapper
+        # reports the actual ash owner via PPID; no production lock is mocked.
+        wrapper = self.root / 'jsonfilter-gate'
+        owner = self.root / 'lock-owner'
+        child = self.root / 'lock-child'
+        release = self.root / 'release-lock-child'
+        busybox = shutil.which('busybox')
+        self.assertIsNotNone(busybox)
+        assert busybox is not None
+        wrapper.write_text('#!' + busybox + ' ash\n'
+                           'printf "%s\\n" "$PPID" > "$NPU_ROOT/lock-owner"\n'
+                           'printf "%s\\n" "$$" > "$NPU_ROOT/lock-child"\n'
+                           + ('while [ ! -f "$NPU_ROOT/release-lock-child" ]; do sleep 0.01; done\n'
+                              if inherited_child else 'kill -STOP "$PPID"\n')
+                           + 'exec "$REAL_JSONFILTER" "$@"\n')
+        wrapper.chmod(0o700)
+        env = dict(self.env, NPU_JSONFILTER=str(wrapper), REAL_JSONFILTER=self.env['NPU_JSONFILTER'])
+        with subprocess.Popen(['busybox', 'ash', str(BACKEND), 'call', 'saveSettings'],
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              env=env, text=True) as request:
+            assert request.stdin is not None
+            request.stdin.write(json.dumps(dict(governor='performance', freq='1400000')))
+            request.stdin.close()
+            request.stdin = None
+            owner_pid = None
+            try:
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    if owner.exists():
+                        text = owner.read_text().strip()
+                        if text.isdigit():
+                            owner_pid = int(text)
+                            state = Path('/proc') / str(owner_pid) / 'status'
+                            if inherited_child and child.exists() and child.read_text().strip().isdigit():
+                                break
+                            if not inherited_child and state.exists() and re.search(
+                                    r'^State:\s+T', state.read_text(), re.M):
+                                break
+                    if request.poll() is not None:
+                        self.fail('settings exited before reaching the held native-tool boundary')
+                    time.sleep(.01)
+                else:
+                    self.fail('settings did not reach the held native-tool boundary')
+                if not inherited_child:
+                    # The SIGKILL release case has no surviving child holder;
+                    # the separate inheritance case deliberately keeps one.
+                    self.wait_exited(int(child.read_text()))
+                yield owner_pid, request
+            finally:
+                if owner_pid:
+                    try:
+                        os.kill(owner_pid, 9)
+                    except ProcessLookupError:
+                        pass
+                release.touch()
+                request.communicate(timeout=5)
+                if child.exists() and child.read_text().strip().isdigit():
+                    self.wait_exited(int(child.read_text()))
+
+    def test_settings_lock_declares_dependency(self):
+        makefile = (PACKAGE / 'Makefile').read_text()
+        depends = re.search(r'^LUCI_DEPENDS:=(.*)$', makefile, re.M)
+        self.assertIsNotNone(depends)
+        assert depends is not None
+        self.assertIn('+flock', depends.group(1).split())
+
+    def test_settings_lock_sigkill_releases_without_cleanup(self):
+        before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()}
+        with self.held_settings() as (owner, request):
+            for method in ('getSettings', 'saveSettings', 'applySettings'):
+                self.assertEqual(self.call(method, dict(governor='powersave', freq='500000')),
+                                 dict(error='busy'))
+            self.assertEqual(before, {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()})
+            self.assertFalse((self.root / 'etc/airoha-npu/pending.json').exists())
+            os.kill(owner, 9)
+            request.communicate(timeout=5)
+            # No rmdir, PID probe or reboot: a fresh RPC must recover itself.
+            self.assertEqual(self.call('getSettings'), dict(result='ok', pending=None))
+            self.assert_lock_available()
+        payload = dict(governor='powersave', freq='500000')
+        self.assertEqual(self.call('saveSettings', payload), dict(result='ok'))
+        self.assertEqual(self.call('applySettings', dict(expected=json.dumps(payload))), dict(result='ok'))
+
+    def test_settings_lock_inherited_fd_blocks_until_child_exits(self):
+        with self.held_settings(inherited_child=True) as (owner, request):
+            os.kill(owner, 9)
+            self.wait_exited(owner)
+            # The native child still owns the inherited open-file description.
+            for method in ('getSettings', 'saveSettings', 'applySettings'):
+                self.assertEqual(self.call(method), dict(error='busy'))
+            (self.root / 'release-lock-child').touch()
+            request.communicate(timeout=5)
+            # The jsonfilter stdout pipe belonged to the dead owner's command
+            # substitution, not Popen; wait for the actual last fd holder.
+            self.wait_exited(int((self.root / 'lock-child').read_text()))
+            self.assertEqual(self.call('getSettings'), dict(result='ok', pending=None))
+            self.assert_lock_available()
+
+    def test_settings_lock_contention_preserves_inode_and_state(self):
+        payload = dict(governor='performance', freq='1400000')
+        self.assertEqual(self.call('saveSettings', payload), dict(result='ok'))
+        pending = self.root / 'etc/airoha-npu/pending.json'
+        before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()}
+        saved = (pending.read_bytes(), pending.stat().st_mtime_ns)
+        with self.held_lock() as lock:
+            identity = (lock.stat().st_dev, lock.stat().st_ino)
+            for method in ('getSettings', 'saveSettings', 'applySettings'):
+                self.assertEqual(self.call(method, dict(governor='powersave', freq='500000')),
+                                 dict(error='busy'))
+                self.assertEqual((lock.stat().st_dev, lock.stat().st_ino), identity)
+                # A failed contender must not replace or unlock the held inode.
+                contender = subprocess.run(['flock', '-n', str(lock), 'true'], timeout=5)
+                self.assertEqual(contender.returncode, 1)
+                self.assertEqual((pending.read_bytes(), pending.stat().st_mtime_ns), saved)
+                self.assertEqual(before, {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()})
+        for method, args in [('getSettings', {}), ('saveSettings', payload),
+                             ('applySettings', dict(expected=json.dumps(payload)))]:
+            self.assertEqual(self.call(method, args)['result'], 'ok')
+            self.assertEqual((lock.stat().st_dev, lock.stat().st_ino), identity)
+            self.assert_lock_available()
+
+    def test_settings_lock_ignores_legacy_directory_without_removing_it(self):
+        legacy = self.root / 'var/lock/luci-airoha-npu'
+        legacy.mkdir()
+        marker = legacy / 'legacy-owner'
+        marker.write_text('do not reap by PID or unlink an old owner')
+        identity = legacy.stat().st_ino
+        payload = dict(governor='performance', freq='1400000')
+        self.assertEqual(self.call('getSettings'), dict(result='ok', pending=None))
+        self.assertEqual(self.call('saveSettings', payload), dict(result='ok'))
+        self.assertEqual(self.call('applySettings', dict(expected=json.dumps(payload))), dict(result='ok'))
+        self.assertEqual(legacy.stat().st_ino, identity)
+        self.assertEqual(marker.read_text(), 'do not reap by PID or unlink an old owner')
+        self.assert_lock_available()
+
+    def test_settings_lock_fail_closed_and_retry(self):
+        payload = dict(governor='performance', freq='1400000')
+        self.assertEqual(self.call('saveSettings', payload), dict(result='ok'))
+        pending = self.root / 'etc/airoha-npu/pending.json'
+        before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()}
+        saved = (pending.read_bytes(), pending.stat().st_mtime_ns)
+        original_path = self.env['PATH']
+        private_bin = self.root / 'no-flock-bin'
+        private_bin.mkdir()
+        # Only acquisition dependencies are reachable. flock is intentionally
+        # absent, while cat/mkdir and the native BusyBox shell remain usable.
+        for name in ('busybox', 'cat', 'mkdir'):
+            path = shutil.which(name)
+            self.assertIsNotNone(path)
+            assert path is not None
+            (private_bin / name).symlink_to(path)
+        self.env['PATH'] = str(private_bin)
+        cases = ['missing', 'failure', 'bad-path', 'directory']
+        lock = self.root / 'var/lock/luci-airoha-npu.lock'
+        for failure in cases:
+            with self.subTest(failure=failure):
+                if failure == 'failure':
+                    (private_bin / 'flock').write_text('#!/bin/sh\nexit 73\n')
+                    (private_bin / 'flock').chmod(0o700)
+                elif failure == 'bad-path':
+                    self.env['PATH'] = original_path
+                    lock.unlink()
+                    lock.symlink_to('/dev/null/lock')
+                elif failure == 'directory':
+                    lock.unlink()
+                    lock.mkdir()
+                for method in ('getSettings', 'saveSettings', 'applySettings'):
+                    self.assertEqual(self.call(method, payload), dict(error='busy'))
+                    self.assertEqual((pending.read_bytes(), pending.stat().st_mtime_ns), saved)
+                    self.assertEqual(before, {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in self.policy.iterdir()})
+        lock.rmdir()
+        self.assertEqual(self.call('getSettings')['pending'], payload)
+        self.assertEqual(self.call('saveSettings', payload), dict(result='ok'))
+        self.assertEqual(self.call('applySettings', dict(expected=json.dumps(payload))), dict(result='ok'))
+        self.assert_lock_available()
 
     def test_status_builtin_reads_preserve_complete_file_values(self):
         # Compare byte-for-byte with the original cat-based getter, including
@@ -407,11 +623,10 @@ class Backend(unittest.TestCase):
         for changes in [{'governor': 'bad'}, {'freq': '500000\n'}, {'freq': 500000}, {'governor': None}]:
             self.assertEqual(self.call('saveSettings', dict(payload, **changes))['error'], 'invalid')
             self.assertEqual(pending.read_bytes(), original)
-        lock = self.root / 'var/lock/luci-airoha-npu'
-        lock.mkdir()
-        self.assertEqual(self.call('applySettings')['error'], 'busy')
-        self.assertEqual(self.call('saveSettings', payload)['error'], 'busy')
-        lock.rmdir()
+        with self.held_lock():
+            for method in ('getSettings', 'applySettings', 'saveSettings'):
+                self.assertEqual(self.call(method, payload), {'error': 'busy'})
+        self.assert_lock_available()
         pending.unlink(); pending.mkdir()
         self.assertEqual(self.call('saveSettings', payload)['error'], 'storage')
         pending.rmdir(); pending.write_text('{broken')
@@ -481,7 +696,7 @@ class Backend(unittest.TestCase):
                 self.assertEqual((self.policy / 'scaling_max_freq').read_text().strip(), '1400000' if mode == 'delayed' else '1200000')
                 self.assertEqual((self.policy / 'scaling_governor').read_text().strip(), 'performance' if mode == 'delayed' else 'schedutil')
                 self.assertEqual(self.call('getSettings')['pending'], payload)
-                self.assertFalse((self.root / 'var/lock/luci-airoha-npu').exists())
+                self.assert_lock_available()
 
     def test_settings_rollback(self):
         payload = {'governor': 'performance', 'freq': '1400000'}

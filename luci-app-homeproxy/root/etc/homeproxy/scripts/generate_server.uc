@@ -52,6 +52,8 @@ function render_server_tls(cfg) {
 		return null;
 
 	const use_acme = cfg.tls_acme === '1';
+	// cfdns is the retained LuCI/UCI spelling; the core union uses cloudflare.
+	const dns01_provider = cfg.tls_dns01_provider === 'cfdns' ? 'cloudflare' : cfg.tls_dns01_provider;
 	/* Retained hidden REALITY options belong only to AnyTLS/VLESS. */
 	const use_reality = !use_acme && cfg.type in ['anytls', 'vless'] && cfg.tls_reality === '1';
 	return {
@@ -80,11 +82,11 @@ function render_server_tls(cfg) {
 				mac_key: cfg.tls_acme_ea_mackey
 			} : null,
 			dns01_challenge: (cfg.tls_dns01_challenge === '1') ? {
-				provider: cfg.tls_dns01_provider,
-				access_key_id: cfg.tls_dns01_ali_akid,
-				access_key_secret: cfg.tls_dns01_ali_aksec,
-				region_id: cfg.tls_dns01_ali_rid,
-				api_token: cfg.tls_dns01_cf_api_token
+				provider: dns01_provider,
+				access_key_id: dns01_provider === 'alidns' ? cfg.tls_dns01_ali_akid : null,
+				access_key_secret: dns01_provider === 'alidns' ? cfg.tls_dns01_ali_aksec : null,
+				region_id: dns01_provider === 'alidns' ? cfg.tls_dns01_ali_rid : null,
+				api_token: dns01_provider === 'cloudflare' ? cfg.tls_dns01_cf_api_token : null
 			} : null
 		} : null,
 		ech: (!use_reality && cfg.tls_ech_key) ? {

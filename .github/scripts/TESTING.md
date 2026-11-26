@@ -65,6 +65,34 @@ Generator fixtures bind their private platform modules by exact
 path while retaining native fs/digest, preventing installed ucode extensions from
 shadowing the isolated UCI/ubus fixtures.
 
+## Automatic stable-core updates
+
+`update-homeproxy.py` keeps daily resource-only updates on the SRS/schema smoke
+path. When the official stable core version changes, it additionally prepares
+the pinned prebuilt OpenWrt runtime and runs `check-core-compatibility.py` against
+that exact digest-verified candidate before publishing any new bytes. The gate
+reuses native client/server generation, ACME DNS-01 provider switches, explicit
+DNS/ECH address-family policy, routing, URLTest, UoT/multiplex and retained
+Hysteria obfuscation suites with `SING_BOX_CHECK`, plus the DNS fallback and NTP
+bootstrap runtime cases in distinct, verified loopback-only network namespaces.
+Zero tests, skips, tool preparation failures and compatibility failures all stop
+publication; there is no host-network fallback. The namespaces require root
+(passwordless sudo on GitHub's runner), iproute2 and unshare; server fixtures use
+OpenSSL. No firmware is compiled and no host service or clock is changed.
+
+The recipe, README sing-box version and resources share the updater's existing
+rollback/recovery transaction. The bot stages README with the core commit, not
+the resource commit. These pre-publication gates do not depend on a push workflow
+being triggered by `GITHUB_TOKEN`. `.github/tests/test_core_update.py` covers the
+conditional gate, refusal/rollback boundaries and real commits to a private local
+Git remote. Future versions must pass the same gates; this is not evidence of
+router startup, TUN/kernel behavior or remote protocol interoperability.
+
+`test_log_permissions.py` also runs in a separate privileged CI step. It uses a
+private runtime and dropped numeric service UID to verify root-owned runtime
+entries, legacy-link migration, retained append descriptors and both periodic
+and RPC log clearing. Its non-root skip is not acceptance of that boundary.
+
 jsdom stays at 26.1.0: 30.1.3 changes CSS custom-property computed styles and the
 subscription timer harness. The upstream whatwg-encoding deprecation remains visible;
 it is not suppressed or treated as a product failure.

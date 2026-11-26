@@ -30,9 +30,10 @@ def section_id(url, label):
 
 class NativeSubscriptionEfficiency(unittest.TestCase):
     def run_main(self, payloads, original=EMPTY, *, fault=(), reload_ok=True,
-                 native_settings=False, fs_fault='', partial_commit=False, concurrent=False):
+                 native_settings=False, fs_fault='', partial_commit=False, concurrent=False,
+                 updater_source=None):
         helper = (BASE / 'homeproxy.uc').read_text()
-        updater = (BASE / 'update_subscriptions.uc').read_text()
+        updater = updater_source if updater_source is not None else (BASE / 'update_subscriptions.uc').read_text()
         with tempfile.TemporaryDirectory(prefix='native-sub-work-') as directory:
             root = Path(directory)
             for name in ('config', 'saved'):
@@ -128,6 +129,81 @@ exit(code);'''
                 states.append(state)
         if len(states) == 2:
             self.assertEqual(states[0]['sections'], states[1]['sections'])
+
+    def test_full_main_avoids_discarded_map_arrays_with_equal_results(self):
+        source = (BASE / 'update_subscriptions.uc').read_text()
+        # Restore only the former side-effect maps as the semantic oracle.
+        # The rest of main and all transaction code remains identical.
+        before = source.replace("for (let node in nodes) node.nodetype = 'sip008';",
+                                "map(nodes, (_, i) => nodes[i].nodetype = 'sip008');")
+        start = before.find('\n\tfor (let node in node_result) {', before.index('\tlet added ='))
+        if start >= 0:
+            end = before.index('\n\treconcileUrltestNodes', start)
+            old = '''
+	map(node_result, (node) => {
+		if (node.isExisting)
+			return null;
+
+		const nameHash = node.__section_id;
+		writer.set(uciconfig, nameHash, 'node');
+		map(keys(node), (v) => {
+			if (!match(v, /^__/) && node[v] !== null)
+				writer.set(uciconfig, nameHash, v, node[v]);
+		});
+
+		added++;
+		log(sprintf('Adding node: %s.', node.label));
+	});
+
+'''
+            before = before[:start] + old + before[end:]
+
+        def counted(script):
+            start = script.index('function main() {')
+            end = script.index('if (!isEmpty(subscription_urls))', start)
+            body = script[start:end].replace('map(', 'countedMap(')
+            body = body.replace('function main() {', '''function main() {
+ function countedMap(items, callback) {
+  warn('DISCARDED_MAP ' + length(items) + '\\n');
+  return map(items, callback);
+ }
+''', 1)
+            return script[:start] + body + script[end:]
+
+        def run(script, payloads, original=EMPTY):
+            result = self.run_main(payloads, original, updater_source=counted(script))
+            sizes = [int(line.split()[1]) for line in result['stderr'].splitlines()
+                     if line.startswith('DISCARDED_MAP ')]
+            result['stderr'] = '\n'.join(line for line in result['stderr'].splitlines()
+                                         if not line.startswith('DISCARDED_MAP ')) + '\n'
+            result.pop('source_sha256')
+            return result, sizes
+
+        payloads = {URL: json.dumps([dict(NODE, remarks='n' + str(i), server='p' + str(i) + '.example')
+                                    for i in range(64)])}
+        first_before, counts = run(before, payloads)
+        first_after, current = run(source, payloads)
+        self.assertEqual(first_before, first_after)
+        self.assertEqual((len(counts), sum(counts)), (66, 896))
+        self.assertEqual(current, [], 'full main must not allocate discarded map results')
+        records = [dict(scenario='first-complete-64', equivalent_complete_fixture_result=True,
+                        discarded_arrays_before=len(counts), discarded_slots_before=sum(counts),
+                        discarded_arrays_after=len(current), returncode=first_after['returncode'])]
+        for failed in (False, True):
+            with self.subTest(failed_sibling=failed):
+                request = dict(payloads, **{FAILED: None}) if failed else payloads
+                old, counts = run(before, request, first_before['after'])
+                new, current = run(source, request, first_after['after'])
+                self.assertEqual(old, new)
+                self.assertEqual((len(counts), sum(counts)), (2, 128))
+                self.assertEqual(current, [])
+                self.assertEqual(new['returncode'], 1 if failed else 0)
+                self.assertFalse(any(call[0] in ('set', 'delete', 'commit') for call in new['calls']))
+                records.append(dict(scenario='failed-sibling-nochange' if failed else 'no-write-repeat-64',
+                                    equivalent_complete_fixture_result=True,
+                                    discarded_arrays_before=len(counts), discarded_slots_before=sum(counts),
+                                    discarded_arrays_after=len(current), returncode=new['returncode']))
+        evidence('full-main-maps', records)
 
     def test_native_url_list_keeps_order_and_deduplicates_fetches(self):
         original = EMPTY + "config homeproxy 'subscription'\n" + ''.join(

@@ -749,6 +749,14 @@ export function parseECHConfig(value) {
 	};
 };
 
+export function dnsServerAddress(hostname, strategy) {
+	// URL brackets delimit a literal; they are not part of the core address.
+	const address = replace(hostname, /^\[|\]$/g, '');
+	if (strategy === 'ipv4_only' && validation('ip6addr', address))
+		die('IPv6 DNS server requires IPv6 support.');
+	return address;
+};
+
 export function addECHDNS(config, node, resolver) {
 	if (node.tls !== '1' || node.tls_ech !== '1' || isEmpty(node.tls_ech_query_server) ||
 	    !isEmpty(node.tls_ech_config) || !isEmpty(node.tls_ech_config_path))
@@ -769,7 +777,7 @@ export function addECHDNS(config, node, resolver) {
 		push(config.dns.servers, {
 			tag,
 			type: server.protocol,
-			server: server.hostname,
+			server: dnsServerAddress(server.hostname, resolver?.strategy || config.dns.strategy),
 			server_port: strToInt(server.port),
 			path: server.protocol === 'https' ? server.pathname + (server.search ? '?' + server.search : '') : null,
 			domain_resolver: resolver

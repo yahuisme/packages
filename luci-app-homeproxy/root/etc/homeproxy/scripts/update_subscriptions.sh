@@ -11,8 +11,8 @@ LOCK_PATH="$JOB_DIR/update_subscriptions.lock"
 
 umask 077
 mkdir -p "$RUN_DIR" || exit 1
-# init recursively chowns RUN_DIR to sing-box; root task controls must stay
-# outside it. Reject preexisting links, foreign owners and permissive modes.
+# Keep root task controls outside runtime cleanup and retained legacy paths.
+# Reject preexisting links, foreign owners and permissive modes.
 if [ ! -d "$JOB_DIR" ]; then
 	mkdir -m 0700 "$JOB_DIR" || [ -d "$JOB_DIR" ] || exit 1
 fi

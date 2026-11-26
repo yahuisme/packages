@@ -220,9 +220,14 @@ set_acceleration() (
         case "$value" in -1|0|1) export "$name=$value";; *) acc_error invalid; exit;; esac
     done
     umask 077
-    mkdir /var/run/flowsense-acceleration.lock 2>/dev/null || { acc_error busy; exit; }
-    tmp=$(mktemp -d /tmp/flowsense-acceleration.XXXXXX) || { rmdir /var/run/flowsense-acceleration.lock; acc_error prepare; exit; }
-    trap '[ "$armed" = 0 ] || acc_rollback >/dev/null; rm -rf "$tmp"; rmdir /var/run/flowsense-acceleration.lock' EXIT
+    command -v flock >/dev/null 2>&1 || { acc_error busy; exit; }
+    # fd 9 belongs to the enclosing Settings Apply. Keep both locks through
+    # rollback and inherited synchronous children, releasing on last close.
+    # Never unlink this inode or reuse the legacy mkdir lock's path.
+    { command exec 8>> /var/run/flowsense-acceleration.flock; } 2>/dev/null || { acc_error busy; exit; }
+    flock -n 8 2>/dev/null || { acc_error busy; exit; }
+    tmp=$(mktemp -d /tmp/flowsense-acceleration.XXXXXX) || { acc_error prepare; exit; }
+    trap '[ "$armed" = 0 ] || acc_rollback >/dev/null; rm -rf "$tmp"' EXIT
     trap 'exit 1' HUP INT TERM
     mkdir "$tmp/old" "$tmp/new" "$tmp/want" "$tmp/config" "$tmp/override" "$tmp/delta" || { acc_error prepare; exit; }
     filtering=$(acc_vlan_filtering)

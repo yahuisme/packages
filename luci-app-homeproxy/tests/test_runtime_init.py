@@ -57,6 +57,9 @@ export function cursor() {
                               "ucode -l uci -e '\nimport { cursor as fixture_cursor } from " +
                               json.dumps(str(adapter)) + ";\n")
                               .replace('/etc/config', str(root / 'config'))
+                              # Ordinary CI runs unprivileged; the separate
+                              # native-rootfs/log suites verify uid 0 ownership.
+                              .replace('chown root:root', f'chown {os.getuid()}:{os.getgid()}')
                               .replace('/var/run/homeproxy', str(root / 'run'))
                               .replace('/usr/libexec/homeproxy-random-port', str(root / 'bin/random'))
                               .replace('/usr/bin/sing-box', str(root / 'bin/core')))

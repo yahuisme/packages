@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Update public resources and the latest official stable sing-box.
-No service starts. All downloads/checks complete before publishing local files.
+No host service starts. Downloads/checks finish before publishing local files.
 """
 import argparse
 import hashlib
@@ -12,6 +12,7 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import zipfile
@@ -101,6 +102,19 @@ def resources(home, binary, temp):
     check(binary, home, temp)
 
 
+def core_compatibility(binary, version, root, temp):
+    # Only core-version changes pay for the native generator/runtime gates.
+    # Keep the verified candidate alive until they finish, before publication.
+    tools = temp/'tools'
+    env = dict(os.environ, TMPDIR=str(temp), PYTHONDONTWRITEBYTECODE='1')
+    subprocess.run([sys.executable, str(root/'.github/scripts/setup-test-tools.py'),
+                    '--dest', str(tools)], env=env, check=True)
+    subprocess.run(['sh', '-ec', '. "$1"; exec "$2" "$3" --binary "$4" --version "$5"',
+                    'core-compatibility', str(tools/'env.sh'), sys.executable,
+                    str(root/'.github/scripts/check-core-compatibility.py'), str(binary), version],
+                   env=env, check=True)
+
+
 def remove_completed(path):
     if path.is_symlink():
         raise RuntimeError(f'Invalid completed backup: {path}')
@@ -165,10 +179,11 @@ def main():
     args = parser.parse_args()
     root = args.root.resolve()
     makefile = root/'sing-box/Makefile'
+    readme = root/'README.md'
     target = root/'luci-app-homeproxy/root/etc/homeproxy'
     # A prior core update can have completed even if its version is unchanged
-    # now; recover both targets before deciding which ones need publication.
-    prepare_publication([target/'resources', makefile])
+    # now; recover every target before deciding which ones need publication.
+    prepare_publication([target/'resources', makefile, readme])
     original = makefile.read_text()
     current = re.search(r'^PKG_UPSTREAM_VERSION:=(.+)$', original, re.M).group(1)
     latest = api('sing-box/releases/latest')
@@ -189,6 +204,12 @@ def main():
         resources(home, binary, temp)
         pairs = [(home/'resources', target/'resources')]
         if version != current:
+            documentation, count = re.subn(r'^(\| `sing-box` \| )`[^`]+`( \|.*)$',
+                                          lambda match: match[1] + f'`{version}`' + match[2],
+                                          readme.read_text(), flags=re.M)
+            if count != 1:
+                raise ValueError('Expected exactly one sing-box README version row')
+            core_compatibility(binary, version, root, temp)
             updated = re.sub(r'^PKG_UPSTREAM_VERSION:=.*$', f'PKG_UPSTREAM_VERSION:={version}', original, flags=re.M)
             updated = re.sub(r'^PKG_HASH:=.*$', f'PKG_HASH:={digest}', updated, flags=re.M)
             updated = re.sub(r'^PKG_RELEASE:=.*$', 'PKG_RELEASE:=', updated, flags=re.M)
@@ -196,8 +217,12 @@ def main():
             staged.write_text(updated)
             staged.chmod(makefile.stat().st_mode & 0o777)
             pairs.append((staged, makefile))
+            staged_readme = temp/'README.md'
+            staged_readme.write_text(documentation)
+            staged_readme.chmod(readme.stat().st_mode & 0o777)
+            pairs.append((staged_readme, readme))
         publish(pairs)
-    print('Resources validated and published; no service started.', flush=True)
+    print('Resources validated and published; no host service started.', flush=True)
 
 
 if __name__ == '__main__':

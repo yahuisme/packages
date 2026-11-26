@@ -21,8 +21,8 @@ ucode program is substituted. There is no compilation, browser, proxy, network,
 UCI change or system-service action. The virtual-memory limit is 1 GiB per
 process; the fixture uses only small files.
 
-Task controls live in `${RUN_DIR}.subscriptions`, outside the recursively
-service-owned runtime directory. Existing control directories must be non-link,
+Task controls live in `${RUN_DIR}.subscriptions`, outside the runtime directory
+(root-owned on current installations). Existing control directories must be non-link,
 root-owned, exactly mode 0700, with a root-owned parent; unsafe paths fail closed
 without changing their ownership or permissions. New files inherit umask 077.
 Publication removes a stale staging entry before writing and atomically renames

@@ -41,9 +41,14 @@ argument() {
 "}
 }
 lock() {
+	command -v flock >/dev/null 2>&1 || return 1
 	mkdir -p "$ROOT/var/lock" || return 1
-	mkdir "$ROOT/var/lock/luci-airoha-npu" 2>/dev/null || return 1
-	trap 'rmdir "$ROOT/var/lock/luci-airoha-npu" 2>/dev/null' EXIT
+	# Separate from the legacy mkdir lock; never unlink/replace a held inode.
+	# command makes an open failure recoverable in ash (plain exec exits).
+	{ command exec 9>> "$ROOT/var/lock/luci-airoha-npu.lock"; } 2>/dev/null || return 1
+	flock -n 9 2>/dev/null || return 1
+	# settings_rpc and its short-lived children inherit fd 9. The kernel
+	# releases the lock on last close, including owner/child SIGKILL.
 	trap 'exit 1' HUP INT TERM
 }
 # Fixed, private persistent staging. Runtime is touched only by applySettings.

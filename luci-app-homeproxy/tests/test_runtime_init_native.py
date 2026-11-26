@@ -25,7 +25,7 @@ class RuntimeInitNative(unittest.TestCase):
         for directory in ('etc/config', 'usr/libexec', 'tmp', 'var/run/homeproxy', 'var/run/uci', 'dev'):
             (self.root / directory).mkdir(parents=True, exist_ok=True)
         # The minimal upstream image omits some BusyBox applet links.
-        for applet in ('mktemp', 'mkdir', 'rm', 'date'):
+        for applet in ('mktemp', 'mkdir', 'rm', 'date', 'chown', 'chmod', 'stat'):
             path = self.root / 'bin' / applet
             if not path.exists():
                 path.symlink_to('busybox')
@@ -150,6 +150,24 @@ class RuntimeInitNative(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.config.read_bytes(), before)
         self.assert_external_unchanged(external)
+
+
+    def test_legacy_runtime_log_link_never_reaches_root_target(self):
+        runtime = self.root / 'var/run/homeproxy'
+        target = self.root / 'tmp/root-secret'
+        target.write_bytes(b'untouched-root-data')
+        target.chmod(0o600)
+        os.chown(runtime, 5566, 5566)
+        log = runtime / 'homeproxy.log'
+        log.symlink_to('/tmp/root-secret')
+        # Force the production error logger after preparation.
+        (self.root / 'usr/bin/sing-box').write_text('#!/bin/sh\nprintf 1.13.0\n')
+        result = self.run_native('/usr/libexec/homeproxy-runtime-init')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(target.read_bytes(), b'untouched-root-data')
+        self.assertEqual((runtime.stat().st_uid, runtime.stat().st_mode & 0o777), (0, 0o755))
+        self.assertFalse(log.is_symlink())
+        self.assertIn('requires sing-box', log.read_text())
 
 
 if __name__ == '__main__':
