@@ -1,4 +1,4 @@
-# packages
+# OpenWrt / ImmortalWrt 软件包
 
 OpenWrt / ImmortalWrt 固件构建用源码 feed，不提供二进制软件源。
 
