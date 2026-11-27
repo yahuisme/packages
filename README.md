@@ -11,7 +11,7 @@ OpenWrt / ImmortalWrt 固件构建用源码 feed，不提供二进制软件源�
 | `luci-app-airoha-fancontrol` | `20261126-r3` | Airoha 温控与风扇调速 |
 | `luci-app-wifi7` | `20261126-r4` | WiFi 7 射频、MLO 与客户端管理 |
 | `luci-app-homeproxy` | `20261126-r6` | 基于 sing-box 的代理管理 |
-| `sing-box` | `1.14.4` | 跟随 SagerNet 官方稳定版 |
+| `sing-box` | `1.14.5` | 跟随 SagerNet 官方稳定版 |
 
 ## 兼容性
 
