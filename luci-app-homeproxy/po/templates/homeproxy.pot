@@ -1072,6 +1072,10 @@ msgstr ""
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1672
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1760
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1763
+#, javascript-format
+msgid "Import could not be confirmed. Reload the page and check the node list before importing again: %s."
+msgstr ""
+
 msgid "Import share links"
 msgstr ""
 
@@ -1451,6 +1455,10 @@ msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1623
 msgid "Nodes"
+msgstr ""
+
+#, javascript-format
+msgid "Nodes saved, but unable to refresh the node list: %s."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1022

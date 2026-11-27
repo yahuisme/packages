@@ -592,11 +592,19 @@ else:
         cp = shutil.which('cp')
         assert cp
         marker = self.d / 'copy-failed'
-        self.script('cp', '#!/bin/sh\ncase "$*" in *"/new/15-pppoe-offload.conf"*) '
-                    '[ -e "' + str(marker) + '" ] || { touch "' + str(marker) + '"; exit 1; };; esac\nexec ' + cp + ' "$@"\n')
-        self.assertEqual(self.save(hardware=0, vlan=0, pppoe=0, ap=0), {'success': False, 'error': 'apply'})
+        rollback_log = self.d / 'rollback-copies'
+        self.script('cp', f'''#!/bin/sh
+case "$*" in
+    *"/new/15-pppoe-offload.conf"*) printf 'partial copy\\n' > "$2"; touch "{marker}"; exit 1;;
+    *"/old/"*" {self.d}/etc/sysctl.d/"*) printf '%s\\n' "$3" >> "{rollback_log}";;
+esac
+exec {cp} "$@"
+''')
+        self.assertEqual(self.save(pppoe=0), {'success': False, 'error': 'apply'})
         self.assertEqual(self.snapshot(), before)
         self.assertTrue(marker.exists())
+        self.assertEqual(rollback_log.read_text().splitlines(), [str(self.conf('15-pppoe-offload.conf'))],
+                         'restore the partially written file without republishing untouched AP/VLAN files')
 
     def test_private_uci_failure_and_failed_rollback(self):
         before = self.snapshot()

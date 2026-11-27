@@ -1705,73 +1705,101 @@ return view.extend({
 		};
 		/* Import subscription links start */
 		/* Thanks to luci-app-shadowsocks-libev */
+		let savedImport, importError;
 		ss.handleLinkImport = function() {
 			if (this.map.readonly || nodeSource)
 				return;
-			let textarea = new ui.Textarea();
+			const textarea = new ui.Textarea();
+			const input = textarea.render();
+			const message = E('p', { role: 'alert', class: 'alert-message error' });
+			const cancel = E('button', { class: 'btn', click: ui.hideModal }, [ _('Cancel') ]);
+			const inputField = input.querySelector('textarea');
+			function error(text) {
+				message.textContent = text;
+				message.style.display = text ? '' : 'none';
+			}
+			error(importError || '');
+			inputField.disabled = Boolean(savedImport || importError);
 			ui.showModal(_('Import share links'), [
 				E('p', getShareLinkDescription(features)),
-				textarea.render(),
+				input, message,
 				E('div', { class: 'right' }, [
-					E('button', {
-						class: 'btn',
-						click: ui.hideModal
-					}, [ _('Cancel') ]),
+					cancel,
 					'',
 					E('button', {
 						class: 'btn cbi-button-action',
-						click: ui.createHandlerFn(this, () => {
-							let input_links = textarea.getValue().trim().split('\n');
-							if (input_links && input_links[0]) {
-								/* Remove duplicate lines */
-								input_links = input_links.reduce((pre, cur) =>
-									(!pre.includes(cur) && pre.push(cur), pre), []);
-
-								let allow_insecure = uci.get(data[0], 'subscription', 'allow_insecure');
-								let packet_encoding = uci.get(data[0], 'subscription', 'packet_encoding');
-								let imported_node = 0, import_errors = [];
-								input_links.forEach((l) => {
-									let sid = null;
-									try {
-										let config = parseShareLink(l, features);
-										if (!config)
-											return;
-										if (config.tls === '1' && allow_insecure === '1')
-											config.tls_insecure = '1'
-										if (['vless', 'vmess'].includes(config.type))
-											config.packet_encoding = packet_encoding
-
-										sid = uci.add(data[0], 'node');
-										Object.keys(config).forEach((k) => {
-											uci.set(data[0], sid, k, config[k]);
-										});
-										imported_node++;
-									} catch (e) {
-										if (e.message && !import_errors.includes(e.message))
-											import_errors.push(e.message);
-										if (sid)
-											uci.remove(data[0], sid);
+						click: ui.createHandlerFn(this, async ev => {
+							if (importError && !savedImport)
+								return;
+							const button = ev.currentTarget;
+							error('');
+							cancel.disabled = true;
+							try {
+								if (!savedImport) {
+									const text = textarea.getValue().trim();
+									if (!text)
+										return ui.hideModal();
+									const links = new Set(text.split('\n'));
+									const allowInsecure = uci.get(data[0], 'subscription', 'allow_insecure');
+									const packetEncoding = uci.get(data[0], 'subscription', 'packet_encoding');
+									const imported = [], errors = new Set();
+									for (const link of links) {
+										let sid;
+										try {
+											const config = parseShareLink(link, features);
+											if (!config)
+												continue;
+											if (config.tls === '1' && allowInsecure === '1')
+												config.tls_insecure = '1';
+											if (config.type === 'vless' || config.type === 'vmess')
+												config.packet_encoding = packetEncoding;
+											sid = uci.add(data[0], 'node');
+											for (const key of Object.keys(config))
+												uci.set(data[0], sid, key, config[key]);
+											imported.push(sid);
+										} catch (e) {
+											if (e.message)
+												errors.add(e.message);
+											if (sid)
+												uci.remove(data[0], sid);
+										}
 									}
-								});
-
-								if (imported_node === 0)
-									ui.addNotification(null, E('p', _('No valid share link found.') + ' ' + import_errors.join(' ')));
-								else
-									ui.addNotification(null, E('p', _('Successfully imported %s nodes of total %s.').format(
-										imported_node, input_links.length) + ' ' + import_errors.join(' ')));
-
-								return uci.save()
-									.then(L.bind(this.map.load, this.map))
-									.then(L.bind(this.map.reset, this.map))
-									.then(L.ui.hideModal)
-									.catch((err) => {
-									ui.addNotification(null, E('p', _('Unknown error: %s.').format(err)), 'error');
-									});
-							} else {
-								return ui.hideModal();
+									const details = errors.size ? ' ' + [...errors].join(' ') : '';
+									if (!imported.length)
+										return error(_('No valid share link found.') + details);
+									try {
+										await uci.save();
+									} catch (err) {
+										// The native batch may have partially saved; never replay it.
+										for (const sid of imported)
+											uci.remove(data[0], sid);
+										inputField.disabled = true;
+										button.style.display = 'none';
+										importError = _('Import could not be confirmed. Reload the page and check the node list before importing again: %s.').format(err);
+										return error(importError);
+									}
+									savedImport = _('Successfully imported %s nodes of total %s.').format(imported.length, links.size) + details;
+									inputField.disabled = true;
+									button.textContent = _('Retry');
+								}
+								await this.map.load();
+								await this.map.reset();
+								const result = savedImport;
+								savedImport = importError = null;
+								if (message.isConnected) {
+									ui.hideModal();
+									ui.addNotification(null, E('p', result));
+								}
+							} catch (err) {
+								if (savedImport)
+								importError = _('Nodes saved, but unable to refresh the node list: %s.').format(err);
+							error(importError || _('Unknown error: %s.').format(err));
+							} finally {
+								cancel.disabled = false;
 							}
-						})
-					}, [ _('Import') ])
+						}),
+						style: importError && !savedImport ? 'display:none' : null
+				}, [ savedImport ? _('Retry') : _('Import') ])
 				])
 			], 'hp-node-modal')
 		}

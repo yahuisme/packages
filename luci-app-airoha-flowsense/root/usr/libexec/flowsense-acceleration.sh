@@ -177,7 +177,10 @@ acc_apply() {
         acc_restart_firewall || return 1
     fi
     for file in $acc_files; do
-        [ ! -f "$tmp/new/$file" ] || cp "$tmp/new/$file" "/etc/sysctl.d/$file" || return 1
+        [ -f "$tmp/new/$file" ] || continue
+        # Mark before copying: a failed copy can leave a partial destination.
+        attempted_files="$attempted_files $file"
+        cp "$tmp/new/$file" "/etc/sysctl.d/$file" || return 1
     done
     for key in $acc_keys; do
         [ ! -f "$tmp/want/$key" ] || acc_put "$key" "$(cat "$tmp/want/$key")" || return 1
@@ -191,7 +194,7 @@ acc_apply() {
 }
 acc_rollback() {
     local file key failed=0
-    for file in $acc_files; do
+    for file in $attempted_files; do
         if [ -f "$tmp/old/$file" ]; then cp -p "$tmp/old/$file" "/etc/sysctl.d/$file" || failed=1
         else rm -f "/etc/sysctl.d/$file" || failed=1; fi
     done
@@ -203,14 +206,14 @@ acc_rollback() {
     for key in $acc_keys; do
         [ ! -f "$tmp/old/$key" ] || acc_put "$key" "$(cat "$tmp/old/$key")" || failed=1
     done
-    for file in $acc_files; do
+    for file in $attempted_files; do
         if [ -f "$tmp/old/$file" ]; then cmp -s "$tmp/old/$file" "/etc/sysctl.d/$file" || failed=1
         else [ ! -e "/etc/sysctl.d/$file" ] || failed=1; fi
     done
     return "$failed"
 }
 set_acceleration() (
-    local input names name type value hardware vlan pppoe ap filtering key file tmp oldhw armed=0 published=0
+    local input names name type value hardware vlan pppoe ap filtering key file tmp oldhw armed=0 published=0 attempted_files=
     read -r input
     json_load "$input" >/dev/null 2>&1 || { acc_error invalid; exit; }
     json_get_keys names
@@ -264,9 +267,6 @@ set_acceleration() (
     [ "$vlan" = -1 ] || [ "$(acc_read filter-vlan-tagged)" != "$vlan" ] || [ "$(acc_config filter-vlan-tagged)" != "$vlan" ] || vlan=-1
     [ "$pppoe" = -1 ] || [ "$(acc_read filter-pppoe-tagged)" != "$pppoe" ] || [ "$(acc_config filter-pppoe-tagged)" != "$pppoe" ] || pppoe=-1
     [ "$hardware:$vlan:$pppoe:$ap" != -1:-1:-1:-1 ] || { printf '{"success":true}'; exit; }
-    for file in $acc_files; do
-        [ ! -e "/etc/sysctl.d/$file" ] || { [ -f "/etc/sysctl.d/$file" ] && [ ! -L "/etc/sysctl.d/$file" ] && cp -p "/etc/sysctl.d/$file" "$tmp/old/$file"; } || { acc_error prepare; exit; }
-    done
     if [ "$hardware" != -1 ]; then
         [ ! -L /etc/config/firewall ] && cp -p /etc/config/firewall "$tmp/firewall" && cp -p "$tmp/firewall" "$tmp/config/firewall" || { acc_error read; exit; }
     fi
@@ -295,6 +295,10 @@ set_acceleration() (
         [ "$value" != null ] || { acc_error read; exit; }
         printf 'net.bridge.bridge-nf-filter-vlan-tagged=%s\n' "$value" >> "$tmp/new/12-apmode-offload.conf" || { acc_error prepare; exit; }
     fi
+    for file in $acc_files; do
+        [ -f "$tmp/new/$file" ] || continue
+        [ ! -e "/etc/sysctl.d/$file" ] || { [ -f "/etc/sysctl.d/$file" ] && [ ! -L "/etc/sysctl.d/$file" ] && cp -p "/etc/sysctl.d/$file" "$tmp/old/$file"; } || { acc_error prepare; exit; }
+    done
     for key in $acc_keys; do
         [ -f "$tmp/want/$key" ] || continue
         value=$(acc_read "$key")

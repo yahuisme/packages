@@ -4,11 +4,11 @@ USE_PROCD=1
 START=99
 
 script=$(readlink "$initscript")
-NAME="$(basename ${script:-$initscript})"
+NAME="$(basename "${script:-$initscript}")"
 PROG="/usr/bin/sing-box"
 
-start_service() {
-	config_load "$NAME"
+prepare_instance() {
+	config_load "$NAME" || return 1
 
 	local enabled user group conffile workdir ifaces
 	local log_stdout log_stderr
@@ -22,9 +22,9 @@ start_service() {
 	config_get_bool log_stdout "main" "log_stdout" "0"
 	config_get_bool log_stderr "main" "log_stderr" "1"
 
-	mkdir -p "$workdir" || return 1
 	group="$(id -ng "$user")" || return 1
 	[ -n "$group" ] || return 1
+	mkdir -p "$workdir" || return 1
 	chown "$user:$group" "$workdir" || return 1
 
 	procd_open_instance "$NAME.main"
@@ -40,6 +40,14 @@ start_service() {
 	procd_set_param respawn
 
 	procd_close_instance
+}
+
+start_service() {
+	prepare_instance && return 0
+	# rc.common would otherwise submit an empty definition and hide the error.
+	procd_close_service() { :; }
+	service_started() { return 1; }
+	return 1
 }
 
 service_triggers() {

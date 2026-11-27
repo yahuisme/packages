@@ -18,7 +18,7 @@ for (const bad of [points(254), points().map((p, i) => i === 1 ? {...p, temp:'01
  assert.strictEqual(context.validPoints(bad), false);
 }
 assert(settings.includes("option.forcewrite = true"));
-assert(settings.includes("option.write = function(sectionId) { uci.set('fan', sectionId, 'point5_pwm', '255'); }"));
+// test_settings_form.js exercises the fixed endpoint's native Save behavior.
 assert(settings.includes("option.depends({ 'fan.settings.mode': 'auto', 'fan.settings.curve_preset': 'custom' })"));
 
 const status = fs.readFileSync(base + 'status.js', 'utf8');

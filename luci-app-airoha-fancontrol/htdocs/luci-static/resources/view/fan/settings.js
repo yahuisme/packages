@@ -264,7 +264,11 @@ return view.extend({
 				option.readonly = true;
 				option.forcewrite = true;
 				option.cfgvalue = function() { return '255'; };
-				option.write = function(sectionId) { uci.set('fan', sectionId, 'point5_pwm', '255'); };
+				option.write = function(sectionId) {
+					// cfgvalue shows the fixed endpoint, not the strictly validated UCI value.
+					if (uci.get('fan', sectionId, 'point5_pwm') !== '255')
+						uci.set('fan', sectionId, 'point5_pwm', '255');
+				};
 			}
 		}
 		option = curve.option(form.DummyValue, '_curve_preview', _('Curve Preview'));

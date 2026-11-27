@@ -675,6 +675,10 @@ msgstr "忽略客户端带宽"
 msgid "Import"
 msgstr "导入"
 
+#, javascript-format
+msgid "Import could not be confirmed. Reload the page and check the node list before importing again: %s."
+msgstr "无法确认导入结果。请重新加载页面并检查节点列表后再导入：%s。"
+
 msgid "Import share links"
 msgstr "导入分享链接"
 
@@ -926,6 +930,10 @@ msgstr "节点已失效，将使用主节点"
 
 msgid "Nodes"
 msgstr "节点"
+
+#, javascript-format
+msgid "Nodes saved, but unable to refresh the node list: %s."
+msgstr "节点已暂存，但无法刷新节点列表：%s。"
 
 msgid "None"
 msgstr "无"

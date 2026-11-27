@@ -76,8 +76,9 @@ shadowing the isolated UCI/ubus fixtures.
 `update-homeproxy.py` still verifies the official source archive. If the core
 version and both resource versions and Git blobs match, it skips the binary
 download and publication. Otherwise, it downloads only missing or changed SRS
-bytes and runs the SRS/schema smoke checks. When the stable core changes, it
-prepares the pinned OpenWrt tools and runs `check-core-compatibility.py` against
+bytes and runs the SRS/schema smoke checks. On a core version change, the
+source archive must contain the build entry point, Go module and license. The
+updater then prepares the pinned tools and runs `check-core-compatibility.py` against
 that exact digest-verified candidate and the staged rule sets before publishing
 any new bytes. The gate checks the default config shared by both sing-box
 variants and reuses

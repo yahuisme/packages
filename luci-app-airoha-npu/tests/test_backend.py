@@ -715,6 +715,43 @@ class Backend(unittest.TestCase):
         for method in ['getSettings', 'saveSettings', 'applySettings']:
             self.assertEqual(self.call(method, payload)['error'], 'storage')
 
+    def test_failed_single_field_apply_does_not_rewrite_the_other_field(self):
+        source = BACKEND.read_text()
+        needle = 'read_value() { cat "$1" 2>/dev/null; }'
+        self.assertEqual(source.count(needle), 1)
+        # Hold the readback stale after a genuine write to the fixture. The
+        # alternative field remains valid; rollback must not write to it.
+        rpc = self.root / 'stale-single-field-rpc'
+        rpc.write_text(source.replace(needle, '''read_value() {
+    local current
+    current=$(cat "$1" 2>/dev/null) || return 1
+    if [ "${1##*/}:$current" = "$STALE_FIELD:$NEW_VALUE" ]; then
+        printf 'stale\n' >> "$ROOT/stale-reads"
+        printf '%s\n' "$OLD_VALUE"
+    else
+        printf '%s\n' "$current"
+    fi
+}'''))
+        for field, unchanged, old, new, desired in (
+            ('scaling_governor', 'scaling_max_freq', 'schedutil', 'performance', dict(governor='performance', freq='1200000')),
+            ('scaling_max_freq', 'scaling_governor', '1200000', '1400000', dict(governor='schedutil', freq='1400000')),
+        ):
+            with self.subTest(field=field):
+                observed = self.root / 'stale-reads'
+                observed.write_text('')
+                self.assertEqual(self.call('saveSettings', desired), dict(result='ok'))
+                other = self.policy / unchanged
+                before = (other.read_bytes(), other.stat().st_mtime_ns)
+                result = json.loads(subprocess.check_output(
+                    ['busybox', 'ash', str(rpc), 'call', 'applySettings'], input=b'{}', timeout=5,
+                    env=dict(self.env, STALE_FIELD=field, OLD_VALUE=old, NEW_VALUE=new)))
+                self.assertEqual(result, dict(error='write_failed'))
+                self.assertTrue(observed.read_text(), 'must reach stale readback after writing')
+                self.assertEqual((self.policy / field).read_text().strip(), old)
+                self.assertEqual((other.read_bytes(), other.stat().st_mtime_ns), before)
+                self.assertEqual(self.call('getSettings')['pending'], desired)
+                self.assert_lock_available()
+
     def test_cpufreq_bounded_forward_and_rollback_convergence(self):
         # CPUFreq QoS sysfs stores queue work; regular files model the backing
         # request, and only read_value models the independently visible policy.

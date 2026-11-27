@@ -89,6 +89,13 @@ return view.extend({
 	},
 	render: function(data) {
 		var radios = uci.sections('wireless', 'wifi-device');
+		var radiosById = Object.create(null), uniqueByBand = Object.create(null);
+		radios.forEach(function(radio) {
+			var id = radio['.name'], band = radio.band;
+			radiosById[id] = radio;
+			if (band === '2g' || band === '5g' || band === '6g')
+				uniqueByBand[band] = band in uniqueByBand ? null : id;
+		});
 		var cells = Object.create(null), controls = [], previous = Object.create(null), busy = false, channelLists = Object.create(null), clientNodes = {};
 		var wirelessSnapshot;
 		var activeTab = 0, clientCache = { rows: [], empty: _('Client data unavailable') };
@@ -386,11 +393,12 @@ return view.extend({
 				if (native.ok) native.value.forEach(function(n) { nativeByName[n.name] = n; });
 				radios.forEach(function(r) { stats[r['.name']] = { util: null, current: null }; });
 				function radioFor(iface, frequency) {
-					var b = telemetry.band(frequency), matches = radios.filter(function(r) { return b && r.band === b; });
+					var b = telemetry.band(frequency);
+					if (!b) return null;
 					// A shared wiphy may report another band's link under this parent.
-					if (matches.length === 1) return matches[0]['.name'];
-					var mapped = ifaceRadio[iface], radio = radios.find(function(r) { return r['.name'] === mapped; });
-					return radio && b && radio.band === b && !Object.keys((parsed.devices[iface] || {}).links || {}).length ? mapped : null;
+					if (uniqueByBand[b] != null) return uniqueByBand[b];
+					var mapped = ifaceRadio[iface], radio = mapped != null && radiosById[mapped];
+					return radio && radio.band === b && !Object.keys((parsed.devices[iface] || {}).links || {}).length ? mapped : null;
 				}
 				var ifaces = Array.from(new Set(Object.keys(parsed.devices).concat(Object.keys(parsed.surveys), Object.keys(nativeByName), Object.keys(ifaceRadio))));
 				var anyKnown = false, anyFailed = false;

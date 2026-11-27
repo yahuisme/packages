@@ -486,18 +486,22 @@ function parse_dnsserver(server_addr, default_protocol) {
 		die('Invalid DNS server address');
 	server_addr = parseURL(server_addr);
 	const protocol = lc(server_addr?.protocol || '');
+	const http = protocol in ['https', 'h3'];
 	if (!server_addr || !(protocol in ['udp', 'tcp', 'tls', 'quic', 'https', 'h3']) ||
 	    (server_addr.port && !validation('port', server_addr.port)) ||
-	    (!(protocol in ['https', 'h3']) && (server_addr.pathname !== '/' || server_addr.search)))
+	    (!http && (server_addr.pathname !== '/' || server_addr.search)))
 		die('Invalid DNS server address');
 
+	// parseURL supplies '/' even for an omitted path. Leave the core's
+	// /dns-query default in that case, but preserve an explicitly entered '/'.
+	const explicit_path = http && match(server_addr.href, /^[^:]+:\/\/[^\/?#]+\//);
 	return {
 		type: protocol,
 		server: dnsServerAddress(server_addr.hostname, dns_default_strategy),
 		server_port: strToInt(server_addr.port),
-		path: (protocol in ['https', 'h3']) && server_addr.search
+		path: http && server_addr.search
 			? server_addr.pathname + '?' + server_addr.search
-			: ((server_addr.pathname !== '/') ? server_addr.pathname : null),
+			: (explicit_path ? server_addr.pathname : null),
 	}
 }
 

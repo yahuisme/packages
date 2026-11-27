@@ -122,11 +122,11 @@ def resources(home, binary, temp, updates):
         binary_path = home/'resources'/f'{kind}_cn.srs'
         # A metadata-only change need not retrieve identical SRS bytes again.
         data = binary_path.read_bytes() if binary_path.is_file() else b''
-        if blob(data) != digest or not data:
+        if not data or blob(data) != digest:
             data = download(url)
-        if not data or digest != blob(data):
-            raise ValueError('SRS Git blob mismatch')
-        binary_path.write_bytes(data)
+            if not data or blob(data) != digest:
+                raise ValueError('SRS Git blob mismatch')
+            binary_path.write_bytes(data)
         (home/'resources'/f'{kind}_cn.ver').write_text(version)
     check(binary, home, temp)
 
@@ -226,8 +226,14 @@ def main():
     if version == current and digest != hash_match[1]:
         raise ValueError('Current sing-box source hash mismatch')
     if version != current:
+        prefix = f'sing-box-{version}/'
+        required = {'LICENSE', 'go.mod', 'cmd/sing-box/main.go'}
         with tarfile.open(fileobj=io.BytesIO(source), mode='r:gz') as archive:
-            archive.getmembers()
+            for member in archive:
+                if member.name.startswith(prefix) and member.isfile() and member.size:
+                    required.discard(member.name[len(prefix):])
+        if required:
+            raise ValueError('Source archive missing: ' + ', '.join(sorted(required)))
     del source
     print(f'sing-box source SHA256: {digest}', flush=True)
     updates = resource_updates(target/'resources')

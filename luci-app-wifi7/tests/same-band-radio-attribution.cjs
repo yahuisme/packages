@@ -103,5 +103,14 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
    'native ordinary interface info also disambiguates same-band radios when collector/radio info is missing');
   assert.equal(h.writes().length, 0);
   console.log('PASS same-band failure/empty unknown cleanup and fresh-delta recovery without UCI writes');
+  for (const config of [h.db().staged, h.db().committed]) config.radio2.band = ['5g'];
+  h.mods.uci.unload('wireless'); await h.mods.uci.load('wireless');
+  node.replaceWith(h.mods.app.render(await h.mods.app.load())); await tick();
+  devices = 'Interface wlan2\n channel 100 (5500 MHz), width: 80 MHz\n txpower 22.00 dBm\n';
+  nativeOnly = false;
+  await h.poll();
+  const cards = [...h.w.document.querySelectorAll('.wifi7-card')];
+  const channels = cards.map(card => card.querySelector('.wifi7-value').textContent);
+  assert.deepEqual(channels, ['—', '100 / 80 MHz', '—'], 'a list value must not mask the only scalar 5 GHz radio');
  } finally { h.w.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

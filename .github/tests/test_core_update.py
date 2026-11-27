@@ -19,13 +19,19 @@ updater = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(updater)
 
 
-def archive(name='source/fixture', body=b'fixture'):
+def archive(*names, body=b'fixture'):
     data = io.BytesIO()
     with tarfile.open(fileobj=data, mode='w:gz') as tar:
-        member = tarfile.TarInfo(name)
-        member.size = len(body)
-        tar.addfile(member, io.BytesIO(body))
+        for name in names:
+            member = tarfile.TarInfo(name)
+            member.size = len(body)
+            tar.addfile(member, io.BytesIO(body))
     return data.getvalue()
+
+
+def core_source(version, *, omit=None):
+    return archive(*(f'sing-box-{version}/{name}' for name in
+                     ('LICENSE', 'go.mod', 'cmd/sing-box/main.go') if name != omit))
 
 
 class CoreUpdate(unittest.TestCase):
@@ -33,7 +39,7 @@ class CoreUpdate(unittest.TestCase):
         root = Path(directory)
         makefile = root / 'sing-box/Makefile'
         makefile.parent.mkdir()
-        source = archive()
+        source = core_source('1.14.4')
         makefile.write_text('PKG_UPSTREAM_VERSION:=1.14.4\nPKG_HASH:=' + hashlib.sha256(source).hexdigest() + '\nPKG_RELEASE:=\n')
         resources = root / 'luci-app-homeproxy/root/etc/homeproxy/resources'
         resources.mkdir(parents=True)
@@ -56,7 +62,7 @@ class CoreUpdate(unittest.TestCase):
 
     def test_core_bump_validates_before_any_publication_and_updates_readme(self):
         with tempfile.TemporaryDirectory() as directory:
-            root, makefile, resources, readme, source = self.fixture(directory)
+            root, makefile, resources, readme, _ = self.fixture(directory)
             before = (makefile.read_bytes(), resources.joinpath('fixture').read_bytes(), readme.read_bytes())
             calls = []
             def gate(binary, version, checkout, temp, *, resources_dir=None):
@@ -65,7 +71,7 @@ class CoreUpdate(unittest.TestCase):
                 assert resources_dir is not None, 'candidate checker must receive the staged resources'
                 self.assertEqual((resources_dir / 'fixture').read_text(), 'new')
                 calls.append(version)
-            self.run_update(root, source, '1.15.0', gate)
+            self.run_update(root, core_source('1.15.0'), '1.15.0', gate)
             self.assertEqual(calls, ['1.15.0'])
             self.assertIn('PKG_UPSTREAM_VERSION:=1.15.0\n', makefile.read_text())
             self.assertEqual(readme.read_text(), '| `sing-box` | `1.15.0` | official stable |\n| `other` | `keep` | untouched |\n')
@@ -74,15 +80,41 @@ class CoreUpdate(unittest.TestCase):
 
     def test_failed_compatibility_keeps_all_published_bytes(self):
         with tempfile.TemporaryDirectory() as directory:
-            root, makefile, resources, readme, source = self.fixture(directory)
+            root, makefile, resources, readme, _ = self.fixture(directory)
             targets = [makefile, resources / 'fixture', readme]
             before = [path.read_bytes() for path in targets]
             def gate(*args, **kwargs):
                 raise subprocess.CalledProcessError(1, 'injected incompatible candidate')
             with self.assertRaises(subprocess.CalledProcessError):
-                self.run_update(root, source, '1.15.0', gate)
+                self.run_update(root, core_source('1.15.0'), '1.15.0', gate)
             self.assertEqual([path.read_bytes() for path in targets], before)
             self.assertFalse(list(root.glob('.homeproxy-update-*')))
+
+    def test_core_bump_refuses_archive_without_the_build_entrypoint(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, makefile, resources, readme, _ = self.fixture(directory)
+            targets = (makefile, resources / 'fixture', readme)
+            before = tuple(path.read_bytes() for path in targets)
+            with self.assertRaisesRegex(ValueError, 'Source archive missing: cmd/sing-box/main.go'):
+                self.run_update(root, core_source('1.15.0', omit='cmd/sing-box/main.go'),
+                                '1.15.0', lambda *args, **kwargs: None)
+            self.assertEqual(tuple(path.read_bytes() for path in targets), before)
+
+    def test_metadata_only_update_does_not_rewrite_staged_srs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / 'resources').mkdir()
+            rules = home / 'resources/geosite_cn.srs'
+            data = b'SRS\x01fixture'
+            rules.write_bytes(data)
+            version = '20240203040506 ' + 'a' * 40 + '\n'
+            with patch.object(updater, 'download') as download, patch.object(updater, 'check') as check, \
+                 patch.object(Path, 'write_bytes', side_effect=AssertionError('unchanged SRS rewritten')):
+                updater.resources(home, home / 'binary', home, [('geosite', version, updater.blob(data), 'unused')])
+            download.assert_not_called()
+            check.assert_called_once()
+            self.assertEqual(rules.read_bytes(), data)
+            self.assertEqual(rules.with_suffix('.ver').read_text(), version)
 
     def test_resource_only_update_never_runs_core_gate_or_rewrites_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -132,7 +164,7 @@ class CoreUpdate(unittest.TestCase):
 
     def test_readme_install_failure_rolls_back_resources_and_recipe(self):
         with tempfile.TemporaryDirectory() as directory:
-            root, makefile, resources, readme, source = self.fixture(directory)
+            root, makefile, resources, readme, _ = self.fixture(directory)
             targets = [makefile, resources / 'fixture', readme]
             before = [path.read_bytes() for path in targets]
             rename = Path.rename
@@ -141,18 +173,18 @@ class CoreUpdate(unittest.TestCase):
                     raise OSError('injected README installation failure')
                 return rename(path, target)
             with patch.object(Path, 'rename', fault), self.assertRaises(OSError):
-                self.run_update(root, source, '1.15.0', lambda *args, **kwargs: None)
+                self.run_update(root, core_source('1.15.0'), '1.15.0', lambda *args, **kwargs: None)
             self.assertEqual([path.read_bytes() for path in targets], before)
             self.assertFalse(list(root.rglob('*.update-*')))
 
     def test_missing_or_duplicate_sing_box_row_refuses_update(self):
         for text in ('no component row\n', '| `sing-box` | `1.14.4` | x |\n' * 2):
             with self.subTest(text=text), tempfile.TemporaryDirectory() as directory:
-                root, makefile, resources, readme, source = self.fixture(directory)
+                root, makefile, resources, readme, _ = self.fixture(directory)
                 readme.write_text(text)
                 before = (makefile.read_bytes(), resources.joinpath('fixture').read_bytes(), readme.read_bytes())
-                with self.assertRaises(ValueError):
-                    self.run_update(root, source, '1.15.0', lambda *args: None)
+                with self.assertRaisesRegex(ValueError, 'exactly one sing-box README version row'):
+                    self.run_update(root, core_source('1.15.0'), '1.15.0', lambda *args, **kwargs: None)
                 self.assertEqual((makefile.read_bytes(), resources.joinpath('fixture').read_bytes(), readme.read_bytes()), before)
 
     def test_completed_readme_cleanup_before_network(self):
@@ -182,7 +214,7 @@ class CoreGate(unittest.TestCase):
             release = {'tag_name': 'v1.15.0', 'draft': False, 'prerelease': False,
                        'assets': [{'name': name + '.tar.gz', 'browser_download_url': source.as_uri()}]}
             asset = release['assets'][0]
-            source.write_bytes(archive(name + '/sing-box', body))
+            source.write_bytes(archive(name + '/sing-box', body=body))
             asset['digest'] = 'sha256:' + '0' * 64
             with self.assertRaisesRegex(ValueError, 'digest mismatch'):
                 updater.get_binary(release, stage)

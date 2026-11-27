@@ -64,6 +64,46 @@ class ServiceInit(unittest.TestCase):
         self.assertIn('param user root\n', trace)
         self.assertTrue(trace.endswith('close\n'))
 
+    def test_rc_common_start_does_not_publish_empty_service_on_preparation_failure(self):
+        source = Path(os.environ['OPENWRT_SOURCE'])
+        rc = source / 'package/base-files/files/etc/rc.common'
+        procd = source / 'package/system/procd/files/procd.sh'
+        jshn = Path(os.environ['OPENWRT_TOOLS']) / 'share/libubox/jshn.sh'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for subdir in ('lib/functions', 'usr/share/libubox', 'var/lock'):
+                (root / subdir).mkdir(parents=True)
+            (root / 'lib/functions.sh').write_text(r'''
+list_contains() { eval "local list=\${$1}"; case " $list " in *" $2 "*) return 0;; *) return 1;; esac; }
+uci_get() { printf '%s\n' "$4"; }
+config_load() { [ "$FAULT" != config ]; }
+config_get_bool() { local value="$4"; [ "$3" != enabled ] || value="$ENABLED"; export "$1=$value"; }
+config_get() { export "$1=$4"; }
+mkdir() { [ "$1:$2" = '-p:/usr/share/sing-box' ] && [ "$FAULT" != mkdir ]; }
+id() { [ "$FAULT" != user ] && printf 'root\n'; }
+chown() { [ "$1:$2" = 'root:root:/usr/share/sing-box' ] && [ "$FAULT" != chown ]; }
+ubus() { [ "$1:$2:$3" = call:service:set ] && printf '%s\n' "$4"; }
+''')
+            (root / 'lib/functions/service.sh').touch()
+            (root / 'lib/functions/procd.sh').symlink_to(procd)
+            (root / 'usr/share/libubox/jshn.sh').symlink_to(jshn)
+            init = root / 'sing-box'
+            init.write_bytes(INIT.read_bytes())
+            for fault, enabled in (('', '1'), ('', '0'), ('config', '1'), ('mkdir', '1'),
+                                   ('user', '1'), ('chown', '1')):
+                with self.subTest(fault=fault, enabled=enabled):
+                    result = subprocess.run(['busybox', 'ash', str(rc), str(init), 'start'],
+                                            env=dict(os.environ, FAULT=fault, ENABLED=enabled, IPKG_INSTROOT=directory),
+                                            capture_output=True, text=True, timeout=10)
+                    if fault:
+                        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                        self.assertEqual(result.stdout, '')
+                    else:
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        request = json.loads(result.stdout)
+                        self.assertEqual(set(request['instances']), {'sing-box.main'} if enabled == '1' else set())
+                        self.assertEqual(len(request['triggers']), 1)
+
     def render_procd(self, body, *, enabled='1'):
         procd = Path(os.environ['OPENWRT_SOURCE']) / 'package/system/procd/files/procd.sh'
         jshn = Path(os.environ['OPENWRT_TOOLS']) / 'share/libubox/jshn.sh'

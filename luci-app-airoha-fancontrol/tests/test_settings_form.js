@@ -177,6 +177,15 @@ const w = j.window;
   await map.save();
   assert(writes.some(a=>a[0]==='fan'&&a[1]==='custom'&&a[2]==='point1_temp'&&a[3]==='41'),
    'native save persists custom inputs after table reparenting');
+  assert(!writes.some(a=>a[2]==='point5_pwm'), 'saving another point must not restage an already-correct endpoint');
+  originalSet('fan','custom','point5_pwm','254');
+  await map.reset();
+  assert.equal(node.querySelector('[data-name="point5_pwm"] input').value,'255','fixed endpoint remains visible');
+  writes.length=0;
+  await map.save();
+  assert(writes.some(a=>a[0]==='fan'&&a[1]==='custom'&&a[2]==='point5_pwm'&&a[3]==='255'),
+   'native Save repairs an incorrect persisted fixed endpoint');
+  assert.equal(values.custom.point5_pwm,'255');
   mods.uci.set=originalSet;
   // LuCI removes values equal to an optional default during parse. These
   // settings are required by the init script, even for automatic/balanced.

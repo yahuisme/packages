@@ -73,6 +73,7 @@ settings_supported() {
 settings_json() { printf '{"governor":"%s","freq":"%s"}' "$gov" "$freq"; }
 settings_rpc() (
 	local gov freq value tmp oldgov oldfreq expected= expected_json= ok=1
+	local gov_attempted=0 freq_attempted=0
 	umask 077
 	[ ! -L "$SETTINGS" ] && [ ! -L "$SETTINGS/pending.json" ] || { error storage; exit; }
 	[ ! -e "$SETTINGS/pending.json" ] || [ -f "$SETTINGS/pending.json" ] || { error storage; exit; }
@@ -107,14 +108,16 @@ settings_rpc() (
 			contains "$oldgov" "$(read_value "$POLICY/scaling_available_governors")" &&
 			contains "$oldfreq" "$(read_value "$POLICY/scaling_available_frequencies")" &&
 			[ -w "$POLICY/scaling_governor" ] && [ -w "$POLICY/scaling_max_freq" ] || { error unavailable; exit; }
-			if { { [ "$oldgov" = "$gov" ] || printf '%s\n' "$gov" > "$POLICY/scaling_governor"; } &&
-				{ [ "$oldfreq" = "$freq" ] || printf '%s\n' "$freq" > "$POLICY/scaling_max_freq"; } &&
+			# Record attempts even if the store fails. Restore in reverse order,
+			# without issuing a new kernel request for an untouched field.
+			if { { [ "$oldgov" = "$gov" ] || { gov_attempted=1; printf '%s\n' "$gov" > "$POLICY/scaling_governor"; }; } &&
+				{ [ "$oldfreq" = "$freq" ] || { freq_attempted=1; printf '%s\n' "$freq" > "$POLICY/scaling_max_freq"; }; } &&
 				[ "$(read_value "$POLICY/scaling_governor")" = "$gov" ] &&
 				wait_max_freq "$freq"; } 2>/dev/null; then
 				printf '{"result":"ok"}\n'
 			else
-				{ printf '%s\n' "$oldfreq" > "$POLICY/scaling_max_freq"; } 2>/dev/null || ok=0
-				{ printf '%s\n' "$oldgov" > "$POLICY/scaling_governor"; } 2>/dev/null || ok=0
+				[ "$freq_attempted" = 0 ] || { printf '%s\n' "$oldfreq" > "$POLICY/scaling_max_freq"; } 2>/dev/null || ok=0
+				[ "$gov_attempted" = 0 ] || { printf '%s\n' "$oldgov" > "$POLICY/scaling_governor"; } 2>/dev/null || ok=0
 				[ "$(read_value "$POLICY/scaling_governor")" = "$oldgov" ] &&
 				wait_max_freq "$oldfreq" || ok=0
 				if [ "$ok" = 1 ]; then error write_failed; else error rollback_failed; fi

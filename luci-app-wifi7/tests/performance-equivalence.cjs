@@ -46,10 +46,11 @@ async function clients() {
  const h = await boot();
  try {
   await h.tab(3); await h.poll();
-  const counts = { emptySets: 0, attributionFilters: 0 }, states = [];
-  const Set = h.w.Set, filter = h.w.Array.prototype.filter;
+  const counts = { emptySets: 0, attributionFilters: 0, attributionFinds: 0 }, states = [];
+  const Set = h.w.Set, filter = h.w.Array.prototype.filter, find = h.w.Array.prototype.find;
   h.w.Set = class extends Set { constructor(value) { super(value); if (value === undefined) counts.emptySets++; } };
   h.w.Array.prototype.filter = function(...args) { if (/at radioFor /.test(new Error().stack)) counts.attributionFilters++; return filter.apply(this,args); };
+  h.w.Array.prototype.find = function(...args) { if (/at radioFor /.test(new Error().stack)) counts.attributionFinds++; return find.apply(this,args); };
   const post = h.mods.request.post; let state = 'normal';
   h.mods.request.post = async (url, req) => {
    const [,object,method,p] = req.params;
@@ -186,7 +187,8 @@ function compare(mode, baseline, out) {
  if (mode === 'clients') {
   assert(before.counts.emptySets>0 && before.counts.attributionFilters>0,'nonzero measured baseline');
   assert.equal(after.counts.emptySets,0,'no unused per-interface mapped Sets');
-  assert(after.counts.attributionFilters<before.counts.attributionFilters,'no client-only radio attribution');
+  assert.equal(after.counts.attributionFilters,0,'no per-reading radio filtering');
+  assert.equal(after.counts.attributionFinds,0,'no per-reading radio lookup scans');
  }
  if (mode === 'channels') {
   assert(before.counts.optionFinds>0,'nonzero measured find baseline');
