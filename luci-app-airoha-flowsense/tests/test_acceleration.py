@@ -385,6 +385,21 @@ else:
         self.assertEqual(self.snapshot(), before)
         self.assertFalse((self.d / 'restarts').exists())
 
+    def test_unchanged_hardware_request_reads_committed_firewall_once(self):
+        reads = self.d / 'committed-reads'
+        wrapper = (self.d / 'bin/uci').read_text()
+        self.script('uci', wrapper.replace('#!/bin/sh\n',
+            '#!/bin/sh\ncase "$*" in *"show firewall.@defaults[0]") printf "show\\n" >> "' + str(reads) + '";;\n'
+            '*"get firewall.@defaults[0].flow_offloading"|*"get firewall.@defaults[0].flow_offloading_hw") '
+            'printf "get\\n" >> "' + str(reads) + '";; esac\n', 1))
+        before, stamps = self.snapshot(), self.write_stamps()
+        self.assertEqual(self.save(hardware=1), {'success': True})
+        self.assertFalse((self.d / 'restarts').exists())
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual(self.write_stamps(), stamps)
+        self.assertEqual(list((self.d / 'tmp').iterdir()), [])
+        self.assertEqual(reads.read_text().splitlines(), ['show', 'get', 'get'])
+
     def test_committed_getter_ignores_uci_override(self):
         before = self.config.read_bytes()
         (self.d / 'override/firewall').write_text("config defaults\n option flow_offloading '0'\n option flow_offloading_hw '0'\n")

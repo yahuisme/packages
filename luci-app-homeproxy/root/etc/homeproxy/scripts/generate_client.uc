@@ -12,7 +12,7 @@ import { connect } from 'ubus';
 import { cursor } from 'uci';
 
 import {
-	addECHDNS, createNodeLabelRegistry, dnsServerAddress, filterExistingNodes, findDomainGroupConflict,
+	addECHDNS, createNodeLabelRegistry, dnsServerAddress, filterExistingNodes, findDomainGroupConflict, httpDNSPath,
 	isEmpty, normalizeDomainList, normalizeList, parseURL,
 	readDomainList, resolveLanPolicy, splitDomainList,
 	reserveUniqueLabel, strToBool, strToInt, strToTime,
@@ -492,16 +492,11 @@ function parse_dnsserver(server_addr, default_protocol) {
 	    (!http && (server_addr.pathname !== '/' || server_addr.search)))
 		die('Invalid DNS server address');
 
-	// parseURL supplies '/' even for an omitted path. Leave the core's
-	// /dns-query default in that case, but preserve an explicitly entered '/'.
-	const explicit_path = http && match(server_addr.href, /^[^:]+:\/\/[^\/?#]+\//);
 	return {
 		type: protocol,
 		server: dnsServerAddress(server_addr.hostname, dns_default_strategy),
 		server_port: strToInt(server_addr.port),
-		path: http && server_addr.search
-			? server_addr.pathname + '?' + server_addr.search
-			: (explicit_path ? server_addr.pathname : null),
+		path: http ? httpDNSPath(server_addr) : null,
 	}
 }
 

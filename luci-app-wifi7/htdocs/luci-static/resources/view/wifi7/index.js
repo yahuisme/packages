@@ -252,13 +252,28 @@ return view.extend({
 				// Retain an unchanged integer-shaped legacy value without relaxing
 				// the 0–30 dBm contract for any new user input.
 				var legacyPower = integer(c.original.txpower) && c.power.value === c.original.txpower;
-				return !c.channel.reportValidity() || !legacyPower && !c.power.reportValidity() || !c.country.reportValidity();
+				if (!c.channel.reportValidity()) return true;
+				if (!legacyPower) {
+					if (!c.power.reportValidity()) return true;
+					var power = c.power.valueAsNumber;
+					// Number inputs may accept a fractional value within step tolerance.
+					if (c.power.value !== '' && (!Number.isInteger(power) || power < 0 || power > POWER_MAX)) {
+						c.power.focus();
+						ui.addNotification(null, E('p', {}, _('TX power must be a whole number from 0 to %d dBm.').format(POWER_MAX)), 'error');
+						return true;
+					}
+				}
+				return !c.country.reportValidity();
 			})) return;
 			var changes = [];
 			controls.forEach(function(c) {
 				if (c.missing) return;
+				// HTML accepts exponent and decimal spellings for integral numbers.
+				// Serialize only an edited override; preserve legacy values and Auto.
+				var power = c.power.value;
+				if (power !== '' && power !== c.original.txpower) power = String(c.power.valueAsNumber);
 				var values = { disabled: c.enabled.checked ? '0' : '1', channel: c.channel.value,
-					htmode: c.width.value, txpower: c.power.value, country: c.country.value.toUpperCase() };
+					htmode: c.width.value, txpower: power, country: c.country.value.toUpperCase() };
 				if (c.radar) values.background_radar = c.radar.checked ? '1' : '0';
 				Object.keys(values).forEach(function(key) {
 					var original = c.original[key] || (key === 'disabled' || key === 'background_radar' ? '0' : key === 'channel' ? 'auto' : '');

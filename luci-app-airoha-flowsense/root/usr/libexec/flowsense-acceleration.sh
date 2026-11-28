@@ -213,7 +213,7 @@ acc_rollback() {
     return "$failed"
 }
 set_acceleration() (
-    local input names name type value hardware vlan pppoe ap filtering key file tmp oldhw armed=0 published=0 attempted_files=
+    local input names name type value hardware vlan pppoe ap filtering key file tmp oldhw configured_hw armed=0 published=0 attempted_files=
     read -r input
     json_load "$input" >/dev/null 2>&1 || { acc_error invalid; exit; }
     json_get_keys names
@@ -249,8 +249,10 @@ set_acceleration() (
     if [ "$hardware" != -1 ]; then
         acc_pending || { acc_error pending_changes; exit; }
         oldhw=$(acc_hardware)
-        [ "$oldhw" != null ] && [ "$(acc_hw_config)" != null ] || { acc_error read; exit; }
-        [ "$oldhw" != "$hardware" ] || [ "$(acc_hw_config)" != "$hardware" ] || hardware=-1
+        [ "$oldhw" != null ] || { acc_error read; exit; }
+        configured_hw=$(acc_hw_config)
+        [ "$configured_hw" != null ] || { acc_error read; exit; }
+        [ "$oldhw:$configured_hw" != "$hardware:$hardware" ] || hardware=-1
     fi
     # Compare both sides: matching runtime alone must not hide boot-time drift.
     # Keep the original AP/VLAN conflict checks above, before normalization.

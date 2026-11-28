@@ -100,6 +100,17 @@ class CoreUpdate(unittest.TestCase):
                                 '1.15.0', lambda *args, **kwargs: None)
             self.assertEqual(tuple(path.read_bytes() for path in targets), before)
 
+    def test_core_bump_refuses_source_with_missing_or_invalid_gzip_trailer(self):
+        good = core_source('1.15.0')
+        for source in (good[:-8], good[:-8] + bytes([good[-8] ^ 1]) + good[-7:]):
+            with self.subTest(source_size=len(source)), tempfile.TemporaryDirectory() as directory:
+                root, makefile, resources, readme, _ = self.fixture(directory)
+                targets = (makefile, resources / 'fixture', readme)
+                before = tuple(path.read_bytes() for path in targets)
+                with self.assertRaisesRegex(ValueError, 'Invalid sing-box source archive'):
+                    self.run_update(root, source, '1.15.0', lambda *args, **kwargs: None)
+                self.assertEqual(tuple(path.read_bytes() for path in targets), before)
+
     def test_metadata_only_update_does_not_rewrite_staged_srs(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)

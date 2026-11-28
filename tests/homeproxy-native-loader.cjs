@@ -40,10 +40,23 @@ const watchdog = setTimeout(() => { console.error('FAIL native loader stalled');
    return ready;
   };
   for (const name of ['client', 'node', 'server', 'status']) {
+   assert.equal((await h.mods.uci.load('homeproxy')).length, 0, 'native load starts with warm UCI cache');
    const moduleName = 'view.homeproxy.' + name;
    const page = await h.w.L.require(moduleName);
    await initialized.at(-1);
-   assert(h.w.document.querySelector('#cbi-homeproxy'), name + ' native route finishes mounting');
+   const root = h.w.document.querySelector('#cbi-homeproxy');
+   assert(root, name + ' native route finishes mounting');
+   const map = h.mods.dom.findClassInstance(root);
+   if (name === 'client') {
+    const main = map.lookupOption('main_node', 'config')[0];
+    assert(main.keylist.includes('n1'), 'warm-cache Client retains configured node choices');
+   } else if (name === 'node') {
+    const sources = root.querySelector('.hp-node-source select');
+    assert.equal(sources.options[1]?.textContent, '示例订阅', 'warm-cache Node retains subscription source');
+    assert(root.querySelector('[data-sid="n1"]').textContent.includes('测试节点'), 'warm-cache Node retains the configured label');
+   } else if (name === 'server') {
+    assert(root.querySelector('[data-sid="s1"]').textContent.includes('测试服务'), 'warm-cache Server retains the configured label');
+   }
    assert.equal(typeof page.render, 'function', name + ' native view compiles and instantiates');
    assert.equal(typeof page.load, 'function', name + ' native view load contract');
    assert.equal(await h.w.L.require(moduleName), page, name + ' native view caches instance');

@@ -151,6 +151,28 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.trace.read_text().splitlines(), [target])
 
+    def test_generator_suites_share_one_digest_capability_probe(self):
+        bin_dir = self.root / 'bin'
+        bin_dir.mkdir()
+        probe = bin_dir / 'ucode'
+        probe.write_text('#!/bin/sh\nprintf "probe\\n" >> "$TRACE"\nexit "$DIGEST_STATUS"\n')
+        probe.chmod(0o755)
+        self.env['PATH'] = str(bin_dir) + os.pathsep + self.env['PATH']
+        suites = ['luci-app-homeproxy/tests/test_' + name + '.py' for name in ('client_defaults', 'client_routing')]
+        for name in suites:
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('import unittest\nclass Fixture(unittest.TestCase):\n def test_ok(self): pass\n')
+        for status in ('0', '1'):
+            with self.subTest(status=status):
+                self.trace.unlink(missing_ok=True)
+                self.env['DIGEST_STATUS'] = status
+                result = self.run_runner(*suites)
+                self.assertEqual(result.returncode, int(status), result.stdout + result.stderr)
+                for name in suites:
+                    self.assertIn(('PASS ' if status == '0' else 'UNVERIFIED ') + name, result.stdout)
+                self.assertEqual(self.trace.read_text().splitlines(), ['probe'])
+
     def test_python_unittest_without_main_is_executed(self):
         target = self.root / 'luci-app-homeproxy/tests/test_no_main.py'
         target.parent.mkdir(parents=True)

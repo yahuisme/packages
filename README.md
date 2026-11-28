@@ -7,10 +7,10 @@ OpenWrt / ImmortalWrt 固件构建用源码 feed，不提供二进制软件源�
 | 软件包 | 版本 | 功能 |
 | --- | --- | --- |
 | `luci-app-airoha-npu` | `20261127-r1` | Airoha NPU 状态与 CPU 调频 |
-| `luci-app-airoha-flowsense` | `20261127-r1` | Airoha 硬件加速设置与流量监控 |
+| `luci-app-airoha-flowsense` | `20261128-r1` | Airoha 硬件加速设置与流量监控 |
 | `luci-app-airoha-fancontrol` | `20261127-r1` | Airoha 温控与风扇调速 |
-| `luci-app-wifi7` | `20261127-r1` | WiFi 7 射频、MLO 与客户端管理 |
-| `luci-app-homeproxy` | `20261127-r1` | 基于 sing-box 的代理管理 |
+| `luci-app-wifi7` | `20261128-r1` | WiFi 7 射频、MLO 与客户端管理 |
+| `luci-app-homeproxy` | `20261128-r1` | 基于 sing-box 的代理管理 |
 | `sing-box` | `1.14.6` | 跟随 SagerNet 官方稳定版 |
 
 ## 兼容性

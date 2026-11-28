@@ -2,7 +2,7 @@
 
 'use strict';
 
-import { writefile } from 'fs';
+import { open, readfile, rename, unlink } from 'fs';
 import { cursor } from 'uci';
 import { RUN_DIR } from 'homeproxy';
 
@@ -29,6 +29,18 @@ if (getenv('HOMEPROXY_SERVER_READY') === '1')
 	});
 
 const input_file = RUN_DIR + '/fw4_input.nft';
-
-if (writefile(input_file, length(input) ? join('\n', input) + '\n' : '') === null)
+const staged = input_file + '.new';
+const content = length(input) ? join('\n', input) + '\n' : '';
+// Service setup holds the native procd lock and owns the runtime directory.
+// Verify the staged bytes: older ucode fs bindings can miss buffered failures.
+unlink(staged);
+const fd = open(staged, 'wx', 0644);
+if (!fd)
 	exit(1);
+const written = fd.write(content);
+fd.flush();
+const closed = fd.close();
+if (written !== length(content) || closed !== true || readfile(staged) !== content || rename(staged, input_file) !== true) {
+	unlink(staged);
+	exit(1);
+}

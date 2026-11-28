@@ -110,7 +110,7 @@ function handleGenKey(option) {
 return view.extend({
 	load() {
 		return Promise.all([
-			uci.load('homeproxy'),
+			uci.load('homeproxy').then(() => 'homeproxy'), // LuCI returns only newly loaded packages.
 			hp.getBuiltinFeatures()
 		]);
 	},

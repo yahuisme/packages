@@ -33,6 +33,7 @@ listed() {
 	return 1
 }
 pass=0 skip=0 fail=0
+digest_status=
 skipping() { printf 'UNVERIFIED %s (%s)\n' "$1" "$2"; skip=$((skip + 1)); }
 run_node() (
 	# Each documented branch starts with clean fixture selectors.
@@ -65,8 +66,14 @@ run() {
 	if listed "$name" "$ROUTER" || listed "$name" "$BROWSER"; then
 		skipping "$1" 'needs router/source/theme/browser fixture'; return 0
 	fi
-	if listed "$name" "$GENERATOR" && ! ucode -L "${UCODE_LIB_DIR:-/usr/lib/ucode}" -e "import { md5 } from 'digest';" > "$work/probe" 2>&1; then
-		skipping "$1" 'runtime lacks required ucode digest module'; return 0
+	if listed "$name" "$GENERATOR"; then
+		if [ -z "$digest_status" ]; then
+			ucode -L "${UCODE_LIB_DIR:-/usr/lib/ucode}" -e "import { md5 } from 'digest';" > "$work/probe" 2>&1
+			digest_status=$?
+		fi
+		if [ "$digest_status" -ne 0 ]; then
+			skipping "$1" 'runtime lacks required ucode digest module'; return 0
+		fi
 	fi
 	# Digest-dependent fixtures use the selected runtime from PATH.
 	listed "$1" "$NEED_MSGFMT" && ! command -v msgfmt >/dev/null 2>&1 && {

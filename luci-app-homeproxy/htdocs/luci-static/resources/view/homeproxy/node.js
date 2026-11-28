@@ -1626,7 +1626,7 @@ function renderNodeSettings(section, data, features, node_latency_row_state) {
 return view.extend({
 	load() {
 		return Promise.all([
-			uci.load('homeproxy'),
+			uci.load('homeproxy').then(() => 'homeproxy'), // LuCI returns only newly loaded packages.
 			hp.getBuiltinFeatures()
 		]);
 	},

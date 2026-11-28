@@ -16,7 +16,37 @@ async function zero() {
    await h.clickSave();
    assert.equal(h.writes().length, writes);
   }
-  console.log('PASS zero baseline, unrelated Apply, bounded integer power');
+  const power = h.field('radio1','power');
+  const otherPower = h.field('radio0','power');
+  power.value = '10.00000001';
+  otherPower.value = '12';
+  // Chromium can report near-integer values as valid despite step=1.
+  power.reportValidity = () => true;
+  const writes = h.writes().length;
+  try {
+   await h.clickSave();
+   assert.equal(h.writes().length, writes, 'a near-integer power must block all UCI writes');
+   assert.equal(h.mods.uci.get('wireless', 'radio0', 'txpower'), '0', 'a sibling edit must not be staged');
+   assert.equal(h.mods.uci.get('wireless', 'radio1', 'txpower'), '25', 'invalid input must not be staged');
+   assert.match(h.notifications.at(-1).text, /whole number from 0 to 30/);
+  } finally {
+   delete power.reportValidity;
+   otherPower.value = '0';
+  }
+  for (const [input, canonical] of [['1e1', '10'], ['0.0', '0']]) {
+   power.value = input;
+   assert(power.checkValidity(), 'HTML number control accepts this representation');
+   await h.clickSave();
+   assert.equal(h.db().committed.radio1.txpower, canonical, 'UCI must receive a decimal integer, not the raw input');
+   assert.equal(power.value, canonical, 'readback shows the committed value');
+   const writes = h.writes().length;
+   await h.clickSave();
+   assert.equal(h.writes().length, writes, 'canonical readback is a no-op');
+  }
+  h.field('radio1','power').value = '';
+  await h.clickSave();
+  assert.equal(h.db().committed.radio1.txpower, undefined, 'blank still removes the power override');
+  console.log('PASS zero baseline, unrelated Apply, bounded integer power and decimal serialization');
  } finally { h.w.close(); }
 }
 const tick = () => new Promise(r => setTimeout(r, 10));

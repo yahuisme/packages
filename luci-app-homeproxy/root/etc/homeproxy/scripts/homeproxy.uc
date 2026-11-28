@@ -758,6 +758,14 @@ export function dnsServerAddress(hostname, strategy) {
 	return address;
 };
 
+export function httpDNSPath(url) {
+	if (url.search)
+		return url.pathname + '?' + url.search;
+	// parseURL() fills in '/' even when the URL contained no path. Omit
+	// the field for a bare URL so sing-box can use its /dns-query default.
+	return match(url.href, /^[^:]+:\/\/[^\/?#]+\//) ? url.pathname : null;
+};
+
 export function addECHDNS(config, outbound, query_server, resolver) {
 	const tls = outbound?.tls;
 	if (!tls?.enabled || !tls.ech?.enabled || isEmpty(query_server) ||
@@ -781,7 +789,7 @@ export function addECHDNS(config, outbound, query_server, resolver) {
 			type: server.protocol,
 			server: dnsServerAddress(server.hostname, resolver?.strategy || config.dns.strategy),
 			server_port: strToInt(server.port),
-			path: server.protocol === 'https' ? server.pathname + (server.search ? '?' + server.search : '') : null,
+			path: server.protocol === 'https' ? httpDNSPath(server) : null,
 			domain_resolver: resolver
 		});
 	unshift(config.dns.rules, { domain: [name], query_type: ['HTTPS'], action: 'route', server: tag });

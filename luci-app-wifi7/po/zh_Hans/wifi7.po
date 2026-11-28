@@ -280,6 +280,9 @@ msgstr "发射功率"
 msgid "TX Power (dBm)"
 msgstr "发射功率 (dBm)"
 
+msgid "TX power must be a whole number from 0 to %d dBm."
+msgstr "发射功率必须是 0–%d dBm 范围内的整数。"
+
 msgid "TX Rate"
 msgstr "发送速率"
 

@@ -3,6 +3,7 @@
 No host service starts. Downloads/checks finish before publishing local files.
 """
 import argparse
+import gzip
 import hashlib
 import io
 import json
@@ -228,10 +229,17 @@ def main():
     if version != current:
         prefix = f'sing-box-{version}/'
         required = {'LICENSE', 'go.mod', 'cmd/sing-box/main.go'}
-        with tarfile.open(fileobj=io.BytesIO(source), mode='r:gz') as archive:
-            for member in archive:
-                if member.name.startswith(prefix) and member.isfile() and member.size:
-                    required.discard(member.name[len(prefix):])
+        try:
+            with gzip.GzipFile(fileobj=io.BytesIO(source)) as compressed:
+                with tarfile.open(fileobj=compressed, mode='r|') as archive:
+                    for member in archive:
+                        if member.name.startswith(prefix) and member.isfile() and member.size:
+                            required.discard(member.name[len(prefix):])
+                # Tar iteration stops at its end marker, before gzip checks its trailer.
+                while compressed.read(128 * 1024):
+                    pass
+        except (EOFError, gzip.BadGzipFile, tarfile.TarError) as error:
+            raise ValueError('Invalid sing-box source archive') from error
         if required:
             raise ValueError('Source archive missing: ' + ', '.join(sorted(required)))
     del source

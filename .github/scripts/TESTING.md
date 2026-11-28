@@ -77,7 +77,8 @@ shadowing the isolated UCI/ubus fixtures.
 version and both resource versions and Git blobs match, it skips the binary
 download and publication. Otherwise, it downloads only missing or changed SRS
 bytes and runs the SRS/schema smoke checks. On a core version change, the
-source archive must contain the build entry point, Go module and license. The
+source archive must contain the build entry point, Go module and license and
+pass gzip integrity verification through the trailer. The
 updater then prepares the pinned tools and runs `check-core-compatibility.py` against
 that exact digest-verified candidate and the staged rule sets before publishing
 any new bytes. The gate checks the default config shared by both sing-box
